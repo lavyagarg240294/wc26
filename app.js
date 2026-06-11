@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "20";  // shown in footer; bump with the ?v= asset version
+const BUILD = "21";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -290,7 +290,7 @@ function heroBlock(heroM, isLive) {
       <div class="hero-mid">${isLive
         ? (r && r.h != null
           ? `<span class="hero-score">${r.h}–${r.a}</span><span class="hero-minute">${r.st === ST.HT ? "Half-time" : (r.min ? r.min + "′" : "In play")}</span>`
-          : `<span class="hero-score hero-pending">LIVE</span><span class="hero-minute">score updating…</span>`)
+          : `<span class="hero-score hero-pending">–</span><span class="hero-pending-note">score updating…</span>`)
         : `<span class="hero-vs">VS</span>`}</div>
       <div class="hero-side"><span class="hero-flag">${a.code ? flag(a.code) : "·"}</span><span class="hero-name">${esc(a.name)}</span></div>
     </div>
@@ -846,6 +846,14 @@ async function loadStatic() {
   try { S.squads = (await (await fetch("data/squads.json?t=" + Date.now(), { cache: "no-store" })).json()).squads || {}; }
   catch { S.squads = {}; }
 }
+// manual "refresh scores" button — re-fetch the published results.json immediately
+async function manualRefresh() {
+  const btn = $("#refreshBtn"); if (!btn || btn.classList.contains("spinning")) return;
+  btn.classList.add("spinning");
+  const t0 = Date.now();
+  try { await refreshResults(); }
+  finally { setTimeout(() => btn.classList.remove("spinning"), Math.max(0, 650 - (Date.now() - t0))); }
+}
 async function refreshResults() {
   try {
     const r = await fetch("data/results.json?t=" + Date.now(), { cache: "no-store" });
@@ -878,6 +886,7 @@ async function boot() {
   $$("[data-nav]").forEach(b => b.onclick = e => { e.preventDefault(); nav(b.dataset.nav); });
   $("#tzChip").onclick = () => $("#tzDialog").showModal();
   $("#teamChip").onclick = () => $("#teamDialog").showModal();
+  $("#refreshBtn").onclick = manualRefresh;
   initMusic();
   $$("[data-close]").forEach(b => b.onclick = () => b.closest("dialog").close());
   $$("dialog").forEach(d => d.onclick = e => { if (e.target === d) d.close(); });
