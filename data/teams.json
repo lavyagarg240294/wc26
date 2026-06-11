@@ -1,0 +1,242 @@
+{
+ "MX": {
+  "name": "Mexico",
+  "c1": "#006847",
+  "c2": "#CE1126"
+ },
+ "ZA": {
+  "name": "South Africa",
+  "c1": "#007A4D",
+  "c2": "#FFB612"
+ },
+ "KR": {
+  "name": "South Korea",
+  "c1": "#CD2E3A",
+  "c2": "#0047A0"
+ },
+ "CZ": {
+  "name": "Czechia",
+  "c1": "#D7141A",
+  "c2": "#11457E"
+ },
+ "CA": {
+  "name": "Canada",
+  "c1": "#D80621",
+  "c2": "#1B1B1B"
+ },
+ "BA": {
+  "name": "Bosnia & Herzegovina",
+  "c1": "#002F6C",
+  "c2": "#FECB00"
+ },
+ "QA": {
+  "name": "Qatar",
+  "c1": "#8A1538",
+  "c2": "#FFFFFF"
+ },
+ "CH": {
+  "name": "Switzerland",
+  "c1": "#D52B1E",
+  "c2": "#FFFFFF"
+ },
+ "BR": {
+  "name": "Brazil",
+  "c1": "#FFDC02",
+  "c2": "#009B3A"
+ },
+ "MA": {
+  "name": "Morocco",
+  "c1": "#C1272D",
+  "c2": "#006233"
+ },
+ "HT": {
+  "name": "Haiti",
+  "c1": "#00209F",
+  "c2": "#D21034"
+ },
+ "GB-SCT": {
+  "name": "Scotland",
+  "c1": "#0065BF",
+  "c2": "#FFFFFF"
+ },
+ "US": {
+  "name": "USA",
+  "c1": "#002868",
+  "c2": "#BF0A30"
+ },
+ "PY": {
+  "name": "Paraguay",
+  "c1": "#D52B1E",
+  "c2": "#0038A8"
+ },
+ "AU": {
+  "name": "Australia",
+  "c1": "#FFCD00",
+  "c2": "#00843D"
+ },
+ "TR": {
+  "name": "Türkiye",
+  "c1": "#E30A17",
+  "c2": "#FFFFFF"
+ },
+ "DE": {
+  "name": "Germany",
+  "c1": "#1B1B1B",
+  "c2": "#DD0000"
+ },
+ "CW": {
+  "name": "Curaçao",
+  "c1": "#002B7F",
+  "c2": "#F9E814"
+ },
+ "CI": {
+  "name": "Côte d'Ivoire",
+  "c1": "#FF8200",
+  "c2": "#009A44"
+ },
+ "EC": {
+  "name": "Ecuador",
+  "c1": "#FFD100",
+  "c2": "#0072CE"
+ },
+ "NL": {
+  "name": "Netherlands",
+  "c1": "#FF6A13",
+  "c2": "#21468B"
+ },
+ "JP": {
+  "name": "Japan",
+  "c1": "#00287F",
+  "c2": "#D30000"
+ },
+ "TN": {
+  "name": "Tunisia",
+  "c1": "#E70013",
+  "c2": "#FFFFFF"
+ },
+ "NZ": {
+  "name": "New Zealand",
+  "c1": "#1B1B1B",
+  "c2": "#FFFFFF"
+ },
+ "BE": {
+  "name": "Belgium",
+  "c1": "#ED2939",
+  "c2": "#FAE042"
+ },
+ "EG": {
+  "name": "Egypt",
+  "c1": "#CE1126",
+  "c2": "#1B1B1B"
+ },
+ "IR": {
+  "name": "Iran",
+  "c1": "#FFFFFF",
+  "c2": "#DA0000"
+ },
+ "UZ": {
+  "name": "Uzbekistan",
+  "c1": "#0099B5",
+  "c2": "#CE1126"
+ },
+ "ES": {
+  "name": "Spain",
+  "c1": "#AA151B",
+  "c2": "#F1BF00"
+ },
+ "CV": {
+  "name": "Cabo Verde",
+  "c1": "#003893",
+  "c2": "#CF2027"
+ },
+ "SA": {
+  "name": "Saudi Arabia",
+  "c1": "#006C35",
+  "c2": "#FFFFFF"
+ },
+ "UY": {
+  "name": "Uruguay",
+  "c1": "#7BB1DB",
+  "c2": "#1B1B1B"
+ },
+ "FR": {
+  "name": "France",
+  "c1": "#002395",
+  "c2": "#ED2939"
+ },
+ "SN": {
+  "name": "Senegal",
+  "c1": "#00853F",
+  "c2": "#FDEF42"
+ },
+ "IQ": {
+  "name": "Iraq",
+  "c1": "#007A3D",
+  "c2": "#CE1126"
+ },
+ "NO": {
+  "name": "Norway",
+  "c1": "#BA0C2F",
+  "c2": "#00205B"
+ },
+ "AR": {
+  "name": "Argentina",
+  "c1": "#75AADB",
+  "c2": "#FFFFFF"
+ },
+ "DZ": {
+  "name": "Algeria",
+  "c1": "#006233",
+  "c2": "#D21034"
+ },
+ "AT": {
+  "name": "Austria",
+  "c1": "#ED2939",
+  "c2": "#FFFFFF"
+ },
+ "JO": {
+  "name": "Jordan",
+  "c1": "#CE1126",
+  "c2": "#007A3D"
+ },
+ "PT": {
+  "name": "Portugal",
+  "c1": "#046A38",
+  "c2": "#DA291C"
+ },
+ "CD": {
+  "name": "DR Congo",
+  "c1": "#007FFF",
+  "c2": "#F7D618"
+ },
+ "CO": {
+  "name": "Colombia",
+  "c1": "#FCD116",
+  "c2": "#003893"
+ },
+ "SE": {
+  "name": "Sweden",
+  "c1": "#FFCD00",
+  "c2": "#005293"
+ },
+ "GB-ENG": {
+  "name": "England",
+  "c1": "#FFFFFF",
+  "c2": "#CE1124"
+ },
+ "HR": {
+  "name": "Croatia",
+  "c1": "#FF0000",
+  "c2": "#171796"
+ },
+ "GH": {
+  "name": "Ghana",
+  "c1": "#006B3F",
+  "c2": "#CE1126"
+ },
+ "PA": {
+  "name": "Panama",
+  "c1": "#DA121A",
+  "c2": "#072357"
+ }
+}

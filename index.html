@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>WC·26 — World Cup 2026 Companion</title>
+<meta name="description" content="FIFA World Cup 2026 schedule, live tracker and favorite-team companion. All 104 matches in your timezone.">
+<meta property="og:title" content="WC·26 — your World Cup companion">
+<meta property="og:description" content="All 104 matches, your timezone, your team.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=Instrument+Sans:wght@400;500;600&family=Spline+Sans+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='46' fill='%230BA360'/><circle cx='50' cy='50' r='18' fill='white'/></svg>">
+</head>
+<body>
+
+<div id="themeSweep" aria-hidden="true"></div>
+
+<header class="topbar">
+  <a class="wordmark" href="#today" data-nav="today">
+    <span class="wm-ball" aria-hidden="true"></span>
+    <span class="wm-text">WC<i>·</i>26</span>
+  </a>
+  <div class="topbar-right">
+    <button class="chip" id="tzChip" title="Change timezone">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+      <span id="tzLabel">Auto</span>
+    </button>
+    <button class="chip chip-team" id="teamChip" title="Pick your team">
+      <span id="teamChipFlag">⚽</span><span id="teamChipName">Pick a team</span>
+    </button>
+  </div>
+</header>
+
+<nav class="tabs" id="tabs" aria-label="Sections">
+  <button class="tab is-active" data-nav="today">Today</button>
+  <button class="tab" data-nav="myteam">My Team</button>
+  <button class="tab" data-nav="calendar">Calendar</button>
+  <button class="tab" data-nav="groups">Groups</button>
+  <button class="tab" data-nav="bracket">Bracket</button>
+  <button class="tab" data-nav="sim">Predict</button>
+  <span class="tab-ink" id="tabInk" aria-hidden="true"></span>
+</nav>
+
+<div class="ticker" id="ticker" hidden aria-hidden="true"><div class="ticker-track" id="tickerTrack"></div></div>
+
+<main id="main">
+  <section class="view" id="view-today"></section>
+  <section class="view" id="view-myteam" hidden></section>
+  <section class="view" id="view-calendar" hidden></section>
+  <section class="view" id="view-groups" hidden></section>
+  <section class="view" id="view-bracket" hidden></section>
+  <section class="view" id="view-sim" hidden></section>
+</main>
+
+<footer class="foot">
+  <span id="updatedLabel">Schedule loaded</span>
+  <span class="foot-dot">·</span>
+  <span>Unofficial fan project — times shown in <b id="footTz"></b></span>
+</footer>
+
+<!-- Timezone picker -->
+<dialog id="tzDialog" class="sheet">
+  <div class="sheet-head"><h3>Match times in…</h3><button class="sheet-x" data-close>✕</button></div>
+  <div class="sheet-body" id="tzList"></div>
+</dialog>
+
+<!-- Team picker -->
+<dialog id="teamDialog" class="sheet">
+  <div class="sheet-head"><h3>Your team</h3><button class="sheet-x" data-close>✕</button></div>
+  <input class="team-search" id="teamSearch" type="search" placeholder="Search 48 teams…" autocomplete="off">
+  <div class="sheet-body team-grid" id="teamList"></div>
+  <button class="team-clear" id="teamClear">Follow no team</button>
+</dialog>
+
+<canvas id="confetti" aria-hidden="true"></canvas>
+
+<script src="app.js"></script>
+</body>
+</html>

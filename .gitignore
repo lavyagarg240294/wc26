@@ -1,0 +1,9 @@
+# OS cruft
+.DS_Store
+
+# Local Claude Code settings (machine-specific, not part of the site)
+.claude/settings.local.json
+
+# Node (only used by the data scripts in CI; no deps committed)
+node_modules/
+npm-debug.log*
