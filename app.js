@@ -27,6 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
+const BUILD = "13";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -398,8 +399,8 @@ function rosterMarkup(sq) {
       ${ps.map(x => `<div class="roster-row">
         <span class="rnum">${x.n ?? "·"}</span>
         <span class="rname">${esc(x.name.replace(" (captain)", ""))}${x.name.includes("(captain)") ? `<i class="cpt">C</i>` : ""}</span>
-        ${x.caps != null ? `<span class="rstat">${x.caps} caps${x.goals ? ` · ${x.goals}g` : ""}</span>` : ""}
         ${x.club ? `<span class="rclub">${esc(x.club)}</span>` : ""}
+        ${x.caps != null ? `<span class="rstat">${x.caps} caps${x.goals ? ` · ${x.goals}g` : ""}</span>` : ""}
       </div>`).join("")}</div>` : "";
   }).join("")}</div>`;
 }
@@ -777,6 +778,7 @@ function buildPickers() {
 function syncTzLabels() {
   $("#tzLabel").textContent = S.tz === "auto" ? `Auto · ${tzShort()}` : (ZONES.find(z => z[0] === S.tz)?.[1] || S.tz);
   $("#footTz").textContent = `${tz()} (${tzShort()})`;
+  const bt = $("#buildTag"); if (bt) bt.textContent = "build " + BUILD;
 }
 
 /* ---------------- data ---------------- */
