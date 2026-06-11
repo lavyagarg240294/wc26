@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "14";  // shown in footer; bump with the ?v= asset version
+const BUILD = "16";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -506,9 +506,12 @@ function layoutBracket(scope) {
   })((S.matches.find(m => m.stage === "final") || {}).num);
   const third = S.matches.find(m => m.stage === "third");
   if (third) y[third.num] = leaf * step;                        // consolation match sits at the bottom
-  let maxY = 0;
-  Object.entries(y).forEach(([num, val]) => { if (els[num]) { els[num].style.position = "absolute"; els[num].style.top = val + "px"; } maxY = Math.max(maxY, val); });
-  const H = maxY + cardH;
+  let H = 0;
+  Object.entries(y).forEach(([num, val]) => {
+    const el = els[num]; if (!el) return;
+    el.style.position = "absolute"; el.style.top = val + "px";
+    H = Math.max(H, val + el.offsetHeight); // use each card's real height (3rd-place card is taller)
+  });
   bracket.querySelectorAll(".bcol-matches").forEach(c => {
     c.style.position = "relative"; c.style.height = H + "px";
     const w = c.querySelector(".bm")?.offsetWidth; if (w) c.style.width = w + "px";

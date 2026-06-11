@@ -319,7 +319,7 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .legend .l1 i{background:var(--acc1)}.legend .l3 i{background:var(--gold)}
 
 /* ---------- bracket ---------- */
-.bracket-scroll{overflow-x:auto;padding-bottom:14px;-webkit-overflow-scrolling:touch}
+.bracket-scroll{overflow-x:auto;overflow-y:hidden;padding-bottom:14px;-webkit-overflow-scrolling:touch}
 .bracket{position:relative;display:flex;gap:54px;min-width:max-content;padding:6px 2px}
 .bracket-lines{position:absolute;left:0;top:0;z-index:0;overflow:visible;pointer-events:none}
 .bracket-lines path{fill:none;stroke:color-mix(in srgb,var(--acc1) 32%,var(--line));stroke-width:2;stroke-linejoin:round}
