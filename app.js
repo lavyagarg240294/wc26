@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "23";  // shown in footer; bump with the ?v= asset version
+const BUILD = "24";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -283,9 +283,9 @@ function heroBlock(heroM, isLive) {
     <div class="hero-tag ${isLive ? "is-live" : ""}">
       ${isLive ? `<span class="live-dot"></span> Live now` : `${isFavMatch(heroM) ? "Your team · " : ""}Next kickoff`}
       <span style="color:var(--ink-soft);font-weight:600">— ${esc(heroM.group ? "Group " + heroM.group : heroM.round)}</span>
-      ${isLive ? `<button class="hero-refresh" data-refresh aria-label="Refresh score" title="Refresh score"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg></button>` : ""}
+      ${isLive ? `<button class="hero-refresh" data-refresh aria-label="Refresh score" title="Refresh score"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg></button>` : ""}
     </div>
-    ${isLive ? "" : `<span class="hero-go">Details ›</span>`}
+    <span class="hero-go">Details ›</span>
     <div class="hero-teams">
       <div class="hero-side"><span class="hero-flag">${h.code ? flag(h.code) : "·"}</span><span class="hero-name">${esc(h.name)}</span></div>
       <div class="hero-mid">${isLive
