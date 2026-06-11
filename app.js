@@ -7,7 +7,7 @@ const S = {
   matches: [], teams: {}, results: { matches: {} },
   tz: localStorage.getItem("wc26.tz") || "auto",
   fav: localStorage.getItem("wc26.fav") || null,
-  view: "today",
+  view: "matches",
   filters: { stage: "all", onlyFav: false, saved: false },
   saved: new Set(JSON.parse(localStorage.getItem("wc26.saved") || "[]")),
   sim: JSON.parse(localStorage.getItem("wc26.sim") || "null") || { order: {}, thirds: [], ko: {} },
@@ -273,59 +273,65 @@ function openMatch(id) {
   const md = $("#matchDialog"); md.dataset.mid = id; md.showModal();
 }
 
-/* ---------------- render: today ---------------- */
+/* ---------------- render: matches (today + full calendar) ---------------- */
 let cdTimer = null, prevCd = {};
-function renderToday() {
-  const el = $("#view-today");
+function heroBlock(heroM, isLive) {
+  const h = slotInfo(heroM, "home"), a = slotInfo(heroM, "away"), r = res(heroM);
+  return `<div class="hero">
+    <div class="hero-tag ${isLive ? "is-live" : ""}">
+      ${isLive ? `<span class="live-dot"></span> Live now` : `${isFavMatch(heroM) ? "Your team · " : ""}Next kickoff`}
+      <span style="color:var(--ink-soft);font-weight:600">— ${esc(heroM.group ? "Group " + heroM.group : heroM.round)}</span>
+    </div>
+    <div class="hero-teams">
+      <div class="hero-side"><span class="hero-flag">${h.code ? flag(h.code) : "·"}</span><span class="hero-name">${esc(h.name)}</span></div>
+      <div class="hero-mid">${isLive && r
+        ? `<span class="hero-score">${r.h ?? 0}–${r.a ?? 0}</span><span class="hero-minute">${r.st === ST.HT ? "Half-time" : (r.min ? r.min + "′" : "In play")}</span>`
+        : `<span class="hero-vs">VS</span>`}</div>
+      <div class="hero-side"><span class="hero-flag">${a.code ? flag(a.code) : "·"}</span><span class="hero-name">${esc(a.name)}</span></div>
+    </div>
+    ${!isLive ? `<div class="countdown" id="cd" data-utc="${heroM.utc}">
+      ${["d", "h", "m", "s"].map(k => `<div class="cd-cell"><span class="cd-num" data-k="${k}">–</span><span class="cd-lab">${{ d: "days", h: "hrs", m: "min", s: "sec" }[k]}</span></div>`).join("")}
+    </div>` : ""}
+    <div class="hero-meta">
+      <span><b>${timeStr(heroM.utc)}</b> ${tzShort()}</span>
+      <span>${esc(heroM.stadium)}</span><span>${esc(heroM.city)}</span>
+      <span>${fmt(heroM.utc, { weekday: "short", day: "numeric", month: "short" })}</span>
+    </div>
+  </div>`;
+}
+function renderMatches() {
+  const el = $("#view-matches");
   const now = new Date();
   const todayK = dayKey(now.toISOString());
-  const todays = S.matches.filter(m => dayKey(m.utc) === todayK).sort((a, b) => a.utc.localeCompare(b.utc));
   const live = S.matches.find(m => [ST.LIVE, ST.HT].includes(status(m)));
-  const upcoming = S.matches.filter(m => new Date(m.utc) > now && status(m) === ST.SCHED)
-    .sort((a, b) => a.utc.localeCompare(b.utc));
-  const heroM = live || upcoming[0];
-  // next 5 scheduled matches beyond today (today's are already in the timeline below)
-  const comingUp = upcoming.filter(m => dayKey(m.utc) !== todayK && m !== heroM).slice(0, 5);
+  const heroM = live || S.matches.filter(m => new Date(m.utc) > now && status(m) === ST.SCHED)
+    .sort((a, b) => a.utc.localeCompare(b.utc))[0];
+  const f = S.filters;
+  let list = S.matches.slice().sort((a, b) => a.utc.localeCompare(b.utc));
+  if (f.stage === "group") list = list.filter(m => m.stage === "group");
+  if (f.stage === "ko") list = list.filter(m => m.stage !== "group");
+  if (f.onlyFav) list = list.filter(isFavMatch);
+  if (f.saved) list = list.filter(m => isSaved(m.id));
+  const days = {};
+  list.forEach(m => (days[dayKey(m.utc)] ??= []).push(m));
 
-  let html = "";
-  if (heroM) {
-    const h = slotInfo(heroM, "home"), a = slotInfo(heroM, "away");
-    const r = res(heroM), isLive = !!live;
-    html += `<div class="hero">
-      <div class="hero-tag ${isLive ? "is-live" : ""}">
-        ${isLive ? `<span class="live-dot"></span> Live now` : `${isFavMatch(heroM) ? "Your team · " : ""}Next kickoff`}
-        <span style="color:var(--ink-soft);font-weight:600">— ${esc(heroM.group ? "Group " + heroM.group : heroM.round)}</span>
-      </div>
-      <div class="hero-teams">
-        <div class="hero-side"><span class="hero-flag">${h.code ? flag(h.code) : "·"}</span><span class="hero-name">${esc(h.name)}</span></div>
-        <div class="hero-mid">${isLive && r
-          ? `<span class="hero-score">${r.h ?? 0}–${r.a ?? 0}</span><span class="hero-minute">${r.st === ST.HT ? "Half-time" : (r.min ? r.min + "′" : "In play")}</span>`
-          : `<span class="hero-vs">VS</span>`}</div>
-        <div class="hero-side"><span class="hero-flag">${a.code ? flag(a.code) : "·"}</span><span class="hero-name">${esc(a.name)}</span></div>
-      </div>
-      ${!isLive ? `<div class="countdown" id="cd" data-utc="${heroM.utc}">
-        ${["d", "h", "m", "s"].map(k => `<div class="cd-cell"><span class="cd-num" data-k="${k}">–</span><span class="cd-lab">${{ d: "days", h: "hrs", m: "min", s: "sec" }[k]}</span></div>`).join("")}
-      </div>` : ""}
-      <div class="hero-meta">
-        <span><b>${timeStr(heroM.utc)}</b> ${tzShort()}</span>
-        <span>${esc(heroM.stadium)}</span><span>${esc(heroM.city)}</span>
-        <span>${fmt(heroM.utc, { weekday: "short", day: "numeric", month: "short" })}</span>
-      </div>
-    </div>`;
-  }
+  el.innerHTML =
+    (heroM ? heroBlock(heroM, !!live) : "") +
+    `<div class="filters">
+      ${[["all", "All 104"], ["group", "Groups"], ["ko", "Knockouts"]].map(([k, l]) =>
+        `<button class="fbtn ${f.stage === k ? "is-on" : ""}" data-stage="${k}">${l}</button>`).join("")}
+      ${S.fav ? `<button class="fbtn ${f.onlyFav ? "is-on" : ""}" data-onlyfav>${esc(S.teams[S.fav].name)} only</button>` : ""}
+      <button class="fbtn ${f.saved ? "is-on" : ""}" data-saved>★ Saved${S.saved.size ? ` <b>${S.saved.size}</b>` : ""}</button>
+    </div>` +
+    (list.length ? Object.entries(days).map(([k, ms]) =>
+      `<div class="dayhead ${k === todayK ? "is-today" : ""}">${dayLabel(ms[0].utc)} <small>${ms.length} match${ms.length > 1 ? "es" : ""}${k === todayK ? " · Today" : ""}</small></div>` +
+      ms.map((m, i) => matchCard(m, Math.min(i, 8))).join("")).join("")
+    : `<div class="empty">Nothing matches these filters.</div>`);
 
-  html += `<div class="eyebrow"><span class="ey-acc">${todays.length || "No"}</span> match${todays.length === 1 ? "" : "es"} today — ${dayLabel(now.toISOString())}</div>`;
-  html += todays.length
-    ? `<div class="todaylist">${todays.map((m, i) => matchCard(m, i)).join("")}</div>`
-    : `<div class="empty">A rest day — no matches scheduled. The bracket is breathing.</div>`;
-
-  if (comingUp.length) {
-    html += `<div class="eyebrow">Coming up <span style="color:var(--ink-soft);font-weight:600">— next ${comingUp.length}</span></div>`;
-    html += `<div class="upnext">${comingUp.map((m, i) => matchCard(m, i)).join("")}</div>`;
-  }
-
-  el.innerHTML = html;
   startCountdown();
+  $$("[data-stage]", el).forEach(b => b.onclick = () => { f.stage = b.dataset.stage; renderMatches(); });
+  const fb = $("[data-onlyfav]", el); if (fb) fb.onclick = () => { f.onlyFav = !f.onlyFav; renderMatches(); };
+  const sb = $("[data-saved]", el); if (sb) sb.onclick = () => { f.saved = !f.saved; renderMatches(); };
 }
 function startCountdown() {
   clearInterval(cdTimer); prevCd = {};
@@ -343,18 +349,8 @@ function startCountdown() {
   tickFn(); cdTimer = setInterval(tickFn, 1000);
 }
 
-/* ---------------- render: my team ---------------- */
-function renderMyTeam() {
-  const el = $("#view-myteam");
-  if (!S.fav) {
-    el.innerHTML = `<div class="pick-cta">
-      <span style="font-size:42px">🏟️</span>
-      <span class="big">Who are you backing?</span>
-      <span style="color:var(--ink-soft);font-size:13.5px;max-width:300px">Pick a team — the site takes their colors, pins their matches and tracks their road to MetLife.</span>
-      <button class="btn" id="ctaPick">Choose your team</button></div>`;
-    $("#ctaPick").onclick = () => $("#teamDialog").showModal();
-    return;
-  }
+/* ---------------- render: teams (my team + all 48) ---------------- */
+function myTeamBlock() {
   const t = S.teams[S.fav];
   const mine = S.matches.filter(isFavMatch).sort((a, b) => a.utc.localeCompare(b.utc));
   const group = mine.find(m => m.group)?.group;
@@ -363,17 +359,34 @@ function renderMyTeam() {
   const played = tbl.find(r => r.code === S.fav)?.p || 0;
   const upcoming = mine.filter(m => status(m) === ST.SCHED);
   const done = mine.filter(m => status(m) !== ST.SCHED);
-
-  el.innerHTML = `
+  return `
     <div class="team-hero"><span class="fl">${flag(S.fav)}</span>
       <div><h2>${esc(t.name)}</h2>
-      <p>Group ${group || "—"}${played ? ` · currently <b>${ordinal(pos)}</b> after ${played} match${played > 1 ? "es" : ""}` : " · campaign starts soon"}</p></div></div>
+      <p>Group ${group || "—"}${played ? ` · currently <b>${ordinal(pos)}</b> after ${played} match${played > 1 ? "es" : ""}` : " · campaign starts soon"}</p></div>
+      <button class="btn ghost team-change" id="ctaChange">Change</button></div>
     ${done.length ? `<div class="eyebrow">Played</div>` + done.map((m, i) => matchCard(m, i)).join("") : ""}
     <div class="eyebrow">Fixtures</div>
     ${upcoming.length ? upcoming.map((m, i) => matchCard(m, i)).join("") : `<div class="empty">No scheduled fixtures — check the bracket for their knockout path.</div>`}
     ${group ? `<div class="eyebrow">Group ${group}</div><div class="gwrap">${groupTable(group, 0)}</div>
       <div class="legend"><span class="l1"><i></i>Top 2 advance</span><span class="l3"><i></i>3rd — possible best-8 spot</span></div>` : ""}
     ${squadSection(S.fav)}`;
+}
+function renderTeams() {
+  const el = $("#view-teams");
+  const head = S.fav
+    ? myTeamBlock()
+    : `<div class="pick-cta">
+        <span style="font-size:42px">🏟️</span>
+        <span class="big">Who are you backing?</span>
+        <span style="color:var(--ink-soft);font-size:13.5px;max-width:300px">Pick a team — the site takes their colors, pins their matches and tracks their road to MetLife.</span>
+        <button class="btn" id="ctaPick">Choose your team</button></div>`;
+  const grid = Object.keys(S.teams)
+    .sort((a, b) => S.teams[a].name.localeCompare(S.teams[b].name))
+    .map(c => `<button class="teamcard ${c === S.fav ? "is-fav" : ""}" data-squad="${c}" title="View ${esc(S.teams[c].name)} squad">
+      <span class="fl">${flag(c)}</span><span class="tc-name">${esc(S.teams[c].name)}</span><span class="tc-grp">${groupOf(c) || ""}</span></button>`).join("");
+  el.innerHTML = head + `<div class="eyebrow">All teams <span style="color:var(--ink-soft);font-weight:600">— tap for squad</span></div><div class="teamsgrid">${grid}</div>`;
+  const cta = $("#ctaPick", el); if (cta) cta.onclick = () => $("#teamDialog").showModal();
+  const chg = $("#ctaChange", el); if (chg) chg.onclick = () => $("#teamDialog").showModal();
 }
 function rosterMarkup(sq) {
   const groups = { GK: "Goalkeepers", DF: "Defenders", MF: "Midfielders", FW: "Forwards" };
@@ -405,34 +418,6 @@ function openSquad(code) {
   $("#squadDialog").showModal();
 }
 const ordinal = n => n + (["th", "st", "nd", "rd"][((n % 100) - 20) % 10] || ["th", "st", "nd", "rd"][n % 100] || "th");
-
-/* ---------------- render: calendar ---------------- */
-function renderCalendar() {
-  const el = $("#view-calendar");
-  const f = S.filters;
-  let list = S.matches.slice().sort((a, b) => a.utc.localeCompare(b.utc));
-  if (f.stage === "group") list = list.filter(m => m.stage === "group");
-  if (f.stage === "ko") list = list.filter(m => m.stage !== "group");
-  if (f.onlyFav) list = list.filter(isFavMatch);
-  if (f.saved) list = list.filter(m => isSaved(m.id));
-  const days = {};
-  list.forEach(m => (days[dayKey(m.utc)] ??= []).push(m));
-
-  el.innerHTML = `<div class="filters">
-      ${[["all", "All 104"], ["group", "Groups"], ["ko", "Knockouts"]].map(([k, l]) =>
-        `<button class="fbtn ${f.stage === k ? "is-on" : ""}" data-stage="${k}">${l}</button>`).join("")}
-      ${S.fav ? `<button class="fbtn ${f.onlyFav ? "is-on" : ""}" data-onlyfav>${esc(S.teams[S.fav].name)} only</button>` : ""}
-      <button class="fbtn ${f.saved ? "is-on" : ""}" data-saved>★ Saved${S.saved.size ? ` <b>${S.saved.size}</b>` : ""}</button>
-    </div>` +
-    (list.length ? Object.entries(days).map(([k, ms]) =>
-      `<div class="dayhead">${dayLabel(ms[0].utc)} <small>${ms.length} match${ms.length > 1 ? "es" : ""}</small></div>` +
-      ms.map((m, i) => matchCard(m, Math.min(i, 8))).join("")).join("")
-    : `<div class="empty">Nothing matches these filters.</div>`);
-
-  $$("[data-stage]", el).forEach(b => b.onclick = () => { f.stage = b.dataset.stage; renderCalendar(); });
-  const fb = $("[data-onlyfav]", el); if (fb) fb.onclick = () => { f.onlyFav = !f.onlyFav; renderCalendar(); };
-  const sb = $("[data-saved]", el); if (sb) sb.onclick = () => { f.saved = !f.saved; renderCalendar(); };
-}
 
 /* ---------------- render: groups ---------------- */
 const TABLE_COLS = `<colgroup><col class="c-name"><col class="c-n"><col class="c-n"><col class="c-n"><col class="c-n"><col class="c-gd"><col class="c-pts"></colgroup>`;
@@ -471,14 +456,14 @@ function renderBracket() {
       const ms = S.matches.filter(m => m.stage === st).sort((a, b) => a.num - b.num);
       const decided = ms.filter(m => res(m)?.st === ST.FT).length;
       const inner = ms.map((m, i) => bMatch(m, i)).join("")
-        + (st === "final" && third ? `<div class="bcol-sub">Third place</div>` + bMatch(third, 1) : "");
+        + (st === "final" && third ? bMatch(third, 1) : "");
       return `<div class="bcol bcol-${st}">
         <div class="bcol-title">${title}<span class="bcol-count">${decided}/${ms.length}</span></div>
         <div class="bcol-matches">${inner}</div></div>`;
     }).join("")}
   </div></div>
   <p class="bracket-note">Scroll sideways → · winners flow left to right · the bracket fills itself as results land. Want to call it early? Try the <b>Predict</b> tab.</p>`;
-  drawBracketLines($("#view-bracket"));
+  layoutBracket($("#view-bracket"));
 }
 function bMatch(m, i) {
   const h = slotInfo(m, "home"), a = slotInfo(m, "away");
@@ -488,10 +473,43 @@ function bMatch(m, i) {
     <span class="fl">${s.code ? flag(s.code) : "·"}</span>
     <span class="nm ${s.ph ? "ph" : ""}">${esc(s.ph ? (s.short || s.name) : s.name)}${w && m.stage === "final" ? " 🏆" : ""}</span>
     ${sc != null ? `<span class="sc">${sc}</span>` : ""}</div>`;
-  return `<div class="bm ${m.stage === "final" ? "is-final" : ""}" style="--i:${i}" data-num="${m.num}" data-mid="${m.id}">
+  return `<div class="bm ${m.stage === "final" ? "is-final" : ""} ${m.stage === "third" ? "is-third" : ""}" style="--i:${i}" data-num="${m.num}" data-mid="${m.id}">
+    ${m.stage === "third" ? `<div class="bm-tag">3rd place</div>` : ""}
     ${row(h, fin ? r.h : null, wH, fin && !wH)}${row(a, fin ? r.a : null, fin && !wH, wH)}
     <div class="bm-label">M${m.num} · ${fmt(m.utc, { day: "numeric", month: "short" })} ${timeStr(m.utc)} · ${esc(m.city.split(",")[0])}${[ST.LIVE, ST.HT].includes(st) ? ` · <span style="color:var(--live);font-weight:700">LIVE</span>` : ""}</div>
   </div>`;
+}
+// position every bracket card at the vertical midpoint of its feeder matches (a true bracket tree)
+function layoutBracket(scope) {
+  const bracket = scope.querySelector(".bracket");
+  if (!bracket) return;
+  const els = {};
+  bracket.querySelectorAll(".bm[data-num]").forEach(el => els[el.dataset.num] = el);
+  const nums = Object.keys(els);
+  if (!nums.length) return;
+  const cardH = els[nums[0]].offsetHeight || 70, step = cardH + 18;
+  const byNum = {};
+  S.matches.forEach(m => { if (m.stage !== "group") byNum[m.num] = m; });
+  const y = {};
+  let leaf = 0;
+  (function place(num) {
+    if (y[num] != null) return y[num];
+    const m = byNum[num]; if (!m) return 0;
+    const kids = [m.home.feeds, m.away.feeds].filter(Boolean);
+    if (!kids.length) { return y[num] = (leaf++) * step; }      // R32 leaf
+    const cy = kids.map(place);
+    return y[num] = cy.reduce((s, v) => s + v, 0) / cy.length;  // midpoint of feeders
+  })((S.matches.find(m => m.stage === "final") || {}).num);
+  const third = S.matches.find(m => m.stage === "third");
+  if (third) y[third.num] = leaf * step;                        // consolation match sits at the bottom
+  let maxY = 0;
+  Object.entries(y).forEach(([num, val]) => { if (els[num]) { els[num].style.position = "absolute"; els[num].style.top = val + "px"; } maxY = Math.max(maxY, val); });
+  const H = maxY + cardH;
+  bracket.querySelectorAll(".bcol-matches").forEach(c => {
+    c.style.position = "relative"; c.style.height = H + "px";
+    const w = c.querySelector(".bm")?.offsetWidth; if (w) c.style.width = w + "px";
+  });
+  drawBracketLines(scope);
 }
 // draw orthogonal connector lines between feeder matches and their target (winner advances)
 function drawBracketLines(scope) {
@@ -619,7 +637,7 @@ function renderSim() {
     : `<div class="bracket-scroll"><div class="bracket"><svg class="bracket-lines" aria-hidden="true"></svg>
         ${cols.map(([st, title]) => {
           const inner = S.matches.filter(m => m.stage === st).sort((a, b) => a.num - b.num).map((m, i) => simMatch(m, i, alloc)).join("")
-            + (st === "final" && third ? `<div class="bcol-sub">Third place</div>` + simMatch(third, 1, alloc) : "");
+            + (st === "final" && third ? simMatch(third, 1, alloc) : "");
           return `<div class="bcol bcol-${st}"><div class="bcol-title">${title}</div><div class="bcol-matches">${inner}</div></div>`;
         }).join("")}
       </div></div>`;
@@ -692,7 +710,7 @@ function renderSim() {
     if (c) confetti(c.c1, c.c2);
   };
   $("#simReset").onclick = () => { S.sim = { order: {}, thirds: [], ko: {} }; saveSim(); renderSim(); };
-  drawBracketLines(el);
+  layoutBracket(el);
 }
 function simMatch(m, i, alloc) {
   const { h, a } = simSlots(m, alloc);
@@ -703,7 +721,8 @@ function simMatch(m, i, alloc) {
     return `<div class="bm-row pickable ${isPick ? "is-pick" : ""} ${isOut ? "is-out" : ""}" data-pick="${m.num}|${code}" role="button" tabindex="0">
       <span class="fl">${flag(code)}</span><span class="nm">${esc(S.teams[code].name)}${isPick && m.stage === "final" ? " 🏆" : ""}</span></div>`;
   };
-  return `<div class="bm ${m.stage === "final" ? "is-final" : ""}" style="--i:${i}" data-num="${m.num}">
+  return `<div class="bm ${m.stage === "final" ? "is-final" : ""} ${m.stage === "third" ? "is-third" : ""}" style="--i:${i}" data-num="${m.num}">
+    ${m.stage === "third" ? `<div class="bm-tag">3rd place</div>` : ""}
     ${row(h, a)}${row(a, h)}
     <div class="bm-label">M${m.num} · ${fmt(m.utc, { day: "numeric", month: "short" })} · ${esc(m.city.split(",")[0])}</div></div>`;
 }
@@ -715,7 +734,7 @@ function championBanner(code) {
 }
 
 /* ---------------- navigation ---------------- */
-const RENDER = { today: renderToday, myteam: renderMyTeam, calendar: renderCalendar, groups: renderGroups, bracket: renderBracket, sim: renderSim };
+const RENDER = { matches: renderMatches, teams: renderTeams, groups: renderGroups, bracket: renderBracket, sim: renderSim };
 function nav(v) {
   S.view = v;
   $$(".view").forEach(el => el.hidden = el.id !== "view-" + v);
@@ -806,7 +825,10 @@ async function boot() {
   $$("dialog").forEach(d => d.onclick = e => { if (e.target === d) d.close(); });
   addEventListener("resize", () => {
     moveInk();
-    if (S.view === "bracket" || S.view === "sim") drawBracketLines($("#view-" + S.view));
+    if (S.view === "bracket" || S.view === "sim") layoutBracket($("#view-" + S.view));
+  });
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => {
+    if (S.view === "bracket" || S.view === "sim") layoutBracket($("#view-" + S.view));
   });
   document.addEventListener("click", e => {
     const star = e.target.closest("[data-save]");
@@ -824,7 +846,7 @@ async function boot() {
     const t = e.target.closest("[data-save],[data-squad],[data-pick],.up");
     if (t) { e.preventDefault(); t.click(); }
   });
-  nav("today");
+  nav("matches");
   refreshResults();
   setInterval(refreshResults, 90 * 1000); // pick up fresh scores every 90s
 }

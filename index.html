@@ -14,16 +14,16 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=Instrument+Sans:wght@400;500;600&family=Spline+Sans+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=7">
+<link rel="stylesheet" href="styles.css?v=11">
 <link rel="icon" href="assets/wc26-emblem.svg">
 </head>
 <body>
 
-<div id="bg" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+<div id="bg" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
 <div id="themeSweep" aria-hidden="true"></div>
 
 <header class="topbar">
-  <a class="wordmark" href="#today" data-nav="today">
+  <a class="wordmark" href="#matches" data-nav="matches">
     <img class="wm-logo" src="assets/wc26-emblem.svg" width="22" height="34" alt="FIFA World Cup 2026" decoding="async">
     <span class="wm-text">WC<i>·</i>26</span>
   </a>
@@ -39,9 +39,8 @@
 </header>
 
 <nav class="tabs" id="tabs" aria-label="Sections">
-  <button class="tab is-active" data-nav="today">Today</button>
-  <button class="tab" data-nav="myteam">My Team</button>
-  <button class="tab" data-nav="calendar">Calendar</button>
+  <button class="tab is-active" data-nav="matches">Matches</button>
+  <button class="tab" data-nav="teams">Teams</button>
   <button class="tab" data-nav="groups">Groups</button>
   <button class="tab" data-nav="bracket">Bracket</button>
   <button class="tab" data-nav="sim">Predict</button>
@@ -51,9 +50,8 @@
 <div class="ticker" id="ticker" hidden aria-hidden="true"><div class="ticker-track" id="tickerTrack"></div></div>
 
 <main id="main">
-  <section class="view" id="view-today"></section>
-  <section class="view" id="view-myteam" hidden></section>
-  <section class="view" id="view-calendar" hidden></section>
+  <section class="view" id="view-matches"></section>
+  <section class="view" id="view-teams" hidden></section>
   <section class="view" id="view-groups" hidden></section>
   <section class="view" id="view-bracket" hidden></section>
   <section class="view" id="view-sim" hidden></section>
@@ -93,6 +91,6 @@
 
 <canvas id="confetti" aria-hidden="true"></canvas>
 
-<script src="app.js?v=7"></script>
+<script src="app.js?v=11"></script>
 </body>
 </html>
