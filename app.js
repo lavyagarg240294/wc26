@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "22";  // shown in footer; bump with the ?v= asset version
+const BUILD = "23";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -283,8 +283,9 @@ function heroBlock(heroM, isLive) {
     <div class="hero-tag ${isLive ? "is-live" : ""}">
       ${isLive ? `<span class="live-dot"></span> Live now` : `${isFavMatch(heroM) ? "Your team · " : ""}Next kickoff`}
       <span style="color:var(--ink-soft);font-weight:600">— ${esc(heroM.group ? "Group " + heroM.group : heroM.round)}</span>
+      ${isLive ? `<button class="hero-refresh" data-refresh aria-label="Refresh score" title="Refresh score"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg></button>` : ""}
     </div>
-    <span class="hero-go">Details ›</span>
+    ${isLive ? "" : `<span class="hero-go">Details ›</span>`}
     <div class="hero-teams">
       <div class="hero-side"><span class="hero-flag">${h.code ? flag(h.code) : "·"}</span><span class="hero-name">${esc(h.name)}</span></div>
       <div class="hero-mid">${isLive
@@ -854,13 +855,14 @@ async function loadStatic() {
   try { S.squads = (await (await fetch("data/squads.json?t=" + Date.now(), { cache: "no-store" })).json()).squads || {}; }
   catch { S.squads = {}; }
 }
-// manual "refresh scores" button — re-fetch the published results.json immediately
+// manual "refresh scores" controls (footer + hero) — re-fetch the published results.json now
 async function manualRefresh() {
-  const btn = $("#refreshBtn"); if (!btn || btn.classList.contains("spinning")) return;
-  btn.classList.add("spinning");
+  const btns = $$("[data-refresh]");
+  if (btns.some(b => b.classList.contains("spinning"))) return;
+  btns.forEach(b => b.classList.add("spinning"));
   const t0 = Date.now();
   try { await refreshResults(); }
-  finally { setTimeout(() => btn.classList.remove("spinning"), Math.max(0, 650 - (Date.now() - t0))); }
+  finally { setTimeout(() => $$("[data-refresh]").forEach(b => b.classList.remove("spinning")), Math.max(0, 650 - (Date.now() - t0))); }
 }
 async function refreshResults() {
   try {
@@ -894,7 +896,6 @@ async function boot() {
   $$("[data-nav]").forEach(b => b.onclick = e => { e.preventDefault(); nav(b.dataset.nav); });
   $("#tzChip").onclick = () => $("#tzDialog").showModal();
   $("#teamChip").onclick = () => $("#teamDialog").showModal();
-  $("#refreshBtn").onclick = manualRefresh;
   initMusic();
   $$("[data-close]").forEach(b => b.onclick = () => b.closest("dialog").close());
   $$("dialog").forEach(d => d.onclick = e => { if (e.target === d) d.close(); });
@@ -906,6 +907,8 @@ async function boot() {
     if (S.view === "bracket" || S.view === "sim") layoutBracket($("#view-" + S.view));
   });
   document.addEventListener("click", e => {
+    const rf = e.target.closest("[data-refresh]");
+    if (rf) { e.stopPropagation(); manualRefresh(); return; }
     const star = e.target.closest("[data-save]");
     if (star) { e.stopPropagation(); toggleSave(star.dataset.save); return; }
     const sq = e.target.closest("[data-squad]");
