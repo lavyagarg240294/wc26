@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "24";  // shown in footer; bump with the ?v= asset version
+const BUILD = "26";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -76,6 +76,15 @@ function status(m) {
   // the free data feed often lags — if it still says SCHED after kickoff, treat as live ("score updating")
   if (r?.st) return (r.st === ST.SCHED && started) ? ST.LIVE : r.st;
   return started ? ST.LIVE : ST.SCHED;
+}
+// live match clock: exact minute from the feed if present, else an estimate from kickoff
+// (the free feed often only flags "live" with no minute). Estimate allows for a 15′ half-time.
+function clockStr(m, r) {
+  if (r && r.min != null) return r.min + "′";
+  const real = Math.floor((Date.now() - new Date(m.utc).getTime()) / 60000);
+  if (real < 0) return "";
+  const est = real <= 45 ? real : Math.max(46, real - 15);
+  return "~" + (est >= 90 ? "90+" : est) + "′";
 }
 function slotInfo(m, side) {
   const s = m[side];
@@ -212,23 +221,22 @@ function matchCard(m, i, opts = {}) {
   const score = r && r.h != null;
   const winH = score && st === ST.FT && (r.h > r.a || (r.h === r.a && (r.hp ?? -1) > (r.ap ?? -1)));
   const winA = score && st === ST.FT && (r.a > r.h || (r.h === r.a && (r.ap ?? -1) > (r.hp ?? -1)));
-  const badge = st === ST.LIVE ? `<span class="badge live">Live${r?.min ? " " + r.min + "′" : ""}</span>`
+  const badge = st === ST.LIVE ? `<span class="badge live">${clockStr(m, r) || "Live"}</span>`
     : st === ST.HT ? `<span class="badge live">HT</span>`
     : st === ST.FT ? `<span class="badge ft">FT</span>`
     : `<span class="badge soon">${timeStr(m.utc)}</span>`;
-  const teamRow = (s, win) =>
-    `<div class="mcard-team ${s.ph ? "is-ph" : ""}">` +
-    `<span class="fl">${s.code ? flag(s.code) : "·"}</span><span>${esc(s.name)}</span>` +
-    (win ? `<span class="winner-mark">▲</span>` : "") + `</div>`;
+  const teamRow = (s, lost) =>
+    `<div class="mcard-team ${s.ph ? "is-ph" : ""} ${lost ? "is-lost" : ""}">` +
+    `<span class="fl">${s.code ? flag(s.code) : "·"}</span><span>${esc(s.name)}</span></div>`;
   const xi = r?.xi;
   const sv = isSaved(m.id);
   return `<button class="mcard ${fav ? "is-fav" : ""}" style="--i:${i}" data-mid="${m.id}">
     <span class="mcard-star ${sv ? "is-on" : ""}" data-save="${m.id}" role="button" tabindex="0" aria-pressed="${sv}" aria-label="${sv ? "Remove saved match" : "Save this match"}" title="${sv ? "Saved — tap to remove" : "Save this match"}">${sv ? "★" : "☆"}</span>
     <div class="mcard-row">
       <div class="mcard-time">${timeStr(m.utc)}<small>${fmt(m.utc, { day: "numeric", month: "short" })}</small></div>
-      <div class="mcard-teams">${teamRow(h, winH)}${teamRow(a, winA)}</div>
+      <div class="mcard-teams">${teamRow(h, winA)}${teamRow(a, winH)}</div>
       <div class="mcard-right">${score
-        ? `<div class="mcard-score"><span>${r.h}</span><span>${r.a}</span>${r.hp != null ? `<span class="pens">(${r.hp}–${r.ap} pens)</span>` : ""}</div>`
+        ? `<div class="mcard-score"><span class="${winA ? "lo" : ""}">${r.h}</span><span class="${winH ? "lo" : ""}">${r.a}</span>${r.hp != null ? `<span class="pens">(${r.hp}–${r.ap} pens)</span>` : ""}</div>`
         : badge}</div>
     </div>
     ${opts.sub !== false ? `<div class="mcard-sub"><span class="grp">${esc(stageL)}</span><span>${esc(m.stadium)}</span><span>${esc(m.city)}</span>${xi ? `<span class="xi-hint">Lineups</span>` : ""}<span class="mcard-go">Details ›</span></div>` : ""}
@@ -248,7 +256,7 @@ function openMatch(id) {
   const score = r && r.h != null;
   const stageL = m.group ? `Group ${m.group}` : m.round;
   const sv = isSaved(id);
-  const statusTag = st === ST.LIVE ? `<span class="md-tag live">● Live${r?.min ? " " + r.min + "′" : ""}</span>`
+  const statusTag = st === ST.LIVE ? `<span class="md-tag live">● Live ${clockStr(m, r)}</span>`
     : st === ST.HT ? `<span class="md-tag live">Half-time</span>`
     : st === ST.FT ? `<span class="md-tag ft">Full time</span>`
     : `<span class="md-tag soon">Kicks off ${timeStr(m.utc)} ${tzShort()}</span>`;
@@ -265,6 +273,10 @@ function openMatch(id) {
       <button class="md-save ${sv ? "is-on" : ""}" data-save="${id}" aria-pressed="${sv}">${sv ? "★ Saved" : "☆ Save match"}</button>
     </div>
     <div class="md-teams">${side(h, "home")}<div class="md-mid">${mid}</div>${side(a, "away")}</div>
+    ${(r?.gh?.length || r?.ga?.length) ? `<div class="md-goals">
+      <div class="md-goals-col">${(r.gh || []).map(g => `<div class="md-goal">⚽ ${esc(g)}</div>`).join("")}</div>
+      <div class="md-goals-col away">${(r.ga || []).map(g => `<div class="md-goal">${esc(g)} ⚽</div>`).join("")}</div>
+    </div>` : ""}
     <div class="md-meta">
       <span>${fmt(m.utc, { weekday: "long", day: "numeric", month: "long" })}</span>
       <span>${timeStr(m.utc)} ${tzShort()}</span>
@@ -283,14 +295,16 @@ function heroBlock(heroM, isLive) {
     <div class="hero-tag ${isLive ? "is-live" : ""}">
       ${isLive ? `<span class="live-dot"></span> Live now` : `${isFavMatch(heroM) ? "Your team · " : ""}Next kickoff`}
       <span style="color:var(--ink-soft);font-weight:600">— ${esc(heroM.group ? "Group " + heroM.group : heroM.round)}</span>
-      ${isLive ? `<button class="hero-refresh" data-refresh aria-label="Refresh score" title="Refresh score"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg></button>` : ""}
+      <span class="hero-actions">
+        ${isLive ? `<button class="hero-refresh" data-refresh aria-label="Refresh score" title="Refresh score"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg></button>` : ""}
+        <span class="hero-go">Details ›</span>
+      </span>
     </div>
-    <span class="hero-go">Details ›</span>
     <div class="hero-teams">
       <div class="hero-side"><span class="hero-flag">${h.code ? flag(h.code) : "·"}</span><span class="hero-name">${esc(h.name)}</span></div>
       <div class="hero-mid">${isLive
         ? (r && r.h != null
-          ? `<span class="hero-score">${r.h}–${r.a}</span><span class="hero-minute">${r.st === ST.HT ? "Half-time" : (r.min ? r.min + "′" : "In play")}</span>`
+          ? `<span class="hero-score">${r.h}–${r.a}</span><span class="hero-minute">${r.st === ST.HT ? "Half-time" : (clockStr(heroM, r) || "In play")}</span>`
           : `<span class="hero-score hero-pending">–</span><span class="hero-pending-note">score updating…</span>`)
         : `<span class="hero-vs">VS</span>`}</div>
       <div class="hero-side"><span class="hero-flag">${a.code ? flag(a.code) : "·"}</span><span class="hero-name">${esc(a.name)}</span></div>
@@ -770,16 +784,6 @@ function nav(v) {
   moveInk();
   RENDER[v]();
   scrollTo({ top: 0, behavior: "instant" });
-  if (v === "matches") requestAnimationFrame(scrollToToday);
-}
-// when entering Matches and past days already exist, land at "Today" (past above, upcoming below)
-function scrollToToday() {
-  const heads = $$("#view-matches .dayhead");
-  const today = $("#view-matches .dayhead.is-today");
-  if (!today || heads.indexOf(today) <= 0) return; // nothing before today yet — keep the hero in view
-  const stick = ($(".topbar")?.offsetHeight || 56) + ($(".tabs")?.offsetHeight || 48) + 8;
-  const y = today.getBoundingClientRect().top + window.scrollY - stick;
-  scrollTo({ top: Math.max(0, y), behavior: "instant" });
 }
 function moveInk() {
   const t = $(".tab.is-active"), ink = $("#tabInk");
@@ -882,6 +886,7 @@ async function refreshResults() {
 
 /* ---------------- boot ---------------- */
 async function boot() {
+  if ("scrollRestoration" in history) history.scrollRestoration = "manual"; // always open at the top
   try {
     await loadStatic();
   } catch (e) {

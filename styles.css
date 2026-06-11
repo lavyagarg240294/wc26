@@ -24,6 +24,8 @@
 
 *{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
+/* lock the page behind any open modal so the background can't scroll */
+html:has(dialog[open]){overflow:hidden}
 body{
   font-family:var(--body);color:var(--ink);
   -webkit-font-smoothing:antialiased;
@@ -185,7 +187,8 @@ b{font-weight:600}
 }
 .hero:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--acc1) 40%,var(--line));box-shadow:0 10px 30px -12px rgba(13,27,42,.25)}
 .hero:focus-visible{outline:2px solid var(--acc1);outline-offset:2px}
-.hero-go{position:absolute;top:clamp(20px,4vw,34px);right:clamp(20px,4vw,34px);z-index:2;
+.hero-actions{margin-left:auto;display:inline-flex;align-items:center;gap:6px;flex-shrink:0}
+.hero-go{z-index:2;white-space:nowrap;
   font-family:var(--disp);font-weight:700;font-size:11px;letter-spacing:.08em;text-transform:uppercase;
   color:var(--acc1);background:color-mix(in srgb,var(--acc1) 10%,var(--card));border:1px solid color-mix(in srgb,var(--acc1) 25%,transparent);
   padding:5px 10px;border-radius:99px}
@@ -198,7 +201,7 @@ b{font-weight:600}
   content:"";position:absolute;right:32px;top:-40px;width:1px;height:200%;
   background:color-mix(in srgb,var(--acc1) 14%,transparent);transform:rotate(24deg);
 }
-.hero-tag{display:flex;align-items:center;gap:8px;font-family:var(--disp);font-weight:700;font-stretch:115%;font-size:12px;letter-spacing:.13em;text-transform:uppercase;color:var(--acc1);margin-bottom:16px}
+.hero-tag{display:flex;align-items:center;flex-wrap:wrap;gap:6px 8px;font-family:var(--disp);font-weight:700;font-stretch:115%;font-size:12px;letter-spacing:.13em;text-transform:uppercase;color:var(--acc1);margin-bottom:16px}
 .hero-tag.is-live{color:var(--live)}
 .live-dot{width:8px;height:8px;border-radius:50%;background:var(--live);animation:pulse 1.4s ease-out infinite}
 @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(255,59,48,.5)}70%{box-shadow:0 0 0 9px rgba(255,59,48,0)}100%{box-shadow:0 0 0 0 rgba(255,59,48,0)}}
@@ -218,7 +221,7 @@ b{font-weight:600}
 .hero-vs{font-family:var(--disp);font-weight:900;font-stretch:125%;font-size:clamp(18px,4vw,26px);color:var(--ink-soft)}
 .hero-score.hero-pending{background:none;-webkit-background-clip:border-box;background-clip:border-box;color:var(--ink-soft);animation:none}
 .hero-pending-note{font-family:var(--mono);font-size:12.5px;color:var(--ink-soft)}
-.hero-refresh{margin-left:4px;display:inline-flex;align-items:center;color:var(--ink-soft);padding:4px 6px;border-radius:8px;line-height:0;transition:color .2s,background .2s}
+.hero-refresh{display:inline-flex;align-items:center;color:var(--ink-soft);padding:4px 6px;border-radius:8px;line-height:0;transition:color .2s,background .2s}
 .hero-refresh:hover{color:var(--acc1);background:color-mix(in srgb,var(--acc1) 10%,transparent)}
 .hero-refresh.spinning{color:var(--acc1)}
 .hero-refresh.spinning svg{animation:spin .7s linear infinite}
@@ -267,9 +270,10 @@ b{font-weight:600}
 .mcard-team{display:flex;align-items:center;gap:8px;font-weight:600;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .mcard-team .fl{font-size:17px;width:22px;text-align:center;flex:0 0 22px}
 .mcard-team.is-ph{color:var(--ink-soft);font-weight:500;font-style:italic}
-.mcard-team .winner-mark{color:var(--acc1);font-size:11px;margin-left:2px}
+.mcard-team.is-lost{opacity:.5}
 .mcard-right{text-align:right}
 .mcard-score{font-family:var(--mono);font-weight:700;font-size:17px;font-variant-numeric:tabular-nums;display:flex;flex-direction:column;gap:5px;line-height:1.2}
+.mcard-score .lo{opacity:.45;font-weight:400}
 .mcard-score .pens{font-size:10.5px;color:var(--ink-soft);font-weight:400}
 .badge{display:inline-block;font-family:var(--disp);font-weight:700;font-stretch:112%;font-size:10px;letter-spacing:.1em;text-transform:uppercase;padding:3px 8px;border-radius:6px}
 .badge.live{background:var(--live);color:#fff;animation:pulse 1.4s infinite}
@@ -491,6 +495,11 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .md-score span{color:var(--ink-soft);font-weight:400}
 .md-pens{font-family:var(--mono);font-size:10.5px;color:var(--ink-soft);margin-top:3px}
 .md-vs{font-family:var(--disp);font-weight:800;font-size:18px;color:var(--ink-soft);letter-spacing:.06em}
+/* goals timeline in the match dialog */
+.md-goals{display:grid;grid-template-columns:1fr 1fr;gap:2px 14px;padding:4px 2px 12px;border-top:1px dashed var(--line)}
+.md-goals-col{display:flex;flex-direction:column;gap:5px;padding-top:8px}
+.md-goals-col.away{text-align:right}
+.md-goal{font-size:12.5px;color:var(--ink);font-family:var(--mono);font-variant-numeric:tabular-nums}
 .md-meta{display:flex;flex-wrap:wrap;gap:7px 16px;font-size:12.5px;color:var(--ink-soft);padding:12px 2px;border-top:1px dashed var(--line)}
 .md-meta span{position:relative}
 .md-meta span+span::before{content:"·";position:absolute;left:-9px;opacity:.5}
@@ -543,8 +552,9 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
   .wm-logo{height:26px}
   .wm-full{display:none}
   .wm-short{display:inline}
-  #teamChipName{max-width:66px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  #tzLabel{max-width:62px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #tzLabel{display:none}                 /* timezone chip = clock icon only on phones */
+  #teamChipName{max-width:104px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .topbar-right{gap:6px;flex:0 0 auto}
   .cd-cell{width:56px;padding:7px 0}
   .cd-num{font-size:19px}
   .dayhead{top:96px}

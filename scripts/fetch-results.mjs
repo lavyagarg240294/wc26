@@ -11,6 +11,12 @@ const fixtures = JSON.parse(readFileSync("data/matches.json", "utf8")).matches;
 const teams = JSON.parse(readFileSync("data/teams.json", "utf8"));
 const byNum = Object.fromEntries(fixtures.map(f => [f.num, f]));
 
+// worldcup26.ir scorers come as e.g.  {“J. Quiñones 9'”,“Lozano 67'”}  → ["J. Quiñones 9'", "Lozano 67'"]
+function parseScorers(s) {
+  if (!s || s === "null") return [];
+  return String(s).replace(/[{}“”]/g, "").split(",").map(x => x.trim()).filter(x => x && x !== "null").slice(0, 12);
+}
+
 /* ---------------- primary: worldcup26.ir ---------------- */
 async function fromWorldCup26() {
   const [gr, tr] = await Promise.all([
@@ -49,6 +55,9 @@ async function fromWorldCup26() {
       if (Number.isFinite(a)) entry.a = a;
       const min = parseInt(g.time_elapsed, 10);
       if (Number.isFinite(min)) entry.min = min;
+      const gh = parseScorers(g.home_scorers), ga = parseScorers(g.away_scorers);
+      if (gh.length) entry.gh = gh;
+      if (ga.length) entry.ga = ga;
     }
     if (f.stage !== "group") {                              // resolve knockout teams for the bracket
       if (idCode[g.home_team_id]) entry.ht = idCode[g.home_team_id];
@@ -119,7 +128,8 @@ try {
 
 const out = { updated: new Date().toISOString(), matches };
 const path = "data/results.json";
-const prev = existsSync(path) ? JSON.parse(readFileSync(path, "utf8")) : {};
+let prev = {};
+try { if (existsSync(path)) prev = JSON.parse(readFileSync(path, "utf8")); } catch { /* malformed/conflicted — overwrite */ }
 if (JSON.stringify(prev.matches || {}) !== JSON.stringify(out.matches)) {
   writeFileSync(path, JSON.stringify(out));
   console.log("results.json updated");
