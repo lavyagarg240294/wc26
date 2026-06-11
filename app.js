@@ -224,7 +224,7 @@ function matchCard(m, i, opts = {}) {
         ? `<div class="mcard-score"><span>${r.h}</span><span>${r.a}</span>${r.hp != null ? `<span class="pens">(${r.hp}–${r.ap} pens)</span>` : ""}</div>`
         : badge}</div>
     </div>
-    ${opts.sub !== false ? `<div class="mcard-sub"><span class="grp">${esc(stageL)}</span><span>${esc(m.stadium)}</span><span>${esc(m.city)}</span>${xi ? `<span class="xi-hint">▾ Lineups</span>` : ""}${st === ST.SCHED ? `<a class="ics-link" href="${icsHref(m, h, a)}" download="wc26-${m.id}.ics" onclick="event.stopPropagation()">+ calendar</a>` : ""}</div>` : ""}
+    ${opts.sub !== false ? `<div class="mcard-sub"><span class="grp">${esc(stageL)}</span><span>${esc(m.stadium)}</span><span>${esc(m.city)}</span>${xi ? `<span class="xi-hint">▾ Lineups</span>` : ""}</div>` : ""}
     ${xi ? xiPanel(xi, h, a) : ""}
   </button>`;
 }
@@ -235,15 +235,6 @@ function xiPanel(xi, h, a) {
     ${side.coach ? `<div class="xi-coach">Coach · ${esc(side.coach)}</div>` : ""}
   </div>`;
   return `<div class="mcard-xi">${col(xi.h, h)}${col(xi.a, a)}</div>`;
-}
-function icsHref(m, h, a) {
-  const dt = iso => iso.replace(/[-:]/g, "").replace(".000", "");
-  const end = new Date(new Date(m.utc).getTime() + 2 * 3600e3).toISOString().slice(0, 19) + "Z";
-  const ics = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//WC26//EN", "BEGIN:VEVENT",
-    `UID:${m.id}@wc26`, `DTSTART:${dt(m.utc)}`, `DTEND:${dt(end)}`,
-    `SUMMARY:${h.name} vs ${a.name} — World Cup 2026`,
-    `LOCATION:${m.stadium}, ${m.city}`, "END:VEVENT", "END:VCALENDAR"].join("\r\n");
-  return "data:text/calendar;charset=utf-8," + encodeURIComponent(ics);
 }
 
 /* ---------------- render: today ---------------- */
@@ -714,7 +705,8 @@ async function loadStatic() {
     fetch("data/teams.json").then(r => r.json()),
   ]);
   S.matches = m.matches; S.teams = t;
-  try { S.squads = (await (await fetch("data/squads.json")).json()).squads || {}; }
+  // squads.json is committed data that changes (squad updates) — bypass cache so it's always current
+  try { S.squads = (await (await fetch("data/squads.json?t=" + Date.now(), { cache: "no-store" })).json()).squads || {}; }
   catch { S.squads = {}; }
 }
 async function refreshResults() {
