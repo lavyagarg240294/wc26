@@ -167,8 +167,18 @@ function renderTicker() {
     const nm = s => s.code ? `${flag(s.code)} ${shortName(s.code)}` : "TBD";
     return `<span class="ticker-item">${nm(h)} ${mid} ${nm(a)}</span>`;
   };
-  const half = todays.map(item).join('<span style="opacity:.35">／</span>');
-  $("#tickerTrack").innerHTML = half + '<span style="opacity:.35">／</span>' + half; // loop
+  const sep = '<span class="tk-sep">／</span>';
+  const track = $("#tickerTrack");
+  if (todays.length >= 3) {
+    // enough to fill the strip — duplicate for a seamless scrolling marquee
+    const half = todays.map(item).join(sep);
+    track.innerHTML = half + sep + half;
+    track.classList.remove("is-static");
+  } else {
+    // one or two matches — show once, centered, no scroll (avoids the "repeated" look)
+    track.innerHTML = todays.map(item).join(sep);
+    track.classList.add("is-static");
+  }
   wrap.hidden = false;
 }
 const shortName = code => {
@@ -232,9 +242,11 @@ function renderToday() {
   const todayK = dayKey(now.toISOString());
   const todays = S.matches.filter(m => dayKey(m.utc) === todayK).sort((a, b) => a.utc.localeCompare(b.utc));
   const live = S.matches.find(m => [ST.LIVE, ST.HT].includes(status(m)));
-  const next = S.matches.filter(m => new Date(m.utc) > now && status(m) === ST.SCHED)
-    .sort((a, b) => a.utc.localeCompare(b.utc))[0];
-  const heroM = live || next;
+  const upcoming = S.matches.filter(m => new Date(m.utc) > now && status(m) === ST.SCHED)
+    .sort((a, b) => a.utc.localeCompare(b.utc));
+  const heroM = live || upcoming[0];
+  // next 5 scheduled matches beyond today (today's are already in the timeline below)
+  const comingUp = upcoming.filter(m => dayKey(m.utc) !== todayK && m !== heroM).slice(0, 5);
 
   let html = "";
   if (heroM) {
@@ -270,6 +282,11 @@ function renderToday() {
         return `<div class="t-item"><span class="t-node ${st === ST.FT ? "is-done" : ""} ${[ST.LIVE, ST.HT].includes(st) ? "is-live" : ""}"></span>${matchCard(m, i)}</div>`;
       }).join("")}</div>`
     : `<div class="empty">A rest day — no matches scheduled. The bracket is breathing.</div>`;
+
+  if (comingUp.length) {
+    html += `<div class="eyebrow">Coming up <span style="color:var(--ink-soft);font-weight:600">— next ${comingUp.length}</span></div>`;
+    html += `<div class="upnext">${comingUp.map((m, i) => matchCard(m, i)).join("")}</div>`;
+  }
 
   el.innerHTML = html;
   startCountdown();
@@ -322,22 +339,34 @@ function renderMyTeam() {
       <div class="legend"><span class="l1"><i></i>Top 2 advance</span><span class="l3"><i></i>3rd — possible best-8 spot</span></div>` : ""}
     ${squadSection(S.fav)}`;
 }
+function rosterMarkup(sq) {
+  const groups = { GK: "Goalkeepers", DF: "Defenders", MF: "Midfielders", FW: "Forwards" };
+  const byPos = p => sq.players.filter(x => x.pos === p);
+  return `<div class="roster">${Object.entries(groups).map(([p, label]) => {
+    const ps = byPos(p);
+    return ps.length ? `<div class="roster-pos"><h5>${label} <span>${ps.length}</span></h5>
+      ${ps.map(x => `<div class="roster-row">
+        <span class="rnum">${x.n ?? "·"}</span>
+        <span class="rname">${esc(x.name.replace(" (captain)", ""))}${x.name.includes("(captain)") ? `<i class="cpt">C</i>` : ""}</span>
+        ${x.caps != null ? `<span class="rstat">${x.caps} caps${x.goals ? ` · ${x.goals}g` : ""}</span>` : ""}
+        ${x.club ? `<span class="rclub">${esc(x.club)}</span>` : ""}
+      </div>`).join("")}</div>` : "";
+  }).join("")}</div>`;
+}
 function squadSection(code) {
   const sq = S.squads?.[code];
   if (!sq) return `<div class="eyebrow">Squad</div><div class="empty">Squad list lands once the squads workflow runs (see README) — 16 teams are pre-loaded.</div>`;
-  const groups = { GK: "Goalkeepers", DF: "Defenders", MF: "Midfielders", FW: "Forwards" };
-  const byPos = p => sq.players.filter(x => x.pos === p);
   return `<div class="eyebrow">Squad — ${sq.players.length} players${sq.coach ? ` · Coach <b style="color:var(--ink)">&nbsp;${esc(sq.coach)}</b>` : ""}</div>
-    <div class="roster">${Object.entries(groups).map(([p, label]) => {
-      const ps = byPos(p);
-      return ps.length ? `<div class="roster-pos"><h5>${label} <span>${ps.length}</span></h5>
-        ${ps.map(x => `<div class="roster-row">
-          <span class="rnum">${x.n ?? "·"}</span>
-          <span class="rname">${esc(x.name.replace(" (captain)", ""))}${x.name.includes("(captain)") ? `<i class="cpt">C</i>` : ""}</span>
-          ${x.caps != null ? `<span class="rstat">${x.caps} caps${x.goals ? ` · ${x.goals}g` : ""}</span>` : ""}
-          ${x.club ? `<span class="rclub">${esc(x.club)}</span>` : ""}
-        </div>`).join("")}</div>` : "";
-    }).join("")}</div>`;
+    ${rosterMarkup(sq)}`;
+}
+function openSquad(code) {
+  const t = S.teams[code]; if (!t) return;
+  const sq = S.squads?.[code];
+  $("#squadTitle").innerHTML = `<span class="fl">${flag(code)}</span> ${esc(t.name)}`
+    + (sq ? `<span class="sq-meta">${sq.players.length} players${sq.coach ? ` · ${esc(sq.coach)}` : ""}</span>` : "");
+  $("#squadBody").innerHTML = sq ? rosterMarkup(sq)
+    : `<div class="empty">${esc(t.name)}'s squad lands once the squads workflow runs (see README). 16 teams are pre-loaded so far.</div>`;
+  $("#squadDialog").showModal();
 }
 const ordinal = n => n + (["th", "st", "nd", "rd"][((n % 100) - 20) % 10] || ["th", "st", "nd", "rd"][n % 100] || "th");
 
@@ -373,7 +402,7 @@ function groupTable(g, i) {
   return `<div class="gtable" style="--i:${i}"><h4>Group <span>${g}</span></h4>
     <table>${TABLE_COLS}<thead><tr><th>Team</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GD</th><th>Pts</th></tr></thead><tbody>
     ${rows.map((r, idx) => `<tr class="${idx < 2 ? "q1" : idx === 2 ? "q3" : ""} ${r.code === S.fav ? "is-fav" : ""}">
-      <td class="tname" title="${esc(S.teams[r.code].name)}"><span class="fl">${flag(r.code)}</span>${esc(S.teams[r.code].name)}</td>
+      <td class="tname" title="View ${esc(S.teams[r.code].name)} squad" data-squad="${r.code}"><span class="fl">${flag(r.code)}</span>${esc(S.teams[r.code].name)}</td>
       <td>${r.p}</td><td>${r.w}</td><td>${r.d}</td><td>${r.l}</td><td>${r.gf - r.ga > 0 ? "+" : ""}${r.gf - r.ga}</td><td><b>${r.pts}</b></td></tr>`).join("")}
     </tbody></table></div>`;
 }
@@ -387,13 +416,28 @@ function renderGroups() {
 function renderBracket() {
   const cols = [["r32", "Round of 32"], ["r16", "Round of 16"], ["qf", "Quarter-finals"], ["sf", "Semi-finals"], ["final", "Final"]];
   const third = S.matches.find(m => m.stage === "third");
-  $("#view-bracket").innerHTML = `<div class="bracket-scroll"><div class="bracket">
-    ${cols.map(([st, title]) => `<div class="bcol"><div class="bcol-title">${title}</div>
-      ${S.matches.filter(m => m.stage === st).sort((a, b) => a.num - b.num).map((m, i) => bMatch(m, i)).join("")}
-      ${st === "final" && third ? `<div class="bcol-title" style="margin-top:18px">Third place</div>` + bMatch(third, 1) : ""}
-    </div>`).join("")}
+  // champion, once the final resolves
+  const finalM = S.matches.find(m => m.stage === "final");
+  const fr = finalM && res(finalM);
+  let champ = null;
+  if (fr && fr.st === ST.FT) {
+    const fh = slotInfo(finalM, "home").code, fa = slotInfo(finalM, "away").code;
+    const homeWon = fr.h > fr.a || (fr.h === fr.a && (fr.hp ?? -1) > (fr.ap ?? -1));
+    champ = homeWon ? fh : fa;
+  }
+  $("#view-bracket").innerHTML =
+    (champ ? championBanner(champ) : "") +
+    `<div class="bracket-scroll"><div class="bracket">
+    ${cols.map(([st, title]) => {
+      const ms = S.matches.filter(m => m.stage === st).sort((a, b) => a.num - b.num);
+      const decided = ms.filter(m => res(m)?.st === ST.FT).length;
+      return `<div class="bcol bcol-${st}"><div class="bcol-title">${title}<span class="bcol-count">${decided}/${ms.length}</span></div>
+      ${ms.map((m, i) => bMatch(m, i)).join("")}
+      ${st === "final" && third ? `<div class="bcol-title" style="margin-top:18px">Third place<span class="bcol-count">${res(third)?.st === ST.FT ? "1/1" : "0/1"}</span></div>` + bMatch(third, 1) : ""}
+    </div>`;
+    }).join("")}
   </div></div>
-  <p style="font-size:11.5px;color:var(--ink-soft);margin-top:10px">Scroll sideways → · winners flow left to right · the bracket fills itself as results land. Want to call it early? Try the <b>Predict</b> tab.</p>`;
+  <p class="bracket-note">Scroll sideways → · winners flow left to right · the bracket fills itself as results land. Want to call it early? Try the <b>Predict</b> tab.</p>`;
 }
 function bMatch(m, i) {
   const h = slotInfo(m, "home"), a = slotInfo(m, "away");
@@ -683,6 +727,8 @@ async function boot() {
   $$("dialog").forEach(d => d.onclick = e => { if (e.target === d) d.close(); });
   addEventListener("resize", moveInk);
   document.addEventListener("click", e => {
+    const sq = e.target.closest("[data-squad]");
+    if (sq) { openSquad(sq.dataset.squad); return; }
     const card = e.target.closest(".mcard.has-xi");
     if (card && !e.target.closest("a")) card.classList.toggle("open");
   });
