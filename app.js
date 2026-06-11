@@ -18,6 +18,11 @@ function toggleSave(id) {
   S.saved.has(id) ? S.saved.delete(id) : S.saved.add(id);
   localStorage.setItem("wc26.saved", JSON.stringify([...S.saved]));
   RENDER[S.view]();
+  const md = document.getElementById("matchDialog");
+  if (md && md.open && md.dataset.mid === id) {
+    const b = md.querySelector(".md-save"), on = S.saved.has(id);
+    if (b) { b.classList.toggle("is-on", on); b.setAttribute("aria-pressed", on); b.textContent = on ? "★ Saved" : "☆ Save match"; }
+  }
 }
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
@@ -215,7 +220,7 @@ function matchCard(m, i, opts = {}) {
     (win ? `<span class="winner-mark">▲</span>` : "") + `</div>`;
   const xi = r?.xi;
   const sv = isSaved(m.id);
-  return `<button class="mcard ${fav ? "is-fav" : ""} ${xi ? "has-xi" : ""}" style="--i:${i}" data-mid="${m.id}">
+  return `<button class="mcard ${fav ? "is-fav" : ""}" style="--i:${i}" data-mid="${m.id}">
     <span class="mcard-star ${sv ? "is-on" : ""}" data-save="${m.id}" role="button" tabindex="0" aria-pressed="${sv}" aria-label="${sv ? "Remove saved match" : "Save this match"}" title="${sv ? "Saved — tap to remove" : "Save this match"}">${sv ? "★" : "☆"}</span>
     <div class="mcard-row">
       <div class="mcard-time">${timeStr(m.utc)}<small>${fmt(m.utc, { day: "numeric", month: "short" })}</small></div>
@@ -224,8 +229,7 @@ function matchCard(m, i, opts = {}) {
         ? `<div class="mcard-score"><span>${r.h}</span><span>${r.a}</span>${r.hp != null ? `<span class="pens">(${r.hp}–${r.ap} pens)</span>` : ""}</div>`
         : badge}</div>
     </div>
-    ${opts.sub !== false ? `<div class="mcard-sub"><span class="grp">${esc(stageL)}</span><span>${esc(m.stadium)}</span><span>${esc(m.city)}</span>${xi ? `<span class="xi-hint">▾ Lineups</span>` : ""}</div>` : ""}
-    ${xi ? xiPanel(xi, h, a) : ""}
+    ${opts.sub !== false ? `<div class="mcard-sub"><span class="grp">${esc(stageL)}</span><span>${esc(m.stadium)}</span><span>${esc(m.city)}</span>${xi ? `<span class="xi-hint">Lineups</span>` : ""}<span class="mcard-go">Details ›</span></div>` : ""}
   </button>`;
 }
 function xiPanel(xi, h, a) {
@@ -235,6 +239,38 @@ function xiPanel(xi, h, a) {
     ${side.coach ? `<div class="xi-coach">Coach · ${esc(side.coach)}</div>` : ""}
   </div>`;
   return `<div class="mcard-xi">${col(xi.h, h)}${col(xi.a, a)}</div>`;
+}
+function openMatch(id) {
+  const m = S.matches.find(x => x.id === id); if (!m) return;
+  const h = slotInfo(m, "home"), a = slotInfo(m, "away"), r = res(m), st = status(m);
+  const score = r && r.h != null;
+  const stageL = m.group ? `Group ${m.group}` : m.round;
+  const sv = isSaved(id);
+  const statusTag = st === ST.LIVE ? `<span class="md-tag live">● Live${r?.min ? " " + r.min + "′" : ""}</span>`
+    : st === ST.HT ? `<span class="md-tag live">Half-time</span>`
+    : st === ST.FT ? `<span class="md-tag ft">Full time</span>`
+    : `<span class="md-tag soon">Kicks off ${timeStr(m.utc)} ${tzShort()}</span>`;
+  const side = (s) => `<div class="md-team ${s.code === S.fav ? "is-fav" : ""}">
+      <span class="md-flag">${s.code ? flag(s.code) : "·"}</span>
+      <span class="md-name ${s.ph ? "is-ph" : ""}">${esc(s.name)}</span>
+      ${s.code ? `<button class="md-squad-link" data-squad="${s.code}">View squad ›</button>` : ""}</div>`;
+  const mid = score
+    ? `<div class="md-score">${r.h}<span>–</span>${r.a}</div>${r.hp != null ? `<div class="md-pens">${r.hp}–${r.ap} on penalties</div>` : ""}`
+    : `<div class="md-vs">VS</div>`;
+  $("#matchTitle").innerHTML = `<span class="md-stage">${esc(stageL)}</span>`;
+  $("#matchBody").innerHTML = `
+    <div class="md-tagrow">${statusTag}
+      <button class="md-save ${sv ? "is-on" : ""}" data-save="${id}" aria-pressed="${sv}">${sv ? "★ Saved" : "☆ Save match"}</button>
+    </div>
+    <div class="md-teams">${side(h)}<div class="md-mid">${mid}</div>${side(a)}</div>
+    <div class="md-meta">
+      <span>${fmt(m.utc, { weekday: "long", day: "numeric", month: "long" })}</span>
+      <span>${timeStr(m.utc)} ${tzShort()}</span>
+      <span>${esc(m.stadium)}</span>
+      <span>${esc(m.city)}</span>
+    </div>
+    ${r?.xi ? `<div class="eyebrow">Starting XI</div>${xiPanel(r.xi, h, a)}` : ""}`;
+  const md = $("#matchDialog"); md.dataset.mid = id; md.showModal();
 }
 
 /* ---------------- render: today ---------------- */
@@ -280,10 +316,7 @@ function renderToday() {
 
   html += `<div class="eyebrow"><span class="ey-acc">${todays.length || "No"}</span> match${todays.length === 1 ? "" : "es"} today — ${dayLabel(now.toISOString())}</div>`;
   html += todays.length
-    ? `<div class="timeline">${todays.map((m, i) => {
-        const st = status(m);
-        return `<div class="t-item"><span class="t-node ${st === ST.FT ? "is-done" : ""} ${[ST.LIVE, ST.HT].includes(st) ? "is-live" : ""}"></span>${matchCard(m, i)}</div>`;
-      }).join("")}</div>`
+    ? `<div class="todaylist">${todays.map((m, i) => matchCard(m, i)).join("")}</div>`
     : `<div class="empty">A rest day — no matches scheduled. The bracket is breathing.</div>`;
 
   if (comingUp.length) {
@@ -433,17 +466,19 @@ function renderBracket() {
   }
   $("#view-bracket").innerHTML =
     (champ ? championBanner(champ) : "") +
-    `<div class="bracket-scroll"><div class="bracket">
+    `<div class="bracket-scroll"><div class="bracket"><svg class="bracket-lines" aria-hidden="true"></svg>
     ${cols.map(([st, title]) => {
       const ms = S.matches.filter(m => m.stage === st).sort((a, b) => a.num - b.num);
       const decided = ms.filter(m => res(m)?.st === ST.FT).length;
-      return `<div class="bcol bcol-${st}"><div class="bcol-title">${title}<span class="bcol-count">${decided}/${ms.length}</span></div>
-      ${ms.map((m, i) => bMatch(m, i)).join("")}
-      ${st === "final" && third ? `<div class="bcol-title" style="margin-top:18px">Third place<span class="bcol-count">${res(third)?.st === ST.FT ? "1/1" : "0/1"}</span></div>` + bMatch(third, 1) : ""}
-    </div>`;
+      const inner = ms.map((m, i) => bMatch(m, i)).join("")
+        + (st === "final" && third ? `<div class="bcol-sub">Third place</div>` + bMatch(third, 1) : "");
+      return `<div class="bcol bcol-${st}">
+        <div class="bcol-title">${title}<span class="bcol-count">${decided}/${ms.length}</span></div>
+        <div class="bcol-matches">${inner}</div></div>`;
     }).join("")}
   </div></div>
   <p class="bracket-note">Scroll sideways → · winners flow left to right · the bracket fills itself as results land. Want to call it early? Try the <b>Predict</b> tab.</p>`;
+  drawBracketLines($("#view-bracket"));
 }
 function bMatch(m, i) {
   const h = slotInfo(m, "home"), a = slotInfo(m, "away");
@@ -453,10 +488,34 @@ function bMatch(m, i) {
     <span class="fl">${s.code ? flag(s.code) : "·"}</span>
     <span class="nm ${s.ph ? "ph" : ""}">${esc(s.ph ? (s.short || s.name) : s.name)}${w && m.stage === "final" ? " 🏆" : ""}</span>
     ${sc != null ? `<span class="sc">${sc}</span>` : ""}</div>`;
-  return `<div class="bm ${m.stage === "final" ? "is-final" : ""}" style="--i:${i}">
+  return `<div class="bm ${m.stage === "final" ? "is-final" : ""}" style="--i:${i}" data-num="${m.num}" data-mid="${m.id}">
     ${row(h, fin ? r.h : null, wH, fin && !wH)}${row(a, fin ? r.a : null, fin && !wH, wH)}
     <div class="bm-label">M${m.num} · ${fmt(m.utc, { day: "numeric", month: "short" })} ${timeStr(m.utc)} · ${esc(m.city.split(",")[0])}${[ST.LIVE, ST.HT].includes(st) ? ` · <span style="color:var(--live);font-weight:700">LIVE</span>` : ""}</div>
   </div>`;
+}
+// draw orthogonal connector lines between feeder matches and their target (winner advances)
+function drawBracketLines(scope) {
+  const bracket = scope.querySelector(".bracket");
+  const svg = scope.querySelector(".bracket-lines");
+  if (!bracket || !svg) return;
+  const W = bracket.scrollWidth, H = bracket.scrollHeight;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.setAttribute("width", W); svg.setAttribute("height", H);
+  const br = bracket.getBoundingClientRect(), pos = {};
+  bracket.querySelectorAll(".bm[data-num]").forEach(el => {
+    const r = el.getBoundingClientRect();
+    pos[el.dataset.num] = { left: r.left - br.left, right: r.right - br.left, cy: r.top - br.top + r.height / 2 };
+  });
+  let d = "";
+  S.matches.filter(m => m.stage !== "group" && m.stage !== "third").forEach(m => {
+    const tgt = pos[m.num]; if (!tgt) return;
+    [m.home, m.away].forEach(s => {
+      const src = s.feeds && pos[s.feeds]; if (!src) return; // winner-advance links only
+      const midX = src.right + (tgt.left - src.right) / 2;
+      d += `M${src.right} ${src.cy} H${midX} V${tgt.cy} H${tgt.left} `;
+    });
+  });
+  svg.innerHTML = d ? `<path d="${d}"/>` : "";
 }
 
 /* ============================================================
@@ -557,11 +616,12 @@ function renderSim() {
   const third = S.matches.find(m => m.stage === "third");
   const simBracket = !thirdsDone ? `<div class="empty">Pick your 8 third-place teams above to unlock the bracket.</div>`
     : alloc === "impossible" ? `<div class="empty">That combination of thirds can't fill the slots — swap one and try again.</div>`
-    : `<div class="bracket-scroll"><div class="bracket">
-        ${cols.map(([st, title]) => `<div class="bcol"><div class="bcol-title">${title}</div>
-          ${S.matches.filter(m => m.stage === st).sort((a, b) => a.num - b.num).map((m, i) => simMatch(m, i, alloc)).join("")}
-          ${st === "final" && third ? `<div class="bcol-title" style="margin-top:18px">Third place</div>` + simMatch(third, 1, alloc) : ""}
-        </div>`).join("")}
+    : `<div class="bracket-scroll"><div class="bracket"><svg class="bracket-lines" aria-hidden="true"></svg>
+        ${cols.map(([st, title]) => {
+          const inner = S.matches.filter(m => m.stage === st).sort((a, b) => a.num - b.num).map((m, i) => simMatch(m, i, alloc)).join("")
+            + (st === "final" && third ? `<div class="bcol-sub">Third place</div>` + simMatch(third, 1, alloc) : "");
+          return `<div class="bcol bcol-${st}"><div class="bcol-title">${title}</div><div class="bcol-matches">${inner}</div></div>`;
+        }).join("")}
       </div></div>`;
 
   el.innerHTML = `
@@ -632,6 +692,7 @@ function renderSim() {
     if (c) confetti(c.c1, c.c2);
   };
   $("#simReset").onclick = () => { S.sim = { order: {}, thirds: [], ko: {} }; saveSim(); renderSim(); };
+  drawBracketLines(el);
 }
 function simMatch(m, i, alloc) {
   const { h, a } = simSlots(m, alloc);
@@ -642,7 +703,7 @@ function simMatch(m, i, alloc) {
     return `<div class="bm-row pickable ${isPick ? "is-pick" : ""} ${isOut ? "is-out" : ""}" data-pick="${m.num}|${code}" role="button" tabindex="0">
       <span class="fl">${flag(code)}</span><span class="nm">${esc(S.teams[code].name)}${isPick && m.stage === "final" ? " 🏆" : ""}</span></div>`;
   };
-  return `<div class="bm ${m.stage === "final" ? "is-final" : ""}" style="--i:${i}">
+  return `<div class="bm ${m.stage === "final" ? "is-final" : ""}" style="--i:${i}" data-num="${m.num}">
     ${row(h, a)}${row(a, h)}
     <div class="bm-label">M${m.num} · ${fmt(m.utc, { day: "numeric", month: "short" })} · ${esc(m.city.split(",")[0])}</div></div>`;
 }
@@ -743,14 +804,19 @@ async function boot() {
   $("#teamChip").onclick = () => $("#teamDialog").showModal();
   $$("[data-close]").forEach(b => b.onclick = () => b.closest("dialog").close());
   $$("dialog").forEach(d => d.onclick = e => { if (e.target === d) d.close(); });
-  addEventListener("resize", moveInk);
+  addEventListener("resize", () => {
+    moveInk();
+    if (S.view === "bracket" || S.view === "sim") drawBracketLines($("#view-" + S.view));
+  });
   document.addEventListener("click", e => {
     const star = e.target.closest("[data-save]");
     if (star) { e.stopPropagation(); toggleSave(star.dataset.save); return; }
     const sq = e.target.closest("[data-squad]");
-    if (sq) { openSquad(sq.dataset.squad); return; }
-    const card = e.target.closest(".mcard.has-xi");
-    if (card && !e.target.closest("a")) card.classList.toggle("open");
+    if (sq && sq.dataset.squad) { openSquad(sq.dataset.squad); return; }
+    const bm = e.target.closest(".bm[data-mid]");
+    if (bm) { openMatch(bm.dataset.mid); return; }
+    const card = e.target.closest(".mcard");
+    if (card) { openMatch(card.dataset.mid); }
   });
   // keyboard: activate focusable custom controls (save stars, squad cells, sim picks) with Enter/Space
   document.addEventListener("keydown", e => {
