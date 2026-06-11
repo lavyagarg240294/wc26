@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "21";  // shown in footer; bump with the ?v= asset version
+const BUILD = "22";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -817,22 +817,30 @@ function syncTzLabels() {
 }
 
 /* ---------------- background music (off by default) ---------------- */
-function setMusic(on) {
-  const a = $("#bgm"), btn = $("#musicChip");
-  localStorage.setItem("wc26.music", on ? "on" : "off");
-  if (btn) { btn.classList.toggle("is-on", on); btn.setAttribute("aria-pressed", String(on)); btn.title = on ? "Mute music" : "Background music"; }
-  if (!a) return;
-  if (on) { a.volume = 0.32; a.play().catch(() => {}); } else { a.pause(); }
-}
+// The button reflects the audio's REAL paused state (not just a saved flag), so it
+// can never get out of sync with what you actually hear.
 function initMusic() {
-  const btn = $("#musicChip"); if (!btn) return;
-  btn.onclick = () => setMusic(localStorage.getItem("wc26.music") !== "on");
+  const a = $("#bgm"), btn = $("#musicChip"); if (!btn || !a) return;
+  a.volume = 0.32;
+  const sync = () => {
+    const playing = !a.paused;
+    btn.classList.toggle("is-on", playing);
+    btn.setAttribute("aria-pressed", String(playing));
+    btn.title = playing ? "Mute music" : "Play music";
+  };
+  a.addEventListener("play", sync);
+  a.addEventListener("pause", sync);
+  btn.onclick = () => {
+    if (a.paused) { a.play().then(() => localStorage.setItem("wc26.music", "on")).catch(() => {}); }
+    else { a.pause(); localStorage.setItem("wc26.music", "off"); }
+  };
+  // resume a previously-on preference on the first interaction (autoplay is blocked on load) —
+  // but ignore a tap on the music button itself, so toggling can never fight the resume
   if (localStorage.getItem("wc26.music") === "on") {
-    setMusic(true);
-    // browsers block autoplay without a gesture — resume on the first interaction
-    const resume = () => { if (localStorage.getItem("wc26.music") === "on") $("#bgm").play().catch(() => {}); };
+    const resume = e => { if (!e.target.closest("#musicChip")) a.play().catch(() => {}); };
     addEventListener("pointerdown", resume, { once: true });
   }
+  sync();
 }
 
 /* ---------------- data ---------------- */
