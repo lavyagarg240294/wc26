@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "16";  // shown in footer; bump with the ?v= asset version
+const BUILD = "17";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -749,6 +749,16 @@ function nav(v) {
   moveInk();
   RENDER[v]();
   scrollTo({ top: 0, behavior: "instant" });
+  if (v === "matches") requestAnimationFrame(scrollToToday);
+}
+// when entering Matches and past days already exist, land at "Today" (past above, upcoming below)
+function scrollToToday() {
+  const heads = $$("#view-matches .dayhead");
+  const today = $("#view-matches .dayhead.is-today");
+  if (!today || heads.indexOf(today) <= 0) return; // nothing before today yet — keep the hero in view
+  const stick = ($(".topbar")?.offsetHeight || 56) + ($(".tabs")?.offsetHeight || 48) + 8;
+  const y = today.getBoundingClientRect().top + window.scrollY - stick;
+  scrollTo({ top: Math.max(0, y), behavior: "instant" });
 }
 function moveInk() {
   const t = $(".tab.is-active"), ink = $("#tabInk");
