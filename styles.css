@@ -98,6 +98,20 @@ b{font-weight:600}
 .chip:active{transform:translateY(0)}
 .chip-team{border-color:color-mix(in srgb,var(--acc1) 45%,var(--line))}
 #teamChipFlag{font-size:14px;line-height:1}
+/* music toggle */
+.chip-icon{padding:7px 11px;gap:5px}
+.chip-icon .ic-music{display:block;color:var(--ink-soft);transition:color .2s}
+.chip-icon:hover .ic-music{color:var(--ink)}
+.chip-icon.is-on{border-color:color-mix(in srgb,var(--acc1) 50%,var(--line));background:color-mix(in srgb,var(--acc1) 10%,var(--card))}
+.chip-icon.is-on .ic-music{color:var(--acc1)}
+.eq{display:none;align-items:flex-end;gap:2px;height:13px}
+.chip-icon.is-on .eq{display:inline-flex}
+.eq i{width:2.5px;height:11px;background:var(--acc1);border-radius:2px;transform-origin:bottom;animation:eqb .9s ease-in-out infinite}
+.eq i:nth-child(1){height:6px}
+.eq i:nth-child(2){animation-delay:.2s}
+.eq i:nth-child(3){height:8px;animation-delay:.4s}
+@keyframes eqb{0%,100%{transform:scaleY(.4)}50%{transform:scaleY(1)}}
+@media(prefers-reduced-motion:reduce){.eq i{animation:none}}
 
 /* ---------- tabs ---------- */
 .tabs{

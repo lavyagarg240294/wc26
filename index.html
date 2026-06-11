@@ -22,7 +22,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=Instrument+Sans:wght@400;500;600&family=Spline+Sans+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=17">
+<link rel="stylesheet" href="styles.css?v=19">
 <link rel="icon" href="assets/wc26-emblem.svg">
 </head>
 <body>
@@ -39,6 +39,10 @@
     </span>
   </a>
   <div class="topbar-right">
+    <button class="chip chip-icon" id="musicChip" title="Background music" aria-pressed="false" aria-label="Toggle background music">
+      <svg class="ic-music" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg>
+      <span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>
+    </button>
     <button class="chip" id="tzChip" title="Change timezone">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
       <span id="tzLabel">Auto</span>
@@ -103,7 +107,8 @@
 </dialog>
 
 <canvas id="confetti" aria-hidden="true"></canvas>
+<audio id="bgm" loop preload="none" src="assets/anthem.mp3"></audio>
 
-<script src="app.js?v=17"></script>
+<script src="app.js?v=19"></script>
 </body>
 </html>

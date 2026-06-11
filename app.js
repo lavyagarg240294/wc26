@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "17";  // shown in footer; bump with the ?v= asset version
+const BUILD = "19";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -251,9 +251,9 @@ function openMatch(id) {
     : st === ST.HT ? `<span class="md-tag live">Half-time</span>`
     : st === ST.FT ? `<span class="md-tag ft">Full time</span>`
     : `<span class="md-tag soon">Kicks off ${timeStr(m.utc)} ${tzShort()}</span>`;
-  const side = (s) => `<div class="md-team ${s.code === S.fav ? "is-fav" : ""}">
+  const side = (s, key) => `<div class="md-team ${s.code === S.fav ? "is-fav" : ""}">
       <span class="md-flag">${s.code ? flag(s.code) : "·"}</span>
-      <span class="md-name ${s.ph ? "is-ph" : ""}">${esc(s.name)}</span>
+      <span class="md-name ${s.ph ? "is-ph" : ""}">${esc(slotText(m, key, s))}</span>
       ${s.code ? `<button class="md-squad-link" data-squad="${s.code}">View squad ›</button>` : ""}</div>`;
   const mid = score
     ? `<div class="md-score">${r.h}<span>–</span>${r.a}</div>${r.hp != null ? `<div class="md-pens">${r.hp}–${r.ap} on penalties</div>` : ""}`
@@ -263,7 +263,7 @@ function openMatch(id) {
     <div class="md-tagrow">${statusTag}
       <button class="md-save ${sv ? "is-on" : ""}" data-save="${id}" aria-pressed="${sv}">${sv ? "★ Saved" : "☆ Save match"}</button>
     </div>
-    <div class="md-teams">${side(h)}<div class="md-mid">${mid}</div>${side(a)}</div>
+    <div class="md-teams">${side(h, "home")}<div class="md-mid">${mid}</div>${side(a, "away")}</div>
     <div class="md-meta">
       <span>${fmt(m.utc, { weekday: "long", day: "numeric", month: "long" })}</span>
       <span>${timeStr(m.utc)} ${tzShort()}</span>
@@ -469,17 +469,34 @@ function renderBracket() {
   <p class="bracket-note">Scroll sideways → · winners flow left to right · the bracket fills itself as results land. Want to call it early? Try the <b>Predict</b> tab.</p>`;
   layoutBracket($("#view-bracket"));
 }
+// human label for an unresolved knockout slot fed by another match's winner/loser
+const STAGE_SHORT = { r32: "R32", r16: "R16", qf: "QF", sf: "SF", final: "Final" };
+function feedLabel(num, loser) {
+  const m = S.matches.find(x => x.num === num && x.stage !== "group");
+  if (!m) return (loser ? "Loser " : "Winner ") + "M" + num;
+  const peers = S.matches.filter(x => x.stage === m.stage).sort((a, b) => a.num - b.num);
+  const idx = peers.indexOf(m) + 1;
+  const sh = STAGE_SHORT[m.stage] || m.stage.toUpperCase();
+  return (loser ? "Loser " : "Winner ") + sh + "-" + idx;
+}
+function slotText(m, side, si) {
+  if (!si.ph) return si.name;                         // a real team is known
+  const slot = m[side];
+  if (slot.feeds) return feedLabel(slot.feeds, false); // "Winner QF1"
+  if (slot.feedsL) return feedLabel(slot.feedsL, true);// "Loser SF1" (third-place)
+  return slot.short || si.name;                        // group placeholder (1E, 2A, 3rd A/B/…)
+}
 function bMatch(m, i) {
   const h = slotInfo(m, "home"), a = slotInfo(m, "away");
   const r = res(m), st = status(m), fin = st === ST.FT && r;
   const wH = fin && (r.h > r.a || (r.h === r.a && (r.hp ?? -1) > (r.ap ?? -1)));
-  const row = (s, sc, w, l) => `<div class="bm-row ${w ? "is-w" : ""} ${l ? "is-l" : ""}">
+  const row = (s, txt, sc, w, l) => `<div class="bm-row ${w ? "is-w" : ""} ${l ? "is-l" : ""}">
     <span class="fl">${s.code ? flag(s.code) : "·"}</span>
-    <span class="nm ${s.ph ? "ph" : ""}">${esc(s.ph ? (s.short || s.name) : s.name)}${w && m.stage === "final" ? " 🏆" : ""}</span>
+    <span class="nm ${s.ph ? "ph" : ""}">${esc(txt)}${w && m.stage === "final" ? " 🏆" : ""}</span>
     ${sc != null ? `<span class="sc">${sc}</span>` : ""}</div>`;
   return `<div class="bm ${m.stage === "final" ? "is-final" : ""} ${m.stage === "third" ? "is-third" : ""}" style="--i:${i}" data-num="${m.num}" data-mid="${m.id}">
     ${m.stage === "third" ? `<div class="bm-tag">3rd place</div>` : ""}
-    ${row(h, fin ? r.h : null, wH, fin && !wH)}${row(a, fin ? r.a : null, fin && !wH, wH)}
+    ${row(h, slotText(m, "home", h), fin ? r.h : null, wH, fin && !wH)}${row(a, slotText(m, "away", a), fin ? r.a : null, fin && !wH, wH)}
     <div class="bm-label">M${m.num} · ${fmt(m.utc, { day: "numeric", month: "short" })} ${timeStr(m.utc)} · ${esc(m.city.split(",")[0])}${[ST.LIVE, ST.HT].includes(st) ? ` · <span style="color:var(--live);font-weight:700">LIVE</span>` : ""}</div>
   </div>`;
 }
@@ -796,6 +813,25 @@ function syncTzLabels() {
   const bt = $("#buildTag"); if (bt) bt.textContent = "build " + BUILD;
 }
 
+/* ---------------- background music (off by default) ---------------- */
+function setMusic(on) {
+  const a = $("#bgm"), btn = $("#musicChip");
+  localStorage.setItem("wc26.music", on ? "on" : "off");
+  if (btn) { btn.classList.toggle("is-on", on); btn.setAttribute("aria-pressed", String(on)); btn.title = on ? "Mute music" : "Background music"; }
+  if (!a) return;
+  if (on) { a.volume = 0.32; a.play().catch(() => {}); } else { a.pause(); }
+}
+function initMusic() {
+  const btn = $("#musicChip"); if (!btn) return;
+  btn.onclick = () => setMusic(localStorage.getItem("wc26.music") !== "on");
+  if (localStorage.getItem("wc26.music") === "on") {
+    setMusic(true);
+    // browsers block autoplay without a gesture — resume on the first interaction
+    const resume = () => { if (localStorage.getItem("wc26.music") === "on") $("#bgm").play().catch(() => {}); };
+    addEventListener("pointerdown", resume, { once: true });
+  }
+}
+
 /* ---------------- data ---------------- */
 async function loadStatic() {
   const [m, t] = await Promise.all([
@@ -839,6 +875,7 @@ async function boot() {
   $$("[data-nav]").forEach(b => b.onclick = e => { e.preventDefault(); nav(b.dataset.nav); });
   $("#tzChip").onclick = () => $("#tzDialog").showModal();
   $("#teamChip").onclick = () => $("#teamDialog").showModal();
+  initMusic();
   $$("[data-close]").forEach(b => b.onclick = () => b.closest("dialog").close());
   $$("dialog").forEach(d => d.onclick = e => { if (e.target === d) d.close(); });
   addEventListener("resize", () => {
