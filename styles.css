@@ -80,8 +80,10 @@ b{font-weight:600}
   animation:ballIn .8s cubic-bezier(.34,1.56,.64,1) both;
 }
 @keyframes ballIn{from{transform:translateY(-30px) rotate(-12deg);opacity:0}}
-.wm-text{font-family:var(--disp);font-weight:900;font-stretch:115%;font-size:19px;letter-spacing:.02em}
-.wm-text i{font-style:normal;color:var(--acc1);transition:color .5s}
+.wm-text{font-family:var(--disp);font-weight:800;font-stretch:108%;font-size:18px;letter-spacing:.01em;line-height:1;white-space:nowrap}
+.wm-text b{color:var(--acc1);font-weight:900;transition:color .5s}
+.wm-fifa{font-weight:900;letter-spacing:.04em}
+.wm-short{display:none}
 .wordmark{flex-shrink:0}
 .topbar-right{display:flex;gap:8px;min-width:0}
 .chip{min-width:0}
@@ -161,11 +163,19 @@ b{font-weight:600}
 
 /* ---------- hero ---------- */
 .hero{
-  position:relative;overflow:hidden;
+  position:relative;overflow:hidden;cursor:pointer;
   background:var(--card);border:1px solid var(--line);border-radius:22px;
   padding:clamp(20px,4vw,34px);box-shadow:var(--shadow);
   animation:rise .55s cubic-bezier(.21,.8,.35,1) both;
+  transition:transform .18s,box-shadow .25s,border-color .2s;
 }
+.hero:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--acc1) 40%,var(--line));box-shadow:0 10px 30px -12px rgba(13,27,42,.25)}
+.hero:focus-visible{outline:2px solid var(--acc1);outline-offset:2px}
+.hero-go{position:absolute;top:clamp(20px,4vw,34px);right:clamp(20px,4vw,34px);z-index:2;
+  font-family:var(--disp);font-weight:700;font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--acc1);background:color-mix(in srgb,var(--acc1) 10%,var(--card));border:1px solid color-mix(in srgb,var(--acc1) 25%,transparent);
+  padding:5px 10px;border-radius:99px}
+.hero:hover .hero-go{background:var(--acc1);color:#fff}
 .hero::before{
   content:"";position:absolute;right:-90px;top:-90px;width:260px;height:260px;
   border:2px solid color-mix(in srgb,var(--acc1) 22%,transparent);border-radius:50%;
@@ -335,7 +345,7 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .bracket-note{font-size:11.5px;color:var(--ink-soft);margin-top:10px}
 
 /* ---------- calendar filters ---------- */
-.filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px}
+.filters{display:flex;gap:8px;flex-wrap:wrap;margin:24px 0 16px}
 .fbtn{font-size:12px;font-weight:600;padding:8px 14px;border-radius:99px;border:1px solid var(--line);background:var(--card);color:var(--ink-soft);transition:all .18s}
 .fbtn:hover{border-color:var(--acc1);color:var(--ink)}
 .fbtn.is-on{background:var(--ink);border-color:var(--ink);color:var(--paper)}
@@ -396,8 +406,13 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .tname[data-squad]:hover{text-decoration:underline;text-decoration-color:var(--acc1);text-underline-offset:2px}
 #squadTitle{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 #squadTitle .sq-meta{font-family:var(--mono);font-size:11px;font-weight:500;color:var(--ink-soft)}
-.roster{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:14px;align-items:start}
-.roster-pos{background:var(--card);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;box-shadow:var(--shadow);animation:rise .45s both}
+/* multi-column so the 4 position cards pack with no floating gaps */
+.roster{column-count:4;column-gap:14px}
+@media(max-width:1080px){.roster{column-count:3}}
+@media(max-width:780px){.roster{column-count:2}}
+@media(max-width:560px){.roster{column-count:1}}
+#squadBody .roster{column-count:1}
+.roster-pos{break-inside:avoid;width:100%;margin-bottom:14px;background:var(--card);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;box-shadow:var(--shadow);animation:rise .45s both}
 .roster-pos h5{font-family:var(--disp);font-weight:800;font-stretch:115%;font-size:11.5px;letter-spacing:.11em;text-transform:uppercase;padding:10px 14px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between}
 .roster-pos h5 span{color:var(--acc1);font-family:var(--mono)}
 .roster-row{display:flex;align-items:baseline;gap:9px;padding:7px 14px;border-bottom:1px solid color-mix(in srgb,var(--line) 45%,transparent);font-size:13px;flex-wrap:wrap}
@@ -486,8 +501,10 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
   .tabs{top:48px}
   .topbar-right{gap:6px}
   .chip{padding:6px 9px;font-size:12px;gap:5px}
-  .wm-text{font-size:17px}
+  .wm-text{font-size:16px}
   .wm-logo{height:26px}
+  .wm-full{display:none}
+  .wm-short{display:inline}
   #teamChipName{max-width:66px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   #tzLabel{max-width:62px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .cd-cell{width:56px;padding:7px 0}

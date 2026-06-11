@@ -277,11 +277,12 @@ function openMatch(id) {
 let cdTimer = null, prevCd = {};
 function heroBlock(heroM, isLive) {
   const h = slotInfo(heroM, "home"), a = slotInfo(heroM, "away"), r = res(heroM);
-  return `<div class="hero">
+  return `<div class="hero" data-mid="${heroM.id}" role="button" tabindex="0" aria-label="Match details">
     <div class="hero-tag ${isLive ? "is-live" : ""}">
       ${isLive ? `<span class="live-dot"></span> Live now` : `${isFavMatch(heroM) ? "Your team · " : ""}Next kickoff`}
       <span style="color:var(--ink-soft);font-weight:600">— ${esc(heroM.group ? "Group " + heroM.group : heroM.round)}</span>
     </div>
+    <span class="hero-go">Details ›</span>
     <div class="hero-teams">
       <div class="hero-side"><span class="hero-flag">${h.code ? flag(h.code) : "·"}</span><span class="hero-name">${esc(h.name)}</span></div>
       <div class="hero-mid">${isLive && r
@@ -837,13 +838,15 @@ async function boot() {
     if (sq && sq.dataset.squad) { openSquad(sq.dataset.squad); return; }
     const bm = e.target.closest(".bm[data-mid]");
     if (bm) { openMatch(bm.dataset.mid); return; }
+    const hero = e.target.closest(".hero[data-mid]");
+    if (hero) { openMatch(hero.dataset.mid); return; }
     const card = e.target.closest(".mcard");
     if (card) { openMatch(card.dataset.mid); }
   });
-  // keyboard: activate focusable custom controls (save stars, squad cells, sim picks) with Enter/Space
+  // keyboard: activate focusable custom controls (save stars, squad cells, sim picks, hero) with Enter/Space
   document.addEventListener("keydown", e => {
     if (e.key !== "Enter" && e.key !== " ") return;
-    const t = e.target.closest("[data-save],[data-squad],[data-pick],.up");
+    const t = e.target.closest("[data-save],[data-squad],[data-pick],.up,.hero[data-mid]");
     if (t) { e.preventDefault(); t.click(); }
   });
   nav("matches");
