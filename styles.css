@@ -47,14 +47,11 @@ b{font-weight:600}
   border-bottom:1px solid var(--line);
 }
 .wordmark{display:flex;align-items:center;gap:9px;text-decoration:none;color:var(--ink)}
-.wm-ball{
-  width:22px;height:22px;border-radius:50%;
-  background:radial-gradient(circle at 32% 30%,#fff 0 26%,var(--acc1) 27%);
-  border:2.5px solid var(--ink);
-  transition:background .5s;
+.wm-logo{
+  width:auto;height:30px;display:block;
   animation:ballIn .8s cubic-bezier(.34,1.56,.64,1) both;
 }
-@keyframes ballIn{from{transform:translateY(-30px) rotate(-180deg);opacity:0}}
+@keyframes ballIn{from{transform:translateY(-30px) rotate(-12deg);opacity:0}}
 .wm-text{font-family:var(--disp);font-weight:900;font-stretch:115%;font-size:19px;letter-spacing:.02em}
 .wm-text i{font-style:normal;color:var(--acc1);transition:color .5s}
 .topbar-right{display:flex;gap:8px}
