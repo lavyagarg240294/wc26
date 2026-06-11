@@ -20,7 +20,7 @@ A static, no-build fan site for the FIFA World Cup 2026 (June 11 – July 19): a
 - `data/teams.json` — 48 teams: display name, kit colors `c1`/`c2`. Flags are derived from the team code at runtime.
 - `data/results.json` — written by the scores Action: per-match `{st,h,a,hp,ap,ht,at,min,xi}`. Seeded empty (`{"matches":{}}`) so the site works before first run.
 - `data/squads.json` — 26-man squads. 16 official lists are seeded by hand; the squads Action fills the rest. Shape: `{squads:{CODE:{coach,players:[{n,pos,name,caps,goals,club,photo}]}}}`.
-- `scripts/fetch-results.mjs` — Node 20 ESM. Pulls scores from football-data.org, maps API matches → our fixture ids (by kickoff time, then team codes), resolves knockout team names, and (during match windows only) attaches starting XIs from API-Football. Writes `results.json` only when changed.
+- `scripts/fetch-results.mjs` — Node 20 ESM. **Primary source: worldcup26.ir** (free, no API key, live in-play scores; game `id` 1–104 == our match `num`, team `iso2` == our codes). **Fallback: football-data.org** (needs `FOOTBALL_DATA_TOKEN`, reliable at full-time) only if worldcup26.ir is unreachable. Resolves knockout team codes for the bracket. Writes `results.json` only when changed. (CORS blocks reading worldcup26.ir from the browser, so it must go through the Action — the static-data design holds.)
 - `scripts/fetch-squads.mjs` — Node 20 ESM. Pulls all 48 squads from API-Football, merging over seeded caps/goals/club.
 - `.github/workflows/results.yml` — cron every 20 min + manual. `.github/workflows/squads.yml` — manual only.
 

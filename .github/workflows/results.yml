@@ -2,7 +2,7 @@ name: Update scores
 
 on:
   schedule:
-    - cron: "*/10 * * * *"   # every 10 minutes (June 11 – July 19; disable after)
+    - cron: "*/5 * * * *"    # every 5 min for live scores (June 11 – July 19; disable after). NB: GitHub cron can lag.
   workflow_dispatch:          # manual "Run workflow" button
 
 permissions:
