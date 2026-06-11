@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "13";  // shown in footer; bump with the ?v= asset version
+const BUILD = "14";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -320,8 +320,10 @@ function renderMatches() {
   el.innerHTML =
     (heroM ? heroBlock(heroM, !!live) : "") +
     `<div class="filters">
-      ${[["all", "All 104"], ["group", "Groups"], ["ko", "Knockouts"]].map(([k, l]) =>
-        `<button class="fbtn ${f.stage === k ? "is-on" : ""}" data-stage="${k}">${l}</button>`).join("")}
+      <select class="fsel ${f.stage !== "all" ? "is-on" : ""}" id="stageSel" aria-label="Filter by stage">
+        ${[["all", "All 104 matches"], ["group", "Group stage"], ["ko", "Knockouts"]].map(([k, l]) =>
+          `<option value="${k}" ${f.stage === k ? "selected" : ""}>${l}</option>`).join("")}
+      </select>
       ${S.fav ? `<button class="fbtn ${f.onlyFav ? "is-on" : ""}" data-onlyfav>${esc(S.teams[S.fav].name)} only</button>` : ""}
       <button class="fbtn ${f.saved ? "is-on" : ""}" data-saved>★ Saved${S.saved.size ? ` <b>${S.saved.size}</b>` : ""}</button>
     </div>` +
@@ -331,7 +333,7 @@ function renderMatches() {
     : `<div class="empty">Nothing matches these filters.</div>`);
 
   startCountdown();
-  $$("[data-stage]", el).forEach(b => b.onclick = () => { f.stage = b.dataset.stage; renderMatches(); });
+  const ss = $("#stageSel", el); if (ss) ss.onchange = () => { f.stage = ss.value; renderMatches(); };
   const fb = $("[data-onlyfav]", el); if (fb) fb.onclick = () => { f.onlyFav = !f.onlyFav; renderMatches(); };
   const sb = $("[data-saved]", el); if (sb) sb.onclick = () => { f.saved = !f.saved; renderMatches(); };
 }
