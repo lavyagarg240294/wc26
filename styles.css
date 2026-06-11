@@ -37,6 +37,19 @@ body{
 button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;-webkit-tap-highlight-color:transparent}
 b{font-weight:600}
 
+/* ---------- animated floodlight background ---------- */
+#bg{position:fixed;inset:0;z-index:-1;overflow:hidden;pointer-events:none;contain:strict}
+#bg span{position:absolute;border-radius:50%;filter:blur(72px);will-change:transform}
+#bg span:nth-child(1){width:48vmax;height:48vmax;left:-12vmax;top:-14vmax;opacity:.16;
+  background:radial-gradient(circle,var(--acc1),transparent 70%);animation:drift1 26s ease-in-out infinite alternate}
+#bg span:nth-child(2){width:40vmax;height:40vmax;right:-14vmax;top:18vh;opacity:.12;
+  background:radial-gradient(circle,var(--gold),transparent 70%);animation:drift2 33s ease-in-out infinite alternate}
+#bg span:nth-child(3){width:42vmax;height:42vmax;left:28vw;bottom:-20vmax;opacity:.10;
+  background:radial-gradient(circle,color-mix(in srgb,var(--acc1) 60%,var(--acc2)),transparent 70%);animation:drift3 30s ease-in-out infinite alternate}
+@keyframes drift1{to{transform:translate(13vw,8vh) scale(1.15)}}
+@keyframes drift2{to{transform:translate(-11vw,6vh) scale(1.12)}}
+@keyframes drift3{to{transform:translate(9vw,-7vh) scale(1.2)}}
+
 /* ---------- top bar ---------- */
 .topbar{
   position:sticky;top:0;z-index:40;
@@ -54,7 +67,9 @@ b{font-weight:600}
 @keyframes ballIn{from{transform:translateY(-30px) rotate(-12deg);opacity:0}}
 .wm-text{font-family:var(--disp);font-weight:900;font-stretch:115%;font-size:19px;letter-spacing:.02em}
 .wm-text i{font-style:normal;color:var(--acc1);transition:color .5s}
-.topbar-right{display:flex;gap:8px}
+.wordmark{flex-shrink:0}
+.topbar-right{display:flex;gap:8px;min-width:0}
+.chip{min-width:0}
 .chip{
   display:flex;align-items:center;gap:6px;
   font-size:12.5px;font-weight:600;letter-spacing:.01em;
@@ -217,6 +232,15 @@ b{font-weight:600}
 .badge.soon{background:color-mix(in srgb,var(--acc1) 12%,var(--card));color:var(--acc1);border:1px solid color-mix(in srgb,var(--acc1) 30%,transparent)}
 .mcard-sub{margin-top:9px;padding-top:9px;border-top:1px dashed var(--line);display:flex;flex-wrap:wrap;gap:4px 14px;font-size:11.5px;color:var(--ink-soft)}
 .mcard-sub .grp{font-family:var(--disp);font-weight:700;font-stretch:112%;letter-spacing:.06em;color:var(--acc1)}
+.mcard-star{
+  position:absolute;top:7px;right:9px;z-index:2;
+  font-size:15px;line-height:1;color:var(--ink-soft);opacity:.45;
+  padding:3px 4px;border-radius:8px;transition:transform .15s,color .2s,opacity .2s;
+}
+.mcard-star:hover{opacity:1;transform:scale(1.22)}
+.mcard-star.is-on{color:var(--gold);opacity:1;text-shadow:0 1px 6px color-mix(in srgb,var(--gold) 55%,transparent)}
+.mcard-star:focus-visible{outline:2px solid var(--acc1);outline-offset:1px;opacity:1}
+.mcard-right{padding-right:16px}
 .ics-link{margin-left:auto;color:var(--ink-soft);text-decoration:none;font-size:11.5px;border-bottom:1px dotted var(--line)}
 .ics-link:hover{color:var(--acc1)}
 
@@ -400,10 +424,14 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 
 /* ---------- mobile ---------- */
 @media (max-width:560px){
-  .topbar{padding:11px 14px}
+  .topbar{padding:10px 12px}
   .tabs{top:48px}
-  #teamChipName{max-width:78px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  #tzLabel{max-width:88px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .topbar-right{gap:6px}
+  .chip{padding:6px 9px;font-size:12px;gap:5px}
+  .wm-text{font-size:17px}
+  .wm-logo{height:26px}
+  #teamChipName{max-width:66px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #tzLabel{max-width:62px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .cd-cell{width:56px;padding:7px 0}
   .cd-num{font-size:19px}
   .dayhead{top:96px}

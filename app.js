@@ -8,9 +8,17 @@ const S = {
   tz: localStorage.getItem("wc26.tz") || "auto",
   fav: localStorage.getItem("wc26.fav") || null,
   view: "today",
-  filters: { stage: "all", onlyFav: false },
+  filters: { stage: "all", onlyFav: false, saved: false },
+  saved: new Set(JSON.parse(localStorage.getItem("wc26.saved") || "[]")),
   sim: JSON.parse(localStorage.getItem("wc26.sim") || "null") || { order: {}, thirds: [], ko: {} },
+  _lastResults: null,
 };
+const isSaved = id => S.saved.has(id);
+function toggleSave(id) {
+  S.saved.has(id) ? S.saved.delete(id) : S.saved.add(id);
+  localStorage.setItem("wc26.saved", JSON.stringify([...S.saved]));
+  RENDER[S.view]();
+}
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
@@ -58,7 +66,9 @@ const ST = { SCHED: "SCHED", LIVE: "LIVE", HT: "HT", FT: "FT" };
 function status(m) {
   const r = res(m);
   if (r?.st) return r.st;
-  return new Date(m.utc) <= new Date() && new Date() - new Date(m.utc) < 3 * 3600e3 ? ST.LIVE : ST.SCHED;
+  // fallback only when no results data has loaded yet: assume a kickoff in the
+  // last ~2.25h is in play. Once results.json loads, r.st is authoritative.
+  return new Date(m.utc) <= new Date() && new Date() - new Date(m.utc) < 2.25 * 3600e3 ? ST.LIVE : ST.SCHED;
 }
 function slotInfo(m, side) {
   const s = m[side];
@@ -164,7 +174,7 @@ function renderTicker() {
       ? `<span class="tk-live">● ${r?.h ?? 0}–${r?.a ?? 0}</span>`
       : st === ST.FT ? `<b>${r.h}–${r.a}</b> FT`
       : `<span class="tk-acc">${timeStr(m.utc)}</span>`;
-    const nm = s => s.code ? `${flag(s.code)} ${shortName(s.code)}` : "TBD";
+    const nm = s => s.code ? `${flag(s.code)} ${esc(S.teams[s.code]?.name || s.code)}` : "TBD";
     return `<span class="ticker-item">${nm(h)} ${mid} ${nm(a)}</span>`;
   };
   const sep = '<span class="tk-sep">／</span>';
@@ -204,7 +214,9 @@ function matchCard(m, i, opts = {}) {
     `<span class="fl">${s.code ? flag(s.code) : "·"}</span><span>${esc(s.name)}</span>` +
     (win ? `<span class="winner-mark">▲</span>` : "") + `</div>`;
   const xi = r?.xi;
+  const sv = isSaved(m.id);
   return `<button class="mcard ${fav ? "is-fav" : ""} ${xi ? "has-xi" : ""}" style="--i:${i}" data-mid="${m.id}">
+    <span class="mcard-star ${sv ? "is-on" : ""}" data-save="${m.id}" role="button" tabindex="0" aria-pressed="${sv}" aria-label="${sv ? "Remove saved match" : "Save this match"}" title="${sv ? "Saved — tap to remove" : "Save this match"}">${sv ? "★" : "☆"}</span>
     <div class="mcard-row">
       <div class="mcard-time">${timeStr(m.utc)}<small>${fmt(m.utc, { day: "numeric", month: "short" })}</small></div>
       <div class="mcard-teams">${teamRow(h, winH)}${teamRow(a, winA)}</div>
@@ -378,13 +390,15 @@ function renderCalendar() {
   if (f.stage === "group") list = list.filter(m => m.stage === "group");
   if (f.stage === "ko") list = list.filter(m => m.stage !== "group");
   if (f.onlyFav) list = list.filter(isFavMatch);
+  if (f.saved) list = list.filter(m => isSaved(m.id));
   const days = {};
   list.forEach(m => (days[dayKey(m.utc)] ??= []).push(m));
 
   el.innerHTML = `<div class="filters">
       ${[["all", "All 104"], ["group", "Groups"], ["ko", "Knockouts"]].map(([k, l]) =>
         `<button class="fbtn ${f.stage === k ? "is-on" : ""}" data-stage="${k}">${l}</button>`).join("")}
-      ${S.fav ? `<button class="fbtn ${f.onlyFav ? "is-on" : ""}" data-onlyfav>★ ${esc(S.teams[S.fav].name)} only</button>` : ""}
+      ${S.fav ? `<button class="fbtn ${f.onlyFav ? "is-on" : ""}" data-onlyfav>${esc(S.teams[S.fav].name)} only</button>` : ""}
+      <button class="fbtn ${f.saved ? "is-on" : ""}" data-saved>★ Saved${S.saved.size ? ` <b>${S.saved.size}</b>` : ""}</button>
     </div>` +
     (list.length ? Object.entries(days).map(([k, ms]) =>
       `<div class="dayhead">${dayLabel(ms[0].utc)} <small>${ms.length} match${ms.length > 1 ? "es" : ""}</small></div>` +
@@ -393,6 +407,7 @@ function renderCalendar() {
 
   $$("[data-stage]", el).forEach(b => b.onclick = () => { f.stage = b.dataset.stage; renderCalendar(); });
   const fb = $("[data-onlyfav]", el); if (fb) fb.onclick = () => { f.onlyFav = !f.onlyFav; renderCalendar(); };
+  const sb = $("[data-saved]", el); if (sb) sb.onclick = () => { f.saved = !f.saved; renderCalendar(); };
 }
 
 /* ---------------- render: groups ---------------- */
@@ -402,7 +417,7 @@ function groupTable(g, i) {
   return `<div class="gtable" style="--i:${i}"><h4>Group <span>${g}</span></h4>
     <table>${TABLE_COLS}<thead><tr><th>Team</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GD</th><th>Pts</th></tr></thead><tbody>
     ${rows.map((r, idx) => `<tr class="${idx < 2 ? "q1" : idx === 2 ? "q3" : ""} ${r.code === S.fav ? "is-fav" : ""}">
-      <td class="tname" title="View ${esc(S.teams[r.code].name)} squad" data-squad="${r.code}"><span class="fl">${flag(r.code)}</span>${esc(S.teams[r.code].name)}</td>
+      <td class="tname" title="View ${esc(S.teams[r.code].name)} squad" data-squad="${r.code}" role="button" tabindex="0"><span class="fl">${flag(r.code)}</span>${esc(S.teams[r.code].name)}</td>
       <td>${r.p}</td><td>${r.w}</td><td>${r.d}</td><td>${r.l}</td><td>${r.gf - r.ga > 0 ? "+" : ""}${r.gf - r.ga}</td><td><b>${r.pts}</b></td></tr>`).join("")}
     </tbody></table></div>`;
 }
@@ -705,20 +720,31 @@ async function loadStatic() {
 async function refreshResults() {
   try {
     const r = await fetch("data/results.json?t=" + Date.now(), { cache: "no-store" });
-    if (r.ok) {
-      S.results = await r.json();
-      $("#updatedLabel").textContent = S.results.updated
-        ? "Scores updated " + new Intl.DateTimeFormat("en", { timeZone: tz(), hour: "2-digit", minute: "2-digit" }).format(new Date(S.results.updated))
-        : "Schedule loaded";
-      renderTicker();
-      RENDER[S.view]();
-    }
+    if (!r.ok) return;
+    const txt = await r.text();
+    if (txt === S._lastResults) return; // nothing changed — skip the re-render (no flicker)
+    S._lastResults = txt;
+    S.results = JSON.parse(txt);
+    $("#updatedLabel").textContent = S.results.updated
+      ? "Scores updated " + new Intl.DateTimeFormat("en", { timeZone: tz(), hour: "2-digit", minute: "2-digit" }).format(new Date(S.results.updated))
+      : "Schedule loaded";
+    renderTicker();
+    RENDER[S.view]();
   } catch { /* offline or first deploy — schedule still works */ }
 }
 
 /* ---------------- boot ---------------- */
 async function boot() {
-  await loadStatic();
+  try {
+    await loadStatic();
+  } catch (e) {
+    $("#main").innerHTML = `<div class="empty" style="margin:32px 16px">Couldn't load the schedule data. If you opened this file directly, run it through a static server (see README) — <code>file://</code> can't fetch <code>data/*.json</code>. Otherwise check your connection and reload.</div>`;
+    return;
+  }
+  if (!S.matches.length) {
+    $("#main").innerHTML = `<div class="empty" style="margin:32px 16px">No fixtures found in <code>data/matches.json</code>.</div>`;
+    return;
+  }
   applyTheme(); syncTzLabels(); buildPickers(); renderTicker();
   $$("[data-nav]").forEach(b => b.onclick = e => { e.preventDefault(); nav(b.dataset.nav); });
   $("#tzChip").onclick = () => $("#tzDialog").showModal();
@@ -727,10 +753,18 @@ async function boot() {
   $$("dialog").forEach(d => d.onclick = e => { if (e.target === d) d.close(); });
   addEventListener("resize", moveInk);
   document.addEventListener("click", e => {
+    const star = e.target.closest("[data-save]");
+    if (star) { e.stopPropagation(); toggleSave(star.dataset.save); return; }
     const sq = e.target.closest("[data-squad]");
     if (sq) { openSquad(sq.dataset.squad); return; }
     const card = e.target.closest(".mcard.has-xi");
     if (card && !e.target.closest("a")) card.classList.toggle("open");
+  });
+  // keyboard: activate focusable custom controls (save stars, squad cells, sim picks) with Enter/Space
+  document.addEventListener("keydown", e => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    const t = e.target.closest("[data-save],[data-squad],[data-pick],.up");
+    if (t) { e.preventDefault(); t.click(); }
   });
   nav("today");
   refreshResults();

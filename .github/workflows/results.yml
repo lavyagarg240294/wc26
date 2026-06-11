@@ -2,7 +2,7 @@ name: Update scores
 
 on:
   schedule:
-    - cron: "*/20 * * * *"   # every 20 minutes (June 11 – July 19; disable after)
+    - cron: "*/10 * * * *"   # every 10 minutes (June 11 – July 19; disable after)
   workflow_dispatch:          # manual "Run workflow" button
 
 permissions:
