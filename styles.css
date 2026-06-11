@@ -216,6 +216,7 @@ b{font-weight:600}
   animation:sheen 3.2s linear infinite}
 @keyframes sheen{to{background-position:-240% 0}}
 .hero-vs{font-family:var(--disp);font-weight:900;font-stretch:125%;font-size:clamp(18px,4vw,26px);color:var(--ink-soft)}
+.hero-score.hero-pending{background:none;-webkit-background-clip:border-box;background-clip:border-box;color:var(--live);animation:pulse 1.4s infinite;font-size:clamp(26px,6vw,40px)}
 .hero-minute{font-family:var(--mono);font-size:13px;color:var(--live);font-weight:700}
 
 .countdown{display:flex;gap:8px;justify-content:center;margin-top:20px}

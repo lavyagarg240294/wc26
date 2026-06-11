@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "19";  // shown in footer; bump with the ?v= asset version
+const BUILD = "20";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -71,10 +71,11 @@ const res = m => S.results.matches?.[m.id] || null;
 const ST = { SCHED: "SCHED", LIVE: "LIVE", HT: "HT", FT: "FT" };
 function status(m) {
   const r = res(m);
-  if (r?.st) return r.st;
-  // fallback only when no results data has loaded yet: assume a kickoff in the
-  // last ~2.25h is in play. Once results.json loads, r.st is authoritative.
-  return new Date(m.utc) <= new Date() && new Date() - new Date(m.utc) < 2.25 * 3600e3 ? ST.LIVE : ST.SCHED;
+  // kickoff has passed but the match isn't over (within a generous ~3h window)
+  const started = new Date(m.utc) <= new Date() && new Date() - new Date(m.utc) < 3 * 3600e3;
+  // the free data feed often lags — if it still says SCHED after kickoff, treat as live ("score updating")
+  if (r?.st) return (r.st === ST.SCHED && started) ? ST.LIVE : r.st;
+  return started ? ST.LIVE : ST.SCHED;
 }
 function slotInfo(m, side) {
   const s = m[side];
@@ -177,7 +178,7 @@ function renderTicker() {
   const item = m => {
     const h = slotInfo(m, "home"), a = slotInfo(m, "away"), r = res(m), st = status(m);
     const mid = [ST.LIVE, ST.HT].includes(st)
-      ? `<span class="tk-live">● ${r?.h ?? 0}–${r?.a ?? 0}</span>`
+      ? (r && r.h != null ? `<span class="tk-live">● ${r.h}–${r.a}</span>` : `<span class="tk-live">● LIVE</span>`)
       : st === ST.FT ? `<b>${r.h}–${r.a}</b> FT`
       : `<span class="tk-acc">${timeStr(m.utc)}</span>`;
     const nm = s => s.code ? `${flag(s.code)} ${esc(S.teams[s.code]?.name || s.code)}` : "TBD";
@@ -286,8 +287,10 @@ function heroBlock(heroM, isLive) {
     <span class="hero-go">Details ›</span>
     <div class="hero-teams">
       <div class="hero-side"><span class="hero-flag">${h.code ? flag(h.code) : "·"}</span><span class="hero-name">${esc(h.name)}</span></div>
-      <div class="hero-mid">${isLive && r
-        ? `<span class="hero-score">${r.h ?? 0}–${r.a ?? 0}</span><span class="hero-minute">${r.st === ST.HT ? "Half-time" : (r.min ? r.min + "′" : "In play")}</span>`
+      <div class="hero-mid">${isLive
+        ? (r && r.h != null
+          ? `<span class="hero-score">${r.h}–${r.a}</span><span class="hero-minute">${r.st === ST.HT ? "Half-time" : (r.min ? r.min + "′" : "In play")}</span>`
+          : `<span class="hero-score hero-pending">LIVE</span><span class="hero-minute">score updating…</span>`)
         : `<span class="hero-vs">VS</span>`}</div>
       <div class="hero-side"><span class="hero-flag">${a.code ? flag(a.code) : "·"}</span><span class="hero-name">${esc(a.name)}</span></div>
     </div>
