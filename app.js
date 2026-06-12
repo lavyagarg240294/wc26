@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "45";  // shown in footer; bump with the ?v= asset version
+const BUILD = "46";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -544,7 +544,7 @@ function openMatch(id) {
     ${mdFlow(r, h, a)}
     <div class="md-meta">
       <span>${fmt(m.utc, { weekday: "long", day: "numeric", month: "long" })}</span>
-      <span>${timeStr(m.utc)} ${tzShort()}</span>
+      <span>${timeStr(m.utc)}</span>
       <span>${esc(m.stadium)}</span>
       <span>${esc(m.city)}</span>
     </div>
@@ -590,7 +590,7 @@ function heroBlock(heroM, isLive) {
       ${["d", "h", "m", "s"].map(k => `<div class="cd-cell"><span class="cd-num" data-k="${k}">–</span><span class="cd-lab">${{ d: "days", h: "hrs", m: "min", s: "sec" }[k]}</span></div>`).join("")}
     </div>` : ""}
     <div class="hero-meta">
-      <span><b>${timeStr(heroM.utc)}</b> ${tzShort()}</span>
+      <span><b>${timeStr(heroM.utc)}</b></span>
       <span>${esc(heroM.stadium)}</span><span>${esc(heroM.city)}</span>
       <span>${fmt(heroM.utc, { weekday: "short", day: "numeric", month: "short" })}</span>
     </div>
