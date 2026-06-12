@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "34";  // shown in footer; bump with the ?v= asset version
+const BUILD = "35";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -305,7 +305,6 @@ function matchCard(m, i, opts = {}) {
   const teamRow = (s, key, lost) =>
     `<div class="mcard-team ${s.ph ? "is-ph" : ""} ${lost ? "is-lost" : ""}">` +
     `<span class="fl">${s.code ? flag(s.code) : "·"}</span><span>${esc(slotText(m, key, s))}</span></div>`;
-  const xi = r?.xi;
   const sv = isSaved(m.id);
   return `<button class="mcard ${fav ? "is-fav" : ""}" style="--i:${i}" data-mid="${m.id}">
     <span class="mcard-star ${sv ? "is-on" : ""}" data-save="${m.id}" role="button" tabindex="0" aria-pressed="${sv}" aria-label="${sv ? "Remove saved match" : "Save this match"}" title="${sv ? "Saved — tap to remove" : "Save this match"}">${sv ? "★" : "☆"}</span>
@@ -316,7 +315,7 @@ function matchCard(m, i, opts = {}) {
         ? `<div class="mcard-score"><span class="${winA ? "lo" : ""}">${r.h}</span><span class="${winH ? "lo" : ""}">${r.a}</span>${r.hp != null ? `<span class="pens">(${r.hp}–${r.ap} pens)</span>` : ""}</div>`
         : badge}</div>
     </div>
-    ${opts.sub !== false ? `<div class="mcard-sub"><span class="grp">${esc(stageL)}</span><span>${esc(m.stadium)}</span><span>${esc(m.city)}</span>${xi ? `<span class="xi-hint">Lineups</span>` : ""}<span class="mcard-go">Details ›</span></div>` : ""}
+    ${opts.sub !== false ? `<div class="mcard-sub"><span class="grp">${esc(stageL)}</span><span>${esc(m.stadium)}</span><span>${esc(m.city)}</span><span class="mcard-go">Details ›</span></div>` : ""}
   </button>`;
 }
 function xiPanel(xi, h, a) {
@@ -361,8 +360,9 @@ function openMatch(id) {
       <span class="md-flag">${s.code ? flag(s.code) : "·"}</span>
       <span class="md-name ${s.ph ? "is-ph" : ""}">${esc(slotText(m, key, s))}</span>
       ${s.code ? `<span class="md-teaminfo">${esc(S.teams[s.code].conf || "")}${S.teams[s.code].titles ? ` · ${S.teams[s.code].titles}×🏆` : ""}</span>` : ""}
-      ${s.code && formChips(s.code) ? `<span class="md-form">${formChips(s.code)}</span>` : ""}
-      ${s.code ? `<button class="md-squad-link" data-squad="${s.code}">View squad ›</button>` : ""}</div>`;
+      ${s.code && formChips(s.code) ? `<span class="md-form">${formChips(s.code)}</span>` : ""}</div>`;
+  const squadLinks = [h, a].filter(s => s.code)
+    .map(s => `<button class="md-squad-link" data-squad="${s.code}"><span class="fl">${flag(s.code)}</span> ${esc(s.name)} squad ›</button>`).join("");
   const mid = score
     ? `<div class="md-score">${r.h}<span>–</span>${r.a}</div>${r.hp != null ? `<div class="md-pens">${r.hp}–${r.ap} on penalties</div>` : ""}`
     : `<div class="md-vs">VS</div>`;
@@ -383,7 +383,8 @@ function openMatch(id) {
       <span>${esc(m.stadium)}</span>
       <span>${esc(m.city)}</span>
     </div>
-    ${r?.xi ? `<div class="eyebrow">Starting XI</div>${xiPanel(r.xi, h, a)}` : ""}`;
+    ${r?.xi ? `<div class="eyebrow">Starting XI</div>${xiPanel(r.xi, h, a)}` : ""}
+    ${squadLinks ? `<div class="md-squads">${squadLinks}</div>` : ""}`;
   const ics = $("#mdIcs"); if (ics) ics.onclick = () => downloadICS([m], `${h.code ? h.name : "TBD"} v ${a.code ? a.name : "TBD"} · WC2026`);
   const md = $("#matchDialog"); md.dataset.mid = id; md.showModal();
 }
@@ -1133,7 +1134,7 @@ async function boot() {
     $("#main").innerHTML = `<div class="empty" style="margin:32px 16px">No fixtures found in <code>data/matches.json</code>.</div>`;
     return;
   }
-  S.filters.team = S.fav || "";   // team filter starts on your favourite (if set), like the old "… only"
+  S.filters.team = "";            // default filter shows all teams (favourite is still pinned in the dropdown)
   applyTheme(); syncTzLabels(); buildPickers(); renderTicker();
   $$("[data-nav]").forEach(b => b.onclick = e => { e.preventDefault(); nav(b.dataset.nav); });
   $("#tzChip").onclick = () => $("#tzDialog").showModal();
