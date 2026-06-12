@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "36";  // shown in footer; bump with the ?v= asset version
+const BUILD = "37";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -858,6 +858,25 @@ function wireBracketTrace(scope) {
    SIMULATOR — order groups, pick thirds, tap winners
    ============================================================ */
 const saveSim = () => localStorage.setItem("wc26.sim", JSON.stringify(S.sim));
+// encode the whole prediction into a short URL-safe string (and back)
+function encodeSim() {
+  const json = JSON.stringify({ o: S.sim.order, t: S.sim.thirds, k: S.sim.ko });
+  return btoa(unescape(encodeURIComponent(json))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+function decodeSim(str) {
+  try {
+    const json = decodeURIComponent(escape(atob(str.replace(/-/g, "+").replace(/_/g, "/"))));
+    const c = JSON.parse(json);
+    if (!c || typeof c !== "object") return null;
+    return { order: c.o && typeof c.o === "object" ? c.o : {}, thirds: Array.isArray(c.t) ? c.t : [], ko: c.k && typeof c.k === "object" ? c.k : {} };
+  } catch { return null; }
+}
+function flashToast(msg) {
+  let t = $("#flashToast");
+  if (!t) { t = document.createElement("div"); t.id = "flashToast"; t.className = "flash-toast"; document.body.appendChild(t); }
+  t.textContent = msg; t.classList.add("show");
+  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("show"), 2400);
+}
 
 function simOrder(g) {
   if (!S.sim.order[g] || S.sim.order[g].length !== 4) S.sim.order[g] = standings(g).map(r => r.code);
@@ -968,6 +987,7 @@ function renderSim() {
         <button class="btn ghost" id="simStandings">Use live standings</button>
         <button class="btn ghost" id="simShuffle">Shuffle it all</button>
         <button class="btn ghost" id="simReset">Start over</button>
+        <button class="btn" id="simShare">🔗 Share prediction</button>
       </div>
     </div>
     <div class="eyebrow"><span class="step-n">1</span> Order the groups — top two go through</div>
@@ -1028,6 +1048,11 @@ function renderSim() {
     if (c) confetti(c.c1, c.c2);
   };
   $("#simReset").onclick = () => { S.sim = { order: {}, thirds: [], ko: {} }; saveSim(); renderSim(); };
+  $("#simShare").onclick = async () => {
+    const url = location.origin + location.pathname + "#p=" + encodeSim();
+    try { await navigator.clipboard.writeText(url); flashToast("Prediction link copied — share it!"); }
+    catch { prompt("Copy your prediction link:", url); }
+  };
   layoutBracket(el);
 }
 function simMatch(m, i, alloc) {
@@ -1216,7 +1241,14 @@ async function boot() {
     const t = e.target.closest("[data-save],[data-squad],[data-pick],.up,.hero[data-mid]");
     if (t) { e.preventDefault(); t.click(); }
   });
-  nav("matches");
+  // a shared prediction link (#p=…) loads that bracket and opens the Predict tab
+  let initView = "matches";
+  if (location.hash.startsWith("#p=")) {
+    const decoded = decodeSim(location.hash.slice(3));
+    if (decoded) { S.sim = decoded; pruneSim(); saveSim(); initView = "sim"; setTimeout(() => flashToast("Loaded a shared prediction"), 400); }
+    history.replaceState(null, "", location.pathname + location.search);
+  }
+  nav(initView);
   refreshResults();
   setInterval(refreshResults, 90 * 1000); // pick up fresh scores every 90s
 }
