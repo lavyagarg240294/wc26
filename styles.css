@@ -391,6 +391,18 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .dayhead small{font-family:var(--mono);font-weight:400;font-size:11px;color:var(--ink-soft);letter-spacing:.04em}
 .dayhead.is-today{border-left-color:var(--gold)}
 .dayhead.is-today small{color:var(--gold);font-weight:700}
+/* collapsible "Earlier results" (finished games) */
+.earlier{margin:6px 0;border:1px solid var(--line);border-radius:14px;background:color-mix(in srgb,var(--paper) 55%,var(--card));overflow:hidden}
+.earlier summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;padding:13px 16px;font-family:var(--disp);font-weight:800;font-stretch:110%;font-size:14px;color:var(--ink-soft)}
+.earlier summary::-webkit-details-marker{display:none}
+.earlier summary:hover{color:var(--ink)}
+.earlier summary b{font-family:var(--mono);font-size:12px;color:var(--acc1);background:color-mix(in srgb,var(--acc1) 12%,transparent);border-radius:20px;padding:1px 8px;font-weight:700}
+.earlier .ear-tri{transition:transform .2s;font-size:12px;color:var(--ink-soft)}
+.earlier[open] .ear-tri{transform:rotate(90deg)}
+.earlier .ear-hint{margin-left:auto;font-family:var(--body);font-weight:500;font-size:12px;color:var(--ink-soft)}
+.earlier[open] .ear-hint{display:none}
+.ear-body{padding:2px 14px 8px}
+.ear-body .dayhead{top:auto;position:static;background:none}
 
 /* ---------- simulator ---------- */
 .sim-intro{background:linear-gradient(120deg,color-mix(in srgb,var(--acc1) 10%,var(--card)),var(--card) 60%);border:1px solid var(--line);border-radius:22px;padding:20px 22px;box-shadow:var(--shadow);animation:rise .5s both}
@@ -541,6 +553,20 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 #themeSweep.go{animation:sweep .7s cubic-bezier(.3,.7,.3,1) forwards}
 @keyframes sweep{0%{transform:scale(0);opacity:.95}100%{transform:scale(3.2);opacity:0}}
 #confetti{position:fixed;inset:0;z-index:99;pointer-events:none}
+
+/* floating "jump to today / live" */
+.jump-now{position:fixed;right:clamp(14px,4vw,28px);bottom:calc(18px + env(safe-area-inset-bottom));z-index:60;
+  display:inline-flex;align-items:center;gap:8px;
+  font-family:var(--disp);font-weight:800;font-stretch:108%;font-size:13px;letter-spacing:.04em;text-transform:uppercase;
+  color:var(--paper);background:var(--ink);border-radius:99px;padding:10px 17px;
+  box-shadow:0 12px 30px -10px rgba(13,27,42,.5);animation:jumpIn .3s cubic-bezier(.2,1.3,.4,1) both}
+.jump-now[hidden]{display:none}
+.jump-now:hover{transform:translateY(-1px)}
+.jump-now .jn-dot{width:8px;height:8px;border-radius:50%;background:color-mix(in srgb,var(--acc1) 85%,#fff)}
+.jump-now.is-live{background:var(--live)}
+.jump-now.is-live .jn-dot{background:#fff;animation:pulse 1.4s infinite}
+@keyframes jumpIn{from{opacity:0;transform:translateY(12px) scale(.92)}}
+@media(prefers-reduced-motion:reduce){.jump-now{animation:none}}
 
 /* ---------- football + goal celebration + delight ---------- */
 .ball{display:inline-block;line-height:0;vertical-align:middle}

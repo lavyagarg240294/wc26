@@ -8,7 +8,7 @@ const S = {
   tz: localStorage.getItem("wc26.tz") || "auto",
   fav: localStorage.getItem("wc26.fav") || null,
   view: "matches",
-  filters: { stage: "all", onlyFav: false, saved: false },
+  filters: { stage: "all", team: "", saved: false },
   saved: new Set(JSON.parse(localStorage.getItem("wc26.saved") || "[]")),
   sim: JSON.parse(localStorage.getItem("wc26.sim") || "null") || { order: {}, thirds: [], ko: {} },
   _lastResults: null,
@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "27";  // shown in footer; bump with the ?v= asset version
+const BUILD = "30";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -106,6 +106,7 @@ function winnerFeed(s) {
   return s.feeds ? (hWin ? h : a) : (hWin ? a : h);
 }
 const isFavMatch = m => S.fav && (slotInfo(m, "home").code === S.fav || slotInfo(m, "away").code === S.fav);
+const matchHasTeam = (m, code) => slotInfo(m, "home").code === code || slotInfo(m, "away").code === code;
 
 /* ---------------- standings ---------------- */
 function standings(group) {
@@ -356,10 +357,15 @@ function renderMatches() {
   let list = S.matches.slice().sort((a, b) => a.utc.localeCompare(b.utc));
   if (f.stage === "group") list = list.filter(m => m.stage === "group");
   if (f.stage === "ko") list = list.filter(m => m.stage !== "group");
-  if (f.onlyFav) list = list.filter(isFavMatch);
+  if (f.team) list = list.filter(m => matchHasTeam(m, f.team));
   if (f.saved) list = list.filter(m => isSaved(m.id));
-  const days = {};
-  list.forEach(m => (days[dayKey(m.utc)] ??= []).push(m));
+
+  // 1A: finished games go into a collapsible "Earlier results"; live + upcoming show below
+  const dayGroups = arr => { const d = {}; arr.forEach(m => (d[dayKey(m.utc)] ??= []).push(m)); return Object.entries(d).map(([k, ms]) => `<div class="dayhead ${k === todayK ? "is-today" : ""}">${dayLabel(ms[0].utc)} <small>${ms.length} match${ms.length > 1 ? "es" : ""}${k === todayK ? " · Today" : ""}</small></div>` + ms.map((m, i) => matchCard(m, Math.min(i, 8))).join("")).join(""); };
+  const past = list.filter(m => status(m) === ST.FT);
+  const ahead = list.filter(m => status(m) !== ST.FT);
+  const teamOpts = Object.keys(S.teams).sort((a, b) => S.teams[a].name.localeCompare(S.teams[b].name))
+    .map(c => `<option value="${c}" ${f.team === c ? "selected" : ""}>${esc(S.teams[c].name)}</option>`).join("");
 
   el.innerHTML =
     (heroM ? heroBlock(heroM, !!live) : "") +
@@ -368,18 +374,51 @@ function renderMatches() {
         ${[["all", "All 104 matches"], ["group", "Group stage"], ["ko", "Knockouts"]].map(([k, l]) =>
           `<option value="${k}" ${f.stage === k ? "selected" : ""}>${l}</option>`).join("")}
       </select>
-      ${S.fav ? `<button class="fbtn ${f.onlyFav ? "is-on" : ""}" data-onlyfav>${esc(S.teams[S.fav].name)} only</button>` : ""}
+      <select class="fsel ${f.team ? "is-on" : ""}" id="teamSel" aria-label="Filter by team">
+        <option value="">All teams</option>${teamOpts}
+      </select>
       <button class="fbtn ${f.saved ? "is-on" : ""}" data-saved>★ Saved${S.saved.size ? ` <b>${S.saved.size}</b>` : ""}</button>
     </div>` +
-    (list.length ? Object.entries(days).map(([k, ms]) =>
-      `<div class="dayhead ${k === todayK ? "is-today" : ""}">${dayLabel(ms[0].utc)} <small>${ms.length} match${ms.length > 1 ? "es" : ""}${k === todayK ? " · Today" : ""}</small></div>` +
-      ms.map((m, i) => matchCard(m, Math.min(i, 8))).join("")).join("")
-    : `<div class="empty">Nothing matches these filters.</div>`);
+    (past.length ? `<details class="earlier"><summary><span class="ear-tri">▸</span> Earlier results <b>${past.length}</b><span class="ear-hint">tap to view</span></summary><div class="ear-body">${dayGroups(past)}</div></details>` : "") +
+    (ahead.length ? dayGroups(ahead) : (past.length ? "" : `<div class="empty">No matches for this filter.</div>`));
 
   startCountdown();
   const ss = $("#stageSel", el); if (ss) ss.onchange = () => { f.stage = ss.value; renderMatches(); };
-  const fb = $("[data-onlyfav]", el); if (fb) fb.onclick = () => { f.onlyFav = !f.onlyFav; renderMatches(); };
+  const ts = $("#teamSel", el); if (ts) ts.onchange = () => { f.team = ts.value; renderMatches(); };
   const sb = $("[data-saved]", el); if (sb) sb.onclick = () => { f.saved = !f.saved; renderMatches(); };
+  requestAnimationFrame(updateJumpNow);
+}
+// floating "jump to today/live" control.
+// We target the first *match card* of the live/today group, not the day header:
+// headers are position:sticky, so their offsetTop / getBoundingClientRect are unreliable.
+function jumpTarget() {
+  const v = $("#view-matches"); if (!v || S.view !== "matches") return null;
+  const liveM = S.matches.find(m => [ST.LIVE, ST.HT].includes(status(m)));
+  if (liveM) { const c = v.querySelector(`.mcard[data-mid="${liveM.id}"]`); if (c) return { el: c, head: null, live: true }; }
+  const head = v.querySelector(".dayhead.is-today");
+  if (head) {
+    let card = head.nextElementSibling;
+    while (card && !card.classList.contains("mcard")) card = card.nextElementSibling;
+    return { el: card || head, head, live: false };  // card is non-sticky → accurate geometry
+  }
+  return null;
+}
+const STICK = () => ($(".topbar")?.offsetHeight || 56) + ($(".tabs")?.offsetHeight || 48);
+function updateJumpNow() {
+  const btn = $("#jumpNow"); if (!btn) return;
+  const t = jumpTarget();
+  if (!t) { btn.hidden = true; return; }
+  const vp = t.el.getBoundingClientRect().top;               // viewport-relative (target is non-sticky)
+  btn.hidden = !(vp < STICK() - 60 || vp > innerHeight - 24); // show only when it's well off-screen
+  btn.classList.toggle("is-live", t.live);
+  $("#jnLabel").textContent = t.live ? "Live" : "Today";
+}
+function scrollToNow() {
+  const t = jumpTarget(); if (!t) return;
+  // land the day header just under the sticky chrome; the card sits right below it
+  const headH = t.head ? t.head.offsetHeight : 0;
+  const y = t.el.getBoundingClientRect().top + scrollY - STICK() - headH - 8;
+  scrollTo({ top: Math.max(0, y), behavior: "smooth" });
 }
 function startCountdown() {
   clearInterval(cdTimer); prevCd = {};
@@ -810,6 +849,7 @@ function nav(v) {
   moveInk();
   RENDER[v]();
   scrollTo({ top: 0, behavior: "instant" });
+  if (v !== "matches") $("#jumpNow").hidden = true;
 }
 function moveInk() {
   const t = $(".tab.is-active"), ink = $("#tabInk");
@@ -926,10 +966,13 @@ async function boot() {
     $("#main").innerHTML = `<div class="empty" style="margin:32px 16px">No fixtures found in <code>data/matches.json</code>.</div>`;
     return;
   }
+  S.filters.team = S.fav || "";   // team filter starts on your favourite (if set), like the old "… only"
   applyTheme(); syncTzLabels(); buildPickers(); renderTicker();
   $$("[data-nav]").forEach(b => b.onclick = e => { e.preventDefault(); nav(b.dataset.nav); });
   $("#tzChip").onclick = () => $("#tzDialog").showModal();
   $("#teamChip").onclick = () => $("#teamDialog").showModal();
+  $("#jumpNow").onclick = scrollToNow;
+  addEventListener("scroll", () => { if (S.view === "matches") requestAnimationFrame(updateJumpNow); }, { passive: true });
   initMusic();
   $$("[data-close]").forEach(b => b.onclick = () => b.closest("dialog").close());
   $$("dialog").forEach(d => d.onclick = e => { if (e.target === d) d.close(); });
