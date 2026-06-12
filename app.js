@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "37";  // shown in footer; bump with the ?v= asset version
+const BUILD = "38";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -178,6 +178,67 @@ function standings(group) {
   });
   return Object.values(rows).sort((a, b) =>
     b.pts - a.pts || (b.gf - b.ga) - (a.gf - a.ga) || b.gf - a.gf || a.code.localeCompare(b.code));
+}
+
+// "what each team needs" — enumerate every remaining-result combo in a group.
+// Ranks use points only, with ties resolved pessimistically (worst) for guarantees and
+// optimistically (best) for elimination, so claims hold regardless of goal difference.
+function groupOutlook(g) {
+  const gm = S.matches.filter(m => m.group === g);
+  const codes = [...new Set(gm.flatMap(m => [m.home.team, m.away.team]).filter(Boolean))];
+  if (codes.length < 4) return null;
+  const done = m => res(m)?.st === ST.FT && res(m)?.h != null;
+  const played = gm.filter(done), rem = gm.filter(m => !done(m));
+  if (!played.length || !rem.length) return null;          // only meaningful once underway, before it's settled
+  const base = {}; codes.forEach(c => base[c] = 0);
+  played.forEach(m => { const r = res(m); if (r.h > r.a) base[m.home.team] += 3; else if (r.h < r.a) base[m.away.team] += 3; else { base[m.home.team]++; base[m.away.team]++; } });
+
+  const ranksFor = (fixed, pool) => {                      // worst(pessimistic)+best(optimistic) rank per team
+    const range = {}; codes.forEach(c => range[c] = { B: 4, W: 1 });
+    const combos = Math.pow(3, pool.length);
+    for (let i = 0; i < combos; i++) {
+      const pts = { ...base, ...fixed }; let x = i;
+      for (const m of pool) { const o = x % 3; x = (x - o) / 3;
+        if (o === 0) pts[m.home.team] += 3; else if (o === 1) { pts[m.home.team]++; pts[m.away.team]++; } else pts[m.away.team] += 3; }
+      codes.forEach(c => {
+        const above = codes.filter(k => k !== c && pts[k] > pts[c]).length;
+        const eq = codes.filter(k => k !== c && pts[k] === pts[c]).length;
+        range[c].B = Math.min(range[c].B, 1 + above);
+        range[c].W = Math.max(range[c].W, 1 + above + eq);
+      });
+    }
+    return range;
+  };
+
+  const range = ranksFor({}, rem);
+  return codes.map(c => {
+    const { B, W } = range[c];
+    let status, k;
+    if (W <= 1) { status = "Group winners — confirmed"; k = "q"; }
+    else if (W <= 2) { status = "Through to the last 32"; k = "q"; }
+    else if (B <= 2) { status = "In the hunt for the top two"; k = "live"; }
+    else if (B === 3) { status = "3rd place — best-eight hopes"; k = "third"; }
+    else { status = "Eliminated"; k = "out"; }
+    // on this team's final matchday, work out the result they need
+    let need = "";
+    const mine = rem.filter(m => m.home.team === c || m.away.team === c);
+    if (mine.length === 1 && B <= 2 && W > 2) {
+      const mc = mine[0], opp = mc.home.team === c ? mc.away.team : mc.home.team, others = rem.filter(m => m !== mc);
+      const w = ranksFor({ [c]: base[c] + 3, [opp]: base[opp] }, others)[c].W;
+      const d = ranksFor({ [c]: base[c] + 1, [opp]: base[opp] + 1 }, others)[c].W;
+      if (d <= 2) need = "a draw guarantees top 2";
+      else if (w <= 2) need = "win to be sure of the top 2";
+    }
+    return { code: c, status, k, need };
+  }).sort((a, b) => standings(g).findIndex(r => r.code === a.code) - standings(g).findIndex(r => r.code === b.code));
+}
+function groupOutlookHTML(g) {
+  const o = groupOutlook(g);
+  if (!o) return "";
+  return `<details class="outlook"><summary><span class="ear-tri">▸</span> What each team needs <span class="ear-hint">tap</span></summary>
+    <div class="outlook-body">${o.map(t => `<div class="ol-row ol-${t.k} ${t.code === S.fav ? "is-fav" : ""}">
+      <span class="fl">${flag(t.code)}</span><span class="ol-name">${esc(S.teams[t.code]?.name || t.code)}</span>
+      <span class="ol-status">${t.status}${t.need ? ` · <b>${t.need}</b>` : ""}</span></div>`).join("")}</div></details>`;
 }
 
 /* ---------------- theming ---------------- */
@@ -619,7 +680,7 @@ function myTeamBlock() {
     ${done.length ? `<div class="eyebrow">Played</div>` + done.map((m, i) => matchCard(m, i)).join("") : ""}
     <div class="eyebrow">Fixtures</div>
     ${upcoming.length ? upcoming.map((m, i) => matchCard(m, i)).join("") : `<div class="empty">No scheduled fixtures — check the bracket for their knockout path.</div>`}
-    ${group ? `<div class="eyebrow">Group ${group}</div><div class="gwrap">${groupTable(group, 0)}</div>
+    ${group ? `<div class="eyebrow">Group ${group}</div><div class="gwrap">${groupTable(group, 0)}</div>${groupOutlookHTML(group)}
       <div class="legend"><span class="l1"><i></i>Top 2 advance</span><span class="l3"><i></i>3rd — possible best-8 spot</span></div>` : ""}
     ${squadSection(S.fav)}`;
 }
@@ -689,7 +750,7 @@ function groupTable(g, i) {
 }
 function renderGroups() {
   $("#view-groups").innerHTML =
-    `<div class="gwrap">${GROUPS.map((g, i) => groupTable(g, i)).join("")}</div>
+    `<div class="gwrap">${GROUPS.map((g, i) => `<div class="gcol">${groupTable(g, i)}${groupOutlookHTML(g)}</div>`).join("")}</div>
      <div class="legend"><span class="l1"><i></i>Top 2 advance to the Round of 32</span><span class="l3"><i></i>3rd place — eight best advance</span></div>`;
 }
 

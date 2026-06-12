@@ -431,6 +431,27 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .earlier[open] .ear-hint{display:none}
 .ear-body{padding:2px 14px 8px}
 .ear-body .dayhead{top:auto;position:static;background:none}
+/* group qualification outlook (reuses the <details> chrome) */
+.outlook{border:1px solid var(--line);border-radius:14px;background:color-mix(in srgb,var(--paper) 55%,var(--card));overflow:hidden}
+.outlook summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:9px;padding:11px 14px;font-family:var(--disp);font-weight:800;font-stretch:110%;font-size:12.5px;color:var(--ink-soft)}
+.outlook summary::-webkit-details-marker{display:none}
+.outlook summary:hover{color:var(--ink)}
+.outlook .ear-tri{transition:transform .2s;font-size:11px}
+.outlook[open] .ear-tri{transform:rotate(90deg)}
+.outlook .ear-hint{margin-left:auto;font-weight:500;font-size:11.5px}
+.outlook[open] .ear-hint{display:none}
+.outlook-body{padding:2px 12px 10px;display:flex;flex-direction:column;gap:6px}
+.ol-row{display:flex;align-items:center;gap:9px;font-size:12.5px;padding:5px 8px;border-radius:9px;border-left:3px solid var(--line)}
+.ol-row .fl{font-size:16px;line-height:1}
+.ol-name{font-weight:700;flex:0 0 auto;min-width:84px}
+.ol-status{color:var(--ink-soft);font-size:11.5px}
+.ol-status b{color:var(--ink);font-weight:700}
+.ol-row.is-fav{background:color-mix(in srgb,var(--acc1) 7%,transparent)}
+.ol-q{border-left-color:var(--pitch)}
+.ol-q .ol-status b{color:var(--pitch)}
+.ol-live{border-left-color:var(--acc1)}
+.ol-third{border-left-color:var(--gold)}
+.ol-out{border-left-color:#C2CBD2;opacity:.72}
 
 /* ---------- simulator ---------- */
 .sim-intro{background:linear-gradient(120deg,color-mix(in srgb,var(--acc1) 10%,var(--card)),var(--card) 60%);border:1px solid var(--line);border-radius:22px;padding:20px 22px;box-shadow:var(--shadow);animation:rise .5s both}
