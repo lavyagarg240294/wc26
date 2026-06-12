@@ -35,6 +35,15 @@ async function fifaGet(url) {
   return r.json();
 }
 
+// official player photos harvested from FIFA lineups → data/photos.json, keyed "ShortName|CODE"
+const harvestedPhotos = {};
+function harvestPhotos(team, code) {
+  if (!team || !code) return;
+  for (const p of (team.Players || [])) {
+    const url = p.PlayerPicture?.PictureUrl, nm = loc(p.ShortName) || loc(p.PlayerName);
+    if (url && nm) harvestedPhotos[nm + "|" + code] = url;
+  }
+}
 // Build the goals/cards/subs timeline (+ basic lineups) from a FIFA live-match object.
 function buildEvents(lv) {
   const sides = [["h", lv.HomeTeam], ["a", lv.AwayTeam]];
@@ -72,7 +81,7 @@ function buildEvents(lv) {
   return { ev, xi };
 }
 
-async function fromFifa(prev) {
+async function fromFifa(prev, photoCodes) {
   const cal = await fifaGet(`${FIFA}/calendar/matches?idCompetition=${COMP}&idSeason=${SEASON}&language=en&count=104`);
   const rows = cal.Results || [];
   if (!rows.length) throw new Error("FIFA calendar empty");
@@ -119,7 +128,9 @@ async function fromFifa(prev) {
     const prevE = prev[f.id];
     const inPlay = st === "LIVE" || st === "HT";
     const captured = prevE && prevE.ev;             // already grabbed this finished match's events
-    if (inPlay || (st === "FT" && !captured)) needLive.push({ f, x, entry });
+    const hc = f.home.team || entry.ht, ac = f.away.team || entry.at;
+    const needPhotos = (hc && !photoCodes.has(hc)) || (ac && !photoCodes.has(ac));   // backfill photos for teams we haven't seen
+    if (inPlay || (st === "FT" && (!captured || needPhotos))) needLive.push({ f, x, entry });
     else if (st === "FT" && captured) { entry.ev = prevE.ev; if (prevE.xi) entry.xi = prevE.xi; }
 
     matches[f.id] = entry;
@@ -128,7 +139,7 @@ async function fromFifa(prev) {
 
   // enrich in-play + newly-finished matches with events + lineups (bounded per run)
   let fetched = 0;
-  for (const { x, entry } of needLive) {
+  for (const { f, x, entry } of needLive) {
     if (fetched >= LIVE_FETCH_CAP) break;
     try {
       const lv = await fifaGet(`${FIFA}/live/football/${COMP}/${SEASON}/${x.IdStage}/${x.IdMatch}?language=en`);
@@ -137,6 +148,7 @@ async function fromFifa(prev) {
       const { ev, xi } = buildEvents(lv);
       if (ev.length) entry.ev = ev;
       if (xi) entry.xi = xi;
+      harvestPhotos(lv.HomeTeam, f.home.team || entry.ht); harvestPhotos(lv.AwayTeam, f.away.team || entry.at);
     } catch { /* keep the score-only entry */ }
   }
 
@@ -305,11 +317,14 @@ const path = "data/results.json";
 let prev = {};
 try { if (existsSync(path)) prev = JSON.parse(readFileSync(path, "utf8")); } catch { /* malformed/conflicted — overwrite */ }
 const prevMatches = prev.matches || {};
+let prevPhotos = {};
+try { if (existsSync("data/photos.json")) prevPhotos = JSON.parse(readFileSync("data/photos.json", "utf8")); } catch { /* ignore */ }
+const photoCodes = new Set(Object.keys(prevPhotos).map(k => k.split("|")[1]));
 
 const DRY = process.argv.includes("--dry-run");
 let matches;
 try {
-  matches = await fromFifa(prevMatches);
+  matches = await fromFifa(prevMatches, photoCodes);
 } catch (e1) {
   console.warn("Primary api.fifa.com failed:", e1.message, "— trying worldcup26.ir");
   try { matches = await fromWorldCup26(); }
@@ -332,4 +347,16 @@ if (DRY) {
   console.log("results.json updated");
 } else {
   console.log("No score changes — skipping write");
+}
+
+// player photos: merge newly-harvested into data/photos.json (write only when changed)
+if (!DRY && Object.keys(harvestedPhotos).length) {
+  const pPath = "data/photos.json";
+  let prevPhotos = {};
+  try { if (existsSync(pPath)) prevPhotos = JSON.parse(readFileSync(pPath, "utf8")); } catch { /* overwrite */ }
+  const merged = { ...prevPhotos, ...harvestedPhotos };
+  if (JSON.stringify(prevPhotos) !== JSON.stringify(merged)) {
+    writeFileSync(pPath, JSON.stringify(merged));
+    console.log(`photos.json updated (${Object.keys(merged).length} players)`);
+  }
 }

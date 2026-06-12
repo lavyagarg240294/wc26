@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "42";  // shown in footer; bump with the ?v= asset version
+const BUILD = "43";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -401,8 +401,11 @@ function pitchSide(side, s, home) {
   const dot = (p, x, depth) => {                                        // depth 0 = own goal, 1 = halfway
     const top = home ? 96 - depth * 44 : 4 + depth * 44;               // home bottom half, away top half
     const left = home ? x : 100 - x;
-    return `<div class="pp" style="left:${left}%;top:${top}%;--pc:${c1};--pt:${c2}">
-      <span class="pp-dot">${p[0] ?? ""}</span><span class="pp-name">${esc(lastName(p[1]))}</span></div>`;
+    const photo = playerPhoto(p[1], s.code);
+    const face = photo
+      ? `<span class="pp-dot pp-photo" style="background-image:url('${photo}')"><i>${p[0] ?? ""}</i></span>`
+      : `<span class="pp-dot">${p[0] ?? ""}</span>`;
+    return `<div class="pp" style="left:${left}%;top:${top}%;--pc:${c1};--pt:${c2}">${face}<span class="pp-name">${esc(lastName(p[1]))}</span></div>`;
   };
   let html = dot(fr.gk, 50, 0.06);                                     // keep GK just off the goal line
   fr.bands.forEach((band, bi) => {
@@ -514,7 +517,7 @@ function openMatch(id) {
   const side = (s, key) => `<div class="md-team ${s.code === S.fav ? "is-fav" : ""}">
       <span class="md-flag">${s.code ? flag(s.code) : "·"}</span>
       <span class="md-name ${s.ph ? "is-ph" : ""}">${esc(slotText(m, key, s))}</span>
-      ${s.code ? `<span class="md-teaminfo">${esc(S.teams[s.code].conf || "")}${S.teams[s.code].titles ? ` · ${S.teams[s.code].titles}×🏆` : ""}</span>` : ""}
+      ${s.code ? `<span class="md-teaminfo">${esc(S.teams[s.code].conf || "")}${S.teams[s.code].titles ? ` · 🏆 ${S.teams[s.code].titles}` : ""}</span>` : ""}
       ${s.code && formChips(s.code) ? `<span class="md-form">${formChips(s.code)}</span>` : ""}</div>`;
   const squadLinks = [h, a].filter(s => s.code)
     .map(s => `<button class="md-squad-link" data-squad="${s.code}"><span class="fl">${flag(s.code)}</span> ${esc(s.name)} squad ›</button>`).join("");
@@ -727,7 +730,7 @@ function myTeamBlock() {
   return `
     <div class="team-hero"><span class="fl">${flag(S.fav)}</span>
       <div><h2>${esc(t.name)}</h2>
-      <p>${t.conf ? esc(t.conf) + " · " : ""}Group ${group || "—"}${t.titles ? ` · <b style="color:var(--gold)">${t.titles}×🏆</b>` : ""}${played ? ` · currently <b>${ordinal(pos)}</b> after ${played} match${played > 1 ? "es" : ""}` : ""}</p>
+      <p>${t.conf ? esc(t.conf) + " · " : ""}Group ${group || "—"}${t.titles ? ` · <b style="color:var(--gold)">🏆 ${t.titles}</b>` : ""}${played ? ` · currently <b>${ordinal(pos)}</b> after ${played} match${played > 1 ? "es" : ""}` : ""}</p>
       ${formChips(S.fav) ? `<div class="th-form">Recent form ${formChips(S.fav)}</div>` : ""}</div>
       <button class="btn ghost team-change" id="ctaChange">Change</button></div>
     ${mine.length ? `<div class="team-actions"><button class="btn ghost ics-btn" id="icsTeam">${CAL_SVG} Add ${esc(t.name)}'s matches to calendar</button></div>` : ""}
@@ -750,7 +753,7 @@ function renderTeams() {
   const grid = Object.keys(S.teams)
     .sort((a, b) => S.teams[a].name.localeCompare(S.teams[b].name))
     .map(c => `<button class="teamcard ${c === S.fav ? "is-fav" : ""}" data-squad="${c}" title="${esc(S.teams[c].name)}${S.teams[c].titles ? ` — ${S.teams[c].titles}× World Cup champion` : ""}">
-      <span class="fl">${flag(c)}</span><span class="tc-name">${esc(S.teams[c].name)}</span>${S.teams[c].titles ? `<span class="tc-cup" aria-label="${S.teams[c].titles} World Cup titles">🏆${S.teams[c].titles}</span>` : ""}<span class="tc-grp">${groupOf(c) || ""}</span></button>`).join("");
+      <span class="fl">${flag(c)}</span><span class="tc-name">${esc(S.teams[c].name)}</span>${S.teams[c].titles ? `<span class="tc-cup" aria-label="${S.teams[c].titles} World Cup titles">🏆 ${S.teams[c].titles}</span>` : ""}<span class="tc-grp">${groupOf(c) || ""}</span></button>`).join("");
   el.innerHTML = head + `<div class="eyebrow">All teams <span style="color:var(--ink-soft);font-weight:600">— tap for squad</span></div><div class="teamsgrid">${grid}</div>`;
   const cta = $("#ctaPick", el); if (cta) cta.onclick = () => $("#teamDialog").showModal();
   const chg = $("#ctaChange", el); if (chg) chg.onclick = () => $("#teamDialog").showModal();
@@ -783,7 +786,7 @@ function openSquad(code) {
   const t = S.teams[code]; if (!t) return;
   const sq = S.squads?.[code];
   $("#squadTitle").innerHTML = `<span class="fl">${flag(code)}</span> ${esc(t.name)}`
-    + `<span class="sq-meta">${esc(t.conf || "")}${t.titles ? ` · ${t.titles}×🏆` : ""}${sq ? ` · ${sq.players.length} players${sq.coach ? ` · ${esc(sq.coach)}` : ""}` : ""}</span>`
+    + `<span class="sq-meta">${esc(t.conf || "")}${t.titles ? ` · 🏆 ${t.titles}` : ""}${sq ? ` · ${sq.players.length} players${sq.coach ? ` · ${esc(sq.coach)}` : ""}` : ""}</span>`
     + (formChips(code) ? `<span class="sq-form">Form ${formChips(code)}</span>` : "");
   $("#squadBody").innerHTML = sq ? rosterMarkup(sq)
     : `<div class="empty">${esc(t.name)}'s squad lands once the squads workflow runs (see README). 16 teams are pre-loaded so far.</div>`;
@@ -1308,10 +1311,10 @@ function renderStats() {
   if (!s.pulse.matches) { el.innerHTML = `<div class="empty" style="margin:32px 16px">No matches played yet — tournament stats fill in as games kick off.</div>`; return; }
   const tile = (label, val) => `<div class="stat-tile"><span class="stat-val">${val}</span><span class="stat-lbl">${label}</span></div>`;
   const tname = c => esc(S.teams[c]?.name || c);
-  const scorerRow = (p, i) => `<div class="lead-row" data-squad="${p.code}" role="button" tabindex="0">
-    <span class="lead-rank">${i + 1}</span><span class="fl">${flag(p.code)}</span>
-    <span class="lead-name">${esc(p.name)}<small>${tname(p.code)}</small></span>
-    <span class="lead-v">${p.goals}<small>${p.assists ? `${p.assists} ast` : "&nbsp;"}</small></span></div>`;
+  const scorerRow = (p, i) => { const ph = playerPhoto(p.name, p.code); return `<div class="lead-row" data-squad="${p.code}" role="button" tabindex="0">
+    <span class="lead-rank">${i + 1}</span>${ph ? `<span class="lead-face" style="background-image:url('${ph}')"></span>` : `<span class="fl">${flag(p.code)}</span>`}
+    <span class="lead-name">${esc(p.name)}<small>${flag(p.code)} ${tname(p.code)}</small></span>
+    <span class="lead-v">${p.goals}<small>${p.assists ? `${p.assists} ast` : "&nbsp;"}</small></span></div>`; };
   const teamLead = (title, rows, fmt) => rows.length ? `<div class="lead-card"><h4>${title}</h4>${rows.slice(0, 5).map((x, i) => `<div class="lead-row" data-squad="${x.code}" role="button" tabindex="0">
     <span class="lead-rank">${i + 1}</span><span class="fl">${flag(x.code)}</span><span class="lead-name">${tname(x.code)}</span>
     <span class="lead-v">${fmt(x)}</span></div>`).join("")}</div>` : "";
@@ -1419,7 +1422,11 @@ async function loadStatic() {
   // squads.json is committed data that changes (squad updates) — bypass cache so it's always current
   try { S.squads = (await (await fetch("data/squads.json?t=" + Date.now(), { cache: "no-store" })).json()).squads || {}; }
   catch { S.squads = {}; }
+  // official player photos harvested from FIFA lineups (keyed "ShortName|CODE"); optional
+  try { S.photos = await (await fetch("data/photos.json?t=" + Date.now(), { cache: "no-store" })).json() || {}; }
+  catch { S.photos = {}; }
 }
+const playerPhoto = (name, code) => (S.photos && S.photos[name + "|" + code]) || "";
 // manual "refresh scores" controls (footer + hero) — re-fetch the published results.json now
 async function manualRefresh() {
   const btns = $$("[data-refresh]");

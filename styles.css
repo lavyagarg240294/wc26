@@ -310,12 +310,12 @@ b{font-weight:600}
 .team-hero .team-change{margin-left:auto;align-self:flex-start;padding:7px 14px;font-size:12px}
 
 /* ---------- all-teams grid ---------- */
-.teamsgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:10px}
-.teamcard{display:flex;align-items:center;gap:10px;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:11px 13px;box-shadow:var(--shadow);transition:transform .15s,border-color .2s,box-shadow .2s}
+.teamsgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(196px,1fr));gap:10px}
+.teamcard{display:flex;align-items:center;gap:9px;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:11px 13px;box-shadow:var(--shadow);transition:transform .15s,border-color .2s,box-shadow .2s}
 .teamcard:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--acc1) 45%,var(--line));box-shadow:0 8px 20px -10px rgba(13,27,42,.25)}
 .teamcard .fl{font-size:24px;flex:0 0 auto;line-height:1}
-.teamcard .tc-name{flex:1;font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.teamcard .tc-grp{font-family:var(--mono);font-size:10.5px;font-weight:700;color:var(--acc1);background:color-mix(in srgb,var(--acc1) 12%,transparent);border-radius:7px;padding:2px 6px}
+.teamcard .tc-name{flex:1;min-width:0;font-weight:600;font-size:13.5px;line-height:1.18;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word}
+.teamcard .tc-grp{flex:0 0 auto;font-family:var(--mono);font-size:10.5px;font-weight:700;color:var(--acc1);background:color-mix(in srgb,var(--acc1) 12%,transparent);border-radius:7px;padding:2px 6px}
 .teamcard.is-fav{border-color:var(--acc1);background:linear-gradient(90deg,color-mix(in srgb,var(--acc1) 8%,var(--card)),var(--card) 60%)}
 
 /* ---------- standings tables (fixed-width cols = identical alignment) ---------- */
@@ -549,6 +549,8 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .pitch-lines .pf{fill:rgba(255,255,255,.6);stroke:none}
 .pp{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:2px;width:50px;pointer-events:none}
 .pp-dot{width:25px;height:25px;border-radius:50%;background:var(--pc);color:var(--pt);border:1.5px solid rgba(255,255,255,.85);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-weight:700;font-size:11px;box-shadow:0 2px 5px rgba(0,0,0,.35)}
+.pp-dot.pp-photo{background-size:cover;background-position:top center;color:transparent;position:relative;overflow:visible}
+.pp-photo i{position:absolute;bottom:-3px;right:-5px;font-family:var(--mono);font-style:normal;font-size:8px;font-weight:700;color:var(--pt);background:var(--pc);border:1.5px solid #fff;border-radius:5px;padding:0 2.5px;line-height:1.45}
 .pp-name{max-width:54px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:8.5px;font-weight:700;letter-spacing:.02em;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.8)}
 .pitch-coaches{display:flex;justify-content:space-between;gap:10px;margin:9px 2px 0;font-size:11px;color:var(--ink-soft);font-style:italic}
 .pitch-coaches span:last-child{text-align:right}
@@ -603,6 +605,8 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .lead-row[data-squad]{cursor:pointer}
 .lead-row[data-squad]:hover{background:color-mix(in srgb,var(--acc1) 7%,transparent)}
 .lead-row .fl{font-size:18px;line-height:1;flex:0 0 auto}
+.lead-face{width:28px;height:28px;border-radius:50%;background-size:cover;background-position:top center;background-color:var(--line);flex:0 0 auto;box-shadow:inset 0 0 0 1px rgba(13,27,42,.1)}
+.lead-name small .fl{font-size:11px}
 .lead-rank{font-family:var(--mono);font-size:11px;color:var(--ink-soft);width:15px;text-align:center;flex:0 0 15px;font-weight:700}
 .lead-name{flex:1;font-weight:600;min-width:0;display:flex;flex-direction:column;line-height:1.25;overflow:hidden}
 .lead-name small{font-weight:500;font-size:10.5px;color:var(--ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -737,7 +741,7 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 @keyframes goalIn{from{opacity:0;transform:translateX(-50%) translateY(-18px) scale(.78)}}
 @keyframes goalOut{to{opacity:0;transform:translateX(-50%) translateY(-12px) scale(.96)}}
 /* champions badge + team info */
-.tc-cup{font-family:var(--mono);font-size:10.5px;font-weight:700;color:var(--gold);flex:0 0 auto}
+.tc-cup{font-family:var(--mono);font-size:10.5px;font-weight:700;color:var(--gold);flex:0 0 auto;white-space:nowrap}
 .md-teaminfo{font-family:var(--mono);font-size:10.5px;color:var(--ink-soft);letter-spacing:.02em;margin-top:-2px}
 /* flag wiggle on card hover */
 .mcard:hover .mcard-team .fl,.teamcard:hover .fl,.bm:hover .fl{animation:flagWave .6s ease}
