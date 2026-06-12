@@ -243,6 +243,55 @@ async function fromFootballData() {
   return matches;
 }
 
+/* ---------------- stats enrichment: ESPN fifa.world (possession/shots/corners) ---------------- */
+const ESPN = "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world";
+function parseEspnStats(sum, f, entry) {
+  const teams = sum.boxscore?.teams || [];
+  if (teams.length < 2) return null;
+  const num = (t, name) => { const s = (t.statistics || []).find(x => x.name === name); const v = s && parseFloat(s.displayValue); return Number.isFinite(v) ? v : null; };
+  const byCode = {};
+  for (const t of teams) { const c = toCode(t.team?.displayName); if (c) byCode[c] = t; }
+  const H = byCode[f.home.team || entry.ht], A = byCode[f.away.team || entry.at];
+  if (!H || !A) return null;
+  const pair = name => { const h = num(H, name), a = num(A, name); return (h != null && a != null) ? [h, a] : null; };
+  const stats = {};
+  for (const [key, espn] of [["poss", "possessionPct"], ["sh", "totalShots"], ["sot", "shotsOnTarget"], ["cor", "wonCorners"], ["fls", "foulsCommitted"]]) {
+    const v = pair(espn); if (v) stats[key] = v;
+  }
+  return Object.keys(stats).length ? stats : null;
+}
+async function enrichStats(matches, prev) {
+  const need = fixtures.filter(f => {
+    const e = matches[f.id]; if (!e) return false;
+    return e.st === "LIVE" || e.st === "HT" || (e.st === "FT" && !prev[f.id]?.stats);
+  });
+  for (const f of fixtures) {                              // carry cached stats for finished matches we won't refetch
+    const e = matches[f.id];
+    if (e && e.st === "FT" && prev[f.id]?.stats && !need.includes(f)) e.stats = prev[f.id].stats;
+  }
+  if (!need.length) return;
+  const dates = [...new Set(need.map(f => f.utc.slice(0, 10).replace(/-/g, "")))];
+  const eidByMin = {};
+  for (const d of dates) {
+    try {
+      const sb = await fetch(`${ESPN}/scoreboard?dates=${d}`, { headers: { "User-Agent": UA } }).then(r => r.json());
+      for (const e of (sb.events || [])) if (e.date) eidByMin[e.date.slice(0, 16)] = e.id;   // map UTC-minute → ESPN event id
+    } catch { /* skip this date */ }
+  }
+  let calls = 0, ok = 0;
+  for (const f of need) {
+    if (calls >= LIVE_FETCH_CAP) break;
+    const eid = eidByMin[f.utc.slice(0, 16)]; if (!eid) continue;
+    calls++;
+    try {
+      const sum = await fetch(`${ESPN}/summary?event=${eid}`, { headers: { "User-Agent": UA } }).then(r => r.json());
+      const st = parseEspnStats(sum, f, matches[f.id]);
+      if (st) { matches[f.id].stats = st; ok++; }
+    } catch { /* skip */ }
+  }
+  if (ok) console.log(`ESPN stats: enriched ${ok} match(es)`);
+}
+
 /* ---------------- run ---------------- */
 const path = "data/results.json";
 let prev = {};
@@ -262,6 +311,8 @@ try {
     catch (e3) { console.error("All sources failed:", e3.message); process.exit(1); }
   }
 }
+
+try { await enrichStats(matches, prevMatches); } catch (e) { console.warn("ESPN stats enrichment failed:", e.message); }
 
 const out = { updated: new Date().toISOString(), matches };
 if (DRY) {

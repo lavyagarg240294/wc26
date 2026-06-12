@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "38";  // shown in footer; bump with the ?v= asset version
+const BUILD = "39";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -450,6 +450,21 @@ function mdTimeline(r) {
   </div>`).join("");
   return `<div class="eyebrow">Match events</div><div class="md-tl">${rows}</div>`;
 }
+const STAT_ROWS = [["poss", "Possession", "%"], ["sh", "Shots"], ["sot", "On target"], ["cor", "Corners"], ["fls", "Fouls"]];
+function mdStats(r) {
+  if (!r?.stats) return "";
+  const rows = STAT_ROWS.filter(([k]) => Array.isArray(r.stats[k])).map(([k, label, suf]) => {
+    const [hv, av] = r.stats[k], tot = (hv + av) || 1, hp = Math.round(hv / tot * 100);
+    const sfx = suf || "";
+    return `<div class="st-row">
+      <span class="st-v${hv >= av ? " st-hi" : ""}">${hv}${sfx}</span>
+      <span class="st-label">${label}</span>
+      <span class="st-v st-v-a${av >= hv ? " st-hi" : ""}">${av}${sfx}</span>
+      <span class="st-bar"><i class="st-h" style="width:${hp}%"></i><i class="st-a" style="width:${100 - hp}%"></i></span>
+    </div>`;
+  }).join("");
+  return rows ? `<div class="eyebrow">Match stats</div><div class="md-stats">${rows}</div>` : "";
+}
 function openMatch(id) {
   const m = S.matches.find(x => x.id === id); if (!m) return;
   const h = slotInfo(m, "home"), a = slotInfo(m, "away"), r = res(m), st = status(m);
@@ -481,6 +496,7 @@ function openMatch(id) {
       <div class="md-goals-col">${(r.gh || []).map(g => `<div class="md-goal">⚽ ${esc(g)}</div>`).join("")}</div>
       <div class="md-goals-col away">${(r.ga || []).map(g => `<div class="md-goal">${esc(g)} ⚽</div>`).join("")}</div>
     </div>` : ""}
+    ${mdStats(r)}
     <div class="md-meta">
       <span>${fmt(m.utc, { weekday: "long", day: "numeric", month: "long" })}</span>
       <span>${timeStr(m.utc)} ${tzShort()}</span>
