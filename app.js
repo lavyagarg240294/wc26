@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "58";  // shown in footer; bump with the ?v= asset version
+const BUILD = "59";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1150,7 +1150,12 @@ function renderSim() {
   $$("[data-pick]", el).forEach(r => r.onclick = e => {
     const [num, code] = r.dataset.pick.split("|");
     S.sim.ko[+num] = code;
+    // re-rendering rebuilds the bracket — keep the user where they are (the bracket's horizontal
+    // scroll would otherwise snap back to the Round-of-32 column) instead of yanking them left.
+    const sc = el.querySelector(".bracket-scroll"), sx = sc ? sc.scrollLeft : 0, wy = window.scrollY;
     pruneSim(); saveSim(); renderSim();
+    const nsc = el.querySelector(".bracket-scroll"); if (nsc) nsc.scrollLeft = sx;
+    window.scrollTo(0, wy);
     if (+num === 104) {
       const t = S.teams[code];
       confetti(t.c1, t.c2, { x: e.clientX || innerWidth / 2, y: e.clientY || innerHeight / 2 });
@@ -1403,7 +1408,9 @@ async function refreshResults() {
       ? "Scores updated " + new Intl.DateTimeFormat("en", { timeZone: tz(), hour: "2-digit", minute: "2-digit" }).format(new Date(S.results.updated))
       : "Schedule loaded";
     renderTicker();
-    RENDER[S.view]();
+    // Predict is driven by the user's saved picks, not live results — re-rendering it on a poll would
+    // just reset their bracket scroll / interrupt them for no benefit. Refresh every other view.
+    if (S.view !== "sim") RENDER[S.view]();
     if (!firstLoad) celebrateGoals(prev, S.results.matches); // only after we have a baseline
   } catch { /* offline or first deploy — schedule still works */ }
 }
