@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "59";  // shown in footer; bump with the ?v= asset version
+const BUILD = "60";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1213,10 +1213,9 @@ function championBanner(code, predicted) {
 /* ---------------- tournament stats (team + player) ---------------- */
 function tournamentStats() {
   const fts = S.matches.filter(m => status(m) === ST.FT && res(m)?.h != null);
-  const gf = {}, ga = {}, poss = {}, possN = {}, shots = {}, yel = {}, red = {}, played = {}, scorers = {}, assists = {}, cleanGk = {};
+  const gf = {}, ga = {}, poss = {}, possN = {}, sot = {}, sotN = {}, yel = {}, red = {}, played = {}, scorers = {}, assists = {};
   let goals = 0, totCards = 0;
   const add = (o, k, n = 1) => { if (k) o[k] = (o[k] || 0) + n; };
-  const gkName = side => { const g = (side?.xi || []).find(p => p[2] === 0); return g ? g[1] : null; };   // starting keeper (pos 0)
   for (const m of fts) {
     const r = res(m), hc = slotInfo(m, "home").code, ac = slotInfo(m, "away").code;
     add(played, hc); add(played, ac);
@@ -1228,29 +1227,24 @@ function tournamentStats() {
       if (e.k === "Y") { add(yel, tc); totCards++; }
       else if (e.k === "R") { add(red, tc); totCards++; }
     }
-    // clean sheets → credited to the starting goalkeeper of whichever side conceded zero
-    if (r.xi) {
-      if (r.a === 0) { const g = gkName(r.xi.h); if (g) add(cleanGk, g + "\t" + hc); }
-      if (r.h === 0) { const g = gkName(r.xi.a); if (g) add(cleanGk, g + "\t" + ac); }
-    }
     if (r.stats?.poss) { add(poss, hc, r.stats.poss[0]); add(possN, hc); add(poss, ac, r.stats.poss[1]); add(possN, ac); }
-    if (r.stats?.sh) { add(shots, hc, r.stats.sh[0]); add(shots, ac, r.stats.sh[1]); }
+    if (r.stats?.sot) { add(sot, hc, r.stats.sot[0]); add(sotN, hc); add(sot, ac, r.stats.sot[1]); add(sotN, ac); }
   }
   const split = k => { const i = k.indexOf("\t"); return [k.slice(0, i), k.slice(i + 1)]; };
   const scorerList = Object.entries(scorers).map(([k, g]) => { const [name, code] = split(k); return { name, code, goals: g, assists: assists[name + "\t" + code] || 0 }; })
     .sort((a, b) => b.goals - a.goals || b.assists - a.assists || a.name.localeCompare(b.name));
-  const keeperList = Object.entries(cleanGk).map(([k, cs]) => { const [name, code] = split(k); return { name, code, cs }; })
-    .sort((a, b) => b.cs - a.cs || a.name.localeCompare(b.name));
   const cardList = [...new Set([...Object.keys(yel), ...Object.keys(red)])]
     .map(c => ({ code: c, y: yel[c] || 0, r: red[c] || 0, v: (yel[c] || 0) + (red[c] || 0) }))
     .sort((a, b) => b.v - a.v || b.r - a.r);
-  const rank = o => Object.entries(o).map(([code, v]) => ({ code, v })).sort((a, b) => b.v - a.v);
+  // team metrics are per-match (like FotMob) so a team that's played fewer games isn't ranked unfairly
+  const perMatch = (tot, n) => Object.keys(tot).map(c => ({ code: c, v: tot[c] / (n[c] || 1) }));
   return {
     pulse: { goals, matches: fts.length, perMatch: fts.length ? goals / fts.length : 0, cards: totCards },
     scorers: scorerList,
-    keepers: keeperList,
-    teamGoals: rank(gf), teamShots: rank(shots), teamCards: cardList,
-    teamConceded: Object.keys(ga).map(c => ({ code: c, v: ga[c], played: played[c] })).sort((a, b) => a.v - b.v || b.played - a.played),
+    teamCards: cardList,
+    teamScored: perMatch(gf, played).sort((a, b) => b.v - a.v),
+    teamConceded: perMatch(ga, played).sort((a, b) => a.v - b.v),
+    teamSot: perMatch(sot, sotN).sort((a, b) => b.v - a.v),
     possession: Object.keys(poss).map(c => ({ code: c, v: poss[c] / possN[c] })).filter(x => isFinite(x.v)).sort((a, b) => b.v - a.v),
   };
 }
@@ -1263,14 +1257,11 @@ function renderStats() {
     <span class="lead-rank">${i + 1}</span>${ph ? `<span class="lead-face" style="background-image:url('${ph}')"></span>` : `<span class="fl">${flag(p.code)}</span>`}
     <span class="lead-name">${esc(p.name)}<small>${flag(p.code)} ${tname(p.code)}</small></span>
     <span class="lead-v">${p.goals}<small>${p.assists ? `${p.assists} ast` : "&nbsp;"}</small></span></div>`; };
-  const gloveRow = (p, i) => { const ph = playerPhoto(p.name, p.code); return `<div class="lead-row lead-player">
-    <span class="lead-rank">${i + 1}</span>${ph ? `<span class="lead-face" style="background-image:url('${ph}')"></span>` : `<span class="fl">${flag(p.code)}</span>`}
-    <span class="lead-name">${esc(p.name)}<small>${flag(p.code)} ${tname(p.code)}</small></span>
-    <span class="lead-v">${p.cs}<small>clean sheet${p.cs > 1 ? "s" : ""}</small></span></div>`; };
   const teamLead = (title, rows, fmt) => rows.length ? `<div class="lead-card"><h4>${title}</h4>${rows.slice(0, 5).map((x, i) => `<div class="lead-row" data-squad="${x.code}" role="button" tabindex="0">
     <span class="lead-rank">${i + 1}</span><span class="fl">${flag(x.code)}</span><span class="lead-name">${tname(x.code)}</span>
     <span class="lead-v">${fmt(x)}</span></div>`).join("")}</div>` : "";
-  // cards: yellow + red shown side by side in one box, colour-coded
+  const perGame = x => `${x.v.toFixed(1)}<small>/ match</small>`;
+  // cards: yellow + red shown side by side in one box, colour-coded (a discipline tally, so kept as totals)
   const cardLead = s.teamCards.length ? `<div class="lead-card"><h4>Cards</h4>${s.teamCards.slice(0, 5).map((x, i) => `<div class="lead-row" data-squad="${x.code}" role="button" tabindex="0">
     <span class="lead-rank">${i + 1}</span><span class="fl">${flag(x.code)}</span><span class="lead-name">${tname(x.code)}</span>
     <span class="lead-v card-tally"><span class="ct ct-y" title="${x.y} yellow">${x.y}</span><span class="ct ct-r" title="${x.r} red">${x.r}</span></span></div>`).join("")}</div>` : "";
@@ -1282,14 +1273,12 @@ function renderStats() {
     </div>
     ${s.scorers.length ? `<div class="eyebrow">⚽ Golden Boot</div>
       <div class="lead-card lead-scorers">${s.scorers.slice(0, 12).map(scorerRow).join("")}</div>` : ""}
-    ${s.keepers.length ? `<div class="eyebrow">🧤 Golden Glove · clean sheets</div>
-      <div class="lead-card lead-scorers">${s.keepers.slice(0, 8).map(gloveRow).join("")}</div>` : ""}
-    <div class="eyebrow">Team leaders</div>
+    <div class="eyebrow">Team stats</div>
     <div class="lead-grid">
-      ${teamLead("Most goals", s.teamGoals, x => x.v)}
-      ${teamLead("Best defence", s.teamConceded, x => `${x.v}<small>${x.played} game${x.played > 1 ? "s" : ""}</small>`)}
+      ${teamLead("Attack", s.teamScored, perGame)}
+      ${teamLead("Defence", s.teamConceded, perGame)}
       ${teamLead("Possession", s.possession, x => x.v.toFixed(1) + "%")}
-      ${teamLead("Most shots", s.teamShots, x => x.v)}
+      ${teamLead("Shots on target", s.teamSot, perGame)}
       ${cardLead}
     </div>`;
 }

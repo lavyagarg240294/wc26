@@ -5,7 +5,7 @@ A fast, no-build fan site for the **FIFA World Cup 2026** — every match in you
 **What's inside**
 - **Live match detail** — score + minute, a goal/card/sub **timeline**, **lineups on a formation pitch** (with official player photos), a match-flow sparkline, and **match stats** (possession, shots, corners, fouls).
 - **Groups** — live standings + a "what each team needs to qualify" outlook.
-- **Stats** — tournament pulse, the **Golden Boot** & **Golden Glove** (clean-sheet keeper) races, and team leaderboards (goals, defence, possession, shots, and yellow/red cards).
+- **Stats** — tournament pulse, the **Golden Boot** race, and per-match **team stats** (attack, defence, possession, shots on target, and yellow/red cards).
 - **Predict** — order every group, pick the best third-placed teams, then tap winners through a full knockout **bracket** to crown your champion (it's seeded from live standings so it's ready to play with right away), and **share your bracket as a ~30-character link**.
 - Plus: **calendar (.ics) export**, per-match **share cards** that unfurl on social, background music, and a fully mobile-first, re-themable UI.
 
