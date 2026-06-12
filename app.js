@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "40";  // shown in footer; bump with the ?v= asset version
+const BUILD = "41";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -465,6 +465,30 @@ function mdStats(r) {
   }).join("");
   return rows ? `<div class="eyebrow">Match stats</div><div class="md-stats">${rows}</div>` : "";
 }
+const evMin = s => { const m = String(s || "").match(/(\d+)(?:'?\+(\d+))?/); return m ? +m[1] + (m[2] ? +m[2] / 100 : 0) : 0; };
+// "match flow" — the running lead (home − away) over the timeline, as a signed area
+function mdFlow(r, h, a) {
+  const goals = (r.ev || []).filter(e => ["G", "P", "OG"].includes(e.k));
+  if (goals.length < 2) return "";
+  const end = Math.max(90, ...goals.map(g => evMin(g.t)));
+  let lead = 0; const pts = [[0, 0]];
+  goals.forEach(g => { pts.push([evMin(g.t), lead]); lead += g.tm === "h" ? 1 : -1; pts.push([evMin(g.t), lead]); });
+  pts.push([end, lead]);
+  const maxAbs = Math.max(1, ...pts.map(p => Math.abs(p[1])));
+  const W = 100, H = 44, mid = H / 2, sx = m => (m / end * W).toFixed(1), sy = v => (mid - v / maxAbs * (mid - 4)).toFixed(1);
+  const line = pts.map((p, i) => `${i ? "L" : "M"}${sx(p[0])} ${sy(p[1])}`).join(" ");
+  const area = `M0 ${mid} ` + pts.map(p => `L${sx(p[0])} ${sy(p[1])}`).join(" ") + ` L${W} ${mid} Z`;
+  const hc = (h.code && S.teams[h.code]?.c1) || "#0BA360", ac = (a.code && S.teams[a.code]?.c1) || "#5B6B7A";
+  return `<div class="eyebrow">Match flow</div>
+    <div class="md-flow"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
+      <defs><linearGradient id="flowg-${h.code}${a.code}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="${hc}" stop-opacity=".55"/><stop offset="49%" stop-color="${hc}" stop-opacity=".06"/>
+        <stop offset="51%" stop-color="${ac}" stop-opacity=".06"/><stop offset="1" stop-color="${ac}" stop-opacity=".55"/></linearGradient></defs>
+      <path d="${area}" fill="url(#flowg-${h.code}${a.code})"/>
+      <line x1="0" y1="${mid}" x2="${W}" y2="${mid}" class="flow-mid"/><path d="${line}" class="flow-line"/></svg>
+    <div class="flow-legend"><span><i style="background:${hc}"></i>${esc(h.code ? h.name : "Home")} ahead</span>
+      <span>${esc(a.code ? a.name : "Away")} ahead<i style="background:${ac}"></i></span></div></div>`;
+}
 function openMatch(id) {
   const m = S.matches.find(x => x.id === id); if (!m) return;
   const h = slotInfo(m, "home"), a = slotInfo(m, "away"), r = res(m), st = status(m);
@@ -497,6 +521,7 @@ function openMatch(id) {
       <div class="md-goals-col away">${(r.ga || []).map(g => `<div class="md-goal">${esc(g)} ⚽</div>`).join("")}</div>
     </div>` : ""}
     ${mdStats(r)}
+    ${mdFlow(r, h, a)}
     <div class="md-meta">
       <span>${fmt(m.utc, { weekday: "long", day: "numeric", month: "long" })}</span>
       <span>${timeStr(m.utc)} ${tzShort()}</span>
@@ -759,15 +784,26 @@ function groupTable(g, i) {
   const rows = standings(g);
   return `<div class="gtable" style="--i:${i}"><h4>Group <span>${g}</span></h4>
     <table>${TABLE_COLS}<thead><tr><th>Team</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GD</th><th>Pts</th></tr></thead><tbody>
-    ${rows.map((r, idx) => `<tr class="${idx < 2 ? "q1" : idx === 2 ? "q3" : ""} ${r.code === S.fav ? "is-fav" : ""}">
+    ${rows.map((r, idx) => `<tr class="${idx < 2 ? "q1" : idx === 2 ? "q3" : ""} ${r.code === S.fav ? "is-fav" : ""}" data-g="${g}" data-code="${r.code}">
       <td class="tname" title="View ${esc(S.teams[r.code].name)} squad" data-squad="${r.code}" role="button" tabindex="0"><span class="fl">${flag(r.code)}</span>${esc(S.teams[r.code].name)}</td>
       <td>${r.p}</td><td>${r.w}</td><td>${r.d}</td><td>${r.l}</td><td>${r.gf - r.ga > 0 ? "+" : ""}${r.gf - r.ga}</td><td><b>${r.pts}</b></td></tr>`).join("")}
     </tbody></table></div>`;
 }
 function renderGroups() {
-  $("#view-groups").innerHTML =
+  const el = $("#view-groups");
+  const prev = {};                                          // capture row positions for a FLIP when standings reorder
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (!reduce) el.querySelectorAll("tr[data-code]").forEach(tr => prev[tr.dataset.g + tr.dataset.code] = tr.getBoundingClientRect().top);
+  el.innerHTML =
     `<div class="gwrap">${GROUPS.map((g, i) => `<div class="gcol">${groupTable(g, i)}${groupOutlookHTML(g)}</div>`).join("")}</div>
      <div class="legend"><span class="l1"><i></i>Top 2 advance to the Round of 32</span><span class="l3"><i></i>3rd place — eight best advance</span></div>`;
+  if (!reduce && Object.keys(prev).length) el.querySelectorAll("tr[data-code]").forEach(tr => {
+    const old = prev[tr.dataset.g + tr.dataset.code]; if (old == null) return;
+    const dy = old - tr.getBoundingClientRect().top;
+    if (Math.abs(dy) < 1) return;
+    tr.style.transition = "none"; tr.style.transform = `translateY(${dy}px)`;
+    requestAnimationFrame(() => { tr.style.transition = "transform .55s cubic-bezier(.2,.8,.2,1)"; tr.style.transform = ""; });
+  });
 }
 
 /* ---------------- render: bracket (real results) ---------------- */
@@ -785,7 +821,9 @@ function renderBracket() {
   }
   $("#view-bracket").innerHTML =
     (champ ? championBanner(champ) : "") +
-    `<div class="bracket-scroll"><div class="bracket"><svg class="bracket-lines" aria-hidden="true"></svg>
+    `<div class="bracket-tools"><button id="traceToggle" class="btn ghost" aria-pressed="false">⤳ Trace a path</button>
+      <span class="bracket-hint">Tap a match to light up its road to the final</span></div>
+    <div class="bracket-scroll"><div class="bracket"><svg class="bracket-lines" aria-hidden="true"></svg>
     ${cols.map(([st, title]) => {
       const ms = S.matches.filter(m => m.stage === st).sort((a, b) => a.num - b.num);
       const decided = ms.filter(m => res(m)?.st === ST.FT).length;
@@ -923,12 +961,28 @@ function wireBracketTrace(scope) {
     if (!hi) { hi = document.createElementNS("http://www.w3.org/2000/svg", "path"); hi.setAttribute("class", "path-hi"); svg.appendChild(hi); }
     hi.setAttribute("d", d);
   };
+  const pinMode = () => bracket.classList.contains("trace-pin");
+  const clearPins = () => bracket.querySelectorAll(".bm.pinned").forEach(p => p.classList.remove("pinned"));
   bracket.querySelectorAll(".bm[data-num]").forEach(el => {
-    el.addEventListener("pointerenter", () => trace(el.dataset.num));
-    el.addEventListener("pointerleave", clear);
-    el.addEventListener("focusin", () => trace(el.dataset.num));
-    el.addEventListener("focusout", clear);
+    el.addEventListener("pointerenter", () => { if (!pinMode()) trace(el.dataset.num); });   // hover trace (desktop)
+    el.addEventListener("pointerleave", () => { if (!pinMode()) clear(); });
+    el.addEventListener("focusin", () => { if (!pinMode()) trace(el.dataset.num); });
+    el.addEventListener("focusout", () => { if (!pinMode()) clear(); });
+    el.addEventListener("click", e => {                                                       // pin trace (touch / explicit)
+      if (!pinMode()) return;                                                                  // normal mode → card opens its match
+      e.stopPropagation();
+      const wasPinned = el.classList.contains("pinned");
+      clear(); clearPins();
+      if (!wasPinned) { trace(el.dataset.num); el.classList.add("pinned"); }
+    });
   });
+  const toggle = scope.querySelector("#traceToggle");
+  if (toggle) toggle.onclick = () => {
+    const on = bracket.classList.toggle("trace-pin");
+    toggle.classList.toggle("is-on", on);
+    toggle.setAttribute("aria-pressed", on);
+    if (!on) { clear(); clearPins(); }
+  };
 }
 
 /* ============================================================

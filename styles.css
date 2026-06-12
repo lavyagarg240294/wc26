@@ -350,6 +350,11 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .bracket-lines path.path-hi{stroke:var(--acc1);stroke-width:3;filter:drop-shadow(0 1px 3px color-mix(in srgb,var(--acc1) 45%,transparent));transition:none}
 .bracket.is-tracing .bm:not(.on-path){opacity:.34;filter:saturate(.55)}
 .bracket .bm.on-path{border-color:var(--acc1);box-shadow:0 0 0 2px var(--acc1),var(--shadow);z-index:2}
+.bracket .bm.pinned{box-shadow:0 0 0 2.5px var(--acc1),0 8px 22px -8px color-mix(in srgb,var(--acc1) 50%,transparent);z-index:3}
+.bracket-tools{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 12px}
+#traceToggle.is-on{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+.bracket-hint{font-size:11.5px;color:var(--ink-soft)}
+.bracket.trace-pin .bm{cursor:pointer}
 .bcol{position:relative;z-index:1;display:flex;flex-direction:column}
 .bcol-title{font-family:var(--disp);font-weight:800;font-stretch:115%;font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-soft);text-align:center;margin-bottom:10px;display:flex;align-items:center;justify-content:center;gap:7px}
 .bcol-count{font-family:var(--mono);font-size:9.5px;font-weight:700;letter-spacing:0;color:var(--acc1);background:color-mix(in srgb,var(--acc1) 12%,transparent);border-radius:20px;padding:1px 7px}
@@ -605,6 +610,13 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .lead-v small{font-weight:500;font-size:9px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.03em}
 .lead-scorers .lead-row:first-of-type .lead-rank{color:var(--gold)}
 .lead-scorers .lead-row:first-of-type .lead-v{color:var(--gold)}
+/* match flow (running-lead sparkline) */
+.md-flow{margin:2px 0 6px}
+.md-flow svg{width:100%;height:56px;display:block}
+.flow-line{fill:none;stroke:var(--ink);stroke-width:1.4;vector-effect:non-scaling-stroke;stroke-linejoin:round;stroke-linecap:round}
+.flow-mid{stroke:var(--line);stroke-width:1;vector-effect:non-scaling-stroke;stroke-dasharray:3 3}
+.flow-legend{display:flex;justify-content:space-between;font-size:10.5px;color:var(--ink-soft);margin-top:3px}
+.flow-legend i{display:inline-block;width:8px;height:8px;border-radius:2px;vertical-align:-1px;margin:0 5px}
 /* match stats (paired bars) */
 .md-stats{display:flex;flex-direction:column;gap:12px;margin:4px 0 8px}
 .st-row{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px 10px}
