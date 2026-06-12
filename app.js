@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "33";  // shown in footer; bump with the ?v= asset version
+const BUILD = "34";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -107,6 +107,57 @@ function winnerFeed(s) {
 }
 const isFavMatch = m => S.fav && (slotInfo(m, "home").code === S.fav || slotInfo(m, "away").code === S.fav);
 const matchHasTeam = (m, code) => slotInfo(m, "home").code === code || slotInfo(m, "away").code === code;
+
+// a team's last-5 finished results, oldest→newest: [{o:"W"|"D"|"L", gf, ga, m, opp}]
+function teamForm(code) {
+  return S.matches
+    .filter(m => matchHasTeam(m, code) && status(m) === ST.FT && res(m)?.h != null)
+    .sort((a, b) => a.utc.localeCompare(b.utc)).slice(-5)
+    .map(m => {
+      const r = res(m), home = slotInfo(m, "home").code === code;
+      const gf = home ? r.h : r.a, ga = home ? r.a : r.h;
+      let o = gf > ga ? "W" : gf < ga ? "L" : "D";
+      if (gf === ga && r.hp != null) o = (home ? r.hp > r.ap : r.ap > r.hp) ? "W" : "L";
+      return { o, gf, ga, m, opp: slotInfo(m, home ? "away" : "home") };
+    });
+}
+function formChips(code) {
+  const f = teamForm(code);
+  if (!f.length) return "";
+  return `<span class="form" aria-label="Recent form">${f.map(x =>
+    `<span class="form-d is-${x.o.toLowerCase()}" title="${x.o} ${x.gf}–${x.ga} v ${esc(x.opp.name || x.opp.code || "")}">${x.o}</span>`).join("")}</span>`;
+}
+
+/* ---------------- calendar (.ics) export — client-side, kickoffs in UTC ---------------- */
+const CAL_SVG = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>`;
+const icsEsc = s => String(s).replace(/[\\;,]/g, m => "\\" + m).replace(/\n/g, "\\n");
+const icsStamp = iso => new Date(iso).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+function icsFold(line) { let o = ""; while (line.length > 73) { o += line.slice(0, 73) + "\r\n "; line = line.slice(73); } return o + line; }
+function matchVEVENT(m) {
+  const h = slotInfo(m, "home"), a = slotInfo(m, "away");
+  const title = `${h.code ? h.name : slotText(m, "home", h)} v ${a.code ? a.name : slotText(m, "away", a)}`;
+  const stage = m.group ? `Group ${m.group}` : m.round;
+  const start = icsStamp(m.utc), end = icsStamp(new Date(new Date(m.utc).getTime() + 115 * 60000).toISOString());
+  return [
+    "BEGIN:VEVENT", `UID:wc26-m${m.num}@wc26.site`, `DTSTAMP:${icsStamp(new Date().toISOString())}`,
+    `DTSTART:${start}`, `DTEND:${end}`,
+    icsFold(`SUMMARY:${icsEsc(title + " — " + stage)}`),
+    icsFold(`LOCATION:${icsEsc(m.stadium + ", " + m.city)}`),
+    icsFold(`DESCRIPTION:${icsEsc("FIFA World Cup 2026 · " + stage + " · Match " + m.num)}`),
+    "BEGIN:VALARM", "ACTION:DISPLAY", "TRIGGER:-PT60M", icsFold(`DESCRIPTION:${icsEsc(title + " kicks off in 1 hour")}`), "END:VALARM",
+    "END:VEVENT",
+  ].join("\r\n");
+}
+function downloadICS(matches, name) {
+  if (!matches.length) return;
+  const ics = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//WC26//Companion//EN", "CALSCALE:GREGORIAN", "METHOD:PUBLISH",
+    icsFold(`X-WR-CALNAME:${icsEsc(name)}`), ...matches.map(matchVEVENT), "END:VCALENDAR"].join("\r\n");
+  const url = URL.createObjectURL(new Blob([ics], { type: "text/calendar;charset=utf-8" }));
+  const a = document.createElement("a");
+  a.href = url; a.download = name.replace(/[^\w]+/g, "-").toLowerCase().replace(/^-|-$/g, "") + ".ics";
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
 
 /* ---------------- standings ---------------- */
 function standings(group) {
@@ -310,6 +361,7 @@ function openMatch(id) {
       <span class="md-flag">${s.code ? flag(s.code) : "·"}</span>
       <span class="md-name ${s.ph ? "is-ph" : ""}">${esc(slotText(m, key, s))}</span>
       ${s.code ? `<span class="md-teaminfo">${esc(S.teams[s.code].conf || "")}${S.teams[s.code].titles ? ` · ${S.teams[s.code].titles}×🏆` : ""}</span>` : ""}
+      ${s.code && formChips(s.code) ? `<span class="md-form">${formChips(s.code)}</span>` : ""}
       ${s.code ? `<button class="md-squad-link" data-squad="${s.code}">View squad ›</button>` : ""}</div>`;
   const mid = score
     ? `<div class="md-score">${r.h}<span>–</span>${r.a}</div>${r.hp != null ? `<div class="md-pens">${r.hp}–${r.ap} on penalties</div>` : ""}`
@@ -317,6 +369,7 @@ function openMatch(id) {
   $("#matchTitle").innerHTML = `<span class="md-stage">${esc(stageL)}</span>`;
   $("#matchBody").innerHTML = `
     <div class="md-tagrow">${statusTag}
+      ${st === ST.SCHED ? `<button class="md-ics" id="mdIcs">${CAL_SVG} Calendar</button>` : ""}
       <button class="md-save ${sv ? "is-on" : ""}" data-save="${id}" aria-pressed="${sv}">${sv ? "★ Saved" : "☆ Save match"}</button>
     </div>
     <div class="md-teams">${side(h, "home")}<div class="md-mid">${mid}</div>${side(a, "away")}</div>
@@ -331,6 +384,7 @@ function openMatch(id) {
       <span>${esc(m.city)}</span>
     </div>
     ${r?.xi ? `<div class="eyebrow">Starting XI</div>${xiPanel(r.xi, h, a)}` : ""}`;
+  const ics = $("#mdIcs"); if (ics) ics.onclick = () => downloadICS([m], `${h.code ? h.name : "TBD"} v ${a.code ? a.name : "TBD"} · WC2026`);
   const md = $("#matchDialog"); md.dataset.mid = id; md.showModal();
 }
 
@@ -514,8 +568,10 @@ function myTeamBlock() {
   return `
     <div class="team-hero"><span class="fl">${flag(S.fav)}</span>
       <div><h2>${esc(t.name)}</h2>
-      <p>${t.conf ? esc(t.conf) + " · " : ""}Group ${group || "—"}${t.titles ? ` · <b style="color:var(--gold)">${t.titles}×🏆</b>` : ""}${played ? ` · currently <b>${ordinal(pos)}</b> after ${played} match${played > 1 ? "es" : ""}` : ""}</p></div>
+      <p>${t.conf ? esc(t.conf) + " · " : ""}Group ${group || "—"}${t.titles ? ` · <b style="color:var(--gold)">${t.titles}×🏆</b>` : ""}${played ? ` · currently <b>${ordinal(pos)}</b> after ${played} match${played > 1 ? "es" : ""}` : ""}</p>
+      ${formChips(S.fav) ? `<div class="th-form">Recent form ${formChips(S.fav)}</div>` : ""}</div>
       <button class="btn ghost team-change" id="ctaChange">Change</button></div>
+    ${mine.length ? `<div class="team-actions"><button class="btn ghost ics-btn" id="icsTeam">${CAL_SVG} Add ${esc(t.name)}'s matches to calendar</button></div>` : ""}
     ${done.length ? `<div class="eyebrow">Played</div>` + done.map((m, i) => matchCard(m, i)).join("") : ""}
     <div class="eyebrow">Fixtures</div>
     ${upcoming.length ? upcoming.map((m, i) => matchCard(m, i)).join("") : `<div class="empty">No scheduled fixtures — check the bracket for their knockout path.</div>`}
@@ -539,6 +595,10 @@ function renderTeams() {
   el.innerHTML = head + `<div class="eyebrow">All teams <span style="color:var(--ink-soft);font-weight:600">— tap for squad</span></div><div class="teamsgrid">${grid}</div>`;
   const cta = $("#ctaPick", el); if (cta) cta.onclick = () => $("#teamDialog").showModal();
   const chg = $("#ctaChange", el); if (chg) chg.onclick = () => $("#teamDialog").showModal();
+  const ics = $("#icsTeam", el);
+  if (ics) ics.onclick = () => downloadICS(
+    S.matches.filter(isFavMatch).sort((a, b) => a.utc.localeCompare(b.utc)),
+    `${S.teams[S.fav].name} · World Cup 2026`);
 }
 function rosterMarkup(sq) {
   const groups = { GK: "Goalkeepers", DF: "Defenders", MF: "Midfielders", FW: "Forwards" };
@@ -564,7 +624,8 @@ function openSquad(code) {
   const t = S.teams[code]; if (!t) return;
   const sq = S.squads?.[code];
   $("#squadTitle").innerHTML = `<span class="fl">${flag(code)}</span> ${esc(t.name)}`
-    + `<span class="sq-meta">${esc(t.conf || "")}${t.titles ? ` · ${t.titles}×🏆` : ""}${sq ? ` · ${sq.players.length} players${sq.coach ? ` · ${esc(sq.coach)}` : ""}` : ""}</span>`;
+    + `<span class="sq-meta">${esc(t.conf || "")}${t.titles ? ` · ${t.titles}×🏆` : ""}${sq ? ` · ${sq.players.length} players${sq.coach ? ` · ${esc(sq.coach)}` : ""}` : ""}</span>`
+    + (formChips(code) ? `<span class="sq-form">Form ${formChips(code)}</span>` : "");
   $("#squadBody").innerHTML = sq ? rosterMarkup(sq)
     : `<div class="empty">${esc(t.name)}'s squad lands once the squads workflow runs (see README). 16 teams are pre-loaded so far.</div>`;
   $("#squadDialog").showModal();
@@ -616,6 +677,7 @@ function renderBracket() {
   </div></div>
   <p class="bracket-note">Scroll sideways → · winners flow left to right · the bracket fills itself as results land. Want to call it early? Try the <b>Predict</b> tab.</p>`;
   layoutBracket($("#view-bracket"));
+  wireBracketTrace($("#view-bracket"));
 }
 // human label for an unresolved knockout slot fed by another match's winner/loser
 const STAGE_SHORT = { r32: "R32", r16: "R16", qf: "QF", sf: "SF", final: "Final" };
@@ -706,6 +768,46 @@ function drawBracketLines(scope) {
     });
   });
   svg.innerHTML = d ? `<path d="${d}"/>` : "";
+}
+// hover/focus a bracket card → trace its winner's path forward to the final
+function wireBracketTrace(scope) {
+  const bracket = scope.querySelector(".bracket"), svg = scope.querySelector(".bracket-lines");
+  if (!bracket || !svg) return;
+  const tgtOf = {};                                   // num → the match its winner advances to
+  S.matches.forEach(x => { if (x.stage !== "group") [x.home, x.away].forEach(s => { if (s.feeds) tgtOf[s.feeds] = x.num; }); });
+  const els = {}; bracket.querySelectorAll(".bm[data-num]").forEach(el => els[el.dataset.num] = el);
+  const chainOf = num => { const out = []; for (let n = num; n != null && !out.includes(n); n = tgtOf[n]) out.push(n); return out; };
+  const clear = () => {
+    bracket.classList.remove("is-tracing");
+    bracket.querySelectorAll(".on-path").forEach(el => el.classList.remove("on-path"));
+    svg.querySelector(".path-hi")?.setAttribute("d", "");
+  };
+  const trace = num => {
+    const chain = chainOf(num); if (chain.length < 2) { clear(); }
+    bracket.classList.add("is-tracing");
+    const br = bracket.getBoundingClientRect(), pos = {};
+    chain.forEach(n => {
+      const el = els[n]; if (!el) return;
+      el.classList.add("on-path");
+      const r = el.getBoundingClientRect();
+      pos[n] = { left: r.left - br.left, right: r.right - br.left, cy: r.top - br.top + r.height / 2 };
+    });
+    let d = "";
+    for (let i = 0; i < chain.length - 1; i++) {
+      const a = pos[chain[i]], b = pos[chain[i + 1]]; if (!a || !b) continue;
+      const midX = a.right + (b.left - a.right) / 2;
+      d += `M${a.right} ${a.cy} H${midX} V${b.cy} H${b.left} `;
+    }
+    let hi = svg.querySelector(".path-hi");
+    if (!hi) { hi = document.createElementNS("http://www.w3.org/2000/svg", "path"); hi.setAttribute("class", "path-hi"); svg.appendChild(hi); }
+    hi.setAttribute("d", d);
+  };
+  bracket.querySelectorAll(".bm[data-num]").forEach(el => {
+    el.addEventListener("pointerenter", () => trace(el.dataset.num));
+    el.addEventListener("pointerleave", clear);
+    el.addEventListener("focusin", () => trace(el.dataset.num));
+    el.addEventListener("focusout", clear);
+  });
 }
 
 /* ============================================================
