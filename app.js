@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "41";  // shown in footer; bump with the ?v= asset version
+const BUILD = "42";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -235,7 +235,8 @@ function groupOutlook(g) {
 function groupOutlookHTML(g) {
   const o = groupOutlook(g);
   if (!o) return "";
-  return `<details class="outlook"><summary><span class="ear-tri">▸</span> What each team needs <span class="ear-hint">tap</span></summary>
+  const open = S.fav && groupOf(S.fav) === g ? " open" : "";   // auto-expand the favourite's group
+  return `<details class="outlook"${open}><summary><span class="ear-tri">▸</span> What each team needs <span class="ear-hint">tap</span></summary>
     <div class="outlook-body">${o.map(t => `<div class="ol-row ol-${t.k} ${t.code === S.fav ? "is-fav" : ""}">
       <span class="fl">${flag(t.code)}</span><span class="ol-name">${esc(S.teams[t.code]?.name || t.code)}</span>
       <span class="ol-status">${t.status}${t.need ? ` · <b>${t.need}</b>` : ""}</span></div>`).join("")}</div></details>`;
@@ -489,6 +490,17 @@ function mdFlow(r, h, a) {
     <div class="flow-legend"><span><i style="background:${hc}"></i>${esc(h.code ? h.name : "Home")} ahead</span>
       <span>${esc(a.code ? a.name : "Away")} ahead<i style="background:${ac}"></i></span></div></div>`;
 }
+const STAGE_NAME = { r32: "Round of 32", r16: "Round of 16", qf: "Quarter-final", sf: "Semi-final", final: "Final", third: "3rd place" };
+// narrative breadcrumb of where this match's winner goes, all the way to the final
+function koPath(m) {
+  if (!m || m.stage === "group") return "";
+  const tgt = {}, byNum = {};
+  S.matches.forEach(x => { byNum[x.num] = x; if (x.stage !== "group") [x.home, x.away].forEach(s => { if (s.feeds) tgt[s.feeds] = x.num; }); });
+  const chain = []; for (let n = m.num; n != null && byNum[n] && !chain.includes(byNum[n]); n = tgt[n]) chain.push(byNum[n]);
+  if (chain.length < 2) return "";
+  const steps = chain.slice(1).map(x => `${STAGE_NAME[x.stage] || x.stage}<small>M${x.num}</small>`);
+  return `<div class="md-kopath"><span class="kp-label">Winner's road →</span> ${steps.join(`<span class="kp-arr">›</span>`)}</div>`;
+}
 function openMatch(id) {
   const m = S.matches.find(x => x.id === id); if (!m) return;
   const h = slotInfo(m, "home"), a = slotInfo(m, "away"), r = res(m), st = status(m);
@@ -516,6 +528,7 @@ function openMatch(id) {
       <button class="md-save ${sv ? "is-on" : ""}" data-save="${id}" aria-pressed="${sv}">${sv ? "★ Saved" : "☆ Save match"}</button>
     </div>
     <div class="md-teams">${side(h, "home")}<div class="md-mid">${mid}</div>${side(a, "away")}</div>
+    ${koPath(m)}
     ${r?.ev?.length ? mdTimeline(r) : (r?.gh?.length || r?.ga?.length) ? `<div class="md-goals">
       <div class="md-goals-col">${(r.gh || []).map(g => `<div class="md-goal">⚽ ${esc(g)}</div>`).join("")}</div>
       <div class="md-goals-col away">${(r.ga || []).map(g => `<div class="md-goal">${esc(g)} ⚽</div>`).join("")}</div>
@@ -1008,6 +1021,58 @@ function flashToast(msg) {
   t.textContent = msg; t.classList.add("show");
   clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("show"), 2400);
 }
+/* compact prediction codec (~23 bytes → ~31-char link); decode falls back to the old JSON format */
+const FACT = [1, 1, 2, 6, 24];
+const groupTeams = g => [...new Set(S.matches.filter(m => m.group === g).flatMap(m => [m.home.team, m.away.team]).filter(Boolean))].sort();
+function permToIndex(order, canon) {
+  const pool = canon.slice(); let idx = 0;
+  for (let i = 0; i < canon.length; i++) { const p = pool.indexOf(order[i]); if (p < 0) return 0; idx += p * FACT[canon.length - 1 - i]; pool.splice(p, 1); }
+  return idx;
+}
+function indexToPerm(idx, canon) {
+  const pool = canon.slice(), out = [];
+  for (let i = 0; i < canon.length; i++) { const f = FACT[canon.length - 1 - i], p = Math.min(Math.floor(idx / f), pool.length - 1); idx %= f; out.push(pool[p]); pool.splice(p, 1); }
+  return out;
+}
+const bytesToB64url = arr => btoa(String.fromCharCode(...arr)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+const b64urlToBytes = str => Array.from(atob(str.replace(/-/g, "+").replace(/_/g, "/")), c => c.charCodeAt(0));
+const koOrder = () => S.matches.filter(m => m.stage !== "group").sort((a, b) => a.num - b.num);
+function packSim() {
+  const bytes = [1];                                                  // version 1
+  for (const g of GROUPS) bytes.push(permToIndex(simOrder(g), groupTeams(g)) & 0xff);
+  let mask = 0; GROUPS.forEach((g, i) => { if (S.sim.thirds.includes(simOrder(g)[2])) mask |= 1 << i; });
+  bytes.push(mask & 0xff, (mask >> 8) & 0xff);
+  const alloc = allocateThirds(); let acc = 0, bits = 0;
+  for (const m of koOrder()) {
+    const { h, a } = simSlots(m, alloc), w = S.sim.ko[m.num];
+    acc |= (w === h ? 1 : w === a ? 2 : 0) << bits; bits += 2;
+    while (bits >= 8) { bytes.push(acc & 0xff); acc >>= 8; bits -= 8; }
+  }
+  if (bits > 0) bytes.push(acc & 0xff);
+  return bytesToB64url(bytes);
+}
+function applyPacked(bytes) {
+  if (bytes[0] !== 1) return false;
+  const order = {}; GROUPS.forEach((g, i) => { order[g] = indexToPerm(bytes[1 + i], groupTeams(g)); });
+  S.sim.order = order;
+  const mask = bytes[13] | (bytes[14] << 8), thirds = [];
+  GROUPS.forEach((g, i) => { if (mask & (1 << i)) thirds.push(order[g][2]); });
+  S.sim.thirds = thirds; S.sim.ko = {};
+  const alloc = allocateThirds(); let acc = 0, bits = 0, idx = 15;
+  for (const m of koOrder()) {                                        // num order → feeders resolved before they're needed
+    while (bits < 2) { acc |= (bytes[idx++] || 0) << bits; bits += 8; }
+    const v = acc & 3; acc >>= 2; bits -= 2;
+    if (!v) continue;
+    const { h, a } = simSlots(m, alloc), code = v === 1 ? h : a;
+    if (code) S.sim.ko[m.num] = code;
+  }
+  return true;
+}
+function loadSharedSim(enc) {
+  try { const b = b64urlToBytes(enc); if (b[0] === 1 && applyPacked(b)) return true; } catch { /* not compact → try JSON */ }
+  const d = decodeSim(enc); if (d) { S.sim = d; return true; }
+  return false;
+}
 
 function simOrder(g) {
   if (!S.sim.order[g] || S.sim.order[g].length !== 4) S.sim.order[g] = standings(g).map(r => r.code);
@@ -1180,7 +1245,7 @@ function renderSim() {
   };
   $("#simReset").onclick = () => { S.sim = { order: {}, thirds: [], ko: {} }; saveSim(); renderSim(); };
   $("#simShare").onclick = async () => {
-    const url = location.origin + location.pathname + "#p=" + encodeSim();
+    const url = location.origin + location.pathname + "#p=" + packSim();
     try { await navigator.clipboard.writeText(url); flashToast("Prediction link copied — share it!"); }
     catch { prompt("Copy your prediction link:", url); }
   };
@@ -1438,8 +1503,7 @@ async function boot() {
   // a shared prediction link (#p=…) loads that bracket and opens the Predict tab
   let initView = "matches";
   if (location.hash.startsWith("#p=")) {
-    const decoded = decodeSim(location.hash.slice(3));
-    if (decoded) { S.sim = decoded; pruneSim(); saveSim(); initView = "sim"; setTimeout(() => flashToast("Loaded a shared prediction"), 400); }
+    if (loadSharedSim(location.hash.slice(3))) { pruneSim(); saveSim(); initView = "sim"; setTimeout(() => flashToast("Loaded a shared prediction"), 400); }
     history.replaceState(null, "", location.pathname + location.search);
   }
   nav(initView);
