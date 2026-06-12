@@ -1,78 +1,103 @@
 # WC·26 — World Cup 2026 Companion
 
-A fast, no-build fan site for the FIFA World Cup 2026: all 104 matches in your timezone, a favorite team that re-themes the whole site, live group tables, and a bracket that fills itself in.
+A fast, no-build fan site for the **FIFA World Cup 2026** — every match in your timezone, a favorite team that re-themes the whole UI, and a tournament that fills itself in as games are played.
 
-**Stack:** plain HTML/CSS/JS on GitHub Pages + a GitHub Action that refreshes scores from football-data.org every 20 minutes. Total cost: $0.
+**What's inside**
+- **Live match detail** — score + minute, a goal/card/sub **timeline**, **lineups on a formation pitch** (with official player photos), a match-flow sparkline, and **match stats** (possession, shots, corners, fouls).
+- **Groups** — live standings + a "what each team needs to qualify" outlook.
+- **Bracket** — a self-filling knockout tree; hover (or tap "Trace a path") to light up a team's road to the final.
+- **Stats** — tournament pulse, the **Golden Boot** race, and team leaderboards (goals, defence, possession, shots, cards).
+- **Predict** — order every group, pick the best third-placed teams, tap winners to the final, and **share your bracket as a ~30-character link**.
+- Plus: **calendar (.ics) export**, per-match **share cards** that unfurl on social, background music, and a fully mobile-first, re-themable UI.
+
+**Stack:** plain `index.html` + `styles.css` + one vanilla-JS `app.js` on GitHub Pages, fed by GitHub Actions that commit JSON into the repo. **No API keys are required to run it** — live scores, events, lineups, stats and player photos all come from free, keyless sources. Total cost: **$0**.
 
 ---
 
-## One-time setup (~10 minutes)
+## One-time setup (~5 minutes)
 
-### 1. Get the free API keys
-- **football-data.org** (scores): sign up at https://www.football-data.org/client/register — free tier includes the World Cup.
-- **API-Football** (squads + starting XIs, optional): sign up at https://www.api-football.com — free plan is 100 requests/day, plenty for this.
-
-### 2. Create the repo and push
+### 1. Create the repo and push
 ```bash
 cd wc26-site
 git init && git add -A && git commit -m "kickoff"
 gh repo create wc26 --public --source=. --push
-# (or create an empty repo on github.com and: git remote add origin … && git push -u origin main)
+# (or make an empty repo on github.com, then: git remote add origin … && git push -u origin main)
 ```
 The repo must be **public** for free unlimited Pages + Actions.
 
-### 3. Add the API key as a secret
-Repo → **Settings → Secrets and variables → Actions → New repository secret**
-Add two secrets (encrypted and hidden, even in public repos):
-- `FOOTBALL_DATA_TOKEN` — your football-data.org token (scores)
-- `API_FOOTBALL_KEY` — your API-Football key (squads + lineups; skip it and the site simply runs without player data)
+### 2. Enable GitHub Pages
+**Settings → Pages** → Source: **Deploy from a branch** → Branch `main`, folder `/ (root)` → Save.
+Live at `https://<username>.github.io/wc26/` within a minute or two.
+> Update the absolute URLs in `index.html` (the `og:`/`twitter:` meta) to your own Pages URL so social previews point at your site.
 
-### 4. Enable GitHub Pages
-Repo → **Settings → Pages** → Source: **Deploy from a branch** → Branch: `main`, folder `/ (root)` → Save.
-Your site goes live at `https://<username>.github.io/wc26/` within a minute or two.
+### 3. Allow the Actions to push
+**Settings → Actions → General → Workflow permissions** → **Read and write permissions** → Save.
 
-### 5. Allow the Action to push
-Repo → **Settings → Actions → General → Workflow permissions** → select **Read and write permissions** → Save.
+### 4. Kick the data once
+**Actions** tab:
+- **Update scores → Run workflow** — first scores commit; then automatic every 5 minutes.
+- **Share cards** runs automatically after each scores update (renders the OG card per finished match).
+- **Update squads → Run workflow** — fills all 48 squads (16 official lists ship pre-seeded).
 
-### 6. Kick the data once
-Repo → **Actions**:
-- **Update scores → Run workflow** — first scores commit; then automatic every 20 minutes.
-- **Update squads → Run workflow** — fills all 48 squads (16 official lists ship pre-seeded). Re-run if a squad changes through injury replacement.
+### Optional API keys (you can skip all of these)
+Add under **Settings → Secrets and variables → Actions** only if you want them:
+- `FOOTBALL_DATA_TOKEN` — a free [football-data.org](https://www.football-data.org/client/register) token, used **only as a last-resort fallback** if both FIFA and ESPN are unreachable.
+- `API_FOOTBALL_KEY` — a free [API-Football](https://www.api-football.com) key for the squads workflow (caps/goals/club). Without it, the 16 seeded squads still show.
 
 ---
 
 ## How it works
 
 ```
-visitor's browser ── reads ──► index.html + data/*.json   (GitHub Pages, static)
+visitor's browser ── reads ──► index.html + data/*.json     (GitHub Pages, static)
                                           ▲
-GitHub Action (every 20 min) ── writes ──┘
-        │
-        └── fetches scores from football-data.org (key stays in repo secrets)
+GitHub Action (every 5 min) ── writes ────┘
+        │  PRIMARY  api.fifa.com         → score, minute, events, lineups, photos
+        │  STATS    site.api.espn.com    → possession, shots, corners, fouls
+        └  FALLBACK worldcup26.ir → football-data.org (token, optional)
 ```
 
-- `data/matches.json` — all 104 fixtures, UTC kickoffs, venues (source: openfootball, public domain)
-- `data/teams.json` — 48 teams: display names, flag codes, kit colors
-- `data/results.json` — scores, statuses, resolved knockout teams, and starting XIs, written by the Action
-- `data/squads.json` — 26-man squads per team (16 official lists seeded; squads workflow fills the rest)
-- The site polls `results.json` every 90 s while open, so scores update without a refresh.
+All sources are fetched **server-side in the Action** (even the CORS-enabled ones), so a vanished endpoint never breaks a visitor's page, and no keys ever reach the browser. The site polls `results.json` every 90 s while open, so scores update without a refresh.
+
+---
+
+## Data files (`data/`)
+
+| File | What | Written by |
+|---|---|---|
+| `matches.json` | 104 fixtures — UTC kickoffs, venues, stage/group, knockout slot placeholders (source: openfootball, public domain) | static |
+| `teams.json` | 48 teams — names, kit colours, confederation, World Cup titles | static |
+| `results.json` | per-match `{st,h,a,hp,ap,ht,at,min,xi,ev,stats}` — score, status, resolved knockout teams, lineups, event timeline, match stats | scores Action |
+| `photos.json` | official player headshots harvested from FIFA lineups (`"ShortName|CODE"` → image URL) | scores Action |
+| `squads.json` | 26-man squads per team | squads Action |
+
+The favorite team, timezone and saved prediction live in each visitor's `localStorage` — they never leave the device.
+
+---
 
 ## Updating the site
 
-Edit anything, commit, push — every visitor sees it on their next load. No build step exists; what's in the repo is the site.
+Edit anything, commit, push — every visitor sees it on their next load. **There is no build step for the site itself**; what's in the repo is the site.
 
-**Manual score fix** (API hiccup, etc.): edit `data/results.json` directly. Schema per match:
+**Manual score fix** (rare): edit `data/results.json` directly. Minimal per-match shape:
 ```json
 "m12": { "st": "FT", "h": 2, "a": 1 }
 ```
-`st`: `SCHED` | `LIVE` | `HT` | `FT` · `h/a`: goals · `hp/ap`: penalty scores · `ht/at`: resolved team codes (knockouts only) · `min`: live minute · `xi`: starting lineups (written ~1h before kickoff when `API_FOOTBALL_KEY` is set; tap a match card to view).
+`st`: `SCHED` | `LIVE` | `HT` | `FT` · `h/a`: goals · `hp/ap`: penalties · `ht/at`: resolved team codes (knockouts) · `min`: live minute · `xi`: lineups · `ev`: goal/card/sub timeline · `stats`: `[home,away]` pairs. Tap any match card for the full detail view.
+
+**Share cards** are the one piece with build tooling (`scripts/make-share-cards.mjs` uses `satori` + `@resvg/resvg-js`; see `package.json`). They run only in their own Action — `node_modules` is gitignored and the core scores pipeline stays dependency-free.
+
+---
 
 ## After the final (July 19)
 
-Disable the schedule so the Action stops running: delete the `schedule:` block in `.github/workflows/results.yml`, or disable the workflow in the Actions tab. The site keeps working forever as a frozen record of the tournament.
+Stop the cron so the Action goes idle: delete the `schedule:` block in `.github/workflows/results.yml` (and `share-cards.yml`), or disable them in the Actions tab. The site keeps working forever as a frozen record of the tournament.
+
+---
 
 ## Notes & honest limits
 
-- Free-tier scores can lag a few minutes behind broadcast; the Action's 20-min cadence means at most ~20 min staleness. Tighten the cron to `*/10` during knockout rounds if you like.
-- Group tiebreakers implement points → goal difference → goals scored (FIFA's further criteria — head-to-head conduct points, ranking — aren't computable from scores alone; the bracket uses the API's resolved teams as ground truth once known, so it stays correct regardless).
-- Unofficial fan project; not affiliated with FIFA.
+- **No keys needed.** FIFA's and ESPN's feeds are unofficial/undocumented ("use at your own risk") — that's exactly why everything is fetched through the Action with layered fallbacks, so the site degrades to scores-only rather than breaking if one source changes.
+- **Group tiebreakers** implement points → goal difference → goals scored. FIFA's deeper criteria (head-to-head, disciplinary, drawing of lots) aren't computable from scores alone; the qualification math is conservative about it, and the bracket uses the resolved teams as ground truth once known.
+- **Player & share-card images** are hot-linked from FIFA's CDN; if a URL ever 404s, the dot/preview falls back gracefully.
+- Unofficial fan project; **not affiliated with FIFA**.
