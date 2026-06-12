@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "43";  // shown in footer; bump with the ?v= asset version
+const BUILD = "44";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -130,6 +130,7 @@ function formChips(code) {
 
 /* ---------------- calendar (.ics) export — client-side, kickoffs in UTC ---------------- */
 const CAL_SVG = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>`;
+const SHARE_SVG = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>`;
 const icsEsc = s => String(s).replace(/[\\;,]/g, m => "\\" + m).replace(/\n/g, "\\n");
 const icsStamp = iso => new Date(iso).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
 function icsFold(line) { let o = ""; while (line.length > 73) { o += line.slice(0, 73) + "\r\n "; line = line.slice(73); } return o + line; }
@@ -528,6 +529,7 @@ function openMatch(id) {
   $("#matchBody").innerHTML = `
     <div class="md-tagrow">${statusTag}
       ${st === ST.SCHED ? `<button class="md-ics" id="mdIcs">${CAL_SVG} Calendar</button>` : ""}
+      <button class="md-ics" id="mdShare">${SHARE_SVG} Share</button>
       <button class="md-save ${sv ? "is-on" : ""}" data-save="${id}" aria-pressed="${sv}">${sv ? "★ Saved" : "☆ Save match"}</button>
     </div>
     <div class="md-teams">${side(h, "home")}<div class="md-mid">${mid}</div>${side(a, "away")}</div>
@@ -547,6 +549,16 @@ function openMatch(id) {
     ${r?.xi ? `<div class="eyebrow">Starting XI</div>${xiPanel(r.xi, h, a)}` : ""}
     ${squadLinks ? `<div class="md-squads">${squadLinks}</div>` : ""}`;
   const ics = $("#mdIcs"); if (ics) ics.onclick = () => downloadICS([m], `${h.code ? h.name : "TBD"} v ${a.code ? a.name : "TBD"} · WC2026`);
+  const shareBtn = $("#mdShare");
+  if (shareBtn) shareBtn.onclick = async () => {
+    // finished matches have a share-card stub that unfurls; otherwise a deep link
+    const url = st === ST.FT ? new URL(`share/${m.num}.html`, location.href).href : new URL(`?match=${id}`, location.href).href;
+    const title = `${h.code ? h.name : "TBD"} v ${a.code ? a.name : "TBD"} — World Cup 2026`;
+    try {
+      if (navigator.share) await navigator.share({ title, url });
+      else { await navigator.clipboard.writeText(url); flashToast("Match link copied — share it!"); }
+    } catch { /* user dismissed the share sheet */ }
+  };
   const md = $("#matchDialog"); md.dataset.mid = id; md.showModal();
 }
 
@@ -1514,6 +1526,12 @@ async function boot() {
     history.replaceState(null, "", location.pathname + location.search);
   }
   nav(initView);
+  // a shared match link (?match=<id>, e.g. from a share-card stub) opens that match
+  const mq = new URLSearchParams(location.search).get("match");
+  if (mq && S.matches.some(m => m.id === mq)) {
+    history.replaceState(null, "", location.pathname);
+    setTimeout(() => openMatch(mq), 350);
+  }
   refreshResults();
   setInterval(refreshResults, 90 * 1000); // pick up fresh scores every 90s
 }
