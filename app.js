@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "56";  // shown in footer; bump with the ?v= asset version
+const BUILD = "57";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1449,7 +1449,7 @@ async function boot() {
     setTimeout(() => openMatch(mq), 350);
   }
   refreshResults();
-  setInterval(refreshResults, 90 * 1000); // pick up fresh scores every 90s
+  setInterval(refreshResults, 60 * 1000); // pick up fresh scores every 60s (server loop refreshes ~1/min during matches)
 }
 boot();
 })();

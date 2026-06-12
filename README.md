@@ -34,7 +34,7 @@ Live at `https://<username>.github.io/wc26/` within a minute or two.
 
 ### 4. Kick the data once
 **Actions** tab:
-- **Update scores → Run workflow** — first scores commit; then automatic every 5 minutes.
+- **Update scores → Run workflow** — first scores commit; then it keeps itself running (a self-relaunching polling loop), refreshing ~every minute during live matches.
 - **Share cards** runs automatically after each scores update (renders the OG card per finished match).
 - **Update squads → Run workflow** — fills all 48 squads (16 official lists ship pre-seeded).
 
@@ -50,13 +50,13 @@ Add under **Settings → Secrets and variables → Actions** only if you want th
 ```
 visitor's browser ── reads ──► index.html + data/*.json     (GitHub Pages, static)
                                           ▲
-GitHub Action (every 5 min) ── writes ────┘
+GitHub Action (polling loop) ── writes ───┘
         │  PRIMARY  api.fifa.com         → score, minute, events, lineups, photos
         │  STATS    site.api.espn.com    → possession, shots, corners, fouls
         └  FALLBACK worldcup26.ir → football-data.org (token, optional)
 ```
 
-All sources are fetched **server-side in the Action** (even the CORS-enabled ones), so a vanished endpoint never breaks a visitor's page, and no keys ever reach the browser. The site polls `results.json` every 90 s while open, so scores update without a refresh.
+All sources are fetched **server-side in the Action** (even the CORS-enabled ones), so a vanished endpoint never breaks a visitor's page, and no keys ever reach the browser. The site polls `results.json` every 60 s while open, so scores update without a refresh.
 
 ---
 

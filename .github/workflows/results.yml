@@ -45,9 +45,9 @@ jobs:
             else
               echo "no changes @ $(date -u +%H:%M) UTC"
             fi
-            # adaptive cadence: poll every 5 min when a match is within [-1h, +3.5h] of kickoff, else every 30 min
+            # adaptive cadence: poll every 1 min when a match is within [-1h, +3.5h] of kickoff, else every 30 min
             near=$(node -e "const m=require('./data/matches.json').matches;const n=Date.now();process.stdout.write(m.some(x=>{const t=+new Date(x.utc);return n>t-3.6e6 && n<t+1.26e7})?'1':'0')")
-            [ "$near" = "1" ] && sleep 300 || sleep 1800
+            [ "$near" = "1" ] && sleep 60 || sleep 1800
           done
           echo "polling budget reached — relaunching the workflow"
           gh workflow run results.yml || echo "self-dispatch failed; the */15 cron will restart it"
