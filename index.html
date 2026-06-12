@@ -4,25 +4,25 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>FIFA World Cup 2026 — Live Companion</title>
-<meta name="description" content="Your FIFA World Cup 2026 companion — live scores with goal timelines, lineups, formation pitches & match stats, group tables, a self-filling bracket, the Golden Boot race, and a full predictor. All 104 matches in your timezone.">
+<meta name="description" content="Your FIFA World Cup 2026 companion — live scores with goal timelines, lineups, formation pitches & match stats, group tables, the Golden Boot race, and a full bracket predictor you can call all the way to the champion. All 104 matches in your timezone.">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="FIFA World Cup 2026 Companion">
 <meta property="og:url" content="https://lavyagarg240294.github.io/wc26/">
 <meta property="og:title" content="FIFA World Cup 2026 — your live companion">
-<meta property="og:description" content="Live scores & lineups, match stats, group tables, a self-filling bracket, the Golden Boot race, and a full predictor — every match in your timezone.">
-<meta property="og:image" content="https://lavyagarg240294.github.io/wc26/assets/og.png?v=20">
+<meta property="og:description" content="Live scores & lineups, match stats, group tables, the Golden Boot race, and a bracket predictor you can call all the way to the champion — every match in your timezone.">
+<meta property="og:image" content="https://lavyagarg240294.github.io/wc26/assets/og.png?v=21">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="FIFA World Cup 2026 — live scores, lineups, stats and a full predictor">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="FIFA World Cup 2026 — your live companion">
-<meta name="twitter:description" content="Live scores & lineups, match stats, group tables, a self-filling bracket, the Golden Boot race, and a full predictor — every match in your timezone.">
-<meta name="twitter:image" content="https://lavyagarg240294.github.io/wc26/assets/og.png?v=20">
+<meta name="twitter:description" content="Live scores & lineups, match stats, group tables, the Golden Boot race, and a bracket predictor you can call all the way to the champion — every match in your timezone.">
+<meta name="twitter:image" content="https://lavyagarg240294.github.io/wc26/assets/og.png?v=21">
 <meta name="theme-color" content="#0BA360">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=Instrument+Sans:wght@400;500;600&family=Spline+Sans+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=48">
+<link rel="stylesheet" href="styles.css?v=56">
 <link rel="icon" href="assets/wc26-emblem.svg">
 </head>
 <body>
@@ -57,9 +57,8 @@
   <button class="tab is-active" data-nav="matches">Matches</button>
   <button class="tab" data-nav="teams">Teams</button>
   <button class="tab" data-nav="groups">Groups</button>
-  <button class="tab" data-nav="bracket">Bracket</button>
-  <button class="tab" data-nav="stats">Stats</button>
   <button class="tab" data-nav="sim">Predict</button>
+  <button class="tab" data-nav="stats">Stats</button>
   <span class="tab-ink" id="tabInk" aria-hidden="true"></span>
 </nav>
 
@@ -69,9 +68,8 @@
   <section class="view" id="view-matches"></section>
   <section class="view" id="view-teams" hidden></section>
   <section class="view" id="view-groups" hidden></section>
-  <section class="view" id="view-bracket" hidden></section>
-  <section class="view" id="view-stats" hidden></section>
   <section class="view" id="view-sim" hidden></section>
+  <section class="view" id="view-stats" hidden></section>
 </main>
 
 <footer class="foot">
@@ -118,6 +116,6 @@
 <canvas id="confetti" aria-hidden="true"></canvas>
 <audio id="bgm" loop preload="none" src="assets/anthem.mp3"></audio>
 
-<script src="app.js?v=48"></script>
+<script src="app.js?v=56"></script>
 </body>
 </html>

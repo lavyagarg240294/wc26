@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "48";  // shown in footer; bump with the ?v= asset version
+const BUILD = "56";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -84,7 +84,7 @@ function clockStr(m, r) {
   const real = Math.floor((Date.now() - new Date(m.utc).getTime()) / 60000);
   if (real < 0) return "";
   const est = real <= 45 ? real : Math.max(46, real - 15);
-  return "~" + (est >= 90 ? "90+" : est) + "′";
+  return (est >= 90 ? "90+" : est) + "′";
 }
 function slotInfo(m, side) {
   const s = m[side];
@@ -130,7 +130,6 @@ function formChips(code) {
 
 /* ---------------- calendar (.ics) export — client-side, kickoffs in UTC ---------------- */
 const CAL_SVG = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>`;
-const SHARE_SVG = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>`;
 const icsEsc = s => String(s).replace(/[\\;,]/g, m => "\\" + m).replace(/\n/g, "\\n");
 const icsStamp = iso => new Date(iso).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
 function icsFold(line) { let o = ""; while (line.length > 73) { o += line.slice(0, 73) + "\r\n "; line = line.slice(73); } return o + line; }
@@ -443,9 +442,9 @@ const EV_ICON = {
   S: `<span class="tl-sub" aria-hidden="true">⇄</span>`,
 };
 function evText(e) {
-  if (e.k === "S") return `<span class="tl-p">${esc(e.on || "")}</span>${e.off ? ` <span class="tl-off">↓ ${esc(e.off)}</span>` : ""}`;
+  if (e.k === "S") return `<span class="tl-p tl-in">${esc(e.on || "")}</span>${e.off ? `<span class="tl-off tl-out">${esc(e.off)}</span>` : ""}`;
   const tag = e.k === "P" ? ` <span class="tl-x">pen</span>` : e.k === "OG" ? ` <span class="tl-x">o.g.</span>` : "";
-  return `<span class="tl-p">${esc(e.p || "")}</span>${tag}${e.a ? ` <span class="tl-off">${esc(e.a)}</span>` : ""}`;
+  return `<span class="tl-p">${esc(e.p || "")}${tag}</span>${e.a ? `<span class="tl-off">${esc(e.a)}</span>` : ""}`;
 }
 function mdTimeline(r) {
   if (!r?.ev?.length) return "";
@@ -525,17 +524,19 @@ function openMatch(id) {
   const mid = score
     ? `<div class="md-score">${r.h}<span>–</span>${r.a}</div>${r.hp != null ? `<div class="md-pens">${r.hp}–${r.ap} on penalties</div>` : ""}`
     : `<div class="md-vs">VS</div>`;
+  const liveNow = st === ST.LIVE || st === ST.HT;
+  // lineups on the formation pitch — promoted above the timeline while a match is live (the XI is the headline then)
+  const xiBlock = r?.xi ? `<div class="eyebrow">${liveNow ? "Line-ups" : "Starting XI"}</div>${xiPanel(r.xi, h, a)}` : "";
   $("#matchTitle").innerHTML = `<span class="md-stage">${esc(stageL)}</span>`;
   $("#matchBody").innerHTML = `
     <div class="md-tagrow">${statusTag}
       <div class="md-actions">
-        ${st === ST.SCHED ? `<button class="md-ics" id="mdIcs">${CAL_SVG} Calendar</button>` : ""}
-        <button class="md-ics" id="mdShare">${SHARE_SVG} Share</button>
         <button class="md-save ${sv ? "is-on" : ""}" data-save="${id}" aria-pressed="${sv}" aria-label="${sv ? "Remove from saved" : "Save match"}" title="${sv ? "Saved" : "Save match"}">${sv ? "★" : "☆"}</button>
       </div>
     </div>
     <div class="md-teams">${side(h, "home")}<div class="md-mid">${mid}</div>${side(a, "away")}</div>
     ${koPath(m)}
+    ${liveNow ? xiBlock : ""}
     ${r?.ev?.length ? mdTimeline(r) : (r?.gh?.length || r?.ga?.length) ? `<div class="md-goals">
       <div class="md-goals-col">${(r.gh || []).map(g => `<div class="md-goal">⚽ ${esc(g)}</div>`).join("")}</div>
       <div class="md-goals-col away">${(r.ga || []).map(g => `<div class="md-goal">${esc(g)} ⚽</div>`).join("")}</div>
@@ -548,19 +549,8 @@ function openMatch(id) {
       <span>${esc(m.stadium)}</span>
       <span>${esc(m.city)}</span>
     </div>
-    ${r?.xi ? `<div class="eyebrow">Starting XI</div>${xiPanel(r.xi, h, a)}` : ""}
+    ${liveNow ? "" : xiBlock}
     ${squadLinks ? `<div class="md-squads">${squadLinks}</div>` : ""}`;
-  const ics = $("#mdIcs"); if (ics) ics.onclick = () => downloadICS([m], `${h.code ? h.name : "TBD"} v ${a.code ? a.name : "TBD"} · WC2026`);
-  const shareBtn = $("#mdShare");
-  if (shareBtn) shareBtn.onclick = async () => {
-    // finished matches have a share-card stub that unfurls; otherwise a deep link
-    const url = st === ST.FT ? new URL(`share/${m.num}.html`, location.href).href : new URL(`?match=${id}`, location.href).href;
-    const title = `${h.code ? h.name : "TBD"} v ${a.code ? a.name : "TBD"} — World Cup 2026`;
-    try {
-      if (navigator.share) await navigator.share({ title, url });
-      else { await navigator.clipboard.writeText(url); flashToast("Match link copied — share it!"); }
-    } catch { /* user dismissed the share sheet */ }
-  };
   const md = $("#matchDialog"); md.dataset.mid = id; md.showModal();
 }
 
@@ -580,9 +570,7 @@ function heroBlock(heroM, isLive) {
     <div class="hero-teams">
       <div class="hero-side"><span class="hero-flag">${h.code ? flag(h.code) : "·"}</span><span class="hero-name">${esc(h.name)}</span></div>
       <div class="hero-mid">${isLive
-        ? (r && r.h != null
-          ? `<span class="hero-score">${r.h}–${r.a}</span><span class="hero-minute">${r.st === ST.HT ? "Half-time" : (clockStr(heroM, r) || "In play")}</span>`
-          : `<span class="hero-score hero-pending">–</span><span class="hero-pending-note">score updating…</span>`)
+        ? `${r && r.h != null ? `<span class="hero-score">${r.h}–${r.a}</span>` : ""}<span class="hero-livechip">${r?.st === ST.HT ? "Half-time" : (clockStr(heroM, r) || "Live")}</span>`
         : `<span class="hero-vs">VS</span>`}</div>
       <div class="hero-side"><span class="hero-flag">${a.code ? flag(a.code) : "·"}</span><span class="hero-name">${esc(a.name)}</span></div>
     </div>
@@ -836,38 +824,6 @@ function renderGroups() {
   });
 }
 
-/* ---------------- render: bracket (real results) ---------------- */
-function renderBracket() {
-  const cols = [["r32", "Round of 32"], ["r16", "Round of 16"], ["qf", "Quarter-finals"], ["sf", "Semi-finals"], ["final", "Final"]];
-  const third = S.matches.find(m => m.stage === "third");
-  // champion, once the final resolves
-  const finalM = S.matches.find(m => m.stage === "final");
-  const fr = finalM && res(finalM);
-  let champ = null;
-  if (fr && fr.st === ST.FT) {
-    const fh = slotInfo(finalM, "home").code, fa = slotInfo(finalM, "away").code;
-    const homeWon = fr.h > fr.a || (fr.h === fr.a && (fr.hp ?? -1) > (fr.ap ?? -1));
-    champ = homeWon ? fh : fa;
-  }
-  $("#view-bracket").innerHTML =
-    (champ ? championBanner(champ, false) : "") +
-    `<div class="bracket-tools"><button id="traceToggle" class="btn ghost" aria-pressed="false">⤳ Trace a path</button>
-      <span class="bracket-hint">Turn this on, then tap any match to trace its road to the final</span></div>
-    <div class="bracket-scroll"><div class="bracket"><svg class="bracket-lines" aria-hidden="true"></svg>
-    ${cols.map(([st, title]) => {
-      const ms = S.matches.filter(m => m.stage === st).sort((a, b) => a.num - b.num);
-      const decided = ms.filter(m => res(m)?.st === ST.FT).length;
-      const inner = ms.map((m, i) => bMatch(m, i)).join("")
-        + (st === "final" && third ? bMatch(third, 1) : "");
-      return `<div class="bcol bcol-${st}">
-        <div class="bcol-title">${title}<span class="bcol-count">${decided}/${ms.length}</span></div>
-        <div class="bcol-matches">${inner}</div></div>`;
-    }).join("")}
-  </div></div>
-  <p class="bracket-note">Scroll sideways → · winners flow left to right · the bracket fills itself as results land. Want to call it early? Try the <b>Predict</b> tab.</p>`;
-  layoutBracket($("#view-bracket"));
-  wireBracketTrace($("#view-bracket"));
-}
 // human label for an unresolved knockout slot fed by another match's winner/loser
 const STAGE_SHORT = { r32: "R32", r16: "R16", qf: "QF", sf: "SF", final: "Final" };
 function feedLabel(num, loser) {
@@ -884,20 +840,6 @@ function slotText(m, side, si) {
   if (slot.feeds) return feedLabel(slot.feeds, false); // "Winner QF1"
   if (slot.feedsL) return feedLabel(slot.feedsL, true);// "Loser SF1" (third-place)
   return slot.short || si.name;                        // group placeholder (1E, 2A, 3rd A/B/…)
-}
-function bMatch(m, i) {
-  const h = slotInfo(m, "home"), a = slotInfo(m, "away");
-  const r = res(m), st = status(m), fin = st === ST.FT && r;
-  const wH = fin && (r.h > r.a || (r.h === r.a && (r.hp ?? -1) > (r.ap ?? -1)));
-  const row = (s, txt, sc, w, l) => `<div class="bm-row ${w ? "is-w" : ""} ${l ? "is-l" : ""}">
-    <span class="fl">${s.code ? flag(s.code) : "·"}</span>
-    <span class="nm ${s.ph ? "ph" : ""}">${esc(txt)}${w && m.stage === "final" ? " 🏆" : ""}</span>
-    ${sc != null ? `<span class="sc">${sc}</span>` : ""}</div>`;
-  return `<div class="bm ${m.stage === "final" ? "is-final" : ""} ${m.stage === "third" ? "is-third" : ""}" style="--i:${i}" data-num="${m.num}" data-mid="${m.id}">
-    ${m.stage === "third" ? `<div class="bm-tag">3rd place</div>` : ""}
-    ${row(h, slotText(m, "home", h), fin ? r.h : null, wH, fin && !wH)}${row(a, slotText(m, "away", a), fin ? r.a : null, fin && !wH, wH)}
-    <div class="bm-label">M${m.num} · ${fmt(m.utc, { day: "numeric", month: "short" })} ${timeStr(m.utc)} · ${esc(m.city.split(",")[0])}${[ST.LIVE, ST.HT].includes(st) ? ` · <span style="color:var(--live);font-weight:700">LIVE</span>` : ""}</div>
-  </div>`;
 }
 // position every bracket card at the vertical midpoint of its feeder matches (a true bracket tree)
 function layoutBracket(scope) {
@@ -958,63 +900,6 @@ function drawBracketLines(scope) {
   });
   svg.innerHTML = d ? `<path d="${d}"/>` : "";
 }
-// hover/focus a bracket card → trace its winner's path forward to the final
-function wireBracketTrace(scope) {
-  const bracket = scope.querySelector(".bracket"), svg = scope.querySelector(".bracket-lines");
-  if (!bracket || !svg) return;
-  const tgtOf = {};                                   // num → the match its winner advances to
-  S.matches.forEach(x => { if (x.stage !== "group") [x.home, x.away].forEach(s => { if (s.feeds) tgtOf[s.feeds] = x.num; }); });
-  const els = {}; bracket.querySelectorAll(".bm[data-num]").forEach(el => els[el.dataset.num] = el);
-  const chainOf = num => { const out = []; for (let n = num; n != null && !out.includes(n); n = tgtOf[n]) out.push(n); return out; };
-  const clear = () => {
-    bracket.classList.remove("is-tracing");
-    bracket.querySelectorAll(".on-path").forEach(el => el.classList.remove("on-path"));
-    svg.querySelector(".path-hi")?.setAttribute("d", "");
-  };
-  const trace = num => {
-    const chain = chainOf(num); if (chain.length < 2) { clear(); }
-    bracket.classList.add("is-tracing");
-    const br = bracket.getBoundingClientRect(), pos = {};
-    chain.forEach(n => {
-      const el = els[n]; if (!el) return;
-      el.classList.add("on-path");
-      const r = el.getBoundingClientRect();
-      pos[n] = { left: r.left - br.left, right: r.right - br.left, cy: r.top - br.top + r.height / 2 };
-    });
-    let d = "";
-    for (let i = 0; i < chain.length - 1; i++) {
-      const a = pos[chain[i]], b = pos[chain[i + 1]]; if (!a || !b) continue;
-      const midX = a.right + (b.left - a.right) / 2;
-      d += `M${a.right} ${a.cy} H${midX} V${b.cy} H${b.left} `;
-    }
-    let hi = svg.querySelector(".path-hi");
-    if (!hi) { hi = document.createElementNS("http://www.w3.org/2000/svg", "path"); hi.setAttribute("class", "path-hi"); svg.appendChild(hi); }
-    hi.setAttribute("d", d);
-  };
-  const pinMode = () => bracket.classList.contains("trace-pin");
-  const clearPins = () => bracket.querySelectorAll(".bm.pinned").forEach(p => p.classList.remove("pinned"));
-  bracket.querySelectorAll(".bm[data-num]").forEach(el => {
-    el.addEventListener("pointerenter", () => { if (!pinMode()) trace(el.dataset.num); });   // hover trace (desktop)
-    el.addEventListener("pointerleave", () => { if (!pinMode()) clear(); });
-    el.addEventListener("focusin", () => { if (!pinMode()) trace(el.dataset.num); });
-    el.addEventListener("focusout", () => { if (!pinMode()) clear(); });
-    el.addEventListener("click", e => {                                                       // pin trace (touch / explicit)
-      if (!pinMode()) return;                                                                  // normal mode → card opens its match
-      e.stopPropagation();
-      const wasPinned = el.classList.contains("pinned");
-      clear(); clearPins();
-      if (!wasPinned) { trace(el.dataset.num); el.classList.add("pinned"); }
-    });
-  });
-  const toggle = scope.querySelector("#traceToggle");
-  if (toggle) toggle.onclick = () => {
-    const on = bracket.classList.toggle("trace-pin");
-    toggle.classList.toggle("is-on", on);
-    toggle.setAttribute("aria-pressed", on);
-    if (!on) { clear(); clearPins(); }
-  };
-}
-
 /* ============================================================
    SIMULATOR — order groups, pick thirds, tap winners
    ============================================================ */
@@ -1155,9 +1040,23 @@ function pruneSim() {
     if (pick !== h && pick !== a) delete S.sim.ko[m.num];
   });
 }
+// pick a valid default set of 8 third-place teams so the knockout bracket is visible (and tappable) by default
+function seedSimThirds() {
+  GROUPS.forEach(g => { S.sim.order[g] = standings(g).map(r => r.code); });   // sync group order to live standings
+  const all = GROUPS.map(g => S.sim.order[g][2]);
+  const rank = c => { const r = standings(groupOf(c)).find(x => x.code === c) || {}; return (r.pts || 0) * 1000 + (r.gd || 0) * 10 + (r.gf || 0); };
+  const ranked = all.slice().sort((a, b) => rank(b) - rank(a));
+  S.sim.thirds = ranked.slice(0, 8);
+  let guard = 0;
+  while (allocateThirds() === "impossible" && guard++ < 200)
+    S.sim.thirds = ranked.slice().sort(() => Math.random() - 0.5).slice(0, 8);
+}
 
 function renderSim() {
   const el = $("#view-sim");
+  // seed a valid default set of thirds so the knockout bracket is visible & tappable from the first visit
+  // (done here, not at boot, so live standings are already loaded — order reflects real results)
+  if (S.sim.thirds.length === 0) { seedSimThirds(); saveSim(); }
   const alloc = allocateThirds();
   const thirdsDone = S.sim.thirds.length === 8;
   const champ = S.sim.ko[104];
@@ -1182,7 +1081,8 @@ function renderSim() {
 
   const cols = [["r32", "Round of 32"], ["r16", "Round of 16"], ["qf", "Quarter-finals"], ["sf", "Semi-finals"], ["final", "Final"]];
   const third = S.matches.find(m => m.stage === "third");
-  const simBracket = !thirdsDone ? `<div class="empty">Pick your 8 third-place teams above to unlock the bracket.</div>`
+  const need = 8 - S.sim.thirds.length;
+  const simBracket = !thirdsDone ? `<div class="empty">Pick ${need} more third-placed team${need === 1 ? "" : "s"} above and your knockout bracket appears here — then tap your way to a champion.</div>`
     : alloc === "impossible" ? `<div class="empty">That combination of thirds can't fill the slots — swap one and try again.</div>`
     : `<div class="bracket-scroll"><div class="bracket"><svg class="bracket-lines" aria-hidden="true"></svg>
         ${cols.map(([st, title]) => {
@@ -1192,24 +1092,40 @@ function renderSim() {
         }).join("")}
       </div></div>`;
 
+  // prominent "north star": the champion you're building toward — tap to jump to the knockout bracket
+  const koMatches = S.matches.filter(m => m.stage !== "group");
+  const koPicked = koMatches.filter(m => S.sim.ko[m.num] != null).length;
+  const champTeaser = `<button class="sim-goal ${champ ? "is-set" : ""}" id="simGoal" type="button">
+    <span class="sg-cup">🏆</span>
+    ${champ
+      ? `<span class="sg-fl">${flag(champ)}</span><span class="sg-tx"><b>${esc(S.teams[champ].name)}</b><small>Your predicted world champions · tap to edit the bracket</small></span>`
+      : `<span class="sg-tx"><b>Crown your champion</b><small>Tap a winner in each knockout tie, all the way to the final →</small></span>`}
+    <span class="sg-prog" aria-label="${koPicked} of ${koMatches.length} ties picked">${koPicked}<i>/${koMatches.length}</i></span>
+  </button>`;
+
   el.innerHTML = `
     <div class="sim-intro">
       <h2>Call the whole tournament 🔮</h2>
-      <p>Order each group, choose the eight best third-place teams, then tap winners all the way to the final. Your prediction saves on this device.</p>
+      <p>Order each group, pick the best third-placed teams, then tap winners all the way to the final — and crown your champion. Saves on this device.</p>
       <div class="sim-actions">
-        <button class="btn ghost" id="simStandings">Use live standings</button>
-        <button class="btn ghost" id="simShuffle">Shuffle it all</button>
-        <button class="btn ghost" id="simReset">Start over</button>
+        <button class="btn ghost" id="simStandings"><span class="b-lg">Use live standings</span><span class="b-sm">Standings</span></button>
+        <button class="btn ghost" id="simShuffle"><span class="b-lg">Shuffle it all</span><span class="b-sm">Shuffle</span></button>
+        <button class="btn ghost" id="simReset"><span class="b-lg">Start over</span><span class="b-sm">Reset</span></button>
         <button class="btn" id="simShare">🔗 Share prediction</button>
       </div>
     </div>
+    ${champTeaser}
     <div class="eyebrow"><span class="step-n">1</span> Order the groups — top two go through</div>
     <div class="gwrap">${GROUPS.map(groupCard).join("")}</div>
     <div class="eyebrow"><span class="step-n">2</span> Best third-placed teams <span class="tcount">${S.sim.thirds.length}/8</span></div>
     <div class="thirds">${thirdChips}</div>
-    <div class="eyebrow"><span class="step-n">3</span> Tap winners through to the final</div>
+    <div class="eyebrow" id="simKoHead"><span class="step-n">3</span> Tap winners through to crown your champion 🏆</div>
+    ${thirdsDone && alloc !== "impossible" ? `<p class="sim-ko-hint">👆 Tap a team in any tie to send them through — winners flow left → right to the final.</p>` : ""}
     ${simBracket}
     ${champ ? championBanner(champ, true) : ""}`;
+
+  const goal = $("#simGoal", el);
+  if (goal) goal.onclick = () => $("#simKoHead", el)?.scrollIntoView({ behavior: "smooth", block: "start" });
 
   // wire: move-up
   $$(".up", el).forEach(b => b.onclick = () => {
@@ -1241,7 +1157,7 @@ function renderSim() {
     }
   });
   // wire: actions
-  $("#simStandings").onclick = () => { S.sim.order = {}; S.sim.thirds = []; S.sim.ko = {}; saveSim(); renderSim(); };
+  $("#simStandings").onclick = () => { S.sim = { order: {}, thirds: [], ko: {} }; seedSimThirds(); saveSim(); renderSim(); };
   $("#simShuffle").onclick = () => {
     GROUPS.forEach(g => S.sim.order[g] = simOrder(g).slice().sort(() => Math.random() - .5));
     const thirds = GROUPS.map(g => simOrder(g)[2]).sort(() => Math.random() - .5);
@@ -1260,7 +1176,7 @@ function renderSim() {
     const c = S.teams[S.sim.ko[104]];
     if (c) confetti(c.c1, c.c2);
   };
-  $("#simReset").onclick = () => { S.sim = { order: {}, thirds: [], ko: {} }; saveSim(); renderSim(); };
+  $("#simReset").onclick = () => { S.sim = { order: {}, thirds: [], ko: {} }; seedSimThirds(); saveSim(); renderSim(); };
   $("#simShare").onclick = async () => {
     const url = location.origin + location.pathname + "#p=" + packSim();
     try { await navigator.clipboard.writeText(url); flashToast("Prediction link copied — share it!"); }
@@ -1351,7 +1267,7 @@ function renderStats() {
 }
 
 /* ---------------- navigation ---------------- */
-const RENDER = { matches: renderMatches, teams: renderTeams, groups: renderGroups, bracket: renderBracket, stats: renderStats, sim: renderSim };
+const RENDER = { matches: renderMatches, teams: renderTeams, groups: renderGroups, stats: renderStats, sim: renderSim };
 function nav(v) {
   S.view = v;
   $$(".view").forEach(el => el.hidden = el.id !== "view-" + v);
@@ -1496,10 +1412,10 @@ async function boot() {
   $$("dialog").forEach(d => d.onclick = e => { if (e.target === d) d.close(); });
   addEventListener("resize", () => {
     moveInk();
-    if (S.view === "bracket" || S.view === "sim") layoutBracket($("#view-" + S.view));
+    if (S.view === "sim") layoutBracket($("#view-sim"));
   });
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => {
-    if (S.view === "bracket" || S.view === "sim") layoutBracket($("#view-" + S.view));
+    if (S.view === "sim") layoutBracket($("#view-sim"));
   });
   document.addEventListener("click", e => {
     const rf = e.target.closest("[data-refresh]");
@@ -1508,8 +1424,6 @@ async function boot() {
     if (star) { e.stopPropagation(); toggleSave(star.dataset.save); return; }
     const sq = e.target.closest("[data-squad]");
     if (sq && sq.dataset.squad) { openSquad(sq.dataset.squad); return; }
-    const bm = e.target.closest(".bm[data-mid]");
-    if (bm) { openMatch(bm.dataset.mid); return; }
     const hero = e.target.closest(".hero[data-mid]");
     if (hero) { openMatch(hero.dataset.mid); return; }
     const card = e.target.closest(".mcard");
@@ -1518,7 +1432,7 @@ async function boot() {
   // keyboard: activate focusable custom controls (save stars, squad cells, sim picks, hero) with Enter/Space
   document.addEventListener("keydown", e => {
     if (e.key !== "Enter" && e.key !== " ") return;
-    const t = e.target.closest("[data-save],[data-squad],[data-pick],.up,.hero[data-mid],.mcard[data-mid],.bm[data-mid]");
+    const t = e.target.closest("[data-save],[data-squad],[data-pick],.up,.hero[data-mid],.mcard[data-mid]");
     if (t) { e.preventDefault(); t.click(); }
   });
   // a shared prediction link (#p=…) loads that bracket and opens the Predict tab

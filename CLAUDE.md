@@ -3,7 +3,7 @@
 Orientation for Claude Code. Read this first, then `README.md` for deploy/secrets.
 
 ## What this is
-A static, no-build fan site for the FIFA World Cup 2026 (June 11 – July 19): all 104 matches in the visitor's timezone, a favorite team that re-themes the whole UI, live group tables, an auto-filling knockout bracket, a full predictor, and squad/lineup data. Hosted free on GitHub Pages (or Vercel). Data is refreshed by GitHub Actions that commit JSON into the repo — the browser never calls a sports API directly, so no keys are ever exposed client-side.
+A static, no-build fan site for the FIFA World Cup 2026 (June 11 – July 19): all 104 matches in the visitor's timezone, a favorite team that re-themes the whole UI, live group tables, a full predictor with an interactive knockout bracket (tap winners to crown a champion), and squad/lineup data. Hosted free on GitHub Pages (or Vercel). Data is refreshed by GitHub Actions that commit JSON into the repo — the browser never calls a sports API directly, so no keys are ever exposed client-side.
 
 ## Hard rules (do not break these)
 - **No build step, no framework, no bundler.** Plain `index.html` + `styles.css` + `app.js` (one vanilla IIFE). Keep it that way unless explicitly asked to migrate.
@@ -13,7 +13,7 @@ A static, no-build fan site for the FIFA World Cup 2026 (June 11 – July 19): a
 - Preserve the design system (see Tokens). Accent color is driven by CSS variable `--acc1` and recolors to the favorite team's kit.
 
 ## File map
-- `index.html` — shell: header chips (music, timezone, team), tab nav (Matches / Teams / Groups / Bracket / Stats / Predict — scrollable on mobile, active tab auto-centres), ticker strip, dialogs, confetti canvas, jump-to-now button. Views are `#view-<name>` sections; `RENDER[name]` maps each to its renderer.
+- `index.html` — shell: header chips (music, timezone, team), tab nav (Matches / Teams / Groups / Predict / Stats — scrollable on mobile, active tab auto-centres), ticker strip, dialogs, confetti canvas, jump-to-now button. Views are `#view-<name>` sections; `RENDER[name]` maps each to its renderer. (There's no standalone results-bracket tab — the knockout bracket lives inside Predict; real knockout results still show in Matches/Groups.)
 - `styles.css` — "Floodlit, on paper" design system. All colors via CSS vars; team theming overrides `--acc1`/`--acc2`.
 - `app.js` — everything: state, timezone, results resolution, standings math, the simulator engine (third-place allocator + bracket resolution), renderers per view, pickers, data loading/polling. ~700 lines, sectioned with comment banners.
 - `data/matches.json` — 104 fixtures (id, num, stage, group, utc, home/away slots, stadium, city). Source: openfootball (public domain). **Static — don't expect Actions to rewrite this.**
@@ -28,8 +28,8 @@ A static, no-build fan site for the FIFA World Cup 2026 (June 11 – July 19): a
 
 ## Data model notes
 - **Knockout slots are placeholders until resolved.** A slot is `{team:"BR"}` (known) or `{ph:"Winner Group A", short:"1A"}` / `{short:"3rd A/B/C/D", ...}` / `{feeds:73}` (winner of match 73). `slotInfo()` resolves these from results; unresolved → italic placeholder. This is correct, not a bug.
-- **Third-place routing:** the new 48-team format sends 8 of 12 third-placed teams to specific Round-of-32 slots, each constrained to certain groups. The predictor implements FIFA's constraint via a backtracking allocator (`allocateThirds()`); the live bracket uses the API's resolved teams as ground truth once known.
-- **Standings tiebreak** is points → goal difference → goals for → code. FIFA's deeper criteria (head-to-head, disciplinary, drawing of lots) aren't computable from scores alone — acceptable simplification; the bracket never relies on it once real results exist.
+- **Third-place routing:** the new 48-team format sends 8 of 12 third-placed teams to specific Round-of-32 slots, each constrained to certain groups. The predictor implements FIFA's constraint via a backtracking allocator (`allocateThirds()`); `renderSim` seeds a valid default set of thirds (`seedSimThirds()`) on first visit so the bracket is interactive immediately. In Matches/Groups, knockout slots resolve to the API's real teams once known (`slotInfo()`).
+- **Standings tiebreak** is points → goal difference → goals for → code. FIFA's deeper criteria (head-to-head, disciplinary, drawing of lots) aren't computable from scores alone — acceptable simplification; knockout slots use the resolved real teams as ground truth once known.
 - **Caps/goals are frozen at tournament start** (from official squad lists). The squads refresh preserves them rather than overwriting.
 
 ## Run locally
