@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "35";  // shown in footer; bump with the ?v= asset version
+const BUILD = "36";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -318,7 +318,50 @@ function matchCard(m, i, opts = {}) {
     ${opts.sub !== false ? `<div class="mcard-sub"><span class="grp">${esc(stageL)}</span><span>${esc(m.stadium)}</span><span>${esc(m.city)}</span><span class="mcard-go">Details ›</span></div>` : ""}
   </button>`;
 }
+// split a starting XI into {gk, bands[]} using its formation string (fallback: coarse positions)
+function formationRows(side) {
+  const ps = (side.xi || []).slice();
+  if (ps.length < 11) return null;
+  const gk = ps.find(p => p[2] === 0) || ps[0];
+  const out = ps.filter(p => p !== gk);
+  let lines = String(side.f || "").split(/[-–]/).map(n => parseInt(n, 10)).filter(n => n > 0);
+  if (lines.reduce((s, n) => s + n, 0) !== out.length) lines = null;     // formation doesn't fit → fall back
+  let bands;
+  if (lines) { bands = []; let i = 0; for (const n of lines) { bands.push(out.slice(i, i + n)); i += n; } }
+  else bands = [1, 2, 3].map(pp => out.filter(p => p[2] === pp)).filter(b => b.length);
+  return { gk, bands };
+}
+const lastName = n => { const t = String(n || "").trim().split(/\s+/); return t[t.length - 1] || String(n || ""); };
+function pitchSide(side, s, home) {
+  const fr = formationRows(side); if (!fr) return null;
+  const c1 = (s.code && S.teams[s.code]?.c1) || "#1f2937", c2 = (s.code && S.teams[s.code]?.c2) || "#ffffff";
+  const nb = fr.bands.length;
+  const dot = (p, x, depth) => {                                        // depth 0 = own goal, 1 = halfway
+    const top = home ? 96 - depth * 44 : 4 + depth * 44;               // home bottom half, away top half
+    const left = home ? x : 100 - x;
+    return `<div class="pp" style="left:${left}%;top:${top}%;--pc:${c1};--pt:${c2}">
+      <span class="pp-dot">${p[0] ?? ""}</span><span class="pp-name">${esc(lastName(p[1]))}</span></div>`;
+  };
+  let html = dot(fr.gk, 50, 0.06);                                     // keep GK just off the goal line
+  fr.bands.forEach((band, bi) => {
+    const depth = (bi + 1) / (nb + 0.5);                              // last line stops short of halfway
+    band.forEach((p, pi) => html += dot(p, (pi + 1) / (band.length + 1) * 100, depth));
+  });
+  return html;
+}
 function xiPanel(xi, h, a) {
+  const ph = pitchSide(xi.h, h, true), pa = pitchSide(xi.a, a, false);
+  if (ph && pa) {
+    const tag = (s, side) => `<span class="pitch-team"><span class="fl">${s.code ? flag(s.code) : ""}</span>${esc(s.name)}${side.f ? ` <b>${esc(side.f)}</b>` : ""}</span>`;
+    return `<div class="pitch-head">${tag(h, xi.h)}${tag(a, xi.a)}</div>
+      <div class="pitch"><svg class="pitch-lines" viewBox="0 0 100 150" preserveAspectRatio="none" aria-hidden="true">
+        <rect x="1" y="1" width="98" height="148"/><line x1="1" y1="75" x2="99" y2="75"/>
+        <circle cx="50" cy="75" r="11"/><circle class="pf" cx="50" cy="75" r="0.9"/>
+        <rect x="28" y="1" width="44" height="22"/><rect x="40" y="1" width="20" height="8"/>
+        <rect x="28" y="127" width="44" height="22"/><rect x="40" y="141" width="20" height="8"/>
+      </svg>${ph}${pa}</div>
+      ${(xi.h.coach || xi.a.coach) ? `<div class="pitch-coaches"><span>${xi.h.coach ? "Coach · " + esc(xi.h.coach) : ""}</span><span>${xi.a.coach ? "Coach · " + esc(xi.a.coach) : ""}</span></div>` : ""}`;
+  }
   const col = (side, s) => `<div class="xi-col">
     <div class="xi-head"><span>${s.code ? flag(s.code) : ""} ${esc(s.name)}</span>${side.f ? `<b>${esc(side.f)}</b>` : ""}</div>
     ${(side.xi || []).map(p => `<div class="xi-p"><span>${p[0] ?? ""}</span>${esc(p[1] || "")}</div>`).join("")}

@@ -511,6 +511,21 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .xi-coach{font-size:10.5px;color:var(--ink-soft);margin-top:6px;font-style:italic}
 /* force the lineup grid visible inside the match dialog (it's collapsed inside cards) */
 .sheet-body .mcard-xi{display:grid;margin-top:4px;border-top:none;padding-top:0}
+/* formation pitch (match lineups) */
+.pitch-head{display:flex;justify-content:space-between;gap:10px;margin:6px 2px 8px;font-size:12px;font-weight:700}
+.pitch-team{display:inline-flex;align-items:center;gap:6px;min-width:0}
+.pitch-team .fl{font-size:15px}
+.pitch-team b{font-family:var(--mono);font-weight:500;font-size:10.5px;color:var(--acc1)}
+.pitch-team:last-child{flex-direction:row-reverse;text-align:right}
+.pitch{position:relative;width:100%;max-width:330px;margin:0 auto;aspect-ratio:100/150;border-radius:12px;overflow:hidden;background:repeating-linear-gradient(0deg,#0f9d57 0 12.5%,#0aa861 12.5% 25%);box-shadow:inset 0 0 0 1px rgba(255,255,255,.12),0 6px 18px -8px rgba(13,27,42,.4)}
+.pitch-lines{position:absolute;inset:0;width:100%;height:100%}
+.pitch-lines rect,.pitch-lines line,.pitch-lines circle{fill:none;stroke:rgba(255,255,255,.45);stroke-width:.5}
+.pitch-lines .pf{fill:rgba(255,255,255,.6);stroke:none}
+.pp{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:2px;width:50px;pointer-events:none}
+.pp-dot{width:25px;height:25px;border-radius:50%;background:var(--pc);color:var(--pt);border:1.5px solid rgba(255,255,255,.85);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-weight:700;font-size:11px;box-shadow:0 2px 5px rgba(0,0,0,.35)}
+.pp-name{max-width:54px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:8.5px;font-weight:700;letter-spacing:.02em;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.8)}
+.pitch-coaches{display:flex;justify-content:space-between;gap:10px;margin:9px 2px 0;font-size:11px;color:var(--ink-soft);font-style:italic}
+.pitch-coaches span:last-child{text-align:right}
 
 /* ---------- match detail dialog ---------- */
 .md-stage{font-family:var(--disp);font-weight:800;font-stretch:112%}
