@@ -18,7 +18,7 @@ Exercised every view and the main interactions. **No console errors anywhere. No
 
 1. **[BUG · low severity] ESPN stats miss on simultaneous kickoffs.** `enrichStats()` keys ESPN events by UTC kickoff *minute*. On the final group matchday two matches kick off at the same minute, so they collide on that key — one match maps to the other's ESPN event and silently gets **no** stats. It's self-protecting (parseEspnStats verifies team codes, so it's *missing*, never *wrong*), but ~half the stats will be absent on those days. **Fix:** match ESPN events by teams, not just time.
 2. **[SCALE] `results.json` grows.** By the final it'll hold 104 × (events + lineups + stats) ≈ ~150 KB, re-fetched by every client every 90 s (~30 KB gzipped). Fine now; worth splitting the heavy per-match detail (`ev`/`xi`/`stats`) into a lazy-loaded file before knockouts so the polled file stays lean (scores/status only).
-3. **[COSMETIC] OG share image is stale** (`assets/og.png?v=18`) — predates every feature added since. Folds into the share-cards item below.
+3. **[COSMETIC] Homepage OG image** (`assets/og.png?v=18`) is still the old static brand card. Per-match share cards now exist (#8 ✅); regenerating the *homepage* card is the only leftover (low value).
 
 ---
 
@@ -53,8 +53,8 @@ Effort: **S** ≈ <1 session · **M** ≈ a session · **L** ≈ multi-session. 
 
 ### Tier 2 — Engagement & visuals (bigger bets)
 7. **"Share your score"** — score a shared prediction against resolved `results.json` (group-order hits, third-place hits, bracket hits, champion) and show a result card. Builds on #6. **M** · no backend.
-8. **Auto-generated share cards** — `satori → @resvg/resvg-js` in the results Action: per-result PNG in `data/og/<num>.png` + a tiny `share/<num>.html` stub for correct OG unfurling. Also regenerates the stale site OG image. **L** · adds npm deps to the Action.
-9. **Player photos** — Action pulls TheSportsDB cutouts (`lookupplayer.php?id=`, transparent PNGs) → commit URLs into `squads.json`; show in the roster + formation pitch + Golden Boot. Mind the 10-player free cap (page per-player). **M** · TheSportsDB (no key, credit required).
+8. ✅ **Auto-generated share cards** — `satori → @resvg/resvg-js` in the results Action: per-result PNG in `data/og/<num>.png` + a tiny `share/<num>.html` stub for correct OG unfurling. Also regenerates the stale site OG image. **L** · adds npm deps to the Action.
+9. ✅ **Player photos** — Action pulls TheSportsDB cutouts (`lookupplayer.php?id=`, transparent PNGs) → commit URLs into `squads.json`; show in the roster + formation pitch + Golden Boot. Mind the 10-player free cap (page per-player). **M** · TheSportsDB (no key, credit required).
 
 ### Tier 3 — Scale & knockout-timely (do before July)
 10. **Split heavy match detail out of `results.json`** — keep the polled file to scores/status; lazy-load `ev`/`xi`/`stats` per match on modal open (or one `details.json`). **M** · refactor.
