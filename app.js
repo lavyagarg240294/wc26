@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "47";  // shown in footer; bump with the ?v= asset version
+const BUILD = "48";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -335,17 +335,17 @@ function renderTicker() {
   };
   const sep = '<span class="tk-sep">／</span>';
   const track = $("#tickerTrack");
-  if (todays.length >= 3) {
-    // enough to fill the strip — duplicate for a seamless scrolling marquee
-    const half = todays.map(item).join(sep);
-    track.innerHTML = half + sep + half;
-    track.classList.remove("is-static");
+  const built = todays.map(item).join(sep);
+  track.classList.remove("is-static");
+  track.innerHTML = built;
+  wrap.hidden = false;
+  // scroll as a seamless marquee whenever the content is wider than the strip (any number of matches);
+  // only centre it static when it genuinely fits — so nothing ever gets clipped. (reading scrollWidth forces layout)
+  if (track.scrollWidth > wrap.clientWidth + 4) {
+    track.innerHTML = built + sep + built;   // duplicate → the -50% translate loops seamlessly
   } else {
-    // one or two matches — show once, centered, no scroll (avoids the "repeated" look)
-    track.innerHTML = todays.map(item).join(sep);
     track.classList.add("is-static");
   }
-  wrap.hidden = false;
 }
 const shortName = code => {
   const n = S.teams[code]?.name || code;
@@ -611,9 +611,9 @@ function renderMatches() {
   if (f.saved) list = list.filter(m => isSaved(m.id));
 
   // 1A: finished games go into a collapsible "Earlier results"; live + upcoming show below
-  const dayGroups = arr => { const d = {}; arr.forEach(m => (d[dayKey(m.utc)] ??= []).push(m)); return Object.entries(d).map(([k, ms]) => `<div class="dayhead ${k === todayK ? "is-today" : ""}">${dayLabel(ms[0].utc)} <small>${ms.length} match${ms.length > 1 ? "es" : ""}${k === todayK ? " · Today" : ""}</small></div>` + ms.map((m, i) => matchCard(m, Math.min(i, 8))).join("")).join(""); };
+  const dayGroups = arr => { const d = {}; arr.forEach(m => (d[dayKey(m.utc)] ??= []).push(m)); return Object.entries(d).map(([k, ms]) => `<div class="dayhead ${k === todayK ? "is-today" : ""}">${dayLabel(ms[0].utc)} <small>${ms.length} match${ms.length > 1 ? "es" : ""}</small></div>` + ms.map((m, i) => matchCard(m, Math.min(i, 8))).join("")).join(""); };
   const past = list.filter(m => status(m) === ST.FT);
-  const ahead = list.filter(m => status(m) !== ST.FT && m.id !== heroM?.id);   // hero already shows the next/live match — don't repeat it as a card
+  const ahead = list.filter(m => status(m) !== ST.FT);
 
   el.innerHTML =
     (heroM ? heroBlock(heroM, !!live) : "") +

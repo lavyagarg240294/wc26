@@ -423,7 +423,6 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .dayhead{font-family:var(--disp);font-weight:800;font-stretch:112%;font-size:15px;margin:26px 0 12px;display:flex;align-items:baseline;gap:10px;position:sticky;top:105px;background:var(--paper);padding:6px 0 6px 11px;z-index:5;border-left:4px solid var(--acc1);border-radius:2px}
 .dayhead small{font-family:var(--mono);font-weight:400;font-size:11px;color:var(--ink-soft);letter-spacing:.04em}
 .dayhead.is-today{border-left-color:var(--gold)}
-.dayhead.is-today small{color:var(--gold);font-weight:700}
 /* collapsible "Earlier results" (finished games) */
 .earlier{margin:6px 0;border:1px solid var(--line);border-radius:14px;background:color-mix(in srgb,var(--paper) 55%,var(--card));overflow:hidden}
 .earlier summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;padding:13px 16px;font-family:var(--disp);font-weight:800;font-stretch:110%;font-size:14px;color:var(--ink-soft)}
