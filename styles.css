@@ -542,6 +542,33 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 @keyframes sweep{0%{transform:scale(0);opacity:.95}100%{transform:scale(3.2);opacity:0}}
 #confetti{position:fixed;inset:0;z-index:99;pointer-events:none}
 
+/* ---------- football + goal celebration + delight ---------- */
+.ball{display:inline-block;line-height:0;vertical-align:middle}
+.ball svg{width:100%;height:100%;display:block}
+.live-ball{width:15px;height:15px;animation:ballSpin 2.6s linear infinite}
+@keyframes ballSpin{to{transform:rotate(360deg)}}
+.goal-toast{position:fixed;left:50%;top:18%;transform:translateX(-50%);z-index:300;pointer-events:none;
+  display:flex;align-items:center;gap:13px;background:var(--ink);color:var(--paper);
+  padding:13px 22px 13px 15px;border-radius:99px;box-shadow:0 24px 60px -18px rgba(13,27,42,.55);
+  animation:goalIn .5s cubic-bezier(.2,1.5,.4,1) both, goalOut .45s ease 2.2s forwards}
+.goal-toast .goal-ball{width:38px;height:38px;animation:ballSpin .6s linear infinite}
+.goal-txt{display:flex;flex-direction:column;line-height:1.05}
+.goal-txt b{font-family:var(--disp);font-weight:900;font-stretch:120%;font-size:21px;letter-spacing:.05em}
+.goal-txt span{font-size:13px;color:color-mix(in srgb,var(--paper) 78%,transparent)}
+@keyframes goalIn{from{opacity:0;transform:translateX(-50%) translateY(-18px) scale(.78)}}
+@keyframes goalOut{to{opacity:0;transform:translateX(-50%) translateY(-12px) scale(.96)}}
+/* champions badge + team info */
+.tc-cup{font-family:var(--mono);font-size:10.5px;font-weight:700;color:var(--gold);flex:0 0 auto}
+.md-teaminfo{font-family:var(--mono);font-size:10.5px;color:var(--ink-soft);letter-spacing:.02em;margin-top:-2px}
+/* flag wiggle on card hover */
+.mcard:hover .mcard-team .fl,.teamcard:hover .fl,.bm:hover .fl{animation:flagWave .6s ease}
+@keyframes flagWave{0%,100%{transform:rotate(0)}25%{transform:rotate(-9deg)}60%{transform:rotate(7deg)}}
+@media (prefers-reduced-motion:reduce){
+  .live-ball,.goal-toast .goal-ball{animation:none}
+  .goal-toast{animation:goalIn .01s both}
+  .mcard:hover .fl,.teamcard:hover .fl,.bm:hover .fl{animation:none}
+}
+
 /* ---------- mobile ---------- */
 @media (max-width:560px){
   .topbar{padding:10px 12px}

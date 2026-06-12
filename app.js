@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "26";  // shown in footer; bump with the ?v= asset version
+const BUILD = "27";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -178,6 +178,31 @@ function confetti(c1, c2, origin) {
   })();
 }
 
+/* ---------------- football + goal celebration ---------------- */
+const BALL = `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="46" fill="#fff" stroke="#0D1B2A" stroke-width="4"/><polygon points="50,34 65.2,45.1 59.4,62.9 40.6,62.9 34.8,45.1" fill="#0D1B2A"/><g stroke="#0D1B2A" stroke-width="4" stroke-linecap="round"><path d="M50 34V7"/><path d="M65.2 45.1L89 33"/><path d="M59.4 62.9L74 87"/><path d="M40.6 62.9L26 87"/><path d="M34.8 45.1L11 33"/></g></svg>`;
+const ballSVG = cls => `<span class="ball ${cls || ""}" aria-hidden="true">${BALL}</span>`;
+
+function goalCelebration(code) {
+  const t = code && S.teams[code];
+  confetti(t ? t.c1 : "#0BA360", t ? t.c2 : "#E8B931");
+  const toast = document.createElement("div");
+  toast.className = "goal-toast";
+  toast.innerHTML = `${ballSVG("goal-ball")}<div class="goal-txt"><b>GOAL!</b>${code ? `<span>${flag(code)} ${esc(S.teams[code].name)}</span>` : ""}</div>`;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 2700);
+}
+// compare previous vs new results; fire a celebration when a LIVE score ticks up
+function celebrateGoals(prev, now) {
+  for (const id in now) {
+    const a = prev[id], b = now[id];
+    if (!a || !b || ![ST.LIVE, ST.HT].includes(b.st)) continue;
+    if (((b.h || 0) + (b.a || 0)) <= ((a.h || 0) + (a.a || 0))) continue;
+    const m = S.matches.find(x => x.id === id); if (!m) continue;
+    goalCelebration(slotInfo(m, (b.h || 0) > (a.h || 0) ? "home" : "away").code);
+    break; // one celebration per refresh is plenty
+  }
+}
+
 /* ---------------- ticker ---------------- */
 function renderTicker() {
   const todayK = dayKey(new Date().toISOString());
@@ -225,16 +250,16 @@ function matchCard(m, i, opts = {}) {
     : st === ST.HT ? `<span class="badge live">HT</span>`
     : st === ST.FT ? `<span class="badge ft">FT</span>`
     : `<span class="badge soon">${timeStr(m.utc)}</span>`;
-  const teamRow = (s, lost) =>
+  const teamRow = (s, key, lost) =>
     `<div class="mcard-team ${s.ph ? "is-ph" : ""} ${lost ? "is-lost" : ""}">` +
-    `<span class="fl">${s.code ? flag(s.code) : "·"}</span><span>${esc(s.name)}</span></div>`;
+    `<span class="fl">${s.code ? flag(s.code) : "·"}</span><span>${esc(slotText(m, key, s))}</span></div>`;
   const xi = r?.xi;
   const sv = isSaved(m.id);
   return `<button class="mcard ${fav ? "is-fav" : ""}" style="--i:${i}" data-mid="${m.id}">
     <span class="mcard-star ${sv ? "is-on" : ""}" data-save="${m.id}" role="button" tabindex="0" aria-pressed="${sv}" aria-label="${sv ? "Remove saved match" : "Save this match"}" title="${sv ? "Saved — tap to remove" : "Save this match"}">${sv ? "★" : "☆"}</span>
     <div class="mcard-row">
       <div class="mcard-time">${timeStr(m.utc)}<small>${fmt(m.utc, { day: "numeric", month: "short" })}</small></div>
-      <div class="mcard-teams">${teamRow(h, winA)}${teamRow(a, winH)}</div>
+      <div class="mcard-teams">${teamRow(h, "home", winA)}${teamRow(a, "away", winH)}</div>
       <div class="mcard-right">${score
         ? `<div class="mcard-score"><span class="${winA ? "lo" : ""}">${r.h}</span><span class="${winH ? "lo" : ""}">${r.a}</span>${r.hp != null ? `<span class="pens">(${r.hp}–${r.ap} pens)</span>` : ""}</div>`
         : badge}</div>
@@ -263,6 +288,7 @@ function openMatch(id) {
   const side = (s, key) => `<div class="md-team ${s.code === S.fav ? "is-fav" : ""}">
       <span class="md-flag">${s.code ? flag(s.code) : "·"}</span>
       <span class="md-name ${s.ph ? "is-ph" : ""}">${esc(slotText(m, key, s))}</span>
+      ${s.code ? `<span class="md-teaminfo">${esc(S.teams[s.code].conf || "")}${S.teams[s.code].titles ? ` · ${S.teams[s.code].titles}×🏆` : ""}</span>` : ""}
       ${s.code ? `<button class="md-squad-link" data-squad="${s.code}">View squad ›</button>` : ""}</div>`;
   const mid = score
     ? `<div class="md-score">${r.h}<span>–</span>${r.a}</div>${r.hp != null ? `<div class="md-pens">${r.hp}–${r.ap} on penalties</div>` : ""}`
@@ -293,7 +319,7 @@ function heroBlock(heroM, isLive) {
   const h = slotInfo(heroM, "home"), a = slotInfo(heroM, "away"), r = res(heroM);
   return `<div class="hero" data-mid="${heroM.id}" role="button" tabindex="0" aria-label="Match details">
     <div class="hero-tag ${isLive ? "is-live" : ""}">
-      ${isLive ? `<span class="live-dot"></span> Live now` : `${isFavMatch(heroM) ? "Your team · " : ""}Next kickoff`}
+      ${isLive ? `${ballSVG("live-ball")} Live now` : `${isFavMatch(heroM) ? "Your team · " : ""}Next kickoff`}
       <span style="color:var(--ink-soft);font-weight:600">— ${esc(heroM.group ? "Group " + heroM.group : heroM.round)}</span>
       <span class="hero-actions">
         ${isLive ? `<button class="hero-refresh" data-refresh aria-label="Refresh score" title="Refresh score"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg></button>` : ""}
@@ -384,7 +410,7 @@ function myTeamBlock() {
   return `
     <div class="team-hero"><span class="fl">${flag(S.fav)}</span>
       <div><h2>${esc(t.name)}</h2>
-      <p>Group ${group || "—"}${played ? ` · currently <b>${ordinal(pos)}</b> after ${played} match${played > 1 ? "es" : ""}` : " · campaign starts soon"}</p></div>
+      <p>${t.conf ? esc(t.conf) + " · " : ""}Group ${group || "—"}${t.titles ? ` · <b style="color:var(--gold)">${t.titles}×🏆</b>` : ""}${played ? ` · currently <b>${ordinal(pos)}</b> after ${played} match${played > 1 ? "es" : ""}` : ""}</p></div>
       <button class="btn ghost team-change" id="ctaChange">Change</button></div>
     ${done.length ? `<div class="eyebrow">Played</div>` + done.map((m, i) => matchCard(m, i)).join("") : ""}
     <div class="eyebrow">Fixtures</div>
@@ -404,8 +430,8 @@ function renderTeams() {
         <button class="btn" id="ctaPick">Choose your team</button></div>`;
   const grid = Object.keys(S.teams)
     .sort((a, b) => S.teams[a].name.localeCompare(S.teams[b].name))
-    .map(c => `<button class="teamcard ${c === S.fav ? "is-fav" : ""}" data-squad="${c}" title="View ${esc(S.teams[c].name)} squad">
-      <span class="fl">${flag(c)}</span><span class="tc-name">${esc(S.teams[c].name)}</span><span class="tc-grp">${groupOf(c) || ""}</span></button>`).join("");
+    .map(c => `<button class="teamcard ${c === S.fav ? "is-fav" : ""}" data-squad="${c}" title="${esc(S.teams[c].name)}${S.teams[c].titles ? ` — ${S.teams[c].titles}× World Cup champion` : ""}">
+      <span class="fl">${flag(c)}</span><span class="tc-name">${esc(S.teams[c].name)}</span>${S.teams[c].titles ? `<span class="tc-cup" aria-label="${S.teams[c].titles} World Cup titles">🏆${S.teams[c].titles}</span>` : ""}<span class="tc-grp">${groupOf(c) || ""}</span></button>`).join("");
   el.innerHTML = head + `<div class="eyebrow">All teams <span style="color:var(--ink-soft);font-weight:600">— tap for squad</span></div><div class="teamsgrid">${grid}</div>`;
   const cta = $("#ctaPick", el); if (cta) cta.onclick = () => $("#teamDialog").showModal();
   const chg = $("#ctaChange", el); if (chg) chg.onclick = () => $("#teamDialog").showModal();
@@ -434,7 +460,7 @@ function openSquad(code) {
   const t = S.teams[code]; if (!t) return;
   const sq = S.squads?.[code];
   $("#squadTitle").innerHTML = `<span class="fl">${flag(code)}</span> ${esc(t.name)}`
-    + (sq ? `<span class="sq-meta">${sq.players.length} players${sq.coach ? ` · ${esc(sq.coach)}` : ""}</span>` : "");
+    + `<span class="sq-meta">${esc(t.conf || "")}${t.titles ? ` · ${t.titles}×🏆` : ""}${sq ? ` · ${sq.players.length} players${sq.coach ? ` · ${esc(sq.coach)}` : ""}` : ""}</span>`;
   $("#squadBody").innerHTML = sq ? rosterMarkup(sq)
     : `<div class="empty">${esc(t.name)}'s squad lands once the squads workflow runs (see README). 16 teams are pre-loaded so far.</div>`;
   $("#squadDialog").showModal();
@@ -874,6 +900,8 @@ async function refreshResults() {
     if (!r.ok) return;
     const txt = await r.text();
     if (txt === S._lastResults) return; // nothing changed — skip the re-render (no flicker)
+    const firstLoad = S._lastResults == null;
+    const prev = S.results.matches || {};
     S._lastResults = txt;
     S.results = JSON.parse(txt);
     $("#updatedLabel").textContent = S.results.updated
@@ -881,6 +909,7 @@ async function refreshResults() {
       : "Schedule loaded";
     renderTicker();
     RENDER[S.view]();
+    if (!firstLoad) celebrateGoals(prev, S.results.matches); // only after we have a baseline
   } catch { /* offline or first deploy — schedule still works */ }
 }
 
