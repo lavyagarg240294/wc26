@@ -569,9 +569,10 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .foot{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;padding:18px 18px calc(18px + env(safe-area-inset-bottom));font-size:11.5px;color:var(--ink-soft);border-top:1px solid var(--line)}
 .foot-dot{opacity:.5}
 .foot-build{font-family:var(--mono);font-size:10.5px;opacity:.6}
-.foot-refresh{display:inline-flex;align-items:center;color:var(--ink-soft);padding:3px;border-radius:7px;line-height:0;transition:color .2s,background .2s}
-.foot-refresh:hover{color:var(--acc1);background:color-mix(in srgb,var(--acc1) 10%,transparent)}
-.foot-refresh.spinning{color:var(--acc1)}
+.foot-refresh{display:inline-flex;align-items:center;justify-content:center;width:23px;height:23px;color:var(--ink-soft);border:1px solid var(--line);border-radius:50%;background:var(--card);line-height:0;transition:color .2s,background .2s,border-color .2s}
+.foot-refresh:hover{color:var(--acc1);border-color:var(--acc1);background:color-mix(in srgb,var(--acc1) 10%,transparent)}
+.foot-refresh:active{transform:scale(.92)}
+.foot-refresh.spinning{color:var(--acc1);border-color:var(--acc1)}
 .foot-refresh.spinning svg{animation:spin .7s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 #themeSweep{position:fixed;inset:0;z-index:100;pointer-events:none;border-radius:50%;transform:scale(0);background:var(--acc1)}

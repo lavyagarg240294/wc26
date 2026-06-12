@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "31";  // shown in footer; bump with the ?v= asset version
+const BUILD = "32";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -250,7 +250,7 @@ function matchCard(m, i, opts = {}) {
   const badge = st === ST.LIVE ? `<span class="badge live">${clockStr(m, r) || "Live"}</span>`
     : st === ST.HT ? `<span class="badge live">HT</span>`
     : st === ST.FT ? `<span class="badge ft">FT</span>`
-    : `<span class="badge soon">${timeStr(m.utc)}</span>`;
+    : "";   // scheduled: kickoff time already shows on the left — don't repeat it on the right
   const teamRow = (s, key, lost) =>
     `<div class="mcard-team ${s.ph ? "is-ph" : ""} ${lost ? "is-lost" : ""}">` +
     `<span class="fl">${s.code ? flag(s.code) : "·"}</span><span>${esc(slotText(m, key, s))}</span></div>`;
