@@ -32,7 +32,7 @@ function teamBlock(code, align) {
 }
 
 function card(f, r) {
-  const hc = f.home.team, ac = f.away.team;
+  const hc = f.home.team || r.ht, ac = f.away.team || r.at;   // knockouts: fixture slots are placeholders → use the resolved teams from the result
   const stage = f.group ? `Group ${f.group}` : (f.round || "Knockout");
   const score = (r.h != null) ? `${r.h} – ${r.a}` : "vs";
   const pens = r.hp != null ? `${r.hp}–${r.ap} pens` : "";
@@ -55,8 +55,8 @@ function card(f, r) {
       h("div", { style: { display: "flex", fontSize: "22px", fontWeight: 800, color: "#0D1B2A" } }, "WC·26")));
 }
 
-function stub(f, num) {
-  const hc = f.home.team, ac = f.away.team, title = `${tname(hc)} v ${tname(ac)} — WC 2026`;
+function stub(f, r, num) {
+  const hc = f.home.team || r.ht, ac = f.away.team || r.at, title = `${tname(hc)} v ${tname(ac)} — WC 2026`;
   return `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <title>${esc(title)}</title>
 <meta property="og:title" content="${esc(title)}">
@@ -85,7 +85,7 @@ for (const f of finished) {
     ] });
     const png = new Resvg(svg, { fitTo: { mode: "width", value: 1200 } }).render().asPng();
     writeFileSync(`assets/og/${f.num}.png`, png);
-    writeFileSync(`share/${f.num}.html`, stub(f, f.num));
+    writeFileSync(`share/${f.num}.html`, stub(f, r, f.num));
     made++;
   } catch (e) { console.warn(`card ${f.num} failed:`, e.message); }
 }
