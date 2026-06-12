@@ -90,7 +90,7 @@ Edit anything, commit, push — every visitor sees it on their next load. **Ther
 
 ## After the final (July 19)
 
-Stop the cron so the Action goes idle: delete the `schedule:` block in `.github/workflows/results.yml` (and `share-cards.yml`), or disable them in the Actions tab. The site keeps working forever as a frozen record of the tournament.
+**Disable the "Update scores" workflow in the Actions tab** (Actions → Update scores → ··· → Disable workflow). This is required, not optional: that workflow is a self-relaunching loop, so deleting its `schedule:` block is *not* enough — it re-triggers itself and would keep a runner busy forever. Disabling it stops the loop cleanly. Do the same for **Share cards** if you like. The site keeps working forever as a frozen record of the tournament.
 
 ---
 
