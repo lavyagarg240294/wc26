@@ -1,9 +1,17 @@
 /**
  * Writes data/results.json for the WC·26 site. Runs in GitHub Actions, Node 20+, no deps.
  *
- * Primary source: worldcup26.ir (free, no key, LIVE in-play scores during the tournament).
- * Fallback:       football-data.org (needs FOOTBALL_DATA_TOKEN) — reliable at full-time,
- *                 used only if worldcup26.ir is unreachable.
+ * Source chain (first that succeeds wins):
+ *   1. PRIMARY  api.fifa.com/api/v3  — free, no key, authoritative. Live score + minute,
+ *              and (per in-play / just-finished match) a structured event timeline
+ *              (goals / cards / subs with minute + player) + lineups. CORS-enabled, but we
+ *              still fetch server-side so a vanished endpoint never breaks a visitor's page.
+ *   2. FALLBACK worldcup26.ir       — free, no key. Live score + minute only (no events).
+ *   3. FALLBACK football-data.org   — needs FOOTBALL_DATA_TOKEN. Reliable at full-time.
+ *
+ * Match mapping: FIFA `MatchNumber` == our match `num` (1–104), verified. FIFA team codes
+ * are 3-letter (MEX/RSA); we auto-learn the 3-letter→our-code map from the group fixtures
+ * (where our codes are already known) and use it to resolve knockout teams.
  */
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 
@@ -11,13 +19,136 @@ const fixtures = JSON.parse(readFileSync("data/matches.json", "utf8")).matches;
 const teams = JSON.parse(readFileSync("data/teams.json", "utf8"));
 const byNum = Object.fromEntries(fixtures.map(f => [f.num, f]));
 
-// worldcup26.ir scorers come as e.g.  {“J. Quiñones 9'”,“Lozano 67'”}  → ["J. Quiñones 9'", "Lozano 67'"]
+const UA = "Mozilla/5.0 (compatible; wc26-bot/1.0; +https://github.com/lavyagarg240294/wc26)";
+const loc = v => Array.isArray(v) ? (v[0]?.Description || "") : (typeof v === "string" ? v : "");
+// "90'+8'" -> 90.08 (sort key that keeps stoppage time after the base minute)
+const minKey = s => { const m = String(s || "").match(/(\d+)(?:'?\+(\d+))?/); return m ? Number(m[1]) + (m[2] ? Number(m[2]) / 100 : 0) : 0; };
+
+/* ---------------- primary: api.fifa.com ---------------- */
+const FIFA = "https://api.fifa.com/api/v3";
+const COMP = "17", SEASON = "285023";       // FIFA World Cup 2026™
+const LIVE_FETCH_CAP = 14;                  // max per-match live calls per run (spreads a cold start)
+
+async function fifaGet(url) {
+  const r = await fetch(url, { headers: { "User-Agent": UA } });
+  if (!r.ok) throw new Error(`FIFA HTTP ${r.status}`);
+  return r.json();
+}
+
+// Build the goals/cards/subs timeline (+ basic lineups) from a FIFA live-match object.
+function buildEvents(lv) {
+  const sides = [["h", lv.HomeTeam], ["a", lv.AwayTeam]];
+  const nameById = {};
+  for (const [, t] of sides) for (const p of (t?.Players || []))
+    nameById[p.IdPlayer] = loc(p.ShortName) || loc(p.PlayerName);
+  const name = id => nameById[id] || "";
+
+  const ev = [];
+  for (const [side, t] of sides) {
+    if (!t) continue;
+    for (const g of (t.Goals || [])) {
+      const k = g.Type === 3 ? "OG" : g.Type === 1 ? "P" : "G";   // best-effort: 3=own goal, 1=penalty
+      const e = { _k: minKey(g.Minute), t: g.Minute, k, tm: side, p: name(g.IdPlayer) };
+      if (g.IdAssistPlayer) e.a = name(g.IdAssistPlayer);
+      ev.push(e);
+    }
+    for (const b of (t.Bookings || []))
+      ev.push({ _k: minKey(b.Minute), t: b.Minute, k: b.Card === 2 ? "R" : "Y", tm: side, p: name(b.IdPlayer) });
+    for (const s of (t.Substitutions || []))
+      ev.push({ _k: minKey(s.Minute), t: s.Minute, k: "S", tm: side, on: loc(s.PlayerOnName) || name(s.IdPlayerOn), off: loc(s.PlayerOffName) || name(s.IdPlayerOff) });
+  }
+  ev.sort((x, y) => x._k - y._k);
+  ev.forEach(e => delete e._k);
+
+  // lineups (starting XI) — Status 1 == starter (2 == bench). Position 0=GK 1=DEF 2=MID 3=FWD.
+  const xiSide = t => {
+    const starters = (t?.Players || []).filter(p => p.Status === 1)
+      .map(p => [p.ShirtNumber, loc(p.ShortName) || loc(p.PlayerName), p.Position]);
+    return starters.length ? { f: t.Tactics || "", xi: starters, coach: loc((t.Coaches || [])[0]?.Name) } : null;
+  };
+  const xh = xiSide(lv.HomeTeam), xa = xiSide(lv.AwayTeam);
+  const xi = (xh || xa) ? { h: xh || {}, a: xa || {} } : null;
+
+  return { ev, xi };
+}
+
+async function fromFifa(prev) {
+  const cal = await fifaGet(`${FIFA}/calendar/matches?idCompetition=${COMP}&idSeason=${SEASON}&language=en&count=104`);
+  const rows = cal.Results || [];
+  if (!rows.length) throw new Error("FIFA calendar empty");
+  const fifaByNum = {};
+  for (const x of rows) fifaByNum[Number(x.MatchNumber)] = x;
+
+  // learn FIFA 3-letter -> our team code from the group stage (our codes are known there)
+  const toOur = {};
+  for (const f of fixtures) {
+    if (f.stage !== "group") continue;
+    const x = fifaByNum[f.num]; if (!x) continue;
+    if (f.home?.team && x.Home?.IdCountry) toOur[x.Home.IdCountry] = f.home.team;
+    if (f.away?.team && x.Away?.IdCountry) toOur[x.Away.IdCountry] = f.away.team;
+  }
+
+  const now = Date.now();
+  const matches = {};
+  const needLive = [];
+  let liveCount = 0, doneCount = 0;
+
+  for (const f of fixtures) {
+    const x = fifaByNum[f.num]; if (!x) continue;
+    const kickoff = Date.parse(x.Date || f.utc);
+    const ms = x.MatchStatus;                       // 1 = upcoming, 0 = finished, 3 = live (documented)
+    let st;
+    if (ms === 1) st = "SCHED";
+    else if (ms === 3) st = "LIVE";
+    else st = (kickoff && now >= kickoff && now < kickoff + 150 * 60000) ? "LIVE" : "FT"; // hedge ms 0
+
+    const entry = { st };
+    if (st !== "SCHED") {
+      if (Number.isFinite(x.HomeTeamScore)) entry.h = x.HomeTeamScore;
+      if (Number.isFinite(x.AwayTeamScore)) entry.a = x.AwayTeamScore;
+      if (Number.isFinite(x.HomeTeamPenaltyScore)) entry.hp = x.HomeTeamPenaltyScore;
+      if (Number.isFinite(x.AwayTeamPenaltyScore)) entry.ap = x.AwayTeamPenaltyScore;
+      const mt = parseInt(x.MatchTime, 10);
+      if (Number.isFinite(mt)) entry.min = mt;
+    }
+    if (f.stage !== "group") {                      // resolve knockout teams for the bracket
+      if (x.Home?.IdCountry && toOur[x.Home.IdCountry]) entry.ht = toOur[x.Home.IdCountry];
+      if (x.Away?.IdCountry && toOur[x.Away.IdCountry]) entry.at = toOur[x.Away.IdCountry];
+    }
+
+    const prevE = prev[f.id];
+    const inPlay = st === "LIVE" || st === "HT";
+    const captured = prevE && prevE.ev;             // already grabbed this finished match's events
+    if (inPlay || (st === "FT" && !captured)) needLive.push({ f, x, entry });
+    else if (st === "FT" && captured) { entry.ev = prevE.ev; if (prevE.xi) entry.xi = prevE.xi; }
+
+    matches[f.id] = entry;
+    if (inPlay) liveCount++; else if (st === "FT") doneCount++;
+  }
+
+  // enrich in-play + newly-finished matches with events + lineups (bounded per run)
+  let fetched = 0;
+  for (const { x, entry } of needLive) {
+    if (fetched >= LIVE_FETCH_CAP) break;
+    try {
+      const lv = await fifaGet(`${FIFA}/live/football/${COMP}/${SEASON}/${x.IdStage}/${x.IdMatch}?language=en`);
+      fetched++;
+      if (lv.Period === 4 && entry.st === "LIVE") entry.st = "HT";   // 4 == half-time
+      const { ev, xi } = buildEvents(lv);
+      if (ev.length) entry.ev = ev;
+      if (xi) entry.xi = xi;
+    } catch { /* keep the score-only entry */ }
+  }
+
+  console.log(`api.fifa.com: 104 fixtures · ${liveCount} live · ${doneCount} finished · ${fetched} enriched`);
+  return matches;
+}
+
+/* ---------------- fallback: worldcup26.ir ---------------- */
 function parseScorers(s) {
   if (!s || s === "null") return [];
   return String(s).replace(/[{}“”]/g, "").split(",").map(x => x.trim()).filter(x => x && x !== "null").slice(0, 12);
 }
-
-/* ---------------- primary: worldcup26.ir ---------------- */
 async function fromWorldCup26() {
   const [gr, tr] = await Promise.all([
     fetch("https://worldcup26.ir/get/games"),
@@ -28,7 +159,6 @@ async function fromWorldCup26() {
   const apiTeams = (await tr.json()).teams || [];
   if (!games.length) throw new Error("wc26.ir returned no games");
 
-  // team id → our team code (iso2, with the two GB nations overridden by fifa_code)
   const idCode = {};
   for (const t of apiTeams) {
     let code = String(t.iso2 || "").toUpperCase();
@@ -36,18 +166,16 @@ async function fromWorldCup26() {
     else if (t.fifa_code === "SCO") code = "GB-SCT";
     if (teams[code]) idCode[t.id] = code;
   }
-
   const matches = {};
-  let live = 0, done = 0;
   for (const g of games) {
-    const f = byNum[Number(g.id)]; if (!f) continue;        // game id == our match number
+    const f = byNum[Number(g.id)]; if (!f) continue;
     const fin = String(g.finished).toUpperCase() === "TRUE";
     const te = String(g.time_elapsed || "").toLowerCase().trim();
     let st;
     if (fin) st = "FT";
     else if (["ht", "half", "halftime", "half-time"].includes(te)) st = "HT";
     else if (["notstarted", "", "scheduled", "tbd", "postponed"].includes(te)) st = "SCHED";
-    else st = "LIVE";                                        // "live" or a minute number
+    else st = "LIVE";
     const entry = { st };
     if (st !== "SCHED") {
       const h = parseInt(g.home_score, 10), a = parseInt(g.away_score, 10);
@@ -59,14 +187,13 @@ async function fromWorldCup26() {
       if (gh.length) entry.gh = gh;
       if (ga.length) entry.ga = ga;
     }
-    if (f.stage !== "group") {                              // resolve knockout teams for the bracket
+    if (f.stage !== "group") {
       if (idCode[g.home_team_id]) entry.ht = idCode[g.home_team_id];
       if (idCode[g.away_team_id]) entry.at = idCode[g.away_team_id];
     }
     matches[f.id] = entry;
-    if (st === "LIVE" || st === "HT") live++; else if (st === "FT") done++;
   }
-  console.log(`worldcup26.ir: ${Object.keys(matches).length} games · ${live} live · ${done} finished`);
+  console.log(`worldcup26.ir (fallback): ${Object.keys(matches).length} games`);
   return matches;
 }
 
@@ -117,20 +244,31 @@ async function fromFootballData() {
 }
 
 /* ---------------- run ---------------- */
-let matches;
-try {
-  matches = await fromWorldCup26();
-} catch (e) {
-  console.warn("Primary source worldcup26.ir failed:", e.message, "— trying football-data.org");
-  try { matches = await fromFootballData(); }
-  catch (e2) { console.error("Fallback also failed:", e2.message); process.exit(1); }
-}
-
-const out = { updated: new Date().toISOString(), matches };
 const path = "data/results.json";
 let prev = {};
 try { if (existsSync(path)) prev = JSON.parse(readFileSync(path, "utf8")); } catch { /* malformed/conflicted — overwrite */ }
-if (JSON.stringify(prev.matches || {}) !== JSON.stringify(out.matches)) {
+const prevMatches = prev.matches || {};
+
+const DRY = process.argv.includes("--dry-run");
+let matches;
+try {
+  matches = await fromFifa(prevMatches);
+} catch (e1) {
+  console.warn("Primary api.fifa.com failed:", e1.message, "— trying worldcup26.ir");
+  try { matches = await fromWorldCup26(); }
+  catch (e2) {
+    console.warn("worldcup26.ir failed:", e2.message, "— trying football-data.org");
+    try { matches = await fromFootballData(); }
+    catch (e3) { console.error("All sources failed:", e3.message); process.exit(1); }
+  }
+}
+
+const out = { updated: new Date().toISOString(), matches };
+if (DRY) {
+  const ev = Object.entries(matches).filter(([, m]) => m.ev).map(([id, m]) => `${id}:${m.ev.length}ev`);
+  console.log("DRY RUN — not writing. matches:", Object.keys(matches).length, "| with events:", ev.join(", ") || "none");
+  console.log(JSON.stringify(Object.fromEntries(Object.entries(matches).filter(([, m]) => m.ev).slice(0, 1)), null, 1));
+} else if (JSON.stringify(prevMatches) !== JSON.stringify(out.matches)) {
   writeFileSync(path, JSON.stringify(out));
   console.log("results.json updated");
 } else {

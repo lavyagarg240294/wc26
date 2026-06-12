@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "32";  // shown in footer; bump with the ?v= asset version
+const BUILD = "33";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -276,6 +276,26 @@ function xiPanel(xi, h, a) {
   </div>`;
   return `<div class="mcard-xi">${col(xi.h, h)}${col(xi.a, a)}</div>`;
 }
+// goals/cards/subs timeline for the match modal (from results `ev`)
+const EV_ICON = {
+  G: "⚽", P: "⚽", OG: "⚽",
+  Y: `<span class="tl-card y" aria-hidden="true"></span>`,
+  R: `<span class="tl-card r" aria-hidden="true"></span>`,
+  S: `<span class="tl-sub" aria-hidden="true">⇄</span>`,
+};
+function evText(e) {
+  if (e.k === "S") return `<span class="tl-p">${esc(e.on || "")}</span>${e.off ? ` <span class="tl-off">↓ ${esc(e.off)}</span>` : ""}`;
+  const tag = e.k === "P" ? ` <span class="tl-x">pen</span>` : e.k === "OG" ? ` <span class="tl-x">o.g.</span>` : "";
+  return `<span class="tl-p">${esc(e.p || "")}</span>${tag}${e.a ? ` <span class="tl-off">${esc(e.a)}</span>` : ""}`;
+}
+function mdTimeline(r) {
+  if (!r?.ev?.length) return "";
+  const rows = r.ev.map(e => `<div class="tl ${e.tm === "h" ? "is-h" : "is-a"}${["G", "P", "OG"].includes(e.k) ? " is-goal" : ""}">
+    <div class="tl-min">${esc(e.t || "")}</div>
+    <span class="tl-ev">${EV_ICON[e.k] || ""}<span class="tl-tx">${evText(e)}</span></span>
+  </div>`).join("");
+  return `<div class="eyebrow">Match events</div><div class="md-tl">${rows}</div>`;
+}
 function openMatch(id) {
   const m = S.matches.find(x => x.id === id); if (!m) return;
   const h = slotInfo(m, "home"), a = slotInfo(m, "away"), r = res(m), st = status(m);
@@ -300,7 +320,7 @@ function openMatch(id) {
       <button class="md-save ${sv ? "is-on" : ""}" data-save="${id}" aria-pressed="${sv}">${sv ? "★ Saved" : "☆ Save match"}</button>
     </div>
     <div class="md-teams">${side(h, "home")}<div class="md-mid">${mid}</div>${side(a, "away")}</div>
-    ${(r?.gh?.length || r?.ga?.length) ? `<div class="md-goals">
+    ${r?.ev?.length ? mdTimeline(r) : (r?.gh?.length || r?.ga?.length) ? `<div class="md-goals">
       <div class="md-goals-col">${(r.gh || []).map(g => `<div class="md-goal">⚽ ${esc(g)}</div>`).join("")}</div>
       <div class="md-goals-col away">${(r.ga || []).map(g => `<div class="md-goal">${esc(g)} ⚽</div>`).join("")}</div>
     </div>` : ""}
