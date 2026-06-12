@@ -42,13 +42,13 @@ Took a holistic pass for redundancy and "hidden but useful" content while adding
 Effort: **S** ≈ <1 session · **M** ≈ a session · **L** ≈ multi-session. Tag = data source / risk.
 
 ### Tier 0 — Fix what QC found
-1. **ESPN stats: match by teams, not just kickoff minute** — fixes simultaneous-kickoff gaps. **S** · no new deps.
+1. ✅ **ESPN stats: match by teams, not just kickoff minute** — fixes simultaneous-kickoff gaps. **S** · no new deps.
 
 ### Tier 1 — Quick, high-delight wins (group-stage timely)
-2. **Bracket path on mobile/touch** — tap-to-pin a knockout card's path-to-final (the hover trace is desktop-only today). Surfaces a feature mobile users can't currently reach. **S** · existing logic.
+2. ✅ **Bracket path on mobile/touch** — tap-to-pin a knockout card's path-to-final (the hover trace is desktop-only today). Surfaces a feature mobile users can't currently reach. **S** · existing logic.
 3. **Auto-open the qualification outlook for the favourite's group** — small discoverability win. **S**.
-4. **Momentum sparkline** — signed SVG area path built from the minute-stamped `ev[]` we already store; render in the match modal under the stats. Most impactful for live matches. **M** · existing data.
-5. **FLIP standings animation** — animate group-table rows when they reorder after a result (measure → reflow → invert → play). Cheap, premium feel. **S** · CSS/JS only.
+4. ✅ **Momentum sparkline** — signed SVG area path built from the minute-stamped `ev[]` we already store; render in the match modal under the stats. Most impactful for live matches. **M** · existing data.
+5. ✅ **FLIP standings animation** — animate group-table rows when they reorder after a result (measure → reflow → invert → play). Cheap, premium feel. **S** · CSS/JS only.
 6. **Compact share links** — replace the ~950-char JSON prediction link with a bit-packed `#p=` (~20–40 chars): permutation index per group, 12-bit thirds mask, winner-bit per KO match, 1-byte schema tag. **M** · client only.
 
 ### Tier 2 — Engagement & visuals (bigger bets)
@@ -67,5 +67,7 @@ Effort: **S** ≈ <1 session · **M** ≈ a session · **L** ≈ multi-session. 
 
 ---
 
-### Recommended first sweep
-**#1 (stats fix) → #2 (bracket path on mobile) → #4 (momentum) → #5 (FLIP standings)** — all small/medium, all timely for the live group stage, no new infrastructure. Then reassess before the bigger bets.
+### Recommended first sweep — ✅ DONE (build 41)
+#1 stats fix · #2 bracket path on touch · #4 match-flow sparkline · #5 FLIP standings — all shipped.
+
+**Next up:** #3 (auto-open outlook for fav group) is the cheapest remaining; then #6 (compact share links) → #7 ("share your score"). The bigger Action-touching bets (#8 share cards, #9 player photos, #10 detail-file split) before knockouts.
