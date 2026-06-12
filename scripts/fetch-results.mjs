@@ -271,17 +271,25 @@ async function enrichStats(matches, prev) {
   }
   if (!need.length) return;
   const dates = [...new Set(need.map(f => f.utc.slice(0, 10).replace(/-/g, "")))];
-  const eidByMin = {};
+  const byMin = {};                                        // UTC-minute → [{id, codes:Set<ourCode>}] (≥1 when matches kick off simultaneously)
   for (const d of dates) {
     try {
       const sb = await fetch(`${ESPN}/scoreboard?dates=${d}`, { headers: { "User-Agent": UA } }).then(r => r.json());
-      for (const e of (sb.events || [])) if (e.date) eidByMin[e.date.slice(0, 16)] = e.id;   // map UTC-minute → ESPN event id
+      for (const e of (sb.events || [])) {
+        if (!e.date) continue;
+        const codes = new Set((e.competitions?.[0]?.competitors || []).map(c => toCode(c.team?.displayName)).filter(Boolean));
+        (byMin[e.date.slice(0, 16)] ??= []).push({ id: e.id, codes });
+      }
     } catch { /* skip this date */ }
   }
   let calls = 0, ok = 0;
   for (const f of need) {
     if (calls >= LIVE_FETCH_CAP) break;
-    const eid = eidByMin[f.utc.slice(0, 16)]; if (!eid) continue;
+    const entry = matches[f.id], hc = f.home.team || entry.ht, ac = f.away.team || entry.at;
+    const cands = byMin[f.utc.slice(0, 16)] || [];
+    // pick the event whose teams match this fixture (so simultaneous kickoffs don't collide); fall back to a lone event
+    const eid = (cands.find(c => (hc || ac) && (!hc || c.codes.has(hc)) && (!ac || c.codes.has(ac))) || (cands.length === 1 ? cands[0] : null))?.id;
+    if (!eid) continue;
     calls++;
     try {
       const sum = await fetch(`${ESPN}/summary?event=${eid}`, { headers: { "User-Agent": UA } }).then(r => r.json());
