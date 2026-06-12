@@ -609,6 +609,13 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .lead-name small{font-weight:500;font-size:10.5px;color:var(--ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lead-v{font-family:var(--mono);font-weight:700;font-size:15px;font-variant-numeric:tabular-nums;text-align:right;display:flex;flex-direction:column;align-items:flex-end;line-height:1.15}
 .lead-v small{font-weight:500;font-size:9px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.03em}
+/* cards leaderboard: yellow + red side by side, each a little card chip + count */
+.lead-v.card-tally{flex-direction:row;align-items:center;gap:11px}
+.ct{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-weight:700;font-size:14px}
+.ct::before{content:"";width:11px;height:15px;border-radius:2.5px;flex:none;box-shadow:0 1px 2px rgba(13,27,42,.25)}
+.ct-y::before{background:var(--gold)}
+.ct-r::before{background:#E5443B}
+.ct-r{color:var(--ink-soft)}
 .lead-scorers .lead-row:first-of-type .lead-rank{color:var(--gold)}
 .lead-scorers .lead-row:first-of-type .lead-v{color:var(--gold)}
 /* knockout-path narrative */
