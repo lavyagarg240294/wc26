@@ -21,13 +21,13 @@ function toggleSave(id) {
   const md = document.getElementById("matchDialog");
   if (md && md.open && md.dataset.mid === id) {
     const b = md.querySelector(".md-save"), on = S.saved.has(id);
-    if (b) { b.classList.toggle("is-on", on); b.setAttribute("aria-pressed", on); b.textContent = on ? "★" : "☆"; b.title = on ? "Saved" : "Save match"; }
+    if (b) { b.classList.toggle("is-on", on); b.setAttribute("aria-pressed", on); b.textContent = on ? "★" : "☆"; b.title = on ? "Saved" : "Save match"; b.setAttribute("aria-label", on ? "Remove from saved" : "Save match"); }
   }
 }
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "46";  // shown in footer; bump with the ?v= asset version
+const BUILD = "47";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -237,7 +237,7 @@ function groupOutlookHTML(g) {
   const o = groupOutlook(g);
   if (!o) return "";
   const open = S.fav && groupOf(S.fav) === g ? " open" : "";   // auto-expand the favourite's group
-  return `<details class="outlook"${open}><summary><span class="ear-tri">▸</span> What each team needs <span class="ear-hint">tap</span></summary>
+  return `<details class="outlook"${open}><summary><span class="ear-tri">▸</span> What each team needs</summary>
     <div class="outlook-body">${o.map(t => `<div class="ol-row ol-${t.k} ${t.code === S.fav ? "is-fav" : ""}">
       <span class="fl">${flag(t.code)}</span><span class="ol-name">${esc(S.teams[t.code]?.name || t.code)}</span>
       <span class="ol-status">${t.status}${t.need ? ` · <b>${t.need}</b>` : ""}</span></div>`).join("")}</div></details>`;
@@ -369,8 +369,8 @@ function matchCard(m, i, opts = {}) {
     `<div class="mcard-team ${s.ph ? "is-ph" : ""} ${lost ? "is-lost" : ""}">` +
     `<span class="fl">${s.code ? flag(s.code) : "·"}</span><span>${esc(slotText(m, key, s))}</span></div>`;
   const sv = isSaved(m.id);
-  return `<button class="mcard ${fav ? "is-fav" : ""}" style="--i:${i}" data-mid="${m.id}">
-    <span class="mcard-star ${sv ? "is-on" : ""}" data-save="${m.id}" role="button" tabindex="0" aria-pressed="${sv}" aria-label="${sv ? "Remove saved match" : "Save this match"}" title="${sv ? "Saved — tap to remove" : "Save this match"}">${sv ? "★" : "☆"}</span>
+  return `<div class="mcard ${fav ? "is-fav" : ""}" role="button" tabindex="0" style="--i:${i}" data-mid="${m.id}">
+    <span class="mcard-star ${sv ? "is-on" : ""}" data-save="${m.id}" role="button" tabindex="0" aria-pressed="${sv}" aria-label="${sv ? "Remove from saved" : "Save match"}" title="${sv ? "Saved" : "Save match"}">${sv ? "★" : "☆"}</span>
     <div class="mcard-row">
       <div class="mcard-time">${timeStr(m.utc)}<small>${fmt(m.utc, { day: "numeric", month: "short" })}</small></div>
       <div class="mcard-teams">${teamRow(h, "home", winA)}${teamRow(a, "away", winH)}</div>
@@ -379,7 +379,7 @@ function matchCard(m, i, opts = {}) {
         : badge}</div>
     </div>
     ${opts.sub !== false ? `<div class="mcard-sub"><span class="grp">${esc(stageL)}</span><span>${esc(m.stadium)}</span><span>${esc(m.city)}</span><span class="mcard-go">Details ›</span></div>` : ""}
-  </button>`;
+  </div>`;
 }
 // split a starting XI into {gk, bands[]} using its formation string (fallback: coarse positions)
 function formationRows(side) {
@@ -531,7 +531,7 @@ function openMatch(id) {
       <div class="md-actions">
         ${st === ST.SCHED ? `<button class="md-ics" id="mdIcs">${CAL_SVG} Calendar</button>` : ""}
         <button class="md-ics" id="mdShare">${SHARE_SVG} Share</button>
-        <button class="md-save ${sv ? "is-on" : ""}" data-save="${id}" aria-pressed="${sv}" aria-label="${sv ? "Saved — tap to remove" : "Save match"}" title="${sv ? "Saved" : "Save match"}">${sv ? "★" : "☆"}</button>
+        <button class="md-save ${sv ? "is-on" : ""}" data-save="${id}" aria-pressed="${sv}" aria-label="${sv ? "Remove from saved" : "Save match"}" title="${sv ? "Saved" : "Save match"}">${sv ? "★" : "☆"}</button>
       </div>
     </div>
     <div class="md-teams">${side(h, "home")}<div class="md-mid">${mid}</div>${side(a, "away")}</div>
@@ -613,7 +613,7 @@ function renderMatches() {
   // 1A: finished games go into a collapsible "Earlier results"; live + upcoming show below
   const dayGroups = arr => { const d = {}; arr.forEach(m => (d[dayKey(m.utc)] ??= []).push(m)); return Object.entries(d).map(([k, ms]) => `<div class="dayhead ${k === todayK ? "is-today" : ""}">${dayLabel(ms[0].utc)} <small>${ms.length} match${ms.length > 1 ? "es" : ""}${k === todayK ? " · Today" : ""}</small></div>` + ms.map((m, i) => matchCard(m, Math.min(i, 8))).join("")).join(""); };
   const past = list.filter(m => status(m) === ST.FT);
-  const ahead = list.filter(m => status(m) !== ST.FT);
+  const ahead = list.filter(m => status(m) !== ST.FT && m.id !== heroM?.id);   // hero already shows the next/live match — don't repeat it as a card
 
   el.innerHTML =
     (heroM ? heroBlock(heroM, !!live) : "") +
@@ -633,7 +633,7 @@ function renderMatches() {
       </div>
       <button class="fbtn ${f.saved ? "is-on" : ""}" data-saved>★ Saved${S.saved.size ? ` <b>${S.saved.size}</b>` : ""}</button>
     </div>` +
-    (past.length ? `<details class="earlier"><summary><span class="ear-tri">▸</span> Earlier results <b>${past.length}</b><span class="ear-hint">tap to view</span></summary><div class="ear-body">${dayGroups(past)}</div></details>` : "") +
+    (past.length ? `<details class="earlier"><summary><span class="ear-tri">▸</span> Earlier results <b>${past.length}</b><span class="ear-hint">view</span></summary><div class="ear-body">${dayGroups(past)}</div></details>` : "") +
     (ahead.length ? dayGroups(ahead) : (past.length ? "" : `<div class="empty">No matches for this filter.</div>`));
 
   startCountdown();
@@ -762,7 +762,7 @@ function renderTeams() {
     : `<div class="pick-cta">
         <span style="font-size:42px">🏟️</span>
         <span class="big">Who are you backing?</span>
-        <span style="color:var(--ink-soft);font-size:13.5px;max-width:300px">Pick a team — the site takes their colors, pins their matches and tracks their road to MetLife.</span>
+        <span style="color:var(--ink-soft);font-size:13.5px;max-width:300px">Pick a team — the site takes their colors, pins their matches and tracks their road to the final.</span>
         <button class="btn" id="ctaPick">Choose your team</button></div>`;
   const grid = Object.keys(S.teams)
     .sort((a, b) => S.teams[a].name.localeCompare(S.teams[b].name))
@@ -792,7 +792,7 @@ function rosterMarkup(sq) {
 }
 function squadSection(code) {
   const sq = S.squads?.[code];
-  if (!sq) return `<div class="eyebrow">Squad</div><div class="empty">Squad list lands once the squads workflow runs (see README) — 16 teams are pre-loaded.</div>`;
+  if (!sq) return `<div class="eyebrow">Squad</div><div class="empty">Squad not published yet — check back closer to kickoff.</div>`;
   return `<div class="eyebrow">Squad — ${sq.players.length} players${sq.coach ? ` · Coach <b style="color:var(--ink)">&nbsp;${esc(sq.coach)}</b>` : ""}</div>
     ${rosterMarkup(sq)}`;
 }
@@ -803,7 +803,7 @@ function openSquad(code) {
     + `<span class="sq-meta">${esc(t.conf || "")}${t.titles ? ` · 🏆 ${t.titles}` : ""}${sq ? ` · ${sq.players.length} players${sq.coach ? ` · ${esc(sq.coach)}` : ""}` : ""}</span>`
     + (formChips(code) ? `<span class="sq-form">Form ${formChips(code)}</span>` : "");
   $("#squadBody").innerHTML = sq ? rosterMarkup(sq)
-    : `<div class="empty">${esc(t.name)}'s squad lands once the squads workflow runs (see README). 16 teams are pre-loaded so far.</div>`;
+    : `<div class="empty">${esc(t.name)}'s squad isn't published yet — check back closer to kickoff.</div>`;
   $("#squadDialog").showModal();
 }
 const ordinal = n => n + (["th", "st", "nd", "rd"][((n % 100) - 20) % 10] || ["th", "st", "nd", "rd"][n % 100] || "th");
@@ -850,9 +850,9 @@ function renderBracket() {
     champ = homeWon ? fh : fa;
   }
   $("#view-bracket").innerHTML =
-    (champ ? championBanner(champ) : "") +
+    (champ ? championBanner(champ, false) : "") +
     `<div class="bracket-tools"><button id="traceToggle" class="btn ghost" aria-pressed="false">⤳ Trace a path</button>
-      <span class="bracket-hint">Tap a match to light up its road to the final</span></div>
+      <span class="bracket-hint">Turn this on, then tap any match to trace its road to the final</span></div>
     <div class="bracket-scroll"><div class="bracket"><svg class="bracket-lines" aria-hidden="true"></svg>
     ${cols.map(([st, title]) => {
       const ms = S.matches.filter(m => m.stage === st).sort((a, b) => a.num - b.num);
@@ -1195,7 +1195,7 @@ function renderSim() {
   el.innerHTML = `
     <div class="sim-intro">
       <h2>Call the whole tournament 🔮</h2>
-      <p>Order each group, choose the eight best third-place teams, then tap winners all the way to MetLife. Your prediction saves on this device.</p>
+      <p>Order each group, choose the eight best third-place teams, then tap winners all the way to the final. Your prediction saves on this device.</p>
       <div class="sim-actions">
         <button class="btn ghost" id="simStandings">Use live standings</button>
         <button class="btn ghost" id="simShuffle">Shuffle it all</button>
@@ -1209,7 +1209,7 @@ function renderSim() {
     <div class="thirds">${thirdChips}</div>
     <div class="eyebrow"><span class="step-n">3</span> Tap winners through to the final</div>
     ${simBracket}
-    ${champ ? championBanner(champ) : ""}`;
+    ${champ ? championBanner(champ, true) : ""}`;
 
   // wire: move-up
   $$(".up", el).forEach(b => b.onclick = () => {
@@ -1282,11 +1282,11 @@ function simMatch(m, i, alloc) {
     ${row(h, a)}${row(a, h)}
     <div class="bm-label">M${m.num} · ${fmt(m.utc, { day: "numeric", month: "short" })} · ${esc(m.city.split(",")[0])}</div></div>`;
 }
-function championBanner(code) {
+function championBanner(code, predicted) {
   const t = S.teams[code];
   return `<div class="champ">
     <span class="cup">🏆</span><span class="cfl">${flag(code)}</span>
-    <h3>${esc(t.name)}</h3><p>Your champions of the world · July 19 · MetLife</p></div>`;
+    <h3>${esc(t.name)}</h3><p>${predicted ? "Your predicted champions" : "Champions of the world"} · July 19 · MetLife</p></div>`;
 }
 
 /* ---------------- tournament stats (team + player) ---------------- */
@@ -1317,7 +1317,7 @@ function tournamentStats() {
     scorers: scorerList,
     teamGoals: rank(gf), teamShots: rank(shots), teamCards: rank(cards),
     teamConceded: Object.keys(ga).map(c => ({ code: c, v: ga[c], played: played[c] })).sort((a, b) => a.v - b.v || b.played - a.played),
-    possession: Object.keys(poss).map(c => ({ code: c, v: poss[c] / possN[c] })).sort((a, b) => b.v - a.v),
+    possession: Object.keys(poss).map(c => ({ code: c, v: poss[c] / possN[c] })).filter(x => isFinite(x.v)).sort((a, b) => b.v - a.v),
   };
 }
 function renderStats() {
@@ -1343,7 +1343,7 @@ function renderStats() {
     <div class="eyebrow">Team leaders</div>
     <div class="lead-grid">
       ${teamLead("Most goals", s.teamGoals, x => x.v)}
-      ${teamLead("Best defence", s.teamConceded, x => `${x.v}<small>in ${x.played}</small>`)}
+      ${teamLead("Best defence", s.teamConceded, x => `${x.v}<small>${x.played} game${x.played > 1 ? "s" : ""}</small>`)}
       ${teamLead("Possession", s.possession, x => x.v.toFixed(1) + "%")}
       ${teamLead("Most shots", s.teamShots, x => x.v)}
       ${teamLead("Most cards", s.teamCards, x => x.v)}
@@ -1518,7 +1518,7 @@ async function boot() {
   // keyboard: activate focusable custom controls (save stars, squad cells, sim picks, hero) with Enter/Space
   document.addEventListener("keydown", e => {
     if (e.key !== "Enter" && e.key !== " ") return;
-    const t = e.target.closest("[data-save],[data-squad],[data-pick],.up,.hero[data-mid]");
+    const t = e.target.closest("[data-save],[data-squad],[data-pick],.up,.hero[data-mid],.mcard[data-mid],.bm[data-mid]");
     if (t) { e.preventDefault(); t.click(); }
   });
   // a shared prediction link (#p=…) loads that bracket and opens the Predict tab
