@@ -568,9 +568,10 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .md-tag.live{background:var(--live);color:#fff;animation:pulse 1.4s infinite}
 .md-tag.ft{background:var(--ink);color:var(--paper)}
 .md-tag.soon{background:color-mix(in srgb,var(--acc1) 12%,var(--card));color:var(--acc1);border:1px solid color-mix(in srgb,var(--acc1) 30%,transparent)}
-.md-save{font-size:12px;font-weight:600;color:var(--ink-soft);padding:5px 10px;border-radius:99px;border:1px solid var(--line)}
-.md-save:hover{border-color:var(--gold);color:var(--ink)}
-.md-save.is-on{color:var(--gold);border-color:color-mix(in srgb,var(--gold) 55%,var(--line))}
+.md-actions{display:flex;align-items:center;gap:8px}
+.md-save{display:inline-flex;align-items:center;justify-content:center;width:34px;height:31px;font-size:17px;line-height:1;color:var(--ink-soft);border-radius:9px;border:1px solid var(--line)}
+.md-save:hover{border-color:var(--gold);color:var(--gold)}
+.md-save.is-on{color:var(--gold);border-color:color-mix(in srgb,var(--gold) 55%,var(--line));background:color-mix(in srgb,var(--gold) 10%,transparent)}
 .md-teams{display:grid;grid-template-columns:1fr auto 1fr;align-items:start;gap:10px;padding:6px 0 16px}
 .md-team{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center}
 .md-flag{font-size:42px;line-height:1;filter:drop-shadow(0 4px 8px rgba(13,27,42,.18))}
@@ -582,7 +583,7 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .md-squad-link .fl{font-size:15px;line-height:1}
 .md-squad-link:hover{background:color-mix(in srgb,var(--acc1) 10%,transparent);border-color:var(--acc1)}
 .md-mid{display:flex;flex-direction:column;align-items:center;justify-content:center;padding-top:10px}
-.md-score{font-family:var(--mono);font-weight:700;font-size:30px;font-variant-numeric:tabular-nums;display:flex;gap:8px;align-items:baseline}
+.md-score{font-family:var(--mono);font-weight:700;font-size:28px;font-variant-numeric:tabular-nums;display:flex;gap:8px;align-items:baseline}
 .md-score span{color:var(--ink-soft);font-weight:400}
 .md-pens{font-family:var(--mono);font-size:10.5px;color:var(--ink-soft);margin-top:3px}
 .md-vs{font-family:var(--disp);font-weight:800;font-size:18px;color:var(--ink-soft);letter-spacing:.06em}
@@ -779,6 +780,19 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
   .team-grid{grid-template-columns:1fr}
   .sim-actions .btn{flex:1;text-align:center;padding:11px 10px;font-size:12.5px}
   .ticker{font-size:11px}
+  /* breathing room + a touch smaller on phones */
+  .sheet-head{padding:16px 16px 6px}
+  .sheet-body{padding:4px 16px 18px}
+  .md-tagrow{margin-bottom:16px}
+  .md-name{font-size:15px}
+  .md-score{font-size:25px}
+  .md-teams{margin-bottom:6px}
+  .eyebrow{font-size:10px;margin:22px 0 11px}
+  .stat-val{font-size:24px}
+  .stat-tile{padding:13px 14px}
+  .lead-row{padding:8px 12px;font-size:12.5px}
+  .lead-card h4{font-size:11px}
+  .roster-row{font-size:12.5px}
 }
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation:none!important;transition:none!important}

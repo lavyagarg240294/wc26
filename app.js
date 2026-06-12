@@ -21,13 +21,13 @@ function toggleSave(id) {
   const md = document.getElementById("matchDialog");
   if (md && md.open && md.dataset.mid === id) {
     const b = md.querySelector(".md-save"), on = S.saved.has(id);
-    if (b) { b.classList.toggle("is-on", on); b.setAttribute("aria-pressed", on); b.textContent = on ? "★ Saved" : "☆ Save match"; }
+    if (b) { b.classList.toggle("is-on", on); b.setAttribute("aria-pressed", on); b.textContent = on ? "★" : "☆"; b.title = on ? "Saved" : "Save match"; }
   }
 }
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "44";  // shown in footer; bump with the ?v= asset version
+const BUILD = "45";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -514,7 +514,7 @@ function openMatch(id) {
   const statusTag = st === ST.LIVE ? `<span class="md-tag live">● Live ${clockStr(m, r)}</span>`
     : st === ST.HT ? `<span class="md-tag live">Half-time</span>`
     : st === ST.FT ? `<span class="md-tag ft">Full time</span>`
-    : `<span class="md-tag soon">Kicks off ${timeStr(m.utc)} ${tzShort()}</span>`;
+    : `<span class="md-tag soon">Upcoming</span>`;   // time/date live in the meta row below — no need to repeat it
   const side = (s, key) => `<div class="md-team ${s.code === S.fav ? "is-fav" : ""}">
       <span class="md-flag">${s.code ? flag(s.code) : "·"}</span>
       <span class="md-name ${s.ph ? "is-ph" : ""}">${esc(slotText(m, key, s))}</span>
@@ -528,9 +528,11 @@ function openMatch(id) {
   $("#matchTitle").innerHTML = `<span class="md-stage">${esc(stageL)}</span>`;
   $("#matchBody").innerHTML = `
     <div class="md-tagrow">${statusTag}
-      ${st === ST.SCHED ? `<button class="md-ics" id="mdIcs">${CAL_SVG} Calendar</button>` : ""}
-      <button class="md-ics" id="mdShare">${SHARE_SVG} Share</button>
-      <button class="md-save ${sv ? "is-on" : ""}" data-save="${id}" aria-pressed="${sv}">${sv ? "★ Saved" : "☆ Save match"}</button>
+      <div class="md-actions">
+        ${st === ST.SCHED ? `<button class="md-ics" id="mdIcs">${CAL_SVG} Calendar</button>` : ""}
+        <button class="md-ics" id="mdShare">${SHARE_SVG} Share</button>
+        <button class="md-save ${sv ? "is-on" : ""}" data-save="${id}" aria-pressed="${sv}" aria-label="${sv ? "Saved — tap to remove" : "Save match"}" title="${sv ? "Saved" : "Save match"}">${sv ? "★" : "☆"}</button>
+      </div>
     </div>
     <div class="md-teams">${side(h, "home")}<div class="md-mid">${mid}</div>${side(a, "away")}</div>
     ${koPath(m)}
@@ -1323,7 +1325,7 @@ function renderStats() {
   if (!s.pulse.matches) { el.innerHTML = `<div class="empty" style="margin:32px 16px">No matches played yet — tournament stats fill in as games kick off.</div>`; return; }
   const tile = (label, val) => `<div class="stat-tile"><span class="stat-val">${val}</span><span class="stat-lbl">${label}</span></div>`;
   const tname = c => esc(S.teams[c]?.name || c);
-  const scorerRow = (p, i) => { const ph = playerPhoto(p.name, p.code); return `<div class="lead-row" data-squad="${p.code}" role="button" tabindex="0">
+  const scorerRow = (p, i) => { const ph = playerPhoto(p.name, p.code); return `<div class="lead-row lead-player">
     <span class="lead-rank">${i + 1}</span>${ph ? `<span class="lead-face" style="background-image:url('${ph}')"></span>` : `<span class="fl">${flag(p.code)}</span>`}
     <span class="lead-name">${esc(p.name)}<small>${flag(p.code)} ${tname(p.code)}</small></span>
     <span class="lead-v">${p.goals}<small>${p.assists ? `${p.assists} ast` : "&nbsp;"}</small></span></div>`; };
