@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "30";  // shown in footer; bump with the ?v= asset version
+const BUILD = "31";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -364,8 +364,6 @@ function renderMatches() {
   const dayGroups = arr => { const d = {}; arr.forEach(m => (d[dayKey(m.utc)] ??= []).push(m)); return Object.entries(d).map(([k, ms]) => `<div class="dayhead ${k === todayK ? "is-today" : ""}">${dayLabel(ms[0].utc)} <small>${ms.length} match${ms.length > 1 ? "es" : ""}${k === todayK ? " · Today" : ""}</small></div>` + ms.map((m, i) => matchCard(m, Math.min(i, 8))).join("")).join(""); };
   const past = list.filter(m => status(m) === ST.FT);
   const ahead = list.filter(m => status(m) !== ST.FT);
-  const teamOpts = Object.keys(S.teams).sort((a, b) => S.teams[a].name.localeCompare(S.teams[b].name))
-    .map(c => `<option value="${c}" ${f.team === c ? "selected" : ""}>${esc(S.teams[c].name)}</option>`).join("");
 
   el.innerHTML =
     (heroM ? heroBlock(heroM, !!live) : "") +
@@ -374,9 +372,15 @@ function renderMatches() {
         ${[["all", "All 104 matches"], ["group", "Group stage"], ["ko", "Knockouts"]].map(([k, l]) =>
           `<option value="${k}" ${f.stage === k ? "selected" : ""}>${l}</option>`).join("")}
       </select>
-      <select class="fsel ${f.team ? "is-on" : ""}" id="teamSel" aria-label="Filter by team">
-        <option value="">All teams</option>${teamOpts}
-      </select>
+      <div class="tsel ${f.team ? "is-on" : ""}" id="teamSelWrap">
+        <button type="button" class="fsel tsel-btn" id="teamSelBtn" aria-haspopup="listbox" aria-expanded="false" aria-label="Filter by team">
+          ${f.team ? `<span class="fl">${flag(f.team)}</span><span class="tsel-cur">${esc(S.teams[f.team].name)}</span>` : `<span class="tsel-cur">All teams</span>`}
+        </button>
+        <div class="tsel-pop" id="teamSelPop" hidden>
+          <input class="tsel-search" id="teamSelSearch" type="search" placeholder="Search 48 teams…" autocomplete="off">
+          <div class="tsel-list" id="teamSelList" role="listbox" aria-label="Teams"></div>
+        </div>
+      </div>
       <button class="fbtn ${f.saved ? "is-on" : ""}" data-saved>★ Saved${S.saved.size ? ` <b>${S.saved.size}</b>` : ""}</button>
     </div>` +
     (past.length ? `<details class="earlier"><summary><span class="ear-tri">▸</span> Earlier results <b>${past.length}</b><span class="ear-hint">tap to view</span></summary><div class="ear-body">${dayGroups(past)}</div></details>` : "") +
@@ -384,9 +388,50 @@ function renderMatches() {
 
   startCountdown();
   const ss = $("#stageSel", el); if (ss) ss.onchange = () => { f.stage = ss.value; renderMatches(); };
-  const ts = $("#teamSel", el); if (ts) ts.onchange = () => { f.team = ts.value; renderMatches(); };
+  const tb = $("#teamSelBtn", el);
+  if (tb) {
+    tb.onclick = () => { $("#teamSelPop").hidden ? openTeamSel() : closeTeamSel(); };
+    $("#teamSelSearch", el).oninput = e => renderTeamSelList(e.target.value);
+  }
   const sb = $("[data-saved]", el); if (sb) sb.onclick = () => { f.saved = !f.saved; renderMatches(); };
   requestAnimationFrame(updateJumpNow);
+}
+// custom searchable team filter (favourite pinned on top, then alphabetical)
+function teamSelOptions(q = "") {
+  const f = S.filters, ql = q.trim().toLowerCase();
+  const fav = (S.fav && S.teams[S.fav]) ? S.fav : null;
+  const opt = (val, name, lead, sel, tag = "") =>
+    `<button type="button" class="tsel-opt${sel ? " is-sel" : ""}" role="option" aria-selected="${sel}" data-v="${val}">`
+    + `${lead}<span class="tsel-opt-name">${name}${tag}</span>${sel ? `<span class="tsel-tick" aria-hidden="true">✓</span>` : ""}</button>`;
+  let html = "";
+  if (!ql || "all teams".includes(ql))
+    html += opt("", "All teams", `<span class="tsel-globe" aria-hidden="true">🌍</span>`, f.team === "");
+  if (fav && S.teams[fav].name.toLowerCase().includes(ql))
+    html += opt(fav, esc(S.teams[fav].name), `<span class="fl">${flag(fav)}</span>`, f.team === fav, ` <span class="tsel-favtag" aria-hidden="true">★</span>`);
+  const alpha = Object.keys(S.teams).filter(c => c !== fav)
+    .sort((a, b) => S.teams[a].name.localeCompare(S.teams[b].name))
+    .filter(c => S.teams[c].name.toLowerCase().includes(ql));
+  if (alpha.length && html) html += `<div class="tsel-div" role="presentation"></div>`;
+  html += alpha.map(c => opt(c, esc(S.teams[c].name), `<span class="fl">${flag(c)}</span>`, f.team === c)).join("");
+  return html || `<div class="tsel-empty">No teams found</div>`;
+}
+function renderTeamSelList(q = "") {
+  const l = $("#teamSelList"); if (!l) return;
+  l.innerHTML = teamSelOptions(q);
+  $$("#teamSelList .tsel-opt").forEach(b => b.onclick = () => { S.filters.team = b.dataset.v; renderMatches(); });
+}
+function openTeamSel() {
+  const pop = $("#teamSelPop"); if (!pop) return;
+  pop.hidden = false;
+  $("#teamSelBtn")?.setAttribute("aria-expanded", "true");
+  $("#teamSelWrap")?.classList.add("open");
+  const s = $("#teamSelSearch"); if (s) { s.value = ""; renderTeamSelList(""); s.focus(); }
+}
+function closeTeamSel() {
+  const pop = $("#teamSelPop"); if (!pop || pop.hidden) return;
+  pop.hidden = true;
+  $("#teamSelBtn")?.setAttribute("aria-expanded", "false");
+  $("#teamSelWrap")?.classList.remove("open");
 }
 // floating "jump to today/live" control.
 // We target the first *match card* of the live/today group, not the day header:
@@ -973,6 +1018,8 @@ async function boot() {
   $("#teamChip").onclick = () => $("#teamDialog").showModal();
   $("#jumpNow").onclick = scrollToNow;
   addEventListener("scroll", () => { if (S.view === "matches") requestAnimationFrame(updateJumpNow); }, { passive: true });
+  addEventListener("click", e => { if (!e.target.closest("#teamSelWrap")) closeTeamSel(); });   // close team dropdown on outside click
+  addEventListener("keydown", e => { if (e.key === "Escape") closeTeamSel(); });
   initMusic();
   $$("[data-close]").forEach(b => b.onclick = () => b.closest("dialog").close());
   $$("dialog").forEach(d => d.onclick = e => { if (e.target === d) d.close(); });
