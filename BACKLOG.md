@@ -32,8 +32,8 @@ Took a holistic pass for redundancy and "hidden but useful" content while adding
 
 **Hidden but useful — surfaced / to surface:**
 - ✅ **Tournament stats / top scorers** — were nowhere; now a top-level **Stats tab** (build 40).
-- ⬜ **Bracket "path to final" highlight is hover-only** → invisible on touch/mobile. Add a tap-to-pin path (or a "show knockout path" CTA on a team). _Good next surfacing win._
-- ⬜ **Qualification outlook** sits in a collapsed `<details>`. Consider auto-opening it for the user's favourite group. _Small._
+- ✅ **Bracket "path to final"** now works on touch via a "Trace a path" toggle (build 41).
+- ✅ **Qualification outlook** now auto-opens for the favourite's group (build 42).
 
 ---
 
@@ -46,10 +46,10 @@ Effort: **S** ≈ <1 session · **M** ≈ a session · **L** ≈ multi-session. 
 
 ### Tier 1 — Quick, high-delight wins (group-stage timely)
 2. ✅ **Bracket path on mobile/touch** — tap-to-pin a knockout card's path-to-final (the hover trace is desktop-only today). Surfaces a feature mobile users can't currently reach. **S** · existing logic.
-3. **Auto-open the qualification outlook for the favourite's group** — small discoverability win. **S**.
+3. ✅ **Auto-open the qualification outlook for the favourite's group** — small discoverability win. **S**.
 4. ✅ **Momentum sparkline** — signed SVG area path built from the minute-stamped `ev[]` we already store; render in the match modal under the stats. Most impactful for live matches. **M** · existing data.
 5. ✅ **FLIP standings animation** — animate group-table rows when they reorder after a result (measure → reflow → invert → play). Cheap, premium feel. **S** · CSS/JS only.
-6. **Compact share links** — replace the ~950-char JSON prediction link with a bit-packed `#p=` (~20–40 chars): permutation index per group, 12-bit thirds mask, winner-bit per KO match, 1-byte schema tag. **M** · client only.
+6. ✅ **Compact share links** — replace the ~950-char JSON prediction link with a bit-packed `#p=` (~20–40 chars): permutation index per group, 12-bit thirds mask, winner-bit per KO match, 1-byte schema tag. **M** · client only.
 
 ### Tier 2 — Engagement & visuals (bigger bets)
 7. **"Share your score"** — score a shared prediction against resolved `results.json` (group-order hits, third-place hits, bracket hits, champion) and show a result card. Builds on #6. **M** · no backend.
@@ -58,7 +58,7 @@ Effort: **S** ≈ <1 session · **M** ≈ a session · **L** ≈ multi-session. 
 
 ### Tier 3 — Scale & knockout-timely (do before July)
 10. **Split heavy match detail out of `results.json`** — keep the polled file to scores/status; lazy-load `ev`/`xi`/`stats` per match on modal open (or one `details.json`). **M** · refactor.
-11. **Knockout-path narrative** — template strings walking the `feeds`/`slotInfo` graph ("To reach the final, X must beat the winner of M97, then…"); pairs with the existing visual path-highlight. **S** · existing data.
+11. ✅ **Knockout-path narrative** — template strings walking the `feeds`/`slotInfo` graph ("To reach the final, X must beat the winner of M97, then…"); pairs with the existing visual path-highlight. **S** · existing data.
 
 ### Tier 4 — Optional
 12. **LLM match previews** — Action writes `data/previews.json` grounded strictly on our computed numbers, with a deterministic template fallback on parse failure. **M** · needs a model key in Actions secrets.
