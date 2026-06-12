@@ -13,7 +13,7 @@ A static, no-build fan site for the FIFA World Cup 2026 (June 11 – July 19): a
 - Preserve the design system (see Tokens). Accent color is driven by CSS variable `--acc1` and recolors to the favorite team's kit.
 
 ## File map
-- `index.html` — shell: header chips (timezone, team), tab nav (Today / My Team / Calendar / Groups / Bracket / Predict), ticker strip, dialogs, confetti canvas.
+- `index.html` — shell: header chips (music, timezone, team), tab nav (Matches / Teams / Groups / Bracket / Stats / Predict — scrollable on mobile, active tab auto-centres), ticker strip, dialogs, confetti canvas, jump-to-now button. Views are `#view-<name>` sections; `RENDER[name]` maps each to its renderer.
 - `styles.css` — "Floodlit, on paper" design system. All colors via CSS vars; team theming overrides `--acc1`/`--acc2`.
 - `app.js` — everything: state, timezone, results resolution, standings math, the simulator engine (third-place allocator + bracket resolution), renderers per view, pickers, data loading/polling. ~700 lines, sectioned with comment banners.
 - `data/matches.json` — 104 fixtures (id, num, stage, group, utc, home/away slots, stadium, city). Source: openfootball (public domain). **Static — don't expect Actions to rewrite this.**

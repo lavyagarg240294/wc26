@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "39";  // shown in footer; bump with the ?v= asset version
+const BUILD = "40";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1153,13 +1153,76 @@ function championBanner(code) {
     <h3>${esc(t.name)}</h3><p>Your champions of the world · July 19 · MetLife</p></div>`;
 }
 
+/* ---------------- tournament stats (team + player) ---------------- */
+function tournamentStats() {
+  const fts = S.matches.filter(m => status(m) === ST.FT && res(m)?.h != null);
+  const gf = {}, ga = {}, poss = {}, possN = {}, shots = {}, cards = {}, played = {}, scorers = {}, assists = {};
+  let goals = 0, totCards = 0;
+  const add = (o, k, n = 1) => { if (k) o[k] = (o[k] || 0) + n; };
+  for (const m of fts) {
+    const r = res(m), hc = slotInfo(m, "home").code, ac = slotInfo(m, "away").code;
+    add(played, hc); add(played, ac);
+    add(gf, hc, r.h); add(ga, hc, r.a); add(gf, ac, r.a); add(ga, ac, r.h);
+    goals += r.h + r.a;
+    for (const e of (r.ev || [])) {
+      const tc = e.tm === "h" ? hc : ac;
+      if ((e.k === "G" || e.k === "P") && e.p) { add(scorers, e.p + "\t" + tc); if (e.a) add(assists, e.a + "\t" + tc); }   // own goals excluded from the Boot
+      if (e.k === "Y" || e.k === "R") { add(cards, tc); totCards++; }
+    }
+    if (r.stats?.poss) { add(poss, hc, r.stats.poss[0]); add(possN, hc); add(poss, ac, r.stats.poss[1]); add(possN, ac); }
+    if (r.stats?.sh) { add(shots, hc, r.stats.sh[0]); add(shots, ac, r.stats.sh[1]); }
+  }
+  const split = k => { const i = k.indexOf("\t"); return [k.slice(0, i), k.slice(i + 1)]; };
+  const scorerList = Object.entries(scorers).map(([k, g]) => { const [name, code] = split(k); return { name, code, goals: g, assists: assists[name + "\t" + code] || 0 }; })
+    .sort((a, b) => b.goals - a.goals || b.assists - a.assists || a.name.localeCompare(b.name));
+  const rank = o => Object.entries(o).map(([code, v]) => ({ code, v })).sort((a, b) => b.v - a.v);
+  return {
+    pulse: { goals, matches: fts.length, perMatch: fts.length ? goals / fts.length : 0, cards: totCards },
+    scorers: scorerList,
+    teamGoals: rank(gf), teamShots: rank(shots), teamCards: rank(cards),
+    teamConceded: Object.keys(ga).map(c => ({ code: c, v: ga[c], played: played[c] })).sort((a, b) => a.v - b.v || b.played - a.played),
+    possession: Object.keys(poss).map(c => ({ code: c, v: poss[c] / possN[c] })).sort((a, b) => b.v - a.v),
+  };
+}
+function renderStats() {
+  const el = $("#view-stats"), s = tournamentStats();
+  if (!s.pulse.matches) { el.innerHTML = `<div class="empty" style="margin:32px 16px">No matches played yet — tournament stats fill in as games kick off.</div>`; return; }
+  const tile = (label, val) => `<div class="stat-tile"><span class="stat-val">${val}</span><span class="stat-lbl">${label}</span></div>`;
+  const tname = c => esc(S.teams[c]?.name || c);
+  const scorerRow = (p, i) => `<div class="lead-row" data-squad="${p.code}" role="button" tabindex="0">
+    <span class="lead-rank">${i + 1}</span><span class="fl">${flag(p.code)}</span>
+    <span class="lead-name">${esc(p.name)}<small>${tname(p.code)}</small></span>
+    <span class="lead-v">${p.goals}<small>${p.assists ? `${p.assists} ast` : "&nbsp;"}</small></span></div>`;
+  const teamLead = (title, rows, fmt) => rows.length ? `<div class="lead-card"><h4>${title}</h4>${rows.slice(0, 5).map((x, i) => `<div class="lead-row" data-squad="${x.code}" role="button" tabindex="0">
+    <span class="lead-rank">${i + 1}</span><span class="fl">${flag(x.code)}</span><span class="lead-name">${tname(x.code)}</span>
+    <span class="lead-v">${fmt(x)}</span></div>`).join("")}</div>` : "";
+  el.innerHTML =
+    `<div class="eyebrow">Tournament pulse</div>
+    <div class="stat-tiles">
+      ${tile("Goals", s.pulse.goals)}${tile("Matches", s.pulse.matches)}
+      ${tile("Goals / match", s.pulse.perMatch.toFixed(2))}${tile("Cards", s.pulse.cards)}
+    </div>
+    ${s.scorers.length ? `<div class="eyebrow">⚽ Golden Boot</div>
+      <div class="lead-card lead-scorers">${s.scorers.slice(0, 12).map(scorerRow).join("")}</div>` : ""}
+    <div class="eyebrow">Team leaders</div>
+    <div class="lead-grid">
+      ${teamLead("Most goals", s.teamGoals, x => x.v)}
+      ${teamLead("Best defence", s.teamConceded, x => `${x.v}<small>in ${x.played}</small>`)}
+      ${teamLead("Possession", s.possession, x => x.v.toFixed(1) + "%")}
+      ${teamLead("Most shots", s.teamShots, x => x.v)}
+      ${teamLead("Most cards", s.teamCards, x => x.v)}
+    </div>`;
+}
+
 /* ---------------- navigation ---------------- */
-const RENDER = { matches: renderMatches, teams: renderTeams, groups: renderGroups, bracket: renderBracket, sim: renderSim };
+const RENDER = { matches: renderMatches, teams: renderTeams, groups: renderGroups, bracket: renderBracket, stats: renderStats, sim: renderSim };
 function nav(v) {
   S.view = v;
   $$(".view").forEach(el => el.hidden = el.id !== "view-" + v);
   $$(".tab").forEach(t => t.classList.toggle("is-active", t.dataset.nav === v));
   moveInk();
+  const at = $(".tab.is-active"), tabs = $(".tabs");          // keep the active tab in view on the scrollable bar
+  if (at && tabs) tabs.scrollTo({ left: at.offsetLeft - tabs.clientWidth / 2 + at.offsetWidth / 2, behavior: "smooth" });
   RENDER[v]();
   scrollTo({ top: 0, behavior: "instant" });
   if (v !== "matches") $("#jumpNow").hidden = true;
