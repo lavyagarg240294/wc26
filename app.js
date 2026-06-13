@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "79";  // shown in footer; bump with the ?v= asset version
+const BUILD = "80";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1449,7 +1449,7 @@ function championBanner(code, predicted) {
 /* ---------------- tournament stats (team + player) ---------------- */
 function tournamentStats() {
   const fts = S.matches.filter(m => status(m) === ST.FT && res(m)?.h != null);
-  const gf = {}, ga = {}, poss = {}, possN = {}, sot = {}, sotN = {}, yel = {}, red = {}, played = {}, scorers = {}, assists = {}, pyel = {}, pred = {}, cs = {}, conf = {};
+  const gf = {}, ga = {}, poss = {}, possN = {}, sot = {}, sotN = {}, yel = {}, red = {}, played = {}, scorers = {}, assists = {}, pyel = {}, pred = {}, cs = {}, conf = {}, keepers = {};
   let goals = 0, totCards = 0;
   const rec = { bigWin: null, hiScore: null, fastG: null, lateG: null };   // superlatives
   const add = (o, k, n = 1) => { if (k) o[k] = (o[k] || 0) + n; };
@@ -1464,6 +1464,13 @@ function tournamentStats() {
     add(played, hc); add(played, ac);
     add(gf, hc, r.h); add(ga, hc, r.a); add(gf, ac, r.a); add(ga, ac, r.h);
     if (r.a === 0) add(cs, hc); if (r.h === 0) add(cs, ac);   // clean sheets (shutouts)
+    // per-keeper: credit the starting GK (pos 0 in the lineup) with the shutout / goals conceded
+    const gkOf = side => { const row = (r.xi?.[side]?.xi || []).find(p => p[2] === 0); return row ? row[1] : null; };
+    [["h", hc, r.a], ["a", ac, r.h]].forEach(([side, code, conceded]) => {
+      const gk = gkOf(side); if (!gk || !code) return;
+      const k = gk + "\t" + code, o = keepers[k] || (keepers[k] = { app: 0, ga: 0, cs: 0 });
+      o.app++; o.ga += conceded; if (conceded === 0) o.cs++;
+    });
     addConf(hc, r.h, r.a, r.h - r.a); addConf(ac, r.a, r.h, r.a - r.h);
     goals += r.h + r.a;
     // records: biggest winning margin (tiebreak by total goals) + highest-scoring match
@@ -1509,6 +1516,8 @@ function tournamentStats() {
     teamScored: perMatch(gf, played).sort((a, b) => b.v - a.v),
     teamConceded: perMatch(ga, played).sort((a, b) => a.v - b.v),
     cleanSheets: Object.entries(cs).map(([code, v]) => ({ code, v })).sort((a, b) => b.v - a.v),
+    keepers: Object.entries(keepers).map(([k, o]) => { const [name, code] = split(k); return { name, code, ...o }; })
+      .filter(x => x.cs > 0).sort((a, b) => b.cs - a.cs || a.ga - b.ga || b.app - a.app || a.name.localeCompare(b.name)),
     teamSot: perMatch(sot, sotN).sort((a, b) => b.v - a.v),
     possession: Object.keys(poss).map(c => ({ code: c, v: poss[c] / possN[c] })).filter(x => isFinite(x.v)).sort((a, b) => b.v - a.v),
     confeds: (() => {
@@ -1531,6 +1540,7 @@ function renderStats() {
     <span class="lead-v">${val}</span></div>`; };
   const scorerRow = (p, i) => playerRow(p, i, `${p.goals}<small>${p.assists ? `${p.assists} ast` : "&nbsp;"}</small>`);
   const assistRow = (p, i) => playerRow(p, i, `${p.assists}<small>assist${p.assists > 1 ? "s" : ""}</small>`);
+  const keeperRow = (p, i) => playerRow(p, i, `${p.cs}<small>clean sheet${p.cs !== 1 ? "s" : ""}</small>`);
   const bookedRow = (p, i) => playerRow(p, i, `<span class="card-tally">${p.y ? `<span class="ct ct-y">${p.y}</span>` : ""}${p.r ? `<span class="ct ct-r">${p.r}</span>` : ""}</span>`);
   // suspension watch — derived from the same card tallies; a red or 2nd yellow = a ban next game
   const suspRow = (p, kind) => { const ph = playerPhoto(p.name, p.code); return `<div class="lead-row lead-player" data-player="${esc(p.name)}|${p.code}" role="button" tabindex="0">
@@ -1577,6 +1587,7 @@ function renderStats() {
     ["players", "Players", `
       ${s.scorers.length ? `<div class="eyebrow">⚽ Golden Boot</div><div class="lead-card lead-scorers">${s.scorers.slice(0, 12).map(scorerRow).join("")}</div>` : ""}
       ${s.assisters.length ? `<div class="eyebrow">Playmakers · assists</div><div class="lead-card lead-scorers">${s.assisters.slice(0, 8).map(assistRow).join("")}</div>` : ""}
+      ${s.keepers.length ? `<div class="eyebrow">🧤 Goalkeepers · clean sheets</div><div class="lead-card lead-scorers">${s.keepers.slice(0, 8).map(keeperRow).join("")}</div>` : ""}
       ${!s.scorers.length && !s.assisters.length ? `<div class="empty">No goals yet — the Golden Boot race starts with the first goal.</div>` : ""}`],
     ["teams", "Teams", `<div class="lead-grid">
       ${teamLead("Attack", s.teamScored, perGame)}
