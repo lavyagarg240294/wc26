@@ -1,7 +1,7 @@
 <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="World Cup 26">
   <defs>
     <linearGradient id="wcbg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#0F5A3C"/><stop offset="1" stop-color="#0A3E29"/>
+      <stop offset="0" stop-color="#0C342C"/><stop offset="1" stop-color="#08181E"/>
     </linearGradient>
   </defs>
   <rect width="100" height="100" fill="url(#wcbg)"/>
