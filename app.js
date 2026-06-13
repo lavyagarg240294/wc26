@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "107";  // shown in footer; bump with the ?v= asset version
+const BUILD = "108";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -679,7 +679,6 @@ function heroBlock(heroM, isLive) {
       ${isLive ? `${ballSVG("live-ball")} Live now` : `${isFavMatch(heroM) ? "Your team · " : ""}Next kickoff`}
       <span style="color:var(--ink-soft);font-weight:600">— ${esc(heroM.group ? "Group " + heroM.group : heroM.round)}</span>
       <span class="hero-actions">
-        ${isLive ? `<button class="hero-refresh" data-refresh aria-label="Refresh score" title="Refresh score"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg></button>` : ""}
         <span class="hero-go">Details ›</span>
       </span>
     </div>
@@ -1727,12 +1726,7 @@ function renderSim() {
   </button>`;
 
   // how the prediction is tracking against real results (only once something has been played)
-  const sc = simScore();
-  const scoreCard = sc ? `<div class="sim-score"><span class="ss-label">Your call vs reality</span>
-    ${sc.gTotal ? `<span class="ss-stat"><b>${sc.gSpots}</b><i>/ ${sc.gTotal}</i><small>group spots on track</small></span>` : ""}
-    ${sc.koDecided ? `<span class="ss-stat"><b>${sc.koHit}</b><i>/ ${sc.koDecided}</i><small>knockout calls right</small></span>` : ""}
-  </div>` : "";
-
+  // "Your call vs reality" scorecard removed from the UI for now (unclear to users); simScore() kept.
   el.innerHTML = `
     <div class="sim-intro">
       <h2>Call the whole tournament 🔮</h2>
@@ -1746,7 +1740,6 @@ function renderSim() {
       </div>
     </div>
     ${champTeaser}
-    ${scoreCard}
     <div class="eyebrow"><span class="step-n">1</span> Order the groups — top two go through</div>
     <div class="gwrap">${GROUPS.map(groupCard).join("")}</div>
     <div class="eyebrow"><span class="step-n">2</span> Best third-placed teams <span class="tcount">${S.sim.thirds.length}/8</span></div>
