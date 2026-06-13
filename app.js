@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "77";  // shown in footer; bump with the ?v= asset version
+const BUILD = "78";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -313,8 +313,38 @@ function celebrateGoals(prev, now) {
     if (!a || !b || ![ST.LIVE, ST.HT].includes(b.st)) continue;
     if (((b.h || 0) + (b.a || 0)) <= ((a.h || 0) + (a.a || 0))) continue;
     const m = S.matches.find(x => x.id === id); if (!m) continue;
-    goalCelebration(slotInfo(m, (b.h || 0) > (a.h || 0) ? "home" : "away").code);
+    const scorer = slotInfo(m, (b.h || 0) > (a.h || 0) ? "home" : "away").code;
+    goalCelebration(scorer);
+    maybeNotifyGoal(m, b, scorer);   // opt-in OS alert (only when the tab's backgrounded)
     break; // one celebration per refresh is plenty
+  }
+}
+/* ---------------- match alerts (opt-in, while the tab is open) ---------------- */
+// Goals + kickoff reminders for the favourite team. No push backend — these fire from the same 60s
+// poll while the page is open, and only when the tab is in the background (when you're looking at the
+// page, the on-screen toast/horn already signal a goal).
+function notifyEnabled() { return localStorage.getItem("wc26.notify") === "on" && "Notification" in window && Notification.permission === "granted"; }
+function notify(title, body) {
+  if (!notifyEnabled() || !document.hidden) return;
+  try { new Notification(title, { body, icon: "assets/icon-192.png", tag: "wc26", renotify: true }); } catch { /* blocked mid-session */ }
+}
+function maybeNotifyGoal(m, r, scorerCode) {
+  if (!isFavMatch(m)) return;
+  const nm = s => s.code ? (S.teams[s.code]?.name || s.code) : (s.name || "TBD");
+  notify(scorerCode === S.fav ? "⚽ GOAL — your team!" : "Goal conceded", `${nm(slotInfo(m, "home"))} ${r.h}–${r.a} ${nm(slotInfo(m, "away"))}`);
+}
+const _koAlerted = new Set();
+function checkKickoffAlert() {
+  if (!notifyEnabled() || !S.fav) return;
+  const now = Date.now();
+  for (const m of S.matches) {
+    if (!isFavMatch(m) || status(m) !== ST.SCHED || _koAlerted.has(m.id)) continue;
+    const mins = (+new Date(m.utc) - now) / 60000;
+    if (mins > 0 && mins <= 6) {
+      _koAlerted.add(m.id);
+      const opp = slotInfo(m, slotInfo(m, "home").code === S.fav ? "away" : "home");
+      notify(`⏰ ${S.teams[S.fav].name} kick off soon`, `vs ${opp.code ? S.teams[opp.code]?.name : (opp.name || "TBD")} · ${timeStr(m.utc)}`);
+    }
   }
 }
 
@@ -1775,6 +1805,22 @@ async function boot() {
     $("#hornState").textContent = on ? "On" : "Off";
     if (on) goalHorn();   // preview + unlock the audio context (this tap is the user gesture)
   };
+  const supported = "Notification" in window;
+  const notifyUI = () => {
+    const state = !supported ? "N/A" : Notification.permission === "denied" ? "Blocked" : (notifyEnabled() ? "On" : "Off");
+    $("#notifyState").textContent = state;
+    $("#notifyToggle").setAttribute("aria-pressed", String(state === "On"));
+  };
+  notifyUI();
+  $("#notifyToggle").onclick = async () => {
+    if (!supported) { flashToast("Notifications aren't supported on this device"); return; }
+    if (localStorage.getItem("wc26.notify") === "on") { localStorage.setItem("wc26.notify", "off"); notifyUI(); return; }
+    let perm = Notification.permission;
+    if (perm === "default") { try { perm = await Notification.requestPermission(); } catch { /* dismissed */ } }
+    if (perm !== "granted") { flashToast(perm === "denied" ? "Notifications are blocked in your browser" : "Allow notifications to enable alerts"); notifyUI(); return; }
+    localStorage.setItem("wc26.notify", "on"); notifyUI();
+    try { new Notification("World Cup 26", { body: "Match alerts on — goals & kickoffs for your team.", icon: "assets/icon-192.png", tag: "wc26" }); } catch { /* */ }
+  };
   $("#jumpNow").onclick = scrollToNow;
   addEventListener("scroll", () => { if (S.view === "matches") requestAnimationFrame(updateJumpNow); }, { passive: true });
   addEventListener("click", e => { if (!e.target.closest("#teamSelWrap")) closeTeamSel(); });   // close team dropdown on outside click
@@ -1827,6 +1873,8 @@ async function boot() {
   }
   refreshResults();
   setInterval(refreshResults, 60 * 1000); // pick up fresh scores every 60s (server loop refreshes ~1/min during matches)
+  checkKickoffAlert();
+  setInterval(checkKickoffAlert, 60 * 1000); // fire a kickoff reminder for the favourite team (opt-in)
   $("#updatePill").onclick = () => location.reload();
   setInterval(checkVersion, 120 * 1000);  // nudge open pages to refresh when a new build ships
 }
