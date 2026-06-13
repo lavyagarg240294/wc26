@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "103";  // shown in footer; bump with the ?v= asset version
+const BUILD = "104";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -56,6 +56,17 @@ function flag(code) {
   if (!code) return "";
   return `<img class="flagimg" src="assets/flags/${code}.svg" alt="${code}" loading="lazy" decoding="async">`;
 }
+// consistent inline-SVG content icons (replacing eclectic emoji in stat/record headings). The thematic
+// ⚽ / 🏆 / ★ are kept as-is. Stroke style matches the UI's SVG chrome.
+const _ico = p => `<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
+const ICO = {
+  spark: _ico('<path d="M12 3l1.7 5.3L19 10l-5.3 1.7L12 17l-1.7-5.3L5 10l5.3-1.7z"/>'),
+  net: _ico('<rect x="3" y="7" width="18" height="11" rx="1"/><path d="M3 11h18M3 14.5h18M8 7v11M13 7v11M18 7v11"/>'),
+  bolt: _ico('<path d="M13 2 5 13.5h6l-1 8.5 9-12.5h-6z"/>'),
+  clock: _ico('<circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l3.5 2"/>'),
+  glove: _ico('<path d="M8.5 13V8a1.5 1.5 0 0 1 3 0M11.5 12V6a1.5 1.5 0 0 1 3 0v6M14.5 11.5V8a1.5 1.5 0 0 1 3 0v6a6 6 0 0 1-6 6 5 5 0 0 1-5-5l-1-2.6a1.5 1.5 0 0 1 2.6-1.4l.9 1.5"/>'),
+  eye: _ico('<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>'),
+};
 const fmt = (iso, opts) => new Intl.DateTimeFormat("en", { timeZone: tz(), ...opts }).format(new Date(iso));
 const timeStr = iso => fmt(iso, { hour: "2-digit", minute: "2-digit", hour12: false });
 const dayKey = iso => fmt(iso, { year: "numeric", month: "2-digit", day: "2-digit" });
@@ -756,14 +767,14 @@ function renderDayReview() {
     if (D.topScorers.length) { const top = D.topScorers.filter(s => s.n === D.topScorers[0].n).slice(0, 3);
       parts.push(`<button class="dr-hi" data-player="${esc(top[0].name)}|${top[0].code}"><span class="dr-hi-ic">⚽</span><span><i>Top scorer</i>${top.map(s => `${flag(s.code)} ${esc(s.name)}${s.n > 1 ? ` (${s.n})` : ""}`).join(", ")}</span></button>`); }
     if (D.big) { const r = res(D.big.m), h = slotInfo(D.big.m, "home"), a = slotInfo(D.big.m, "away"), hw = r.h > r.a;
-      parts.push(`<button class="dr-hi" data-mid="${D.big.m.id}"><span class="dr-hi-ic">💥</span><span><i>Biggest result</i>${flag((hw ? h : a).code)} ${esc((hw ? h : a).name)} beat ${esc((hw ? a : h).name)} ${Math.max(r.h, r.a)}–${Math.min(r.h, r.a)}</span></button>`); }
+      parts.push(`<button class="dr-hi" data-mid="${D.big.m.id}"><span class="dr-hi-ic">${ICO.spark}</span><span><i>Biggest result</i>${flag((hw ? h : a).code)} ${esc((hw ? h : a).name)} beat ${esc((hw ? a : h).name)} ${Math.max(r.h, r.a)}–${Math.min(r.h, r.a)}</span></button>`); }
     if (parts.length) hi = `<div class="eyebrow">Highlights</div><div class="dr-his">${parts.join("")}</div>`;
   }
   // forward-looking: the must-see fixture still ahead today
   let watchHi = "";
   if (D.watch && D.sched.length) { const m = D.watch, h = slotInfo(m, "home"), a = slotInfo(m, "away");
     const nm = (s, side) => esc(s.code ? s.name : slotText(m, side, s));
-    watchHi = `<div class="eyebrow">One to watch</div><button class="dr-hi dr-hi-fwd" data-mid="${m.id}"><span class="dr-hi-ic">🔥</span><span><i>${esc(m.group ? "Group " + m.group : m.round)} · ${timeStr(m.utc)}</i>${h.code ? flag(h.code) + " " : ""}${nm(h, "home")} v ${nm(a, "away")}${a.code ? " " + flag(a.code) : ""}</span></button>`;
+    watchHi = `<div class="eyebrow">One to watch</div><button class="dr-hi dr-hi-fwd" data-mid="${m.id}"><span class="dr-hi-ic">${ICO.eye}</span><span><i>${esc(m.group ? "Group " + m.group : m.round)} · ${timeStr(m.utc)}</i>${h.code ? flag(h.code) + " " : ""}${nm(h, "home")} v ${nm(a, "away")}${a.code ? " " + flag(a.code) : ""}</span></button>`;
   }
   const recap = `${list("Results", D.ft)}${hi}`;
   const preview = `${watchHi}${list(D.ft.length || D.live.length ? "Still to come" : "Fixtures", D.sched)}`;
@@ -1909,10 +1920,10 @@ function renderStats() {
   const recRow = (ic, label, sub, val, attr) => `<div class="rec-row" ${attr} role="button" tabindex="0">
     <span class="rec-ic">${ic}</span><span class="rec-tx"><b>${label}</b><small>${sub}</small></span><span class="rec-v">${val}</span></div>`;
   const recItems = [];
-  if (rc.bigWin) { const r = rc.bigWin; recItems.push(recRow("💥", "Biggest win", `${flag(r.w)} ${tname(r.w)} beat ${flag(r.l)} ${tname(r.l)}`, `${r.ws}–${r.ls}`, `data-mid="${r.mid}"`)); }
-  if (rc.hiScore) { const r = rc.hiScore; recItems.push(recRow("🥅", "Most goals in a match", `${flag(r.hc)} ${tname(r.hc)} v ${flag(r.ac)} ${tname(r.ac)}`, `${r.h}–${r.a}<small>${r.total} goals</small>`, `data-mid="${r.mid}"`)); }
-  if (rc.fastG) { const r = rc.fastG; recItems.push(recRow("⏱️", "Fastest goal", `${flag(r.code)} ${esc(r.name)}`, esc(r.t), `data-player="${esc(r.name)}|${r.code}"`)); }
-  if (rc.lateG) { const r = rc.lateG; recItems.push(recRow("🌙", "Latest goal", `${flag(r.code)} ${esc(r.name)}`, esc(r.t), `data-player="${esc(r.name)}|${r.code}"`)); }
+  if (rc.bigWin) { const r = rc.bigWin; recItems.push(recRow(ICO.spark, "Biggest win", `${flag(r.w)} ${tname(r.w)} beat ${flag(r.l)} ${tname(r.l)}`, `${r.ws}–${r.ls}`, `data-mid="${r.mid}"`)); }
+  if (rc.hiScore) { const r = rc.hiScore; recItems.push(recRow(ICO.net, "Most goals in a match", `${flag(r.hc)} ${tname(r.hc)} v ${flag(r.ac)} ${tname(r.ac)}`, `${r.h}–${r.a}<small>${r.total} goals</small>`, `data-mid="${r.mid}"`)); }
+  if (rc.fastG) { const r = rc.fastG; recItems.push(recRow(ICO.bolt, "Fastest goal", `${flag(r.code)} ${esc(r.name)}`, esc(r.t), `data-player="${esc(r.name)}|${r.code}"`)); }
+  if (rc.lateG) { const r = rc.lateG; recItems.push(recRow(ICO.clock, "Latest goal", `${flag(r.code)} ${esc(r.name)}`, esc(r.t), `data-player="${esc(r.name)}|${r.code}"`)); }
   const recordsHtml = recItems.length
     ? `<div class="lead-card rec-card">${recItems.join("")}</div><p class="sim-ko-hint">Tap a record to jump to the match or player.</p>`
     : `<div class="empty">Records fill in as matches are played.</div>`;
@@ -1932,7 +1943,7 @@ function renderStats() {
     ["players", "Players", `
       ${s.scorers.length ? `<div class="eyebrow">⚽ Golden Boot</div><div class="lead-card lead-scorers">${s.scorers.slice(0, 12).map(scorerRow).join("")}</div>` : ""}
       ${s.assisters.length ? `<div class="eyebrow">Playmakers · assists</div><div class="lead-card lead-scorers">${s.assisters.slice(0, 8).map(assistRow).join("")}</div>` : ""}
-      ${s.keepers.length ? `<div class="eyebrow">🧤 Goalkeepers · clean sheets</div><div class="lead-card lead-scorers">${s.keepers.slice(0, 8).map(keeperRow).join("")}</div>` : ""}
+      ${s.keepers.length ? `<div class="eyebrow">${ICO.glove} Goalkeepers · clean sheets</div><div class="lead-card lead-scorers">${s.keepers.slice(0, 8).map(keeperRow).join("")}</div>` : ""}
       ${!s.scorers.length && !s.assisters.length ? `<div class="empty">No goals yet — the Golden Boot race starts with the first goal.</div>` : ""}`],
     ["teams", "Teams", `<div class="lead-grid">
       ${teamLead("Attack", s.teamScored, perGame)}
