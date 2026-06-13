@@ -1,14 +1,13 @@
 name: Update scores
 
-# Live scores want ~5-minutely refreshes, but GitHub throttles `schedule` crons to
-# roughly once every few hours — far too slow for live matches. So instead of relying
-# on the cron for each refresh, ONE run polls in a loop (every 5 min near kickoffs,
-# every 30 min in quiet hours) for ~5 hours, then relaunches itself. The cron below is
-# only a safety-net restarter in case the self-relaunch chain ever breaks.
+# Live scores want ~1-minutely refreshes near kickoffs, but GitHub throttles `schedule` crons to
+# roughly once every few hours — far too slow. So ONE run polls in a loop (every 1 min near kickoffs,
+# every 30 min in quiet hours) for ~5 hours, then relaunches itself.
+# The safety-net restarter lives in results-restart.yml (a SEPARATE workflow / concurrency group) so it can
+# only ever *start* a loop when none is running — it must not share this group, or cancel-in-progress would
+# let the every-15-min cron kill the healthy loop it's meant to protect.
 on:
-  schedule:
-    - cron: "*/15 * * * *"     # safety-net restarter only — GitHub throttles this heavily, which is fine
-  workflow_dispatch:            # manual "Run workflow" + the self-relaunch target
+  workflow_dispatch:            # manual "Run workflow", the self-relaunch target, and the restarter's dispatch
 
 permissions:
   contents: write
@@ -16,7 +15,7 @@ permissions:
 
 concurrency:
   group: results
-  cancel-in-progress: true      # exactly one polling loop alive; any fresh trigger replaces the running one
+  cancel-in-progress: true      # exactly one polling loop alive; a fresh manual/self dispatch replaces a stuck one
 
 jobs:
   poll:
@@ -49,5 +48,7 @@ jobs:
             near=$(node -e "const m=require('./data/matches.json').matches;const n=Date.now();process.stdout.write(m.some(x=>{const t=+new Date(x.utc);return n>t-3.6e6 && n<t+1.26e7})?'1':'0')")
             [ "$near" = "1" ] && sleep 60 || sleep 1800
           done
+          # Stop cleanly once the tournament is over (final is 2026-07-19) instead of relaunching forever.
+          if [ "$(date -u +%Y%m%d)" -gt "20260720" ]; then echo "tournament over — not relaunching"; exit 0; fi
           echo "polling budget reached — relaunching the workflow"
-          gh workflow run results.yml || echo "self-dispatch failed; the */15 cron will restart it"
+          gh workflow run results.yml || echo "self-dispatch failed; the restarter cron will restart it"

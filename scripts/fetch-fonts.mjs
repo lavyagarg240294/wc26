@@ -28,7 +28,7 @@ for (const raw of blocks) {
   const buf = Buffer.from(await (await fetch(url, { headers: { "User-Agent": UA } })).arrayBuffer());
   writeFileSync(`assets/fonts/${file}`, buf);
   n++;
-  out += block.replace(url, `assets/fonts/${file}`);
+  out += block.replace(url, `fonts/${file}`);   // relative to assets/fonts.css (which lives in assets/), not the page root
 }
 writeFileSync("assets/fonts.css", out.trim() + "\n");
 console.log(`downloaded ${n} woff2 files → assets/fonts/, wrote assets/fonts.css`);

@@ -18,6 +18,9 @@ concurrency:
 jobs:
   cards:
     runs-on: ubuntu-latest
+    # Only after a scores run that actually finished its work — not on cancelled/failed runs (the loop is often
+    # replaced mid-flight), so we don't fire npm ci + satori for nothing.
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

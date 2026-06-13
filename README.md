@@ -97,7 +97,7 @@ Edit anything, commit, push — every visitor sees it on their next load. **Ther
 
 ## After the final (July 19)
 
-**Disable the "Update scores" workflow in the Actions tab** (Actions → Update scores → ··· → Disable workflow). This is required, not optional: that workflow is a self-relaunching loop, so deleting its `schedule:` block is *not* enough — it re-triggers itself and would keep a runner busy forever. Disabling it stops the loop cleanly. Do the same for **Share cards** if you like. The site keeps working forever as a frozen record of the tournament.
+The loop **auto-stops after 2026-07-20** (both "Update scores" and its "Restart scores loop (safety net)" have a date guard), so it won't run forever on its own. To stop it immediately, **disable both workflows** in the Actions tab (Actions → *Update scores* → ··· → Disable workflow, and the same for *Restart scores loop (safety net)*) — disabling only one isn't enough, since the restarter re-dispatches the loop. Do the same for **Share cards** if you like. The site keeps working forever as a frozen record of the tournament.
 
 ---
 

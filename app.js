@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "111";  // shown in footer; bump with the ?v= asset version
+const BUILD = "112";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -426,7 +426,7 @@ function renderTicker() {
     const h = slotInfo(m, "home"), a = slotInfo(m, "away"), r = res(m), st = status(m);
     const mid = [ST.LIVE, ST.HT].includes(st)
       ? `<span class="tk-live">● ${r?.h ?? 0}–${r?.a ?? 0}</span>`
-      : st === ST.FT ? `<b>${r.h}–${r.a}</b> FT`
+      : st === ST.FT ? (r?.h != null ? `<b>${r.h}–${r.a}</b> FT` : `<b>FT</b>`)
       : `<span class="tk-acc">${timeStr(m.utc)}</span>`;
     const nm = s => s.code ? `${flag(s.code)} ${esc(S.teams[s.code]?.name || s.code)}` : "TBD";
     return `<span class="ticker-item">${nm(h)} ${mid} ${nm(a)}</span>`;
@@ -550,10 +550,15 @@ function evText(e, code) {
 }
 function mdTimeline(r, hc, ac) {
   if (!r?.ev?.length) return "";
-  const rows = r.ev.map(e => `<div class="tl ${e.tm === "h" ? "is-h" : "is-a"}${["G", "P", "OG"].includes(e.k) ? " is-goal" : ""}">
+  const rows = r.ev.map(e => {
+    // `tm` is the team the event counts FOR; for an own goal that's the beneficiary, but the scorer belongs to
+    // the OTHER team — so link the player to their real side, else the tap opens the wrong team and the photo misses.
+    const scorerCode = e.k === "OG" ? (e.tm === "h" ? ac : hc) : (e.tm === "h" ? hc : ac);
+    return `<div class="tl ${e.tm === "h" ? "is-h" : "is-a"}${["G", "P", "OG"].includes(e.k) ? " is-goal" : ""}">
     <div class="tl-min">${esc(e.t || "")}</div>
-    <span class="tl-ev">${EV_ICON[e.k] || ""}<span class="tl-tx">${evText(e, e.tm === "h" ? hc : ac)}</span></span>
-  </div>`).join("");
+    <span class="tl-ev">${EV_ICON[e.k] || ""}<span class="tl-tx">${evText(e, scorerCode)}</span></span>
+  </div>`;
+  }).join("");
   return `<div class="eyebrow">Match events</div><div class="md-tl">${rows}</div>`;
 }
 const STAT_ROWS = [["poss", "Possession", "%"], ["sh", "Shots"], ["sot", "On target"], ["cor", "Corners"], ["fls", "Fouls"]];

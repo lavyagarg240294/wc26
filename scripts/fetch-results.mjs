@@ -137,15 +137,21 @@ async function fromFifa(prev, photoCodes) {
     // and the live hero all agree with reality. Set for every status — SCHED needs it most (future kickoffs).
     if (Number.isFinite(kickoff) && x.Date && Math.abs(kickoff - Date.parse(f.utc)) > 60000)
       entry.ko = new Date(kickoff).toISOString();
+    // Orientation: we join by an unordered team pair, so the feed's Home may be our fixture's away. For group
+    // matches (home/away fixed by openfootball) flip score/pens/events so the client — which credits entry.h to
+    // f.home.team — stays correct. The feed currently matches our orientation, so this is a latent safety net.
+    const swap = f.stage === "group" && f.home.team && toOur[x.Home?.IdCountry] && f.home.team !== toOur[x.Home.IdCountry];
     if (st !== "SCHED") {
-      if (Number.isFinite(x.HomeTeamScore)) entry.h = x.HomeTeamScore;
-      if (Number.isFinite(x.AwayTeamScore)) entry.a = x.AwayTeamScore;
-      if (Number.isFinite(x.HomeTeamPenaltyScore)) entry.hp = x.HomeTeamPenaltyScore;
-      if (Number.isFinite(x.AwayTeamPenaltyScore)) entry.ap = x.AwayTeamPenaltyScore;
+      const hs = swap ? x.AwayTeamScore : x.HomeTeamScore, as = swap ? x.HomeTeamScore : x.AwayTeamScore;
+      const hps = swap ? x.AwayTeamPenaltyScore : x.HomeTeamPenaltyScore, aps = swap ? x.HomeTeamPenaltyScore : x.AwayTeamPenaltyScore;
+      if (Number.isFinite(hs)) entry.h = hs;
+      if (Number.isFinite(as)) entry.a = as;
+      if (Number.isFinite(hps)) entry.hp = hps;
+      if (Number.isFinite(aps)) entry.ap = aps;
       const mt = parseInt(x.MatchTime, 10);
-      if (Number.isFinite(mt)) entry.min = mt;
+      if ((st === "LIVE" || st === "HT") && Number.isFinite(mt)) entry.min = mt;   // a minute is only meaningful while live
     }
-    if (f.stage !== "group") {                      // resolve knockout teams for the bracket
+    if (f.stage !== "group") {                      // resolve knockout teams for the bracket (carry feed orientation)
       if (x.Home?.IdCountry && toOur[x.Home.IdCountry]) entry.ht = toOur[x.Home.IdCountry];
       if (x.Away?.IdCountry && toOur[x.Away.IdCountry]) entry.at = toOur[x.Away.IdCountry];
     }
@@ -155,25 +161,29 @@ async function fromFifa(prev, photoCodes) {
     const captured = prevE && prevE.ev;             // already grabbed this finished match's events
     const hc = f.home.team || entry.ht, ac = f.away.team || entry.at;
     const needPhotos = (hc && !photoCodes.has(hc)) || (ac && !photoCodes.has(ac));   // backfill photos for teams we haven't seen
-    if (inPlay || (st === "FT" && (!captured || needPhotos))) needLive.push({ f, x, entry });
+    if (inPlay || (st === "FT" && (!captured || needPhotos))) needLive.push({ f, x, entry, swap });
     else if (st === "FT" && captured) { entry.ev = prevE.ev; if (prevE.xi) entry.xi = prevE.xi; }
 
     matches[f.id] = entry;
     if (inPlay) liveCount++; else if (st === "FT") doneCount++;
   }
 
-  // enrich in-play + newly-finished matches with events + lineups (bounded per run)
+  // enrich in-play + newly-finished matches with events + lineups (bounded per run). Live matches first, so a
+  // backlog of finished-match photo backfills can't exhaust the cap before the currently-live games are enriched.
+  needLive.sort((a, b) => ((b.entry.st === "LIVE" || b.entry.st === "HT") ? 1 : 0) - ((a.entry.st === "LIVE" || a.entry.st === "HT") ? 1 : 0));
   let fetched = 0;
-  for (const { f, x, entry } of needLive) {
+  for (const { f, x, entry, swap } of needLive) {
     if (fetched >= LIVE_FETCH_CAP) break;
     try {
       const lv = await fifaGet(`${FIFA}/live/football/${COMP}/${SEASON}/${x.IdStage}/${x.IdMatch}?language=en`);
       fetched++;
       if (lv.Period === 4 && entry.st === "LIVE") entry.st = "HT";   // 4 == half-time
       const { ev, xi } = buildEvents(lv);
+      if (swap) for (const e of ev) e.tm = e.tm === "h" ? "a" : "h";   // keep event sides on openfootball's orientation
       if (ev.length) entry.ev = ev;
-      if (xi) entry.xi = xi;
-      harvestPhotos(lv.HomeTeam, f.home.team || entry.ht); harvestPhotos(lv.AwayTeam, f.away.team || entry.at);
+      if (xi) entry.xi = swap ? { h: xi.a, a: xi.h } : xi;
+      const homeCode = f.home.team || entry.ht, awayCode = f.away.team || entry.at;
+      harvestPhotos(swap ? lv.AwayTeam : lv.HomeTeam, homeCode); harvestPhotos(swap ? lv.HomeTeam : lv.AwayTeam, awayCode);
     } catch { /* keep the score-only entry */ }
   }
 
@@ -203,9 +213,19 @@ async function fromWorldCup26() {
     else if (t.fifa_code === "SCO") code = "GB-SCT";
     if (teams[code]) idCode[t.id] = code;
   }
+  // Join by TEAMS, not by g.id: worldcup26.ir's `id` is its own DB id, not our match num — joining on it routes
+  // scores to the wrong fixture (the identical bug we hit with FIFA's MatchNumber). Pair on the resolved codes;
+  // knockout slots (placeholder teams) can't pair-match, so for those only fall back to the source id, guarded to
+  // land on a knockout fixture so a group game's id can never leak onto another match.
+  const pairKey = (a, b) => [a, b].sort().join("|");
+  const byPair = {};
+  for (const f of fixtures) if (f.home?.team && f.away?.team) byPair[pairKey(f.home.team, f.away.team)] = f;
   const matches = {};
   for (const g of games) {
-    const f = byNum[Number(g.id)]; if (!f) continue;
+    const hc = idCode[g.home_team_id], ac = idCode[g.away_team_id];
+    let f = (hc && ac) ? byPair[pairKey(hc, ac)] : null;
+    if (!f) { const byId = byNum[Number(g.id)]; if (byId && byId.stage !== "group") f = byId; }
+    if (!f) continue;
     const fin = String(g.finished).toUpperCase() === "TRUE";
     const te = String(g.time_elapsed || "").toLowerCase().trim();
     let st;
@@ -324,8 +344,10 @@ async function enrichStats(matches, prev) {
     if (calls >= LIVE_FETCH_CAP) break;
     const entry = matches[f.id], hc = f.home.team || entry.ht, ac = f.away.team || entry.at;
     const cands = byMin[f.utc.slice(0, 16)] || [];
-    // pick the event whose teams match this fixture (so simultaneous kickoffs don't collide); fall back to a lone event
-    const eid = (cands.find(c => (hc || ac) && (!hc || c.codes.has(hc)) && (!ac || c.codes.has(ac))) || (cands.length === 1 ? cands[0] : null))?.id;
+    // pick the event whose teams match this fixture (so simultaneous kickoffs don't collide). Require a team
+    // match — no lone-candidate fallback: ESPN's fifa.world feed carries non-WC games at the same minute, and a
+    // blind lone pick could staple another match's stats onto ours.
+    const eid = cands.find(c => (hc || ac) && (!hc || c.codes.has(hc)) && (!ac || c.codes.has(ac)))?.id;
     if (!eid) continue;
     calls++;
     try {
