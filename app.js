@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "84";  // shown in footer; bump with the ?v= asset version
+const BUILD = "85";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -628,18 +628,18 @@ function heroBlock(heroM, isLive) {
 // stage weight + the two teams' World Cup pedigree + a host bonus. A rolling window over the next few
 // fixtures (not a local-day boundary) so a late-night kickoff isn't shoved into "tomorrow" by the tz.
 const MOTD_STAGE = { group: 0, r32: 3, r16: 4, qf: 6, sf: 8, third: 5, final: 12 };
+const HOSTS = ["CA", "MX", "US"];
+// how marquee a fixture is: stage weight + the two teams' World Cup pedigree + a host bonus
+function prestige(m) {
+  const h = slotInfo(m, "home"), a = slotInfo(m, "away");
+  const titles = (S.teams[h.code]?.titles || 0) + (S.teams[a.code]?.titles || 0);
+  const host = HOSTS.includes(h.code) || HOSTS.includes(a.code) ? 1 : 0;
+  return (MOTD_STAGE[m.stage] || 0) + titles * 2 + host + (!!h.code + !!a.code);   // prefer known fixtures
+}
+const marqueeOf = list => list.length ? list.slice().sort((a, b) => prestige(b) - prestige(a) || a.utc.localeCompare(b.utc))[0] : null;
 function matchOfDay() {
   const ahead = S.matches.filter(m => status(m) !== ST.FT).sort((a, b) => a.utc.localeCompare(b.utc));
-  if (!ahead.length) return null;
-  const pool = ahead.slice(0, 6);   // ~the next day's worth of fixtures, timezone-agnostic
-  const hosts = ["CA", "MX", "US"];
-  const score = m => {
-    const h = slotInfo(m, "home"), a = slotInfo(m, "away");
-    const titles = (S.teams[h.code]?.titles || 0) + (S.teams[a.code]?.titles || 0);
-    const host = hosts.includes(h.code) || hosts.includes(a.code) ? 1 : 0;
-    return (MOTD_STAGE[m.stage] || 0) + titles * 2 + host + (!!h.code + !!a.code);   // prefer known fixtures
-  };
-  return pool.map(m => ({ m, s: score(m) })).sort((a, b) => b.s - a.s || a.m.utc.localeCompare(b.m.utc))[0]?.m || null;
+  return marqueeOf(ahead.slice(0, 6));   // ~the next day's worth of fixtures, timezone-agnostic
 }
 function motdBanner(m) {
   const h = slotInfo(m, "home"), a = slotInfo(m, "away");
@@ -665,7 +665,8 @@ function dayDigest(dk) {
     for (const e of (r.ev || [])) if ((e.k === "G" || e.k === "P") && e.p) { const k = e.p + "\t" + (e.tm === "h" ? hc : ac); scorers[k] = (scorers[k] || 0) + 1; }
   }
   const topScorers = Object.entries(scorers).map(([k, n]) => { const i = k.indexOf("\t"); return { name: k.slice(0, i), code: k.slice(i + 1), n }; }).sort((a, b) => b.n - a.n);
-  return { dk, ms, ft, live, sched, goals, big, topScorers };
+  const watch = marqueeOf(sched.concat(live));   // the day's must-see fixture still ahead
+  return { dk, ms, ft, live, sched, goals, big, topScorers, watch };
 }
 let dayCursor = null;
 function openDayReview(dk) {
@@ -693,12 +694,21 @@ function renderDayReview() {
       parts.push(`<button class="dr-hi" data-mid="${D.big.m.id}"><span class="dr-hi-ic">💥</span><span><i>Biggest result</i>${flag((hw ? h : a).code)} ${esc((hw ? h : a).name)} beat ${esc((hw ? a : h).name)} ${Math.max(r.h, r.a)}–${Math.min(r.h, r.a)}</span></button>`); }
     if (parts.length) hi = `<div class="eyebrow">Highlights</div><div class="dr-his">${parts.join("")}</div>`;
   }
+  // forward-looking: the must-see fixture still ahead today
+  let watchHi = "";
+  if (D.watch && D.sched.length) { const m = D.watch, h = slotInfo(m, "home"), a = slotInfo(m, "away");
+    const nm = (s, side) => esc(s.code ? s.name : slotText(m, side, s));
+    watchHi = `<div class="eyebrow">One to watch</div><button class="dr-hi dr-hi-fwd" data-mid="${m.id}"><span class="dr-hi-ic">🔥</span><span><i>${esc(m.group ? "Group " + m.group : m.round)} · ${timeStr(m.utc)}</i>${h.code ? flag(h.code) + " " : ""}${nm(h, "home")} v ${nm(a, "away")}${a.code ? " " + flag(a.code) : ""}</span></button>`;
+  }
+  const recap = `${list("Results", D.ft)}${hi}`;
+  const preview = `${watchHi}${list(D.ft.length || D.live.length ? "Still to come" : "Fixtures", D.sched)}`;
   $("#dayBody").innerHTML = `<div class="dr-nav">
       <button class="dr-arrow" id="drPrev"${idx <= 0 ? " disabled" : ""} aria-label="Previous match day">‹</button>
       <div class="dr-date"><b>${fmt(D.ms[0].utc, { weekday: "long", day: "numeric", month: "long" })}</b><small>${D.ms.length} match${D.ms.length !== 1 ? "es" : ""}${D.ft.length ? ` · ${D.goals} goal${D.goals !== 1 ? "s" : ""}` : ""}</small></div>
       <button class="dr-arrow" id="drNext"${idx >= days.length - 1 ? " disabled" : ""} aria-label="Next match day">›</button>
     </div>
-    ${list("Live now", D.live)}${list("Results", D.ft)}${hi}${list(D.ft.length || D.live.length ? "Still to come" : "Fixtures", D.sched)}`;
+    ${list("Live now", D.live)}
+    ${recap && preview ? `${recap}<div class="dr-split" role="separator"></div>${preview}` : recap + preview}`;
   const prev = $("#drPrev"), next = $("#drNext");
   if (prev) prev.onclick = () => { if (idx > 0) { dayCursor = days[idx - 1]; renderDayReview(); $("#dayBody").scrollTop = 0; } };
   if (next) next.onclick = () => { if (idx < days.length - 1) { dayCursor = days[idx + 1]; renderDayReview(); $("#dayBody").scrollTop = 0; } };
