@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "69";  // shown in footer; bump with the ?v= asset version
+const BUILD = "70";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -758,7 +758,16 @@ function renderTeams() {
     .sort((a, b) => S.teams[a].name.localeCompare(S.teams[b].name))
     .map(c => `<button class="teamcard ${c === S.fav ? "is-fav" : ""}" data-squad="${c}" title="${esc(S.teams[c].name)}${S.teams[c].titles ? ` — ${S.teams[c].titles}× World Cup champion` : ""}">
       <span class="fl">${flag(c)}</span><span class="tc-name">${esc(S.teams[c].name)}</span>${S.teams[c].titles ? `<span class="tc-cup" aria-label="${S.teams[c].titles} World Cup titles">🏆 ${S.teams[c].titles}</span>` : ""}<span class="tc-grp">${groupOf(c) || ""}</span></button>`).join("");
-  el.innerHTML = head + `<div class="eyebrow">All teams <span style="color:var(--ink-soft);font-weight:600">— tap for squad</span></div><div class="teamsgrid">${grid}</div>`;
+  const mascots = `<div class="eyebrow">Meet the mascots</div>
+    <div class="mascots">
+      <img class="mascots-img" src="assets/mascots.jpg" alt="Maple, Zayu and Clutch — the official 2026 World Cup mascots" loading="lazy" onerror="this.style.display='none'">
+      <div class="mascots-names">
+        <span><span class="fl">${flag("CA")}</span><b>Maple</b> the moose</span>
+        <span><span class="fl">${flag("MX")}</span><b>Zayu</b> the jaguar</span>
+        <span><span class="fl">${flag("US")}</span><b>Clutch</b> the eagle</span>
+      </div>
+    </div>`;
+  el.innerHTML = head + `<div class="eyebrow">All teams <span style="color:var(--ink-soft);font-weight:600">— tap for squad</span></div><div class="teamsgrid">${grid}</div>${mascots}`;
   const cta = $("#ctaPick", el); if (cta) cta.onclick = () => $("#teamDialog").showModal();
   const chg = $("#ctaChange", el); if (chg) chg.onclick = () => $("#teamDialog").showModal();
   const ics = $("#icsTeam", el);
