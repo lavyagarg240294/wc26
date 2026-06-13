@@ -73,7 +73,7 @@ Status: ✅ shipped · ⬜ backlog. Effort: S < a session · M ≈ a session · 
 - ⬜ **Assists / playmakers race**. → Players. **S** (data already aggregated)
 - ⬜ **Goalkeepers / clean sheets** (team and/or keeper). → Players/Teams. **S**
 - ⬜ **Discipline table + suspension watch** — flag players one booking from a ban before a KO. → Discipline. **S**
-- ⬜ **Records & superlatives** — biggest win, highest-scoring match, fastest & latest goals, comebacks, longest unbeaten. → Records. **M**
+- ✅ **Records & superlatives** — biggest win, highest-scoring match, fastest & latest goals (each taps through to its match/player). → Records sub-section. _Comebacks / longest-unbeaten still open (need lead-change tracking)._
 - ⬜ **Most fouled / most minutes / cleanest team** etc. → Players/Teams. **S**
 
 ### F. Personalisation, chrome & settings

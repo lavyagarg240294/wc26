@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "70";  // shown in footer; bump with the ?v= asset version
+const BUILD = "71";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1305,15 +1305,30 @@ function tournamentStats() {
   const fts = S.matches.filter(m => status(m) === ST.FT && res(m)?.h != null);
   const gf = {}, ga = {}, poss = {}, possN = {}, sot = {}, sotN = {}, yel = {}, red = {}, played = {}, scorers = {}, assists = {}, pyel = {}, pred = {};
   let goals = 0, totCards = 0;
+  const rec = { bigWin: null, hiScore: null, fastG: null, lateG: null };   // superlatives
   const add = (o, k, n = 1) => { if (k) o[k] = (o[k] || 0) + n; };
   for (const m of fts) {
     const r = res(m), hc = slotInfo(m, "home").code, ac = slotInfo(m, "away").code;
     add(played, hc); add(played, ac);
     add(gf, hc, r.h); add(ga, hc, r.a); add(gf, ac, r.a); add(ga, ac, r.h);
     goals += r.h + r.a;
+    // records: biggest winning margin (tiebreak by total goals) + highest-scoring match
+    const margin = Math.abs(r.h - r.a), total = r.h + r.a;
+    const win = r.h >= r.a ? { w: hc, l: ac, ws: r.h, ls: r.a } : { w: ac, l: hc, ws: r.a, ls: r.h };
+    if (margin > 0 && (!rec.bigWin || margin > rec.bigWin.margin || (margin === rec.bigWin.margin && total > rec.bigWin.total)))
+      rec.bigWin = { mid: m.id, num: m.num, total, margin, ...win };
+    if (total > 0 && (!rec.hiScore || total > rec.hiScore.total))
+      rec.hiScore = { mid: m.id, num: m.num, total, hc, ac, h: r.h, a: r.a };
     for (const e of (r.ev || [])) {
       const tc = e.tm === "h" ? hc : ac;
-      if ((e.k === "G" || e.k === "P") && e.p) { add(scorers, e.p + "\t" + tc); if (e.a) add(assists, e.a + "\t" + tc); }   // own goals excluded from the Boot
+      if ((e.k === "G" || e.k === "P") && e.p) {
+        add(scorers, e.p + "\t" + tc); if (e.a) add(assists, e.a + "\t" + tc);   // own goals excluded from the Boot
+        const mn = evMin(e.t);   // fastest / latest goal of the tournament (by the player who scored it)
+        if (mn >= 1) {
+          if (!rec.fastG || mn < rec.fastG.mn) rec.fastG = { name: e.p, code: tc, t: e.t, mn, mid: m.id };
+          if (!rec.lateG || mn > rec.lateG.mn) rec.lateG = { name: e.p, code: tc, t: e.t, mn, mid: m.id };
+        }
+      }
       if (e.k === "Y") { add(yel, tc); totCards++; if (e.p) add(pyel, e.p + "\t" + tc); }
       else if (e.k === "R") { add(red, tc); totCards++; if (e.p) add(pred, e.p + "\t" + tc); }
     }
@@ -1334,6 +1349,7 @@ function tournamentStats() {
   const perMatch = (tot, n) => Object.keys(tot).map(c => ({ code: c, v: tot[c] / (n[c] || 1) }));
   return {
     pulse: { goals, matches: fts.length, perMatch: fts.length ? goals / fts.length : 0, cards: totCards },
+    records: rec,
     scorers: scorerList, assisters: assistList, booked: bookedList,
     teamCards: cardList,
     teamScored: perMatch(gf, played).sort((a, b) => b.v - a.v),
@@ -1364,6 +1380,19 @@ function renderStats() {
     <span class="lead-rank">${i + 1}</span><span class="fl">${flag(x.code)}</span><span class="lead-name">${tname(x.code)}</span>
     <span class="lead-v card-tally"><span class="ct ct-y" title="${x.y} yellow">${x.y}</span><span class="ct ct-r" title="${x.r} red">${x.r}</span></span></div>`).join("")}</div>` : "";
 
+  // records / superlatives — each row taps through to its match or the player who scored
+  const rc = s.records;
+  const recRow = (ic, label, sub, val, attr) => `<div class="rec-row" ${attr} role="button" tabindex="0">
+    <span class="rec-ic">${ic}</span><span class="rec-tx"><b>${label}</b><small>${sub}</small></span><span class="rec-v">${val}</span></div>`;
+  const recItems = [];
+  if (rc.bigWin) { const r = rc.bigWin; recItems.push(recRow("💥", "Biggest win", `${flag(r.w)} ${tname(r.w)} beat ${flag(r.l)} ${tname(r.l)}`, `${r.ws}–${r.ls}`, `data-mid="${r.mid}"`)); }
+  if (rc.hiScore) { const r = rc.hiScore; recItems.push(recRow("🥅", "Most goals in a match", `${flag(r.hc)} ${tname(r.hc)} v ${flag(r.ac)} ${tname(r.ac)}`, `${r.h}–${r.a}<small>${r.total} goals</small>`, `data-mid="${r.mid}"`)); }
+  if (rc.fastG) { const r = rc.fastG; recItems.push(recRow("⏱️", "Fastest goal", `${flag(r.code)} ${esc(r.name)}`, esc(r.t), `data-player="${esc(r.name)}|${r.code}"`)); }
+  if (rc.lateG) { const r = rc.lateG; recItems.push(recRow("🌙", "Latest goal", `${flag(r.code)} ${esc(r.name)}`, esc(r.t), `data-player="${esc(r.name)}|${r.code}"`)); }
+  const recordsHtml = recItems.length
+    ? `<div class="lead-card rec-card">${recItems.join("")}</div><p class="sim-ko-hint">Tap a record to jump to the match or player.</p>`
+    : `<div class="empty">Records fill in as matches are played.</div>`;
+
   // sections behind a segmented sub-nav so the tab grows down (not into one endless scroll)
   const sections = [
     ["players", "Players", `
@@ -1380,6 +1409,7 @@ function renderStats() {
       ${cardLead}
       ${s.booked.length ? `<div class="lead-card"><h4>Booked players</h4>${s.booked.slice(0, 8).map(bookedRow).join("")}</div>` : ""}
     </div>${s.booked.length ? `<p class="sim-ko-hint">Two yellows (or a red) earn a one-match ban.</p>` : ""}`],
+    ["records", "Records", recordsHtml],
     ["tournament", "Tournament", `<div class="stat-tiles">
       ${tile("Goals", s.pulse.goals)}${tile("Matches", s.pulse.matches)}
       ${tile("Goals / match", s.pulse.perMatch.toFixed(2))}${tile("Cards", s.pulse.cards)}
@@ -1619,15 +1649,13 @@ async function boot() {
     if (pl) { e.stopPropagation(); const [pn, pc] = pl.dataset.player.split("|"); openPlayer(pn, pc); return; }
     const sq = e.target.closest("[data-squad]");
     if (sq && sq.dataset.squad) { openSquad(sq.dataset.squad); return; }
-    const hero = e.target.closest(".hero[data-mid]");
-    if (hero) { openMatch(hero.dataset.mid); return; }
-    const card = e.target.closest(".mcard");
-    if (card) { openMatch(card.dataset.mid); }
+    const mid = e.target.closest("[data-mid]");   // hero, match card, or a record row
+    if (mid) { openMatch(mid.dataset.mid); }
   });
   // keyboard: activate focusable custom controls (save stars, squad cells, sim picks, hero) with Enter/Space
   document.addEventListener("keydown", e => {
     if (e.key !== "Enter" && e.key !== " ") return;
-    const t = e.target.closest("[data-save],[data-squad],[data-player],[data-pick],.up,.hero[data-mid],.mcard[data-mid]");
+    const t = e.target.closest("[data-save],[data-squad],[data-player],[data-pick],.up,[data-mid]");
     if (t) { e.preventDefault(); t.click(); }
   });
   // a shared prediction link (#p=…) loads that bracket and opens the Predict tab
