@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "101";  // shown in footer; bump with the ?v= asset version
+const BUILD = "102";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -2284,6 +2284,10 @@ async function boot() {
   setInterval(checkKickoffAlert, 60 * 1000); // fire a kickoff reminder for the favourite team (opt-in)
   $("#updatePill").onclick = () => location.reload();
   setInterval(checkVersion, 120 * 1000);  // nudge open pages to refresh when a new build ships
+  // offline support — network-first SW (registered after first render so it never blocks paint).
+  // The shell stays network-first so an online visitor always gets the latest build; the version
+  // nudge still handles prompting a reload when a new app.js ships.
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 }
 boot();
 })();
