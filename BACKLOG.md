@@ -1,43 +1,107 @@
-# WC·26 — Feature backlog
+# WC·26 — Feature backlog & information architecture
 
-_Refreshed at build 63 (2026-06-13). Free/keyless sources only; no backend; no build step for the site itself._
-
-## Shipped so far ✅
-Live scores + goal/card/sub **timeline**, **lineups on a formation pitch** (head-cropped official photos), **match stats** + match-flow momentum, **tap-any-player profiles** (timeline / pitch / Golden Boot / squad), group tables + qualification outlook (+ FLIP reorder), **Predict** (seeded interactive knockout bracket, thirds allocator, compact share links, champion teaser), **Stats** (Golden Boot, per-match team stats, yellow/red cards), Teams + 26-man squads + My Team `.ics` export, per-match **share cards**, team re-theming, timezone, music, jump-to-now, and a **new-version refresh nudge** for open tabs. Scores come from a self-relaunching **1-min polling Action** (works around GitHub cron throttling).
+_Refreshed at build 65 (2026-06-13). Free/keyless sources only; no backend; no build step for the site itself._
 
 ---
 
-## Backlog (attack top-down)
-Effort: **S** ≈ <1 session · **M** ≈ a session · **L** ≈ multi-session. Tag = data/risk.
+## Information architecture — how we grow without clutter
 
-### Tier 1 — high value, timely, low risk
-1. **PWA — installable** _(S, no deps)_ — web manifest + branded icons + apple-touch-icon so it installs to the home screen and runs standalone. Pairs with the refresh-nudge already shipped. **← doing now**
-2. **Prediction scoring — "how your call is doing"** _(M, client only)_ — score the saved prediction against live `results.json`: group-stage spots called right now, and once knockouts start, R32/R16/…/champion hits + "is your champion still alive?". Lives in Predict; rewards the feature we just polished.
-3. **Playmakers (assists) race** _(S, existing data)_ — an assists leaderboard beside the Golden Boot (we already aggregate `assists` from `ev`).
-4. **Suspension watch** _(S, existing data)_ — from the cards in `ev`, flag players one booking from a ban (2 yellows) heading into a knockout — a genuinely useful, timely angle.
+We're going to add a lot. The rule is **grow down (depth), not wide (tabs)**, and push depth into detail sheets and sub-navs so the default of every screen stays scannable.
 
-### Tier 2 — engagement & depth
-5. **Per-team page / "road to final"** _(M)_ — promote My Team into a full team view: fixtures + form + group position + squad + their highlighted knockout path. Per-team knockout-path highlight is a long-standing idea.
-6. **Dark mode** _(S–M, CSS vars)_ — a night theme toggle; the design is already fully tokenised.
-7. **Quick search** _(M)_ — a ⌘K-style palette to jump to any team, player, or match.
-8. **Venue & weather** _(M, open-meteo — free/keyless)_ — kickoff weather per match card/modal (city → lat/long is static); fetched server-side in the Action so it stays keyless.
-9. **Live notifications (while open)** _(S–M)_ — Notification API for "kickoff in 5 min" / "GOAL for your team" while a tab is open (no push backend needed).
+**Principles**
+1. **Top-level tabs stay at 5** — Matches · Teams · Groups · Predict · Stats. A new tab must own a genuinely new *domain*; the default answer is "no new tab."
+2. **A tab that accumulates distinct categories gets an in-tab segmented sub-nav** — not more top tabs. (Stats needs this first.)
+3. **Per-entity depth lives in detail sheets** — Match sheet (have), Player sheet (have), **Team sheet (to build)**. Lists stay light; one tap reveals depth.
+4. **Global preferences consolidate into one Settings sheet** (a gear chip) — not an ever-growing row of topbar chips.
+5. **Global navigation = a Search / ⌘K overlay** — jump to any team/player/match from anywhere, instead of cramming entry points into tabs.
+6. **Progressive disclosure** — collapsible sections, "see all", modals. Default view shows the 80% case; the rest is a tap away.
 
-### Tier 3 — scale & knockout-timely (before July)
-10. **Split heavy match detail out of `results.json`** _(M, refactor)_ — keep the 1-min polled file to scores/status only; lazy-load `ev`/`xi`/`stats` per match on modal open. By the final the combined file is ~150 KB polled by every client.
-11. **Offline service worker** _(M, risk: staleness)_ — network-first SW (always fresh online, cached fallback offline). Must cooperate with the version-nudge so it never serves a stale shell. Backlogged deliberately until the caching story is airtight.
+**Two foundations unlock most of the backlog cheaply — build these first:**
+- **(A) Stats sub-nav** — segmented control: `Players · Teams · Discipline · Records · Tournament`. Every new leaderboard/record then slots into a section instead of lengthening one scroll.
+- **(B) Settings sheet** — a gear chip opening a sheet for theme/dark-mode, notifications, music, timezone, lite-mode, calendar-subscribe. Frees the topbar and gives new prefs a home.
 
-### Tier 4 — bigger bets / nice-to-have
-12. **i18n** _(L)_ — multi-language UI.
-13. **Head-to-head & history** _(M–L, data)_ — recent meetings per fixture; needs a historical source.
-14. **Goal alerts / sound + richer celebration** _(S)_.
-15. **Accessibility deep pass** _(M)_ — full keyboard/SR audit beyond the current basics.
+**Placement map (where each thing lives)**
+
+| Surface | Owns |
+|---|---|
+| **Matches** tab / **Match sheet** | schedule + filters; per-match: summary, timeline, lineups, momentum, stats, **H2H**, **venue + weather**, **win-probability**, player profiles |
+| **Teams** tab / **Team sheet (new)** | 48 grid + My Team; per-team: **road-to-final**, form, group, fixtures, squad, **rotation/minutes**, **compare** |
+| **Groups** tab | standings, qualification outlook, **scenarios/permutations**, **knockout projection** |
+| **Predict** tab | predictor, scoring, share, **knockout scenarios** |
+| **Stats** tab + **sub-nav (new)** | Players (Boot, **assists**, **keepers**, most-fouled) · Teams (per-match stats, **clean sheets**) · **Discipline** (cards, **suspension watch**) · **Records** (superlatives) · Tournament (pulse, **confederations**) |
+| **Settings sheet (new, gear)** | **dark mode**, **notifications**, music, timezone, **lite/data mode**, **calendar subscribe** |
+| **Global** | **Search / ⌘K**, refresh-nudge (have), ticker, jump-to-now (have) |
 
 ---
+
+## Detailed feature list
+
+Status: ✅ shipped · ⬜ backlog. Effort: S < a session · M ≈ a session · L multi-session. → = where it lives.
+
+### A. Matches & live match detail
+- ✅ Live scores (self-relaunching 1-min polling Action)
+- ✅ Goal / card / sub **timeline**
+- ✅ **Lineups** on a formation pitch (head-cropped official photos)
+- ✅ **Match stats** (possession, shots, on-target, corners, fouls) + match-flow **momentum**
+- ✅ **Player profiles** — tap any name (timeline / pitch / Boot / squad)
+- ⬜ **Venue + weather** — kickoff conditions per match (open-meteo, keyless; city→lat/long static). → Match sheet + small card chip. **M**
+- ⬜ **Head-to-head** — recent meetings between the two teams. → Match sheet. **M–L** (needs a history source)
+- ⬜ **Live win-probability** — simple heuristic from score + minute + (opt) xG-less shot data. → Match sheet. **M**
+- ⬜ **Penalty shootout detail** — kick-by-kick in KO ties. → Match sheet. **S**
+- ⬜ **Match of the day** — a featured pick (biggest fixture today). → Matches hero. **S**
+
+### B. Teams
+- ✅ 48-team grid, 26-man squads, player profiles, My Team + `.ics` export, team re-theming
+- ⬜ **Team detail sheet / "road to final"** — form, group position, fixtures, squad, **highlighted knockout path**. → new Team sheet (tap a team). **M**
+- ⬜ **Player comparison** — two players' tournament stats side by side. → Team/Stats. **M**
+- ⬜ **Squad rotation / minutes played** — built from `xi` across matches. → Team sheet. **M**
+- ⬜ **Subscribe to a team's calendar** (webcal). → Team sheet / Settings. **S**
+
+### C. Groups
+- ✅ 12 live tables, "what each team needs" outlook, FLIP reorder animation
+- ⬜ **Qualification scenarios / permutations** — which results send whom through (incl. third-place math). → Groups. **M**
+- ⬜ **Knockout projection** — "if the groups ended now, the bracket looks like…". → Groups (or Predict). **M**
+- ⬜ **Confederation breakdown** — how each confederation is faring. → Groups/Stats. **S**
+
+### D. Predict
+- ✅ Seeded interactive knockout bracket, thirds allocator, compact share link, champion teaser, **"your call vs reality" scoring**
+- ⬜ **Knockout scenarios** — explore alternate bracket outcomes. → Predict. **M**
+- ⬜ **Share & compare predictions** — needs a backend for a real leaderboard; local-only "vs a friend's link" otherwise. **L** (likely skip)
+
+### E. Stats & records  _(home: Stats tab + new sub-nav)_
+- ✅ Tournament pulse, **Golden Boot**, per-match team stats, yellow/red cards
+- ⬜ **Assists / playmakers race**. → Players. **S** (data already aggregated)
+- ⬜ **Goalkeepers / clean sheets** (team and/or keeper). → Players/Teams. **S**
+- ⬜ **Discipline table + suspension watch** — flag players one booking from a ban before a KO. → Discipline. **S**
+- ⬜ **Records & superlatives** — biggest win, highest-scoring match, fastest & latest goals, comebacks, longest unbeaten. → Records. **M**
+- ⬜ **Most fouled / most minutes / cleanest team** etc. → Players/Teams. **S**
+
+### F. Personalisation, chrome & settings
+- ✅ Team theming, timezone picker, background music, jump-to-now, new-version refresh nudge, **installable PWA**
+- ⬜ **Settings sheet** — consolidate prefs behind a gear (see foundation B). **S–M**
+- ⬜ **Dark mode** — night theme toggle (design is fully tokenised). → Settings. **S–M**
+- ⬜ **Notifications (while open)** — "kickoff in 5" / "GOAL for your team" via the Notification API (no push backend). → Settings + per-team. **S–M**
+- ⬜ **Quick search / ⌘K** — jump to any team, player or match. → global overlay. **M**
+- ⬜ **Lite / data-saver mode** — skip photos & heavy detail on slow connections. → Settings. **S**
+
+### G. Platform & scale  _(do before knockouts)_
+- ⬜ **Split heavy match detail out of `results.json`** — keep the 1-min polled file to scores/status; lazy-load `ev`/`xi`/`stats` per match. **M**
+- ⬜ **Offline service worker** — network-first (fresh online, cached offline); must cooperate with the version-nudge so it never serves a stale shell. **M** (risk)
+- ⬜ **i18n** — multi-language UI. **L**
+- ⬜ **Accessibility deep pass** — full keyboard/SR audit. **M**
+- ⬜ **Goal sound / richer celebration**. **S**
+
+---
+
+## Suggested order
+1. **Foundation A — Stats sub-nav** (unlocks E with no clutter).
+2. **Foundation B — Settings sheet** (unlocks F; declutters the topbar).
+3. Quick wins into the new homes: **assists race**, **clean sheets**, **suspension watch** (Stats), **dark mode** (Settings).
+4. **Team detail sheet / road-to-final** (the big Teams upgrade).
+5. **Records**, **venue+weather**, **search**, then scale (#G).
 
 ## Known issues / watch
-- **`results.json` growth** — see #10; fine now, split before knockouts.
-- **Squad ↔ feed name matching** — player profiles fuzzy-match a squad's full name to FIFA short-name photo keys; rare mismatches fall back to the flag (graceful).
-- **Golden Glove** was removed (was a bolt-on); clean sheets could return as a *team* stat if wanted.
+- **`results.json` growth** — see G; fine now, split before knockouts.
+- **Squad ↔ feed name matching** — profiles fuzzy-match squad full names to FIFA short-name photo keys; misses fall back to the flag (graceful).
 
 When adding data fields, update in order: the schema note in `CLAUDE.md`, the writer script, then the renderer.
