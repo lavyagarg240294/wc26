@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "87";  // shown in footer; bump with the ?v= asset version
+const BUILD = "88";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1830,7 +1830,7 @@ const RENDER = { matches: renderMatches, teams: renderTeams, groups: renderGroup
 function nav(v) {
   S.view = v;
   $$(".view").forEach(el => el.hidden = el.id !== "view-" + v);
-  $$(".tab").forEach(t => t.classList.toggle("is-active", t.dataset.nav === v));
+  $$(".tab").forEach(t => { const on = t.dataset.nav === v; t.classList.toggle("is-active", on); on ? t.setAttribute("aria-current", "page") : t.removeAttribute("aria-current"); });
   moveInk();
   const at = $(".tab.is-active"), tabs = $(".tabs");          // keep the active tab in view on the scrollable bar
   if (at && tabs) tabs.scrollTo({ left: at.offsetLeft - tabs.clientWidth / 2 + at.offsetWidth / 2, behavior: "smooth" });
@@ -2101,7 +2101,7 @@ async function boot() {
   // keyboard: activate focusable custom controls (save stars, squad cells, sim picks, hero) with Enter/Space
   document.addEventListener("keydown", e => {
     if (e.key !== "Enter" && e.key !== " ") return;
-    const t = e.target.closest("[data-save],[data-squad],[data-player],[data-pick],.up,[data-mid],[data-day]");
+    const t = e.target.closest('[data-save],[data-squad],[data-player],[data-pick],.up,[data-mid],[data-day],[role="button"]');
     if (t) { e.preventDefault(); t.click(); }
   });
   // a shared prediction link (#p=…) loads that bracket and opens the Predict tab

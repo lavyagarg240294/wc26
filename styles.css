@@ -58,6 +58,11 @@ body{
 }
 button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;-webkit-tap-highlight-color:transparent}
 b{font-weight:600}
+/* a11y: a visible keyboard-focus ring on every interactive element (zero-specificity :where so
+   component-specific focus styles still win). Mouse clicks don't trigger :focus-visible. */
+:where(a,button,summary,input,select,textarea,[role="button"],[tabindex]):focus-visible{outline:2px solid var(--acc1);outline-offset:2px}
+/* a11y: honour reduced-motion globally (covers every animation/transition, present and future) */
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
 
 /* ---------- animated stadium light-show background ---------- */
 #bg{position:fixed;inset:0;z-index:-1;overflow:hidden;pointer-events:none;contain:strict}

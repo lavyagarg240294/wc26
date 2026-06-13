@@ -92,7 +92,7 @@ Status: ✅ shipped · ⬜ backlog. Effort: S < a session · M ≈ a session · 
 - ✅ **Split heavy match detail out of `results.json`** — the 60s-polled file is now scores/status only (`results.json`, ~2 KB); `ev`/`xi`/`stats` live in `details.json`, fetched by the client only when scores change and merged into `S.matchData`. Writer emits both (carry-forward via a merged prev view); share-cards + the workflow updated.
 - ⬜ **Offline service worker** — network-first (fresh online, cached offline); must cooperate with the version-nudge so it never serves a stale shell. **M** (risk)
 - ⬜ **i18n** — multi-language UI. **L**
-- ⬜ **Accessibility deep pass** — full keyboard/SR audit. **M**
+- 🟡 **Accessibility pass** (first wave shipped) — global keyboard `:focus-visible` ring on every interactive element, blanket `prefers-reduced-motion` reset, accessible names on all 8 dialogs + labelled close buttons, `aria-current` on the active tab, and Enter/Space activation for every custom `role="button"`. _Still open: live-region announcements for score/goal updates, full SR walkthrough, contrast spot-check._
 - ⬜ **Goal sound / richer celebration**. **S**
 
 ---
