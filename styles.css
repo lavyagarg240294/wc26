@@ -98,15 +98,13 @@ b{font-weight:600}
   border-bottom:1px solid var(--line);
 }
 .wordmark{display:flex;align-items:center;gap:9px;text-decoration:none;color:var(--ink)}
-/* "26" monogram tile — matches the app icon (deep pitch-green, cream numerals, condensed) */
+/* pitch-mark badge — the centre-circle motif, matching the app icon */
 .wm-mark{
-  flex-shrink:0;display:grid;place-items:center;width:29px;height:29px;border-radius:8px;
-  background:linear-gradient(180deg,#0F5A3C,#0A3E29);color:#FAFBF9;
-  font-family:var(--disp);font-weight:800;font-stretch:82%;font-size:15px;letter-spacing:.01em;line-height:1;
-  box-shadow:0 1px 2px rgba(13,27,42,.22),inset 0 0 0 1px rgba(255,255,255,.07);
+  flex-shrink:0;display:block;width:29px;height:29px;border-radius:8px;
+  box-shadow:0 1px 2px rgba(13,27,42,.22);
   animation:markIn .55s cubic-bezier(.34,1.4,.64,1) both;
 }
-@keyframes markIn{from{transform:scale(.6) rotate(-6deg);opacity:0}}
+@keyframes markIn{from{transform:scale(.55) rotate(-8deg);opacity:0}}
 /* Wordmark hierarchy: a small, spaced supporting "FIFA", the bold "World Cup" hero, and "26" as the lone accent. */
 .wm-text{font-family:var(--disp);font-weight:800;font-stretch:104%;font-size:18px;letter-spacing:0;line-height:1;white-space:nowrap;color:var(--ink)}
 .wm-text b{color:var(--acc1);font-weight:800;transition:color .5s}
@@ -1089,7 +1087,7 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
   .topbar-right{gap:6px}
   .chip{padding:6px 9px;font-size:12px;gap:5px}
   .wm-text{font-size:15px}
-  .wm-mark{width:25px;height:25px;font-size:13px;border-radius:7px}
+  .wm-mark{width:25px;height:25px;border-radius:7px}
   .wordmark{gap:7px}
   #teamChipName{max-width:92px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .topbar-right{gap:6px;flex:0 0 auto}
