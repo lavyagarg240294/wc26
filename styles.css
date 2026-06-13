@@ -199,6 +199,9 @@ b{font-weight:600}
 .eyebrow .ey-acc{color:var(--acc1)}
 
 /* ---------- hero ---------- */
+.hero-stack{display:flex;flex-direction:column;gap:14px}
+.hero-stack-head{display:flex;align-items:center;gap:8px;font-family:var(--disp);font-weight:800;font-stretch:110%;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--live);margin-bottom:12px}
+.hero-stack .hero{animation-duration:.42s}
 .hero{
   position:relative;overflow:hidden;cursor:pointer;
   /* "floodlit, on paper": soft accent light from the top-right, faint fill from the lower-left — no hard ring */
@@ -295,7 +298,12 @@ b{font-weight:600}
 .mcard-team{display:flex;align-items:center;gap:8px;font-weight:600;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* self-hosted SVG flags — scale with the surrounding .fl font-size, natural aspect, hairline ring so
    white-edged flags read on white cards. ultra-wide flags (Qatar) cap so fixed columns don't overflow. */
-.flagimg{display:inline-block;max-height:1em;max-width:1.5em;width:auto;height:auto;vertical-align:-.14em;border-radius:2px;box-shadow:0 0 0 .5px rgba(13,27,42,.16),0 1px 2px -1px rgba(13,27,42,.2)}
+/* Flags: every team's SVG has a different native aspect (Qatar 2.5:1 … Switzerland 1:1), so rendering them at
+   natural width made the row ragged and clamped wide flags down to a stub. Render them all in one uniform 3:2
+   box with object-fit:cover — identical size and alignment everywhere, no letterbox gaps, no stray widths. A
+   crisp hairline ring (not a lift shadow) separates white/light flags from the paper; big hero/dialog contexts
+   add their own drop-shadow via a filter on the wrapper. Size scales with the wrapper's font-size. */
+.flagimg{display:inline-block;width:1.5em;height:1em;object-fit:cover;object-position:center;vertical-align:-.15em;border-radius:.12em;box-shadow:0 0 0 .5px rgba(13,27,42,.28);background:color-mix(in srgb,var(--ink) 5%,var(--card))}
 .mcard-team .fl{font-size:17px;width:26px;text-align:center;flex:0 0 26px}
 .mcard-team.is-ph{color:var(--ink-soft);font-weight:500;font-style:italic}
 .mcard-team.is-lost{opacity:.5}

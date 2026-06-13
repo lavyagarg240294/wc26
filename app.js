@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "110";  // shown in footer; bump with the ?v= asset version
+const BUILD = "111";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -99,9 +99,18 @@ function rebuildMatchData() {
 // fixes them all. The original static time is kept in `_utc0` so the overlay is idempotent and reverts if `ko` clears.
 function applyKickoffs() {
   if (!S.matches) return;
+  const now = Date.now();
   for (const m of S.matches) {
     if (m._utc0 === undefined) m._utc0 = m.utc;
-    const ko = S.matchData[m.id]?.ko;
+    const md = S.matchData[m.id];
+    let ko = md?.ko;
+    // Belt-and-suspenders: before the Action has written a corrected `ko`, a live match whose static time is
+    // stale would still show the wrong slot. Its real kickoff is ~now minus the minute the feed reports — so
+    // derive it, keeping the live hero/day-grouping honest until the authoritative `ko` lands next poll.
+    if (!ko && (md?.st === ST.LIVE || md?.st === ST.HT)) {
+      const min = md.st === ST.HT ? 45 : (Number.isFinite(md.min) ? md.min : null);
+      if (min != null) ko = new Date(now - min * 60000).toISOString();
+    }
     m.utc = ko || m._utc0;
   }
 }
@@ -707,6 +716,15 @@ function openMatch(id) {
 
 /* ---------------- render: matches (today + full calendar) ---------------- */
 let cdTimer = null, prevCd = {};
+// The hero area. Stacked (vertical), not a swipe carousel: when two games kick off at once both stay visible
+// at a glance with zero gestures — a carousel would hide the second match behind an undiscoverable swipe and
+// add interaction cost for no benefit when there are only ever a handful. A header labels the count when >1.
+function heroStack(liveMatches, nextM) {
+  if (!liveMatches.length) return nextM ? heroBlock(nextM, false) : "";
+  const head = liveMatches.length > 1
+    ? `<div class="hero-stack-head">${ballSVG("live-ball")} ${liveMatches.length} matches live now</div>` : "";
+  return head + `<div class="hero-stack">${liveMatches.map(m => heroBlock(m, true)).join("")}</div>`;
+}
 function heroBlock(heroM, isLive) {
   const h = slotInfo(heroM, "home"), a = slotInfo(heroM, "away"), r = res(heroM);
   return `<div class="hero" data-mid="${heroM.id}" role="button" tabindex="0" aria-label="Match details">
@@ -827,9 +845,14 @@ function renderMatches() {
   const el = $("#view-matches");
   const now = new Date();
   const todayK = dayKey(now.toISOString());
-  const live = S.matches.find(m => [ST.LIVE, ST.HT].includes(status(m)));
-  const heroM = live || S.matches.filter(m => new Date(m.utc) > now && status(m) === ST.SCHED)
-    .sort((a, b) => a.utc.localeCompare(b.utc))[0];
+  // Simultaneous kickoffs are normal at a World Cup — the final round of every group plays its two games at
+  // the same time — so don't pick one "the" live match; surface them all. When nothing's live, a single
+  // next-kickoff card carries the countdown.
+  const liveMatches = S.matches.filter(m => [ST.LIVE, ST.HT].includes(status(m)))
+    .sort((a, b) => a.utc.localeCompare(b.utc));
+  const nextM = liveMatches.length ? null
+    : S.matches.filter(m => new Date(m.utc) > now && status(m) === ST.SCHED).sort((a, b) => a.utc.localeCompare(b.utc))[0];
+  const heroIds = new Set([...liveMatches.map(m => m.id), ...(nextM ? [nextM.id] : [])]);
   const f = S.filters;
   let list = S.matches.slice().sort((a, b) => a.utc.localeCompare(b.utc));
   if (f.stage === "group") list = list.filter(m => m.stage === "group");
@@ -842,10 +865,10 @@ function renderMatches() {
   const past = list.filter(m => status(m) === ST.FT);
   const ahead = list.filter(m => status(m) !== ST.FT);
 
-  const motd = matchOfDay();   // skip if it's already the hero (live/next) — no point showing it twice
+  const motd = matchOfDay();   // skip if it's already a hero card (live/next) — no point showing it twice
   el.innerHTML =
-    (heroM ? heroBlock(heroM, !!live) : "") +
-    (motd && (!heroM || motd.id !== heroM.id) ? motdBanner(motd) : "") +
+    heroStack(liveMatches, nextM) +
+    (motd && !heroIds.has(motd.id) ? motdBanner(motd) : "") +
     `<div class="filters">
       <select class="fsel ${f.stage !== "all" ? "is-on" : ""}" id="stageSel" aria-label="Filter by stage">
         ${[["all", "All 104 matches"], ["group", "Group stage"], ["ko", "Knockouts"]].map(([k, l]) =>

@@ -52,6 +52,8 @@ API_FOOTBALL_KEY=yyy node scripts/fetch-squads.mjs
 - Fonts: Archivo (display, condensed-ish via font-stretch), Instrument Sans (body), Spline Sans Mono (numbers/times).
 - Palette: paper `#FAFBF9`, ink `#0D1B2A`, pitch green `#0BA360` (default accent), gold `#E8B931` (3rd-place / champion), live red `#FF3B30` (live state ONLY — never decorative).
 - Numbers/times/scores are always mono with `tabular-nums`.
+- **Flags** (`flag(code)` → `.flagimg`): every flag renders in one uniform **3:2 box via `object-fit:cover`** so wildly different native aspect ratios (Qatar 2.5:1 … Switzerland 1:1) all come out the same size and aligned. Crisp hairline ring (not a lift shadow) so white/light flags separate from the paper; size scales with the wrapper's `font-size`. Don't reintroduce natural-aspect/`max-width` sizing — it made rows ragged.
+- **Live hero is a stack**: `heroStack()` renders *every* live match as its own hero card (simultaneous kickoffs are normal — the final group round plays two games at once), with a "N matches live now" header when >1. Not a swipe carousel (keeps all games visible, zero gestures). When nothing's live, a single next-kickoff card carries the countdown (`#cd`).
 - Animations respect `prefers-reduced-motion`. Mobile-first; tables go single-column under 560px.
 
 ## Good first tasks / common requests
