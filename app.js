@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "67";  // shown in footer; bump with the ?v= asset version
+const BUILD = "69";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -299,6 +299,7 @@ const ballSVG = cls => `<span class="ball ${cls || ""}" aria-hidden="true">${BAL
 function goalCelebration(code) {
   const t = code && S.teams[code];
   confetti(t ? t.c1 : "#0BA360", t ? t.c2 : "#E8B931");
+  goalHorn();
   const toast = document.createElement("div");
   toast.className = "goal-toast";
   toast.innerHTML = `${ballSVG("goal-ball")}<div class="goal-txt"><b>GOAL!</b>${code ? `<span>${flag(code)} ${esc(S.teams[code].name)}</span>` : ""}</div>`;
@@ -1460,6 +1461,35 @@ function initMusic() {
   }
   sync();
 }
+/* ---------------- theme (dark mode) + goal horn ---------------- */
+const currentDark = () => document.documentElement.dataset.theme === "dark";
+function setDark(on) {
+  document.documentElement.dataset.theme = on ? "dark" : "light";
+  localStorage.setItem("wc26.theme", on ? "dark" : "light");
+  $('meta[name="theme-color"]')?.setAttribute("content", on ? "#0E1822" : "#0BA360");
+  const st = $("#themeState"); if (st) st.textContent = on ? "On" : "Off";
+  $("#themeToggle")?.setAttribute("aria-pressed", String(on));
+}
+// a short synthesized stadium air-horn (no audio file needed); opt-in, fires on goals
+let _ac = null;
+function goalHorn() {
+  if (localStorage.getItem("wc26.horn") !== "on") return;
+  try {
+    _ac = _ac || new (window.AudioContext || window.webkitAudioContext)();
+    const ctx = _ac; if (ctx.state === "suspended") ctx.resume();
+    const t = ctx.currentTime, out = ctx.createGain(); out.connect(ctx.destination);
+    out.gain.setValueAtTime(0.0001, t);
+    out.gain.exponentialRampToValueAtTime(0.22, t + 0.04);
+    out.gain.setValueAtTime(0.22, t + 0.55);
+    out.gain.exponentialRampToValueAtTime(0.0001, t + 0.8);
+    const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 2200; lp.connect(out);
+    [233, 311, 392].forEach((f, i) => {                  // stacked, slightly-detuned horn chord
+      const o = ctx.createOscillator(); o.type = "sawtooth"; o.frequency.value = f * (1 + (i - 1) * 0.004);
+      const g = ctx.createGain(); g.gain.value = [0.5, 0.4, 0.3][i];
+      o.connect(g); g.connect(lp); o.start(t); o.stop(t + 0.82);
+    });
+  } catch { /* audio unavailable */ }
+}
 
 /* ---------------- data ---------------- */
 async function loadStatic() {
@@ -1543,6 +1573,20 @@ async function boot() {
   $("#settingsChip").onclick = () => $("#settingsDialog").showModal();
   $("#tzRow").onclick = () => { $("#settingsDialog").close(); $("#tzDialog").showModal(); };
   $("#teamChip").onclick = () => $("#teamDialog").showModal();
+  // dark mode + goal horn (live in the Settings sheet)
+  $("#themeState").textContent = currentDark() ? "On" : "Off";
+  $("#themeToggle").setAttribute("aria-pressed", String(currentDark()));
+  $("#themeToggle").onclick = () => setDark(!currentDark());
+  const hornOn = localStorage.getItem("wc26.horn") === "on";
+  $("#hornState").textContent = hornOn ? "On" : "Off";
+  $("#hornToggle").setAttribute("aria-pressed", String(hornOn));
+  $("#hornToggle").onclick = () => {
+    const on = localStorage.getItem("wc26.horn") !== "on";
+    localStorage.setItem("wc26.horn", on ? "on" : "off");
+    $("#hornToggle").setAttribute("aria-pressed", String(on));
+    $("#hornState").textContent = on ? "On" : "Off";
+    if (on) goalHorn();   // preview + unlock the audio context (this tap is the user gesture)
+  };
   $("#jumpNow").onclick = scrollToNow;
   addEventListener("scroll", () => { if (S.view === "matches") requestAnimationFrame(updateJumpNow); }, { passive: true });
   addEventListener("click", e => { if (!e.target.closest("#teamSelWrap")) closeTeamSel(); });   // close team dropdown on outside click

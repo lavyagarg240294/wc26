@@ -7,7 +7,7 @@ A fast, no-build fan site for the **FIFA World Cup 2026** — every match in you
 - **Groups** — live standings + a "what each team needs to qualify" outlook.
 - **Stats** — tournament pulse, the **Golden Boot** race, and per-match **team stats** (attack, defence, possession, shots on target, and yellow/red cards).
 - **Predict** — order every group, pick the best third-placed teams, then tap winners through a full knockout **bracket** to crown your champion (seeded from live standings so it's ready to play with right away), see **how your call is tracking vs reality**, and **share your bracket as a ~30-character link**.
-- Plus: **installable to your home screen** (PWA), **calendar (.ics) export**, per-match **share cards** that unfurl on social, background music, and a fully mobile-first, re-themable UI.
+- Plus: **installable to your home screen** (PWA), **dark mode**, a **Settings** sheet (anthem + goal horn + timezone), **calendar (.ics) export**, per-match **share cards** that unfurl on social, and a fully mobile-first, re-themable UI.
 
 **Stack:** plain `index.html` + `styles.css` + one vanilla-JS `app.js` on GitHub Pages, fed by GitHub Actions that commit JSON into the repo. **No API keys are required to run it** — live scores, events, lineups, stats and player photos all come from free, keyless sources. Total cost: **$0**.
 

@@ -77,9 +77,11 @@ Status: ✅ shipped · ⬜ backlog. Effort: S < a session · M ≈ a session · 
 - ⬜ **Most fouled / most minutes / cleanest team** etc. → Players/Teams. **S**
 
 ### F. Personalisation, chrome & settings
-- ✅ Team theming, timezone picker, background music, jump-to-now, new-version refresh nudge, **installable PWA**
-- ⬜ **Settings sheet** — consolidate prefs behind a gear (see foundation B). **S–M**
-- ⬜ **Dark mode** — night theme toggle (design is fully tokenised). → Settings. **S–M**
+- ✅ Team theming, timezone picker, jump-to-now, new-version refresh nudge, **installable PWA**
+- ✅ **Settings sheet** — gear → consolidated prefs (declutters the topbar)
+- ✅ **Dark mode** — system-aware + manual toggle in Settings (no-flash head script)
+- ✅ **Sounds** — anthem + a synthesized **goal horn** (opt-in). _More background tracks need audio files (royalty-free); won't add random songs._
+- ⬜ **Notifications (while open)** — "kickoff in 5" / "GOAL for your team" via the Notification API (no push backend). → Settings + per-team. **S–M**
 - ⬜ **Notifications (while open)** — "kickoff in 5" / "GOAL for your team" via the Notification API (no push backend). → Settings + per-team. **S–M**
 - ⬜ **Quick search / ⌘K** — jump to any team, player or match. → global overlay. **M**
 - ⬜ **Lite / data-saver mode** — skip photos & heavy detail on slow connections. → Settings. **S**

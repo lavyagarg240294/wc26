@@ -21,6 +21,20 @@
   --body:'Instrument Sans',system-ui,sans-serif;
   --shadow:0 1px 2px rgba(13,27,42,.05),0 6px 24px -8px rgba(13,27,42,.10);
 }
+/* dark mode — flip the neutrals; brand pitch/gold/live and the team accent stay vivid on the dark field */
+:root[data-theme="dark"]{
+  --paper:#0E1822;
+  --card:#18242F;
+  --ink:#E9EEF2;
+  --ink-soft:#92A4B3;
+  --line:#293743;
+  --acc2:#0B1722;
+  --shadow:0 1px 2px rgba(0,0,0,.45),0 8px 28px -10px rgba(0,0,0,.6);
+}
+/* the ticker is a dark contrast strip in both themes (var(--ink) would invert it to a bright bar) */
+:root[data-theme="dark"] .ticker{background:#0A1118;color:#E9EEF2}
+:root[data-theme="dark"] .ticker::before{background:linear-gradient(90deg,#0A1118,transparent)}
+:root[data-theme="dark"] .ticker::after{background:linear-gradient(-90deg,#0A1118,transparent)}
 
 *{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
@@ -705,6 +719,7 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .md-form{margin-top:6px}
 .sq-form{margin-left:10px;font-size:10.5px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em}
 /* settings sheet rows */
+.set-group{font-family:var(--disp);font-weight:800;font-stretch:108%;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft);margin:16px 4px 2px}
 .set-row{display:flex;align-items:center;gap:13px;width:100%;text-align:left;padding:14px 4px;border-bottom:1px solid color-mix(in srgb,var(--line) 55%,transparent);transition:background .15s}
 .set-row:last-child{border-bottom:none}
 .set-row:hover{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
