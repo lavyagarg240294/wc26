@@ -11,7 +11,7 @@ const S = {
   filters: { stage: "all", team: "", saved: false },
   saved: new Set(JSON.parse(localStorage.getItem("wc26.saved") || "[]")),
   sim: JSON.parse(localStorage.getItem("wc26.sim") || "null") || { order: {}, thirds: [], ko: {} },
-  _lastResults: null,
+  _lastResults: null, lastChecked: null,
 };
 const isSaved = id => S.saved.has(id);
 function toggleSave(id) {
@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "85";  // shown in footer; bump with the ?v= asset version
+const BUILD = "86";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1834,6 +1834,7 @@ function syncTzLabels() {
   const tzl = $("#tzState"); if (tzl) tzl.textContent = S.tz === "auto" ? `Auto · ${tzShort()}` : (ZONES.find(z => z[0] === S.tz)?.[1] || S.tz);
   $("#footTz").textContent = `${tz()} (${tzShort()})`;
   const bt = $("#buildTag"); if (bt) bt.textContent = "build " + BUILD;
+  setFreshness();   // re-render the "scores from / checked" times in the new timezone
 }
 
 /* ---------------- background music (off by default) ---------------- */
@@ -1930,21 +1931,29 @@ async function loadDetails() {
   try { const d = await (await fetch("data/details.json?t=" + Date.now(), { cache: "no-store" })).json(); S.details = d && d.matches ? d : { matches: {} }; }
   catch { S.details = { matches: {} }; }
 }
+// footer line: separate "when we last checked" (every poll) from "when the scores last changed"
+// (results.json's `updated`), so a quiet hour never reads as a stale/broken site.
+function setFreshness() {
+  const el = $("#updatedLabel"); if (!el) return;
+  const fmtT = ms => new Intl.DateTimeFormat("en", { timeZone: tz(), hour: "2-digit", minute: "2-digit" }).format(new Date(ms));
+  const from = S.results.updated ? `Scores from ${fmtT(S.results.updated)}` : "Schedule loaded";
+  const checked = S.lastChecked ? ` · checked ${Date.now() - S.lastChecked < 90000 ? "just now" : fmtT(S.lastChecked)}` : "";
+  el.textContent = from + checked;
+}
 async function refreshResults() {
   try {
     const r = await fetch("data/results.json?t=" + Date.now(), { cache: "no-store" });
     if (!r.ok) return;
     const txt = await r.text();
-    if (txt === S._lastResults) return; // nothing changed — skip the re-render (no flicker)
+    S.lastChecked = Date.now();
+    if (txt === S._lastResults) { setFreshness(); return; }  // no change — just refresh the "checked" time, skip the re-render
     const firstLoad = S._lastResults == null;
     const prev = S.results.matches || {};
     S._lastResults = txt;
     S.results = JSON.parse(txt);
     await loadDetails();          // scores changed → pull the matching detail, then merge for the renderers
     rebuildMatchData();
-    $("#updatedLabel").textContent = S.results.updated
-      ? "Scores updated " + new Intl.DateTimeFormat("en", { timeZone: tz(), hour: "2-digit", minute: "2-digit" }).format(new Date(S.results.updated))
-      : "Schedule loaded";
+    setFreshness();
     renderTicker();
     // Predict is driven by the user's saved picks, not live results — re-rendering it on a poll would
     // just reset their bracket scroll / interrupt them for no benefit. Refresh every other view.
