@@ -29,7 +29,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=Instrument+Sans:wght@400;500;600&family=Spline+Sans+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=98">
+<link rel="stylesheet" href="styles.css?v=99">
 <link rel="icon" href="assets/wc26-emblem.svg">
 </head>
 <body>
@@ -83,6 +83,8 @@
   <button class="foot-refresh" id="refreshBtn" data-refresh title="Refresh scores now" aria-label="Refresh scores">
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
   </button>
+  <span class="foot-dot">·</span>
+  <button class="foot-about" id="aboutBtn">About the tournament</button>
   <span class="foot-dot">·</span>
   <span>Unofficial fan project — times shown in <b id="footTz"></b></span>
   <span class="foot-dot">·</span>
@@ -187,9 +189,30 @@
   <div class="sheet-body" id="dayBody"></div>
 </dialog>
 
+<!-- About the tournament -->
+<dialog id="aboutDialog" class="sheet" aria-labelledby="aboutTitle">
+  <div class="sheet-head"><h3 id="aboutTitle">World Cup 2026</h3><button class="sheet-x" data-close aria-label="Close">✕</button></div>
+  <div class="sheet-body">
+    <p class="about-lead">The <b>biggest World Cup ever</b> — and the first hosted by three nations.</p>
+    <div class="about-tiles">
+      <div><b>48</b><span>teams</span></div><div><b>104</b><span>matches</span></div>
+      <div><b>16</b><span>host cities</span></div><div><b>3</b><span>countries</span></div>
+    </div>
+    <div class="eyebrow">How it works</div>
+    <ol class="about-steps">
+      <li><b>Group stage</b> — 12 groups of 4; every team plays 3 games.</li>
+      <li><b>Into the Round of 32</b> — the top 2 of each group (24 teams) <i>plus</i> the 8 best third-placed teams of the 12 go through.</li>
+      <li><b>Knockouts</b> — single elimination from there: Round of 16 → Quarter-finals → Semi-finals → <b>Final</b>.</li>
+    </ol>
+    <div class="eyebrow">Hosts &amp; key dates</div>
+    <p class="about-p">Played across the <b>USA, Canada &amp; Mexico</b>. It kicks off <b>June 11</b> at the Estadio Azteca in Mexico City — the first ground to host three World Cups — and ends with the <b>final on July 19</b> at MetLife Stadium, New York/New Jersey.</p>
+    <p class="sim-ko-hint">Scores, group tables and the bracket on this site fill in live as games are played.</p>
+  </div>
+</dialog>
+
 <canvas id="confetti" aria-hidden="true"></canvas>
 <audio id="bgm" loop preload="none" src="assets/anthem.mp3"></audio>
 
-<script src="app.js?v=98"></script>
+<script src="app.js?v=99"></script>
 </body>
 </html>

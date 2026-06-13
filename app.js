@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "98";  // shown in footer; bump with the ?v= asset version
+const BUILD = "99";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1303,7 +1303,7 @@ function renderGroups() {
   if (!reduce) el.querySelectorAll("tr[data-code]").forEach(tr => prev[tr.dataset.g + tr.dataset.code] = tr.getBoundingClientRect().top);
   el.innerHTML =
     `<div class="gwrap">${GROUPS.map((g, i) => `<div class="gcol">${groupTable(g, i)}${groupOutlookHTML(g)}</div>`).join("")}</div>
-     <div class="legend"><span class="l1"><i></i>Top 2 advance to the Round of 32</span><span class="l3"><i></i>3rd place — eight best advance</span></div>
+     <div class="legend"><span class="l1"><i></i>Top 2 advance to the Round of 32</span><span class="l3"><i></i>3rd place — eight best advance</span><button class="legend-about" data-about>ⓘ How the format works</button></div>
      ${thirdRaceHTML()}
      ${projR32HTML()}`;
   if (!reduce && Object.keys(prev).length) el.querySelectorAll("tr[data-code]").forEach(tr => {
@@ -2124,6 +2124,7 @@ async function boot() {
   $("#settingsChip").onclick = () => $("#settingsDialog").showModal();
   $("#tzRow").onclick = () => { $("#settingsDialog").close(); $("#tzDialog").showModal(); };
   $("#calRow").onclick = () => { $("#settingsDialog").close(); location.href = webcalURL("all.ics"); };
+  $("#aboutBtn").onclick = () => showSheet($("#aboutDialog"));
   $("#teamChip").onclick = () => $("#teamDialog").showModal();
   $("#searchChip").onclick = openSearch;
   $("#searchInput").oninput = e => renderSearch(e.target.value);
@@ -2206,6 +2207,8 @@ async function boot() {
     if (ic) { e.stopPropagation(); const c = ic.dataset.ics; downloadICS(S.matches.filter(m => matchHasTeam(m, c)).sort((a, b) => a.utc.localeCompare(b.utc)), `${S.teams[c].name} · World Cup 2026`); return; }
     const sq = e.target.closest("[data-squad]");
     if (sq && sq.dataset.squad) { openTeam(sq.dataset.squad); return; }
+    const ab = e.target.closest("[data-about]");   // "how the format works" → tournament info sheet
+    if (ab) { showSheet($("#aboutDialog")); return; }
     const day = e.target.closest("[data-day]");   // a day header → that day's digest
     if (day) { openDayReview(day.dataset.day); return; }
     const mid = e.target.closest("[data-mid]");   // hero, match card, or a record row (never a dialog)
