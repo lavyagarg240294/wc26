@@ -61,7 +61,7 @@ Status: ✅ shipped · ⬜ backlog. Effort: S < a session · M ≈ a session · 
 - ✅ 12 live tables, "what each team needs" outlook, FLIP reorder animation
 - ✅ **Third-place race tracker** — ranks all 12 third-placed teams by FIFA's criteria (pts → GD → GF) with the "top 8 advance" cut line drawn in, since the 48-team format's best-thirds math can't be read off 12 separate tables. → Groups (below the legend). Pure client math, no extra data.
 - ⬜ **Qualification scenarios / permutations** — which results send whom through (incl. full third-place permutations). → Groups. **M**
-- ⬜ **Knockout projection** — "if the groups ended now, the bracket looks like…". → Groups (or Predict). **M**
+- ✅ **Knockout projection** — a collapsible "Projected Round of 32 — if the groups ended today" in Groups: resolves all 16 ties from live standings (winners/runners-up + best-8 thirds via FIFA's slot constraints), read-only and independent of the user's saved bracket. Reuses a refactored pure thirds-allocator.
 - ✅ **Confederation breakdown** — each confederation's combined record (W-D-L) and points-per-game, ranked, in the Stats → Tournament sub-section. Pure client math.
 
 ### D. Predict

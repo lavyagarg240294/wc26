@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "80";  // shown in footer; bump with the ?v= asset version
+const BUILD = "81";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1013,6 +1013,37 @@ function thirdRaceHTML() {
       <span class="tr-gd">${sign(r.gd)}</span><span class="tr-pts">${r.pts}<small>pts</small></span></div>${i === 7 && rows.length > 8 ? `<div class="tr-cut"><span>Top 8 advance</span></div>` : ""}`).join("")}</div>
     <p class="sim-ko-hint">Ranked by points, then goal difference, then goals scored — the eight best of twelve reach the Round of 32.</p>`;
 }
+// read-only "if the groups ended today" Round-of-32 — resolved purely from live standings (group
+// winners/runners-up + the best-8 thirds routed through FIFA's slot constraints). Never touches the
+// user's saved prediction; that interactive bracket lives in Predict.
+function projectedR32() {
+  const order = {}; GROUPS.forEach(g => order[g] = standings(g).map(r => r.code));
+  const thirds = thirdPlaceRace().slice(0, 8).map(r => r.code);
+  const alloc = allocateThirdsPure(r32ThirdSlots(), thirds.map(code => ({ code, g: groupOf(code) })));
+  const side = (m, s) => {
+    if (s.team) return s.team;
+    const sh = s.short || "";
+    if (/^[12][A-L]$/.test(sh)) { const o = order[sh[1]] || []; return sh[0] === "1" ? o[0] : o[1]; }
+    if (sh.startsWith("3rd")) return alloc ? alloc[m.id + ":" + (s === m.home ? "home" : "away")] : null;
+    return null;
+  };
+  return S.matches.filter(m => m.stage === "r32").sort((a, b) => a.num - b.num)
+    .map(m => ({ m, h: side(m, m.home), a: side(m, m.away) }));
+}
+function projR32HTML() {
+  const allDone = GROUPS.every(g => S.matches.filter(x => x.group === g).every(x => status(x) === ST.FT));
+  const anyPlayed = S.matches.some(m => m.group && status(m) === ST.FT && res(m)?.h != null);
+  if (!anyPlayed) return "";
+  const ties = projectedR32();
+  const cell = (code, sh) => code && S.teams[code]
+    ? `<span class="fl">${flag(code)}</span><span class="pj-nm">${esc(S.teams[code].name)}</span>`
+    : `<span class="fl">·</span><span class="pj-nm pj-tbd">${esc(sh || "TBD")}</span>`;
+  const rows = ties.map(({ m, h, a }) => `<button class="pj-row" data-mid="${m.id}">
+    <span class="pj-side">${cell(h, m.home.short)}</span><span class="pj-v">v</span><span class="pj-side pj-r">${cell(a, m.away.short)}</span></button>`).join("");
+  return `<details class="proj"${allDone ? " open" : ""}><summary><span>Projected Round of 32</span><small>if the groups ended today</small></summary>
+    <div class="proj-body">${rows}</div>
+    <p class="sim-ko-hint">Live group winners &amp; runners-up plus the best-8 third places, routed through FIFA's slot rules. Make your own calls in <b>Predict</b>.</p></details>`;
+}
 function renderGroups() {
   const el = $("#view-groups");
   const prev = {};                                          // capture row positions for a FLIP when standings reorder
@@ -1021,7 +1052,8 @@ function renderGroups() {
   el.innerHTML =
     `<div class="gwrap">${GROUPS.map((g, i) => `<div class="gcol">${groupTable(g, i)}${groupOutlookHTML(g)}</div>`).join("")}</div>
      <div class="legend"><span class="l1"><i></i>Top 2 advance to the Round of 32</span><span class="l3"><i></i>3rd place — eight best advance</span></div>
-     ${thirdRaceHTML()}`;
+     ${thirdRaceHTML()}
+     ${projR32HTML()}`;
   if (!reduce && Object.keys(prev).length) el.querySelectorAll("tr[data-code]").forEach(tr => {
     const old = prev[tr.dataset.g + tr.dataset.code]; if (old == null) return;
     const dy = old - tr.getBoundingClientRect().top;
@@ -1190,17 +1222,20 @@ function simOrder(g) {
 // parse allowed groups from a third-place slot short label "3rd A/B/C/D/F"
 const thirdAllowed = s => (s.short || "").replace("3rd ", "").split("/");
 
-// assign chosen 8 third-place teams to the 8 constrained R32 slots (backtracking)
-function allocateThirds() {
+// the 8 constrained "3rd …" R32 slots, each with its allowed groups
+function r32ThirdSlots() {
   const slots = [];
   S.matches.filter(m => m.stage === "r32").forEach(m => ["home", "away"].forEach(side => {
     if ((m[side].short || "").startsWith("3rd")) slots.push({ key: m.id + ":" + side, allowed: thirdAllowed(m[side]) });
   }));
-  const picks = S.sim.thirds.map(code => ({ code, g: groupOf(code) }));
+  return slots;
+}
+// assign chosen third-place teams to the constrained slots (backtracking); pure — no shared state.
+// Returns {slotKey: code} or null if no valid assignment exists.
+function allocateThirdsPure(slots, picks) {
   if (picks.length !== slots.length) return null;
   const used = new Array(picks.length).fill(false), assign = {};
-  // most-constrained slot first
-  const order = slots.map((s, i) => i).sort((a, b) =>
+  const order = slots.map((s, i) => i).sort((a, b) =>        // most-constrained slot first
     picks.filter(p => slots[a].allowed.includes(p.g)).length - picks.filter(p => slots[b].allowed.includes(p.g)).length);
   function bt(k) {
     if (k === order.length) return true;
@@ -1213,7 +1248,14 @@ function allocateThirds() {
     }
     return false;
   }
-  return bt(0) ? assign : "impossible";
+  return bt(0) ? assign : null;
+}
+// predictor's allocator — over the user's chosen thirds. Keeps the "impossible" sentinel its callers expect.
+function allocateThirds() {
+  const slots = r32ThirdSlots();
+  const picks = S.sim.thirds.map(code => ({ code, g: groupOf(code) }));
+  if (picks.length !== slots.length) return null;
+  return allocateThirdsPure(slots, picks) || "impossible";
 }
 const groupOf = code => { const m = S.matches.find(m => m.group && (m.home.team === code || m.away.team === code)); return m?.group; };
 
