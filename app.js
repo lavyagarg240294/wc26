@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "81";  // shown in footer; bump with the ?v= asset version
+const BUILD = "83";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -931,7 +931,10 @@ function openPlayer(name, code) {
       ${bio.caps != null ? `<span><i>Caps</i>${bio.caps}</span>` : ""}
       ${bio.goals ? `<span><i>Career goals</i>${bio.goals}</span>` : ""}
     </div>` : ""}
-    ${acts ? `<div class="eyebrow">In this match</div><div class="pl-acts">${acts}</div>` : ""}`;
+    ${acts ? `<div class="eyebrow">In this match</div><div class="pl-acts">${acts}</div>` : ""}
+    <button class="pl-compare" data-compare-seed="${esc(name)}|${code}">⇄ Compare with another player</button>`;
+  const cmpBtn = $("#playerBody [data-compare-seed]");
+  if (cmpBtn) cmpBtn.onclick = () => { const [n, c] = cmpBtn.dataset.compareSeed.split("|"); $("#playerDialog").close(); openCompareSearch({ name: n, code: c }); };
   $("#playerDialog").showModal();
 }
 const ordinal = n => n + (["th", "st", "nd", "rd"][((n % 100) - 20) % 10] || ["th", "st", "nd", "rd"][n % 100] || "th");
@@ -954,32 +957,94 @@ function buildSearchIndex() {
   });
   return { teams, players, matches };
 }
-function openSearch() {
+let compareSeed = null;   // when set, the search overlay is in "pick a player to compare" mode
+function openSearch() { compareSeed = null; openSearchOverlay(); }
+function openCompareSearch(seed) { compareSeed = seed; openSearchOverlay(); }
+function openSearchOverlay() {
   SIDX = buildSearchIndex();
   const inp = $("#searchInput");
-  inp.value = ""; renderSearch("");
+  inp.value = ""; inp.placeholder = compareSeed ? `Compare ${compareSeed.name} with…` : "Teams, players, matches…";
+  renderSearch("");
   $("#searchDialog").showModal();
-  $("#searchResults").onclick = () => $("#searchDialog").close();   // close, then the doc handler opens the target
+  $("#searchResults").onclick = e => {              // close, then let the doc handler open the target…
+    const cmp = e.target.closest("[data-compare]");  // …unless we're in compare mode and a player was picked
+    if (cmp) { const [n, c] = cmp.dataset.compare.split("|"); const seed = compareSeed; compareSeed = null; $("#searchDialog").close(); openCompare(seed, { name: n, code: c }); return; }
+    $("#searchDialog").close();
+  };
   setTimeout(() => inp.focus(), 60);
 }
 function renderSearch(raw) {
-  const q = raw.trim().toLowerCase(), res = $("#searchResults");
-  if (!q) { res.innerHTML = `<div class="sr-hint">Jump to any team, player or match.</div>`; return; }
+  const q = raw.trim().toLowerCase(), res = $("#searchResults"), cmp = !!compareSeed;
+  const tname = c => esc(S.teams[c]?.name || c);
+  if (!q) { res.innerHTML = `<div class="sr-hint">${cmp ? `Pick a player to compare with <b>${esc(compareSeed.name)}</b>.` : "Jump to any team, player or match."}</div>`; return; }
   const has = s => (s || "").toLowerCase().includes(q);
   // relevance: a word that *starts* with the query beats a mid-word hit (so "mess" → Messi, not a club coincidence)
   const rank = s => { const n = (s || "").toLowerCase(); return n.startsWith(q) ? 0 : n.split(/\s+/).some(w => w.startsWith(q)) ? 1 : 2; };
   const byRank = key => (a, b) => rank(key(a)) - rank(key(b)) || key(a).localeCompare(key(b));
+  const players = SIDX.players.filter(p => (has(p.name) || has(p.club)) && !(cmp && p.name === compareSeed.name && p.code === compareSeed.code)).sort(byRank(p => p.name)).slice(0, cmp ? 12 : 8);
+  const playerRowHtml = (p, attr) => { const ph = playerPhoto(p.name, p.code);
+    return `<button class="sr-row" ${attr}>${ph ? `<span class="lead-face" style="background-image:url('${ph}')"></span>` : `<span class="fl">${flag(p.code)}</span>`}<span class="sr-name">${esc(p.name)}<small>${flag(p.code)} ${tname(p.code)}${p.club ? ` · ${esc(p.club)}` : ""}</small></span></button>`; };
+  if (cmp) {   // compare mode: players only, tapping picks the second player
+    res.innerHTML = players.length ? `<div class="sr-label">Compare with…</div>` + players.map(p => playerRowHtml(p, `data-compare="${esc(p.name)}|${p.code}"`)).join("") : `<div class="sr-hint">No players match “${esc(raw.trim())}”.</div>`;
+    return;
+  }
   const teams = SIDX.teams.filter(t => has(t.name) || t.code.toLowerCase() === q || has(t.conf)).sort(byRank(t => t.name)).slice(0, 6);
-  const players = SIDX.players.filter(p => has(p.name) || has(p.club)).sort(byRank(p => p.name)).slice(0, 8);
   const matches = SIDX.matches.filter(m => has(m.hn) || has(m.an) || has(m.city) || has(m.stage)).slice(0, 6);
-  const tname = c => esc(S.teams[c]?.name || c);
   const teamHtml = teams.length ? `<div class="sr-label">Teams</div>` + teams.map(t =>
     `<button class="sr-row" data-squad="${t.code}"><span class="fl">${flag(t.code)}</span><span class="sr-name">${esc(t.name)}<small>${esc(t.conf)}</small></span></button>`).join("") : "";
-  const playerHtml = players.length ? `<div class="sr-label">Players</div>` + players.map(p => { const ph = playerPhoto(p.name, p.code);
-    return `<button class="sr-row" data-player="${esc(p.name)}|${p.code}">${ph ? `<span class="lead-face" style="background-image:url('${ph}')"></span>` : `<span class="fl">${flag(p.code)}</span>`}<span class="sr-name">${esc(p.name)}<small>${flag(p.code)} ${tname(p.code)}${p.club ? ` · ${esc(p.club)}` : ""}</small></span></button>`; }).join("") : "";
+  const playerHtml = players.length ? `<div class="sr-label">Players</div>` + players.map(p => playerRowHtml(p, `data-player="${esc(p.name)}|${p.code}"`)).join("") : "";
   const matchHtml = matches.length ? `<div class="sr-label">Matches</div>` + matches.map(m =>
     `<button class="sr-row" data-mid="${m.id}"><span class="sr-vs">${m.hc ? flag(m.hc) : "•"}${m.ac ? flag(m.ac) : "•"}</span><span class="sr-name">${esc(m.hn)} <i>v</i> ${esc(m.an)}<small>${esc(m.stage)}${m.city ? ` · ${esc(m.city)}` : ""}</small></span></button>`).join("") : "";
   res.innerHTML = (teamHtml + playerHtml + matchHtml) || `<div class="sr-hint">No teams, players or matches match “${esc(raw.trim())}”.</div>`;
+}
+// feed scorer names (e.g. "Cyle LARIN") and squad names (e.g. "Cyle Larin") differ in case and
+// sometimes fullness — match tolerantly so a player picked from search still finds their feed stats.
+function sameName(a, b) {
+  if (a === b) return true;
+  const x = normName(a), y = normName(b);
+  return x === y || (x.length > 2 && y.length > 2 && (x.includes(y) || y.includes(x)));
+}
+// a player's tournament + career line, for the comparison view
+function playerStats(name, code, ts) {
+  const hit = list => list.find(p => p.code === code && sameName(p.name, name));
+  const sc = hit(ts.scorers), as = hit(ts.assisters), bk = hit(ts.booked), ke = hit(ts.keepers);
+  const bio = squadBio(name, code) || {};
+  return { goals: sc?.goals || 0, assists: sc?.assists ?? as?.assists ?? 0, y: bk?.y || 0, r: bk?.r || 0, cs: ke?.cs || 0,
+    caps: bio.caps, careerGoals: bio.goals, club: bio.club, pos: bio.pos, photo: bestPhoto(name, code) || bio.photo || "" };
+}
+// head-to-head comparison of two players (reuses the player dialog)
+function openCompare(a, b) {
+  if (!a || !b) return;
+  const ts = tournamentStats();
+  const A = playerStats(a.name, a.code, ts), B = playerStats(b.name, b.code, ts);
+  const POS = { GK: "Goalkeeper", DF: "Defender", MF: "Midfielder", FW: "Forward" };
+  const head = (p, side) => `<div class="cmp-p">
+    ${p.photo ? `<span class="pl-face" style="background-image:url('${p.photo}')"></span>` : `<span class="pl-face pl-flag">${flag(side.code)}</span>`}
+    <b>${esc(side.name)}</b><span>${flag(side.code)} ${esc(S.teams[side.code]?.name || side.code)}</span>${p.pos ? `<span class="cmp-pos">${POS[p.pos] || p.pos}</span>` : ""}</div>`;
+  const row = (label, av, bv, hi = true) => {
+    const an = +av || 0, bn = +bv || 0;
+    return `<div class="cmp-row"><span class="cmp-a ${hi && an > bn ? "win" : ""}">${av ?? "–"}</span><span class="cmp-lbl">${label}</span><span class="cmp-b ${hi && bn > an ? "win" : ""}">${bv ?? "–"}</span></div>`;
+  };
+  $("#playerTitle").textContent = "Compare";
+  $("#playerBody").innerHTML = `<div class="cmp">
+    <div class="cmp-head">${head(A, a)}<span class="cmp-vs">vs</span>${head(B, b)}</div>
+    <div class="eyebrow">This tournament</div>
+    <div class="cmp-rows">
+      ${row("Goals", A.goals, B.goals)}
+      ${row("Assists", A.assists, B.assists)}
+      ${row("Clean sheets", A.cs, B.cs)}
+      ${row("Yellow cards", A.y, B.y, false)}
+      ${row("Red cards", A.r, B.r, false)}
+    </div>
+    ${(A.caps != null || B.caps != null || A.club || B.club) ? `<div class="eyebrow">Career</div><div class="cmp-rows">
+      ${row("Caps", A.caps, B.caps)}
+      ${row("Career goals", A.careerGoals, B.careerGoals)}
+      <div class="cmp-row"><span class="cmp-a cmp-txt">${A.club ? esc(A.club) : "–"}</span><span class="cmp-lbl">Club</span><span class="cmp-b cmp-txt">${B.club ? esc(B.club) : "–"}</span></div>
+    </div>` : ""}
+    <button class="pl-compare" data-recompare="${esc(a.name)}|${a.code}">⇄ Compare ${esc(a.name)} with someone else</button></div>`;
+  const re = $("#playerBody [data-recompare]");
+  if (re) re.onclick = () => { const [n, c] = re.dataset.recompare.split("|"); $("#playerDialog").close(); openCompareSearch({ name: n, code: c }); };
+  $("#playerDialog").showModal();
 }
 
 /* ---------------- render: groups ---------------- */
