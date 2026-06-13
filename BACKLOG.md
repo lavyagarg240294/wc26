@@ -86,7 +86,7 @@ Status: ✅ shipped · ⬜ backlog. Effort: S < a session · M ≈ a session · 
 - ✅ **Sounds** — anthem + a synthesized **goal horn** (opt-in). _More background tracks need audio files (royalty-free); won't add random songs._
 - ✅ **Match alerts (while open)** — opt-in Settings toggle: a goal notification for your team and a "kicks off soon" reminder, via the Notification API (no push backend). Fires from the existing 60 s poll, only when the tab is backgrounded; gracefully shows On/Off/Blocked/N-A. _Like the goal horn, OS delivery needs verifying on a device where you grant permission._
 - ✅ **Quick search / ⌘K** — a global overlay (search chip + ⌘K/Ctrl-K, or "/") that jumps to any team, player (by name or club) or match (by team/city/stage), relevance-ranked (prefix beats mid-word); each result opens the right sheet.
-- ⬜ **Lite / data-saver mode** — skip photos & heavy detail on slow connections. → Settings. **S**
+- ✅ **Lite / data-saver mode** — a Settings toggle that suppresses the hot-linked player photos (the bulk of as-you-browse image weight) and falls back to flags everywhere; skips the `photos.json` fetch entirely when enabled at load, lazy-loads it if turned off later. → Settings.
 
 ### G. Platform & scale  _(do before knockouts)_
 - ✅ **Split heavy match detail out of `results.json`** — the 60s-polled file is now scores/status only (`results.json`, ~2 KB); `ev`/`xi`/`stats` live in `details.json`, fetched by the client only when scores change and merged into `S.matchData`. Writer emits both (carry-forward via a merged prev view); share-cards + the workflow updated.

@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "89";  // shown in footer; bump with the ?v= asset version
+const BUILD = "90";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1948,14 +1948,15 @@ async function loadStatic() {
   // squads.json is committed data that changes (squad updates) — bypass cache so it's always current
   try { S.squads = (await (await fetch("data/squads.json?t=" + Date.now(), { cache: "no-store" })).json()).squads || {}; }
   catch { S.squads = {}; }
-  // official player photos harvested from FIFA lineups (keyed "ShortName|CODE"); optional
-  try { S.photos = await (await fetch("data/photos.json?t=" + Date.now(), { cache: "no-store" })).json() || {}; }
-  catch { S.photos = {}; }
+  // official player photos harvested from FIFA lineups (keyed "ShortName|CODE"); optional, skipped in data-saver
+  if (!LITE()) { try { S.photos = await (await fetch("data/photos.json?t=" + Date.now(), { cache: "no-store" })).json() || {}; } catch { S.photos = {}; } }
 }
-const playerPhoto = (name, code) => (S.photos && S.photos[name + "|" + code]) || "";
+const LITE = () => localStorage.getItem("wc26.lite") === "on";   // data-saver: suppress hot-linked photos, fall back to flags
+const playerPhoto = (name, code) => (!LITE() && S.photos && S.photos[name + "|" + code]) || "";
 // like playerPhoto, but also matches a full squad name against the FIFA short-name keys (case/accent-insensitive)
 const normName = s => (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z]/gi, "").toLowerCase();
 function bestPhoto(name, code) {
+  if (LITE()) return "";
   const direct = playerPhoto(name, code); if (direct || !S.photos) return direct;
   const suf = "|" + code, ns = normName(name);
   for (const k in S.photos) if (k.endsWith(suf) && normName(k.slice(0, -suf.length)) === ns) return S.photos[k];
@@ -2071,6 +2072,17 @@ async function boot() {
     if (perm !== "granted") { flashToast(perm === "denied" ? "Notifications are blocked in your browser" : "Allow notifications to enable alerts"); notifyUI(); return; }
     localStorage.setItem("wc26.notify", "on"); notifyUI();
     try { new Notification("World Cup 26", { body: "Match alerts on — goals & kickoffs for your team.", icon: "assets/icon-192.png", tag: "wc26" }); } catch { /* */ }
+  };
+  const liteUI = () => { const on = LITE(); $("#liteState").textContent = on ? "On" : "Off"; $("#liteToggle").setAttribute("aria-pressed", String(on)); };
+  liteUI();
+  $("#liteToggle").onclick = async () => {
+    const on = !LITE();
+    localStorage.setItem("wc26.lite", on ? "on" : "off"); liteUI();
+    if (!on && (!S.photos || !Object.keys(S.photos).length)) {   // turning off → fetch the photos we skipped
+      try { S.photos = await (await fetch("data/photos.json?t=" + Date.now(), { cache: "no-store" })).json() || {}; } catch { /* keep flags */ }
+    }
+    flashToast(on ? "Data saver on — photos hidden" : "Data saver off");
+    RENDER[S.view]();   // re-render so photos↔flags swap immediately
   };
   $("#jumpNow").onclick = scrollToNow;
   addEventListener("scroll", () => { if (S.view === "matches") requestAnimationFrame(updateJumpNow); }, { passive: true });
