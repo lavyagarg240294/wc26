@@ -668,6 +668,10 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .ct-y::before{background:var(--gold)}
 .ct-r::before{background:#E5443B}
 .ct-r{color:var(--ink-soft)}
+/* suspension-watch status pills */
+.susp-tag{font-family:var(--disp);font-weight:800;font-stretch:106%;font-size:9.5px;letter-spacing:.04em;text-transform:uppercase;padding:4px 10px;border-radius:99px;white-space:nowrap;flex:0 0 auto}
+.susp-tag.is-ban{background:color-mix(in srgb,#E5443B 18%,var(--card));color:#E5443B}
+.susp-tag.is-risk{background:color-mix(in srgb,var(--gold) 24%,var(--card));color:color-mix(in srgb,var(--gold) 55%,var(--ink))}
 .lead-scorers .lead-row:first-of-type .lead-rank{color:var(--gold)}
 .lead-scorers .lead-row:first-of-type .lead-v{color:var(--gold)}
 /* records / superlatives — icon · label+detail · value, each row taps to its match or player */

@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "72";  // shown in footer; bump with the ?v= asset version
+const BUILD = "73";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1316,7 +1316,7 @@ function championBanner(code, predicted) {
 /* ---------------- tournament stats (team + player) ---------------- */
 function tournamentStats() {
   const fts = S.matches.filter(m => status(m) === ST.FT && res(m)?.h != null);
-  const gf = {}, ga = {}, poss = {}, possN = {}, sot = {}, sotN = {}, yel = {}, red = {}, played = {}, scorers = {}, assists = {}, pyel = {}, pred = {};
+  const gf = {}, ga = {}, poss = {}, possN = {}, sot = {}, sotN = {}, yel = {}, red = {}, played = {}, scorers = {}, assists = {}, pyel = {}, pred = {}, cs = {};
   let goals = 0, totCards = 0;
   const rec = { bigWin: null, hiScore: null, fastG: null, lateG: null };   // superlatives
   const add = (o, k, n = 1) => { if (k) o[k] = (o[k] || 0) + n; };
@@ -1324,6 +1324,7 @@ function tournamentStats() {
     const r = res(m), hc = slotInfo(m, "home").code, ac = slotInfo(m, "away").code;
     add(played, hc); add(played, ac);
     add(gf, hc, r.h); add(ga, hc, r.a); add(gf, ac, r.a); add(ga, ac, r.h);
+    if (r.a === 0) add(cs, hc); if (r.h === 0) add(cs, ac);   // clean sheets (shutouts)
     goals += r.h + r.a;
     // records: biggest winning margin (tiebreak by total goals) + highest-scoring match
     const margin = Math.abs(r.h - r.a), total = r.h + r.a;
@@ -1367,6 +1368,7 @@ function tournamentStats() {
     teamCards: cardList,
     teamScored: perMatch(gf, played).sort((a, b) => b.v - a.v),
     teamConceded: perMatch(ga, played).sort((a, b) => a.v - b.v),
+    cleanSheets: Object.entries(cs).map(([code, v]) => ({ code, v })).sort((a, b) => b.v - a.v),
     teamSot: perMatch(sot, sotN).sort((a, b) => b.v - a.v),
     possession: Object.keys(poss).map(c => ({ code: c, v: poss[c] / possN[c] })).filter(x => isFinite(x.v)).sort((a, b) => b.v - a.v),
   };
@@ -1385,6 +1387,15 @@ function renderStats() {
   const scorerRow = (p, i) => playerRow(p, i, `${p.goals}<small>${p.assists ? `${p.assists} ast` : "&nbsp;"}</small>`);
   const assistRow = (p, i) => playerRow(p, i, `${p.assists}<small>assist${p.assists > 1 ? "s" : ""}</small>`);
   const bookedRow = (p, i) => playerRow(p, i, `<span class="card-tally">${p.y ? `<span class="ct ct-y">${p.y}</span>` : ""}${p.r ? `<span class="ct ct-r">${p.r}</span>` : ""}</span>`);
+  // suspension watch — derived from the same card tallies; a red or 2nd yellow = a ban next game
+  const suspRow = (p, kind) => { const ph = playerPhoto(p.name, p.code); return `<div class="lead-row lead-player" data-player="${esc(p.name)}|${p.code}" role="button" tabindex="0">
+    ${ph ? `<span class="lead-face" style="background-image:url('${ph}')"></span>` : `<span class="fl">${flag(p.code)}</span>`}
+    <span class="lead-name">${esc(p.name)}<small>${flag(p.code)} ${tname(p.code)}</small></span>
+    <span class="susp-tag ${kind === "ban" ? "is-ban" : "is-risk"}">${kind === "ban" ? (p.r > 0 ? "Sent off — banned" : "2 yellows — banned") : "On a yellow"}</span></div>`; };
+  const suspended = s.booked.filter(p => p.r > 0 || p.y >= 2);
+  const atRisk = s.booked.filter(p => p.r === 0 && p.y === 1);
+  const suspHtml = (suspended.length || atRisk.length)
+    ? `<div class="lead-card"><h4>Suspension watch</h4>${suspended.map(p => suspRow(p, "ban")).join("")}${atRisk.slice(0, 8).map(p => suspRow(p, "risk")).join("")}</div>` : "";
   const teamLead = (title, rows, fmt) => rows.length ? `<div class="lead-card"><h4>${title}</h4>${rows.slice(0, 5).map((x, i) => `<div class="lead-row" data-squad="${x.code}" role="button" tabindex="0">
     <span class="lead-rank">${i + 1}</span><span class="fl">${flag(x.code)}</span><span class="lead-name">${tname(x.code)}</span>
     <span class="lead-v">${fmt(x)}</span></div>`).join("")}</div>` : "";
@@ -1415,13 +1426,15 @@ function renderStats() {
     ["teams", "Teams", `<div class="lead-grid">
       ${teamLead("Attack", s.teamScored, perGame)}
       ${teamLead("Defence", s.teamConceded, perGame)}
+      ${teamLead("Clean sheets", s.cleanSheets, x => x.v)}
       ${teamLead("Possession", s.possession, x => x.v.toFixed(1) + "%")}
       ${teamLead("Shots on target", s.teamSot, perGame)}
     </div>`],
     ["discipline", "Discipline", `<div class="lead-grid">
+      ${suspHtml}
       ${cardLead}
       ${s.booked.length ? `<div class="lead-card"><h4>Booked players</h4>${s.booked.slice(0, 8).map(bookedRow).join("")}</div>` : ""}
-    </div>${s.booked.length ? `<p class="sim-ko-hint">Two yellows (or a red) earn a one-match ban.</p>` : ""}`],
+    </div>${s.booked.length ? `<p class="sim-ko-hint">A red card or a second yellow means a one-match ban — FIFA clears single yellows after the quarter-finals.</p>` : ""}`],
     ["records", "Records", recordsHtml],
     ["tournament", "Tournament", `<div class="stat-tiles">
       ${tile("Goals", s.pulse.goals)}${tile("Matches", s.pulse.matches)}
