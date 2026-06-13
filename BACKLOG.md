@@ -48,7 +48,7 @@ Status: ✅ shipped · ⬜ backlog. Effort: S < a session · M ≈ a session · 
 - ⬜ **Head-to-head** — recent meetings between the two teams. → Match sheet. **M–L** (needs a history source)
 - ⬜ **Live win-probability** — simple heuristic from score + minute + (opt) xG-less shot data. → Match sheet. **M**
 - ⬜ **Penalty shootout detail** — kick-by-kick in KO ties. → Match sheet. **S**
-- ⬜ **Match of the day** — a featured pick (biggest fixture today). → Matches hero. **S**
+- ✅ **Match of the day** — a gold banner under the hero highlighting the marquee fixture in the next slate of games (scored by stage weight + the teams' World Cup pedigree + host bonus); hidden when it's already the hero. → Matches.
 
 ### B. Teams
 - ✅ 48-team grid, 26-man squads, player profiles, My Team + `.ics` export, team re-theming

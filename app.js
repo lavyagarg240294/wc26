@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "76";  // shown in footer; bump with the ?v= asset version
+const BUILD = "77";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -586,6 +586,32 @@ function heroBlock(heroM, isLive) {
     </div>
   </div>`;
 }
+// "Match of the day" — the marquee fixture among the next slate of upcoming/live games, scored by
+// stage weight + the two teams' World Cup pedigree + a host bonus. A rolling window over the next few
+// fixtures (not a local-day boundary) so a late-night kickoff isn't shoved into "tomorrow" by the tz.
+const MOTD_STAGE = { group: 0, r32: 3, r16: 4, qf: 6, sf: 8, third: 5, final: 12 };
+function matchOfDay() {
+  const ahead = S.matches.filter(m => status(m) !== ST.FT).sort((a, b) => a.utc.localeCompare(b.utc));
+  if (!ahead.length) return null;
+  const pool = ahead.slice(0, 6);   // ~the next day's worth of fixtures, timezone-agnostic
+  const hosts = ["CA", "MX", "US"];
+  const score = m => {
+    const h = slotInfo(m, "home"), a = slotInfo(m, "away");
+    const titles = (S.teams[h.code]?.titles || 0) + (S.teams[a.code]?.titles || 0);
+    const host = hosts.includes(h.code) || hosts.includes(a.code) ? 1 : 0;
+    return (MOTD_STAGE[m.stage] || 0) + titles * 2 + host + (!!h.code + !!a.code);   // prefer known fixtures
+  };
+  return pool.map(m => ({ m, s: score(m) })).sort((a, b) => b.s - a.s || a.m.utc.localeCompare(b.m.utc))[0]?.m || null;
+}
+function motdBanner(m) {
+  const h = slotInfo(m, "home"), a = slotInfo(m, "away");
+  const nm = (s, side) => s.code ? esc(s.name) : esc(slotText(m, side, s));
+  return `<button class="motd" data-mid="${m.id}" aria-label="Match of the day — details">
+    <span class="motd-tag">★ Match of the day</span>
+    <span class="motd-fix"><span class="fl">${h.code ? flag(h.code) : "·"}</span>${nm(h, "home")}<i>v</i>${nm(a, "away")}<span class="fl">${a.code ? flag(a.code) : "·"}</span></span>
+    <span class="motd-meta"><b>${timeStr(m.utc)}</b> · ${esc(m.group ? "Group " + m.group : m.round)} · ${esc((m.city || "").split(",")[0])}</span>
+  </button>`;
+}
 function renderMatches() {
   const el = $("#view-matches");
   const now = new Date();
@@ -605,8 +631,10 @@ function renderMatches() {
   const past = list.filter(m => status(m) === ST.FT);
   const ahead = list.filter(m => status(m) !== ST.FT);
 
+  const motd = matchOfDay();   // skip if it's already the hero (live/next) — no point showing it twice
   el.innerHTML =
     (heroM ? heroBlock(heroM, !!live) : "") +
+    (motd && (!heroM || motd.id !== heroM.id) ? motdBanner(motd) : "") +
     `<div class="filters">
       <select class="fsel ${f.stage !== "all" ? "is-on" : ""}" id="stageSel" aria-label="Filter by stage">
         ${[["all", "All 104 matches"], ["group", "Group stage"], ["ko", "Knockouts"]].map(([k, l]) =>
