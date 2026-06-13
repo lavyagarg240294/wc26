@@ -28,7 +28,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=Instrument+Sans:wght@400;500;600&family=Spline+Sans+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=66">
+<link rel="stylesheet" href="styles.css?v=67">
 <link rel="icon" href="assets/wc26-emblem.svg">
 </head>
 <body>
@@ -45,13 +45,8 @@
     </span>
   </a>
   <div class="topbar-right">
-    <button class="chip chip-icon" id="musicChip" title="Background music" aria-pressed="false" aria-label="Toggle background music">
-      <svg class="ic-music" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg>
-      <span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>
-    </button>
-    <button class="chip" id="tzChip" title="Change timezone">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
-      <span id="tzLabel">Auto</span>
+    <button class="chip chip-icon" id="settingsChip" title="Settings" aria-label="Settings">
+      <svg class="ic-music" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
     </button>
     <button class="chip chip-team" id="teamChip" title="Pick your team">
       <span id="teamChipFlag">⚽</span><span id="teamChipName">Pick a team</span>
@@ -88,6 +83,23 @@
   <span class="foot-dot">·</span>
   <span class="foot-build" id="buildTag"></span>
 </footer>
+
+<!-- Settings -->
+<dialog id="settingsDialog" class="sheet">
+  <div class="sheet-head"><h3>Settings</h3><button class="sheet-x" data-close>✕</button></div>
+  <div class="sheet-body" id="settingsBody">
+    <button class="set-row" id="musicToggle" aria-pressed="false">
+      <span class="set-ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg></span>
+      <span class="set-tx"><b>Background music</b><small>Tournament anthem while you browse</small></span>
+      <span class="set-state" id="musicState">Off</span>
+    </button>
+    <button class="set-row" id="tzRow">
+      <span class="set-ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+      <span class="set-tx"><b>Time zone</b><small>How kickoff times are shown</small></span>
+      <span class="set-state" id="tzState">Auto</span>
+    </button>
+  </div>
+</dialog>
 
 <!-- Timezone picker -->
 <dialog id="tzDialog" class="sheet">
@@ -133,6 +145,6 @@
 <canvas id="confetti" aria-hidden="true"></canvas>
 <audio id="bgm" loop preload="none" src="assets/anthem.mp3"></audio>
 
-<script src="app.js?v=66"></script>
+<script src="app.js?v=67"></script>
 </body>
 </html>

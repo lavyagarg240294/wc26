@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "66";  // shown in footer; bump with the ?v= asset version
+const BUILD = "67";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1429,7 +1429,7 @@ function buildPickers() {
   };
 }
 function syncTzLabels() {
-  $("#tzLabel").textContent = S.tz === "auto" ? `Auto · ${tzShort()}` : (ZONES.find(z => z[0] === S.tz)?.[1] || S.tz);
+  const tzl = $("#tzState"); if (tzl) tzl.textContent = S.tz === "auto" ? `Auto · ${tzShort()}` : (ZONES.find(z => z[0] === S.tz)?.[1] || S.tz);
   $("#footTz").textContent = `${tz()} (${tzShort()})`;
   const bt = $("#buildTag"); if (bt) bt.textContent = "build " + BUILD;
 }
@@ -1438,13 +1438,13 @@ function syncTzLabels() {
 // The button reflects the audio's REAL paused state (not just a saved flag), so it
 // can never get out of sync with what you actually hear.
 function initMusic() {
-  const a = $("#bgm"), btn = $("#musicChip"); if (!btn || !a) return;
+  const a = $("#bgm"), btn = $("#musicToggle"); if (!btn || !a) return;
   a.volume = 0.32;
   const sync = () => {
     const playing = !a.paused;
-    btn.classList.toggle("is-on", playing);
     btn.setAttribute("aria-pressed", String(playing));
-    btn.title = playing ? "Mute music" : "Play music";
+    const st = $("#musicState"); if (st) st.textContent = playing ? "On" : "Off";
+    $("#settingsChip")?.classList.toggle("is-on", playing);   // gear hints that music is playing
   };
   a.addEventListener("play", sync);
   a.addEventListener("pause", sync);
@@ -1453,9 +1453,9 @@ function initMusic() {
     else { a.pause(); localStorage.setItem("wc26.music", "off"); }
   };
   // resume a previously-on preference on the first interaction (autoplay is blocked on load) —
-  // but ignore a tap on the music button itself, so toggling can never fight the resume
+  // but ignore a tap on the toggle itself, so toggling can never fight the resume
   if (localStorage.getItem("wc26.music") === "on") {
-    const resume = e => { if (!e.target.closest("#musicChip")) a.play().catch(() => {}); };
+    const resume = e => { if (!e.target.closest("#musicToggle")) a.play().catch(() => {}); };
     addEventListener("pointerdown", resume, { once: true });
   }
   sync();
@@ -1540,7 +1540,8 @@ async function boot() {
   S.filters.team = "";            // default filter shows all teams (favourite is still pinned in the dropdown)
   applyTheme(); syncTzLabels(); buildPickers(); renderTicker();
   $$("[data-nav]").forEach(b => b.onclick = e => { e.preventDefault(); nav(b.dataset.nav); });
-  $("#tzChip").onclick = () => $("#tzDialog").showModal();
+  $("#settingsChip").onclick = () => $("#settingsDialog").showModal();
+  $("#tzRow").onclick = () => { $("#settingsDialog").close(); $("#tzDialog").showModal(); };
   $("#teamChip").onclick = () => $("#teamDialog").showModal();
   $("#jumpNow").onclick = scrollToNow;
   addEventListener("scroll", () => { if (S.view === "matches") requestAnimationFrame(updateJumpNow); }, { passive: true });

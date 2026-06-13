@@ -704,6 +704,16 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .sq-form,.md-form{display:inline-flex;align-items:center;gap:7px}
 .md-form{margin-top:6px}
 .sq-form{margin-left:10px;font-size:10.5px;font-weight:700;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em}
+/* settings sheet rows */
+.set-row{display:flex;align-items:center;gap:13px;width:100%;text-align:left;padding:14px 4px;border-bottom:1px solid color-mix(in srgb,var(--line) 55%,transparent);transition:background .15s}
+.set-row:last-child{border-bottom:none}
+.set-row:hover{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
+.set-ic{display:grid;place-items:center;width:38px;height:38px;border-radius:11px;background:color-mix(in srgb,var(--acc1) 10%,var(--card));color:var(--acc1);flex:0 0 auto}
+.set-tx{display:flex;flex-direction:column;gap:2px;flex:1;min-width:0}
+.set-tx b{font-weight:700;font-size:14.5px}
+.set-tx small{font-size:11.5px;color:var(--ink-soft)}
+.set-state{font-family:var(--mono);font-size:12.5px;font-weight:700;color:var(--ink-soft);white-space:nowrap}
+#musicToggle[aria-pressed="true"] .set-state{color:var(--acc1)}
 /* calendar (.ics) buttons */
 .team-actions{margin:14px 0 4px}
 .ics-btn{display:inline-flex;align-items:center;gap:7px}
@@ -809,7 +819,6 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
   .wm-logo{height:26px}
   .wm-full{display:none}
   .wm-short{display:inline}
-  #tzLabel{display:none}                 /* timezone chip = clock icon only on phones */
   #teamChipName{max-width:104px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .topbar-right{gap:6px;flex:0 0 auto}
   .cd-cell{width:56px;padding:7px 0}
