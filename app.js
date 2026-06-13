@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "118";  // shown in footer; bump with the ?v= asset version
+const BUILD = "119";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -667,6 +667,81 @@ function winProbBlock(m) {
       <p class="wp-note">A Poisson model from each team's <b>strength rating</b> (World Football Elo) and <b>current-tournament form</b>${wp.live ? ", updated by the live score and minutes left" : ""} — not a betting line.</p>
     </div>`;
 }
+/* ---------------- stakes explainer ----------------
+   Plain-language "what this result means for qualification" on group matches. Pure points-based reasoning over
+   every still-possible W/D/L of the group's unfinished matches, so each claim survives goal-difference tiebreaks;
+   where the cut IS GD-dependent we don't fake a call — we fall back to the live standing. No new data. */
+function _basePts(g) {                                    // FT-only points — the definite base
+  const pts = {}; groupTeams(g).forEach(c => pts[c] = 0);
+  for (const m of S.matches) if (m.group === g && status(m) === ST.FT) {
+    const r = res(m); if (!r || r.h == null) continue;
+    if (r.h > r.a) pts[m.home.team] += 3; else if (r.h < r.a) pts[m.away.team] += 3;
+    else { pts[m.home.team]++; pts[m.away.team]++; }
+  }
+  return pts;
+}
+// For team X: over every W/D/L of the group's unfinished matches (optionally fixing match `fixId` to `fixOut`),
+// is X *guaranteed* top-two (≤1 other team can reach its points) and/or *out* of top-two (≥2 teams beat it)?
+function _qualScan(g, X, fixId, fixOut) {
+  const teams = groupTeams(g), rem = S.matches.filter(m => m.group === g && status(m) !== ST.FT);
+  let allTop2 = true, allOut = true;
+  const rec = (i, pts) => {
+    if (i === rem.length) {
+      const px = pts[X]; let ge = 0, gt = 0;
+      for (const t of teams) if (t !== X) { if (pts[t] >= px) ge++; if (pts[t] > px) gt++; }
+      if (ge > 1) allTop2 = false;     // someone else could match/beat X → not guaranteed top-two here
+      if (gt < 2) allOut = false;      // fewer than two strictly above → X could still be top-two here
+      return;
+    }
+    const m = rem[i], h = m.home.team, a = m.away.team;
+    for (const o of (fixId && m.id === fixId ? [fixOut] : ["h", "d", "a"])) {
+      const np = { ...pts };
+      if (o === "h") np[h] += 3; else if (o === "a") np[a] += 3; else { np[h]++; np[a]++; }
+      rec(i + 1, np);
+    }
+  };
+  rec(0, _basePts(g));
+  return { clinched: allTop2, out: allOut };
+}
+function _provPos(g) {                                    // FT + in-play provisional positions ("as it stands")
+  const rows = {}; groupTeams(g).forEach(c => rows[c] = { code: c, pts: 0, gd: 0, gf: 0 });
+  for (const m of S.matches) if (m.group === g) {
+    const r = res(m); if (!r || r.h == null || ![ST.FT, ST.LIVE, ST.HT].includes(r.st)) continue;
+    const H = rows[m.home.team], A = rows[m.away.team]; if (!H || !A) continue;
+    H.gf += r.h; A.gf += r.a; H.gd += r.h - r.a; A.gd += r.a - r.h;
+    if (r.h > r.a) H.pts += 3; else if (r.h < r.a) A.pts += 3; else { H.pts++; A.pts++; }
+  }
+  const pos = {};
+  Object.values(rows).sort((x, y) => y.pts - x.pts || y.gd - x.gd || y.gf - x.gf || x.code.localeCompare(y.code))
+    .forEach((r, i) => pos[r.code] = i + 1);
+  return pos;
+}
+function matchStakes(m) {
+  if (m.stage !== "group" || !m.group || status(m) === ST.FT) return null;
+  const g = m.group, H = m.home.team, A = m.away.team;
+  if (!H || !A || !S.matches.some(x => x.group === g && status(x) === ST.FT && res(x)?.h != null)) return null;
+  const nm = c => `<b>${esc(S.teams[c]?.name || c)}</b>`;
+  const say = code => {
+    if (_qualScan(g, code).clinched) return `${nm(code)} are through to the Round of 32.`;
+    if (_qualScan(g, code).out) return `${nm(code)} can no longer finish in the top two.`;
+    const win = code === H ? "h" : "a", lose = code === H ? "a" : "h";
+    if (_qualScan(g, code, m.id, "d").clinched) return `A draw is enough to send ${nm(code)} through.`;
+    if (_qualScan(g, code, m.id, win).clinched) return `Win and ${nm(code)} are through.`;
+    if (_qualScan(g, code, m.id, lose).out) return `${nm(code)} drop out of the top two if they lose.`;
+    if (_qualScan(g, code, m.id, win).out) return `Even a win can't lift ${nm(code)} into the top two.`;
+    return null;
+  };
+  const lines = [say(H), say(A)].filter(Boolean);
+  if (!lines.length) {
+    const p = _provPos(g);
+    lines.push(`As it stands, ${nm(H)} are ${ordinal(p[H])} and ${nm(A)} are ${ordinal(p[A])} in Group ${g}.`);
+  }
+  return lines;
+}
+function stakesBlock(m) {
+  const lines = matchStakes(m); if (!lines) return "";
+  return `<div class="eyebrow">What's at stake</div><ul class="stakes">${lines.map(l => `<li>${l}</li>`).join("")}</ul>`;
+}
 function openMatch(id) {
   const m = S.matches.find(x => x.id === id); if (!m) return;
   const h = slotInfo(m, "home"), a = slotInfo(m, "away"), r = res(m), st = status(m);
@@ -700,6 +775,7 @@ function openMatch(id) {
     </div>
     <div class="md-teams">${side(h, "home")}<div class="md-mid">${mid}</div>${side(a, "away")}</div>
     ${koPath(m)}
+    ${stakesBlock(m)}
     ${winProbBlock(m)}
     ${liveNow ? xiBlock : ""}
     ${r?.ev?.length ? mdTimeline(r, h.code, a.code) : (r?.gh?.length || r?.ga?.length) ? `<div class="md-goals">
@@ -747,6 +823,7 @@ function heroBlock(heroM, isLive) {
         : `<span class="hero-vs">VS</span>`}</div>
       <div class="hero-side"><span class="hero-flag">${a.code ? flag(a.code) : "·"}</span><span class="hero-name">${esc(a.name)}</span></div>
     </div>
+    ${(() => { const s = matchStakes(heroM); return s && s[0] ? `<div class="hero-stakes">${s[0]}</div>` : ""; })()}
     ${!isLive ? `<div class="countdown" id="cd" data-utc="${heroM.utc}">
       ${["h", "m", "s"].map(k => `<div class="cd-cell"><span class="cd-num" data-k="${k}">–</span><span class="cd-lab">${{ h: "hrs", m: "min", s: "sec" }[k]}</span></div>`).join("")}
     </div>` : ""}

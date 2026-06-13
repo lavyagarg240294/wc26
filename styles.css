@@ -600,6 +600,12 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .wp-legend b{font-family:var(--mono);font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
 .wp-legend .flagimg{max-height:1.1em;vertical-align:-.18em}
 .wp-note{font-size:11px;line-height:1.45;color:var(--ink-soft);margin:8px 0 0}
+/* stakes explainer — plain-language qualification consequences */
+.stakes{margin:8px 0 4px;padding:0;list-style:none;display:flex;flex-direction:column;gap:7px}
+.stakes li{position:relative;padding-left:18px;font-size:13.5px;line-height:1.45;color:var(--ink)}
+.stakes li::before{content:"";position:absolute;left:1px;top:.45em;width:7px;height:7px;border-radius:2px;background:var(--acc1)}
+.hero-stakes{margin-top:12px;text-align:center;font-size:13px;line-height:1.4;color:var(--ink-soft)}
+.hero-stakes b{color:var(--ink);font-weight:700}
 .wp-note b{color:var(--ink);font-weight:600}
 .wp-lh{color:var(--acc1)}.wp-lh b{color:var(--acc1)}
 .wp-la{text-align:right}
