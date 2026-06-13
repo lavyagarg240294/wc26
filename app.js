@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "75";  // shown in footer; bump with the ?v= asset version
+const BUILD = "76";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1383,15 +1383,22 @@ function championBanner(code, predicted) {
 /* ---------------- tournament stats (team + player) ---------------- */
 function tournamentStats() {
   const fts = S.matches.filter(m => status(m) === ST.FT && res(m)?.h != null);
-  const gf = {}, ga = {}, poss = {}, possN = {}, sot = {}, sotN = {}, yel = {}, red = {}, played = {}, scorers = {}, assists = {}, pyel = {}, pred = {}, cs = {};
+  const gf = {}, ga = {}, poss = {}, possN = {}, sot = {}, sotN = {}, yel = {}, red = {}, played = {}, scorers = {}, assists = {}, pyel = {}, pred = {}, cs = {}, conf = {};
   let goals = 0, totCards = 0;
   const rec = { bigWin: null, hiScore: null, fastG: null, lateG: null };   // superlatives
   const add = (o, k, n = 1) => { if (k) o[k] = (o[k] || 0) + n; };
+  const addConf = (code, gfv, gav, diff) => {   // a team's match folded into its confederation's collective record
+    const k = S.teams[code]?.conf; if (!k) return;
+    const o = conf[k] || (conf[k] = { p: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, pts: 0 });
+    o.p++; o.gf += gfv; o.ga += gav;
+    if (diff > 0) { o.w++; o.pts += 3; } else if (diff < 0) o.l++; else { o.d++; o.pts++; }
+  };
   for (const m of fts) {
     const r = res(m), hc = slotInfo(m, "home").code, ac = slotInfo(m, "away").code;
     add(played, hc); add(played, ac);
     add(gf, hc, r.h); add(ga, hc, r.a); add(gf, ac, r.a); add(ga, ac, r.h);
     if (r.a === 0) add(cs, hc); if (r.h === 0) add(cs, ac);   // clean sheets (shutouts)
+    addConf(hc, r.h, r.a, r.h - r.a); addConf(ac, r.a, r.h, r.a - r.h);
     goals += r.h + r.a;
     // records: biggest winning margin (tiebreak by total goals) + highest-scoring match
     const margin = Math.abs(r.h - r.a), total = r.h + r.a;
@@ -1438,6 +1445,11 @@ function tournamentStats() {
     cleanSheets: Object.entries(cs).map(([code, v]) => ({ code, v })).sort((a, b) => b.v - a.v),
     teamSot: perMatch(sot, sotN).sort((a, b) => b.v - a.v),
     possession: Object.keys(poss).map(c => ({ code: c, v: poss[c] / possN[c] })).filter(x => isFinite(x.v)).sort((a, b) => b.v - a.v),
+    confeds: (() => {
+      const teamCount = {}; Object.values(S.teams).forEach(t => { if (t.conf) teamCount[t.conf] = (teamCount[t.conf] || 0) + 1; });
+      return Object.entries(conf).map(([k, o]) => ({ conf: k, teams: teamCount[k] || 0, ...o, ppg: o.p ? o.pts / o.p : 0, gpg: o.p ? o.gf / o.p : 0 }))
+        .sort((a, b) => b.ppg - a.ppg || b.gpg - a.gpg || a.conf.localeCompare(b.conf));
+    })(),
   };
 }
 let statsTab = "players";   // active Stats sub-section (persists across re-renders)
@@ -1484,6 +1496,16 @@ function renderStats() {
     ? `<div class="lead-card rec-card">${recItems.join("")}</div><p class="sim-ko-hint">Tap a record to jump to the match or player.</p>`
     : `<div class="empty">Records fill in as matches are played.</div>`;
 
+  // confederation breakdown — each confederation's collective record, ranked by points per game
+  const CONF_LABEL = { UEFA: "Europe", CONMEBOL: "South America", CONCACAF: "N. & C. America", AFC: "Asia", CAF: "Africa", OFC: "Oceania" };
+  const confHtml = s.confeds.length ? `<div class="eyebrow">By confederation</div>
+    <div class="lead-card conf-card">${s.confeds.map((c, i) => `<div class="conf-row">
+      <span class="conf-rank">${i + 1}</span>
+      <span class="conf-name">${CONF_LABEL[c.conf] || c.conf}<small>${c.conf} · ${c.teams} team${c.teams > 1 ? "s" : ""}</small></span>
+      <span class="conf-rec">${c.w}<i>W</i> ${c.d}<i>D</i> ${c.l}<i>L</i></span>
+      <span class="conf-ppg">${c.ppg.toFixed(2)}<small>pts/gm</small></span></div>`).join("")}</div>
+    <p class="sim-ko-hint">Combined record of each confederation's teams, ranked by points per game.</p>` : "";
+
   // sections behind a segmented sub-nav so the tab grows down (not into one endless scroll)
   const sections = [
     ["players", "Players", `
@@ -1506,7 +1528,7 @@ function renderStats() {
     ["tournament", "Tournament", `<div class="stat-tiles">
       ${tile("Goals", s.pulse.goals)}${tile("Matches", s.pulse.matches)}
       ${tile("Goals / match", s.pulse.perMatch.toFixed(2))}${tile("Cards", s.pulse.cards)}
-    </div>`],
+    </div>${confHtml}`],
   ];
   if (!sections.some(([k]) => k === statsTab)) statsTab = "players";
   el.innerHTML = `<div class="substat-nav">${sections.map(([k, label]) => `<button class="substat ${k === statsTab ? "is-on" : ""}" data-stat="${k}">${label}</button>`).join("")}</div>`
