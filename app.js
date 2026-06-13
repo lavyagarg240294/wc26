@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "106";  // shown in footer; bump with the ?v= asset version
+const BUILD = "107";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -885,7 +885,10 @@ function jumpTarget() {
   const v = $("#view-matches"); if (!v || S.view !== "matches") return null;
   const liveM = S.matches.find(m => [ST.LIVE, ST.HT].includes(status(m)));
   if (liveM) { const c = v.querySelector(`.mcard[data-mid="${liveM.id}"]`); if (c) return { el: c, head: null, live: true }; }
-  const head = v.querySelector(".dayhead.is-today");
+  // there can be two "today" headers — one inside the collapsed "Earlier results" <details> and one in
+  // the upcoming list. Target the upcoming (visible) one, never the collapsed one.
+  const heads = [...v.querySelectorAll(".dayhead.is-today")];
+  const head = heads.find(h => !h.closest("details")) || heads[0];
   if (head) {
     let card = head.nextElementSibling;
     while (card && !card.classList.contains("mcard")) card = card.nextElementSibling;
@@ -894,6 +897,14 @@ function jumpTarget() {
   return null;
 }
 const STICK = () => ($(".topbar")?.offsetHeight || 56) + ($(".tabs")?.offsetHeight || 48);
+// publish the real pinned-chrome heights as CSS vars so the sticky day-headers pin exactly under the
+// tabs (the old hardcoded 60px/105px assumed a taller bar) — keeps "jump to today" landing pixel-true.
+function setChromeVars() {
+  const bar = $(".topbar")?.offsetHeight || 56, tabs = $(".tabs")?.offsetHeight || 46;
+  const r = document.documentElement.style;
+  r.setProperty("--h-bar", bar + "px");
+  r.setProperty("--h-chrome", (bar + tabs) + "px");
+}
 function updateJumpNow() {
   const btn = $("#jumpNow"); if (!btn) return;
   const t = jumpTarget();
@@ -2275,10 +2286,11 @@ async function boot() {
   $$("dialog").forEach(d => d.onclick = e => { if (e.target === d) d.close(); });
   $("#searchDialog").addEventListener("close", () => { compareSeed = null; });   // never leave compare mode armed after the overlay closes
   addEventListener("resize", () => {
-    moveInk();
+    moveInk(); setChromeVars();
     if (S.view === "sim") layoutBracket($("#view-sim"));
   });
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => {
+    setChromeVars();   // fonts can change the bar height → re-measure so sticky offsets stay exact
     if (S.view === "sim") layoutBracket($("#view-sim"));
   });
   document.addEventListener("click", e => {
@@ -2319,6 +2331,7 @@ async function boot() {
     if (loadSharedSim(location.hash.slice(3))) { pruneSim(); saveSim(); initView = "sim"; setTimeout(() => flashToast("Loaded a shared prediction"), 400); }
     history.replaceState(null, "", location.pathname + location.search);
   }
+  setChromeVars();
   nav(initView);
   const bl = $("#bootLoading"); if (bl) { bl.classList.add("gone"); setTimeout(() => bl.remove(), 320); }   // first view rendered → reveal
   // a shared match link (?match=<id>, e.g. from a share-card stub) opens that match

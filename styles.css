@@ -138,7 +138,7 @@ b{font-weight:600}
 
 /* ---------- tabs ---------- */
 .tabs{
-  position:sticky;top:60px;z-index:39;
+  position:sticky;top:var(--h-bar,60px);z-index:39;
   display:flex;gap:2px;justify-content:flex-start;overflow-x:auto;
   padding:8px clamp(16px,4vw,32px) 0;
   background:color-mix(in srgb,var(--paper) 92%,transparent);
@@ -477,7 +477,7 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .tsel-div{height:1px;background:var(--line);margin:6px 2px}
 .tsel-empty{padding:12px 10px;color:var(--ink-soft);font-size:13px;text-align:center}
 @media(prefers-reduced-motion:reduce){.tsel-pop{animation:none}}
-.dayhead{font-family:var(--disp);font-weight:800;font-stretch:112%;font-size:15px;margin:26px 0 12px;display:flex;align-items:baseline;gap:10px;position:sticky;top:105px;background:var(--paper);padding:6px 0 6px 11px;z-index:5;border-left:4px solid var(--acc1);border-radius:2px}
+.dayhead{font-family:var(--disp);font-weight:800;font-stretch:112%;font-size:15px;margin:26px 0 12px;display:flex;align-items:baseline;gap:10px;position:sticky;top:var(--h-chrome,105px);scroll-margin-top:var(--h-chrome,105px);background:var(--paper);padding:6px 0 6px 11px;z-index:5;border-left:4px solid var(--acc1);border-radius:2px}
 .dayhead small{font-family:var(--mono);font-weight:400;font-size:11px;color:var(--ink-soft);letter-spacing:.04em}
 .dayhead.is-today{border-left-color:var(--gold)}
 .dayhead[data-day]{cursor:pointer;width:100%;text-align:left}
