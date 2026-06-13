@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "62";  // shown in footer; bump with the ?v= asset version
+const BUILD = "63";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -405,7 +405,7 @@ function pitchSide(side, s, home) {
     const face = photo
       ? `<span class="pp-dot pp-photo" style="background-image:url('${photo}')"><i>${p[0] ?? ""}</i></span>`
       : `<span class="pp-dot">${p[0] ?? ""}</span>`;
-    return `<div class="pp" style="left:${left}%;top:${top}%;--pc:${c1};--pt:${c2}">${face}<span class="pp-name">${esc(lastName(p[1]))}</span></div>`;
+    return `<div class="pp pp-clk" data-player="${esc(p[1])}|${s.code}" role="button" tabindex="0" style="left:${left}%;top:${top}%;--pc:${c1};--pt:${c2}">${face}<span class="pp-name">${esc(lastName(p[1]))}</span></div>`;
   };
   let html = dot(fr.gk, 50, 0.06);                                     // keep GK just off the goal line
   fr.bands.forEach((band, bi) => {
@@ -765,25 +765,25 @@ function renderTeams() {
     S.matches.filter(isFavMatch).sort((a, b) => a.utc.localeCompare(b.utc)),
     `${S.teams[S.fav].name} · World Cup 2026`);
 }
-function rosterMarkup(sq) {
+function rosterMarkup(sq, code) {
   const groups = { GK: "Goalkeepers", DF: "Defenders", MF: "Midfielders", FW: "Forwards" };
   const byPos = p => sq.players.filter(x => x.pos === p);
   return `<div class="roster">${Object.entries(groups).map(([p, label]) => {
     const ps = byPos(p);
     return ps.length ? `<div class="roster-pos"><h5>${label} <span>${ps.length}</span></h5>
-      ${ps.map(x => `<div class="roster-row">
+      ${ps.map(x => { const nm = x.name.replace(" (captain)", ""); return `<div class="roster-row" data-player="${esc(nm)}|${code}" role="button" tabindex="0">
         <span class="rnum">${x.n ?? "·"}</span>
-        <span class="rname">${esc(x.name.replace(" (captain)", ""))}${x.name.includes("(captain)") ? `<i class="cpt">C</i>` : ""}</span>
+        <span class="rname">${esc(nm)}${x.name.includes("(captain)") ? `<i class="cpt">C</i>` : ""}</span>
         ${x.club ? `<span class="rclub">${esc(x.club)}</span>` : ""}
         ${x.caps != null ? `<span class="rstat">${x.caps} caps${x.goals ? ` · ${x.goals}g` : ""}</span>` : ""}
-      </div>`).join("")}</div>` : "";
+      </div>`; }).join("")}</div>` : "";
   }).join("")}</div>`;
 }
 function squadSection(code) {
   const sq = S.squads?.[code];
   if (!sq) return `<div class="eyebrow">Squad</div><div class="empty">Squad not published yet — check back closer to kickoff.</div>`;
   return `<div class="eyebrow">Squad — ${sq.players.length} players${sq.coach ? ` · Coach <b style="color:var(--ink)">&nbsp;${esc(sq.coach)}</b>` : ""}</div>
-    ${rosterMarkup(sq)}`;
+    ${rosterMarkup(sq, code)}`;
 }
 function openSquad(code) {
   const t = S.teams[code]; if (!t) return;
@@ -791,7 +791,7 @@ function openSquad(code) {
   $("#squadTitle").innerHTML = `<span class="fl">${flag(code)}</span> ${esc(t.name)}`
     + `<span class="sq-meta">${esc(t.conf || "")}${t.titles ? ` · 🏆 ${t.titles}` : ""}${sq ? ` · ${sq.players.length} players${sq.coach ? ` · ${esc(sq.coach)}` : ""}` : ""}</span>`
     + (formChips(code) ? `<span class="sq-form">Form ${formChips(code)}</span>` : "");
-  $("#squadBody").innerHTML = sq ? rosterMarkup(sq)
+  $("#squadBody").innerHTML = sq ? rosterMarkup(sq, code)
     : `<div class="empty">${esc(t.name)}'s squad isn't published yet — check back closer to kickoff.</div>`;
   $("#squadDialog").showModal();
 }
@@ -803,19 +803,21 @@ function squadBio(name, code) {
   const nn = norm(name), ns = norm(surname);
   return sq.players.find(x => { const xn = norm(x.name); return xn === nn || (ns.length > 2 && (xn.includes(ns) || ns.includes(xn))); }) || null;
 }
-// tap a player in the timeline → a compact profile: photo, team, shirt no./position, what they did this match, bio
+// tap a player name anywhere (timeline, lineup, Golden Boot, squad) → a compact profile.
+// Uses live-match context (XI position + what they did) only when a match modal is actually open.
 function openPlayer(name, code) {
   const team = S.teams[code];
-  const m = (() => { const id = $("#matchDialog")?.dataset.mid; return id ? S.matches.find(x => x.id === id) : null; })();
+  const md = $("#matchDialog");
+  const m = (md?.open && md.dataset.mid) ? S.matches.find(x => x.id === md.dataset.mid) : null;
   const r = m && res(m);
-  const photo = playerPhoto(name, code);
+  const bio = squadBio(name, code);
+  const photo = bestPhoto(name, code) || bio?.photo || "";
   let num = null, pos = "";
   if (r?.xi && m) {
     const side = slotInfo(m, "home").code === code ? "h" : "a";
     const row = (r.xi[side]?.xi || []).find(p => p[1] === name);
     if (row) { num = row[0]; pos = ["Goalkeeper", "Defender", "Midfielder", "Forward"][row[2]] || ""; }
   }
-  const bio = squadBio(name, code);
   if (bio) { if (num == null && bio.n != null) num = bio.n; if (!pos && bio.pos) pos = { GK: "Goalkeeper", DF: "Defender", MF: "Midfielder", FW: "Forward" }[bio.pos] || ""; }
   const acts = (r?.ev || []).filter(e => [e.p, e.a, e.on, e.off].includes(name)).map(e => {
     const mn = esc(e.t || "");
@@ -1302,7 +1304,7 @@ function renderStats() {
   if (!s.pulse.matches) { el.innerHTML = `<div class="empty" style="margin:32px 16px">No matches played yet — tournament stats fill in as games kick off.</div>`; return; }
   const tile = (label, val) => `<div class="stat-tile"><span class="stat-val">${val}</span><span class="stat-lbl">${label}</span></div>`;
   const tname = c => esc(S.teams[c]?.name || c);
-  const scorerRow = (p, i) => { const ph = playerPhoto(p.name, p.code); return `<div class="lead-row lead-player">
+  const scorerRow = (p, i) => { const ph = playerPhoto(p.name, p.code); return `<div class="lead-row lead-player" data-player="${esc(p.name)}|${p.code}" role="button" tabindex="0">
     <span class="lead-rank">${i + 1}</span>${ph ? `<span class="lead-face" style="background-image:url('${ph}')"></span>` : `<span class="fl">${flag(p.code)}</span>`}
     <span class="lead-name">${esc(p.name)}<small>${flag(p.code)} ${tname(p.code)}</small></span>
     <span class="lead-v">${p.goals}<small>${p.assists ? `${p.assists} ast` : "&nbsp;"}</small></span></div>`; };
@@ -1423,6 +1425,14 @@ async function loadStatic() {
   catch { S.photos = {}; }
 }
 const playerPhoto = (name, code) => (S.photos && S.photos[name + "|" + code]) || "";
+// like playerPhoto, but also matches a full squad name against the FIFA short-name keys (case/accent-insensitive)
+const normName = s => (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z]/gi, "").toLowerCase();
+function bestPhoto(name, code) {
+  const direct = playerPhoto(name, code); if (direct || !S.photos) return direct;
+  const suf = "|" + code, ns = normName(name);
+  for (const k in S.photos) if (k.endsWith(suf) && normName(k.slice(0, -suf.length)) === ns) return S.photos[k];
+  return "";
+}
 // manual "refresh scores" controls (footer + hero) — re-fetch the published results.json now
 async function manualRefresh() {
   const btns = $$("[data-refresh]");
