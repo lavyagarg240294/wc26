@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "74";  // shown in footer; bump with the ?v= asset version
+const BUILD = "75";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -927,6 +927,26 @@ function groupTable(g, i) {
       <td>${r.p}</td><td>${r.w}</td><td>${r.d}</td><td>${r.l}</td><td>${r.gf - r.ga > 0 ? "+" : ""}${r.gf - r.ga}</td><td><b>${r.pts}</b></td></tr>`).join("")}
     </tbody></table></div>`;
 }
+// the 48-team format sends 8 of the 12 third-placed teams through — a ranking that's impossible to
+// eyeball across 12 separate tables. Rank them by FIFA's third-place criteria (pts → GD → GF) and
+// draw the cut line after the 8th. Pure client math, no extra data.
+function thirdPlaceRace() {
+  const rows = [];
+  for (const g of GROUPS) { const t = standings(g)[2]; if (t) rows.push({ group: g, code: t.code, pts: t.pts, gd: t.gf - t.ga, gf: t.gf }); }
+  return rows.sort((a, b) => b.pts - a.pts || b.gd - a.gd || b.gf - a.gf || a.code.localeCompare(b.code));
+}
+function thirdRaceHTML() {
+  const anyPlayed = S.matches.some(m => m.group && status(m) === ST.FT && res(m)?.h != null);
+  const rows = thirdPlaceRace();
+  if (!anyPlayed || rows.length < 3) return "";
+  const sign = n => (n > 0 ? "+" : "") + n;
+  return `<div class="eyebrow">Race for the best third places</div>
+    <div class="third-race">${rows.map((r, i) => `<div class="tr-row ${i < 8 ? "tr-in" : "tr-out"} ${r.code === S.fav ? "is-fav" : ""}" data-squad="${r.code}" role="button" tabindex="0">
+      <span class="tr-rank">${i + 1}</span><span class="fl">${flag(r.code)}</span>
+      <span class="tr-name">${esc(S.teams[r.code]?.name || r.code)}<small>Group ${r.group}</small></span>
+      <span class="tr-gd">${sign(r.gd)}</span><span class="tr-pts">${r.pts}<small>pts</small></span></div>${i === 7 && rows.length > 8 ? `<div class="tr-cut"><span>Top 8 advance</span></div>` : ""}`).join("")}</div>
+    <p class="sim-ko-hint">Ranked by points, then goal difference, then goals scored — the eight best of twelve reach the Round of 32.</p>`;
+}
 function renderGroups() {
   const el = $("#view-groups");
   const prev = {};                                          // capture row positions for a FLIP when standings reorder
@@ -934,7 +954,8 @@ function renderGroups() {
   if (!reduce) el.querySelectorAll("tr[data-code]").forEach(tr => prev[tr.dataset.g + tr.dataset.code] = tr.getBoundingClientRect().top);
   el.innerHTML =
     `<div class="gwrap">${GROUPS.map((g, i) => `<div class="gcol">${groupTable(g, i)}${groupOutlookHTML(g)}</div>`).join("")}</div>
-     <div class="legend"><span class="l1"><i></i>Top 2 advance to the Round of 32</span><span class="l3"><i></i>3rd place — eight best advance</span></div>`;
+     <div class="legend"><span class="l1"><i></i>Top 2 advance to the Round of 32</span><span class="l3"><i></i>3rd place — eight best advance</span></div>
+     ${thirdRaceHTML()}`;
   if (!reduce && Object.keys(prev).length) el.querySelectorAll("tr[data-code]").forEach(tr => {
     const old = prev[tr.dataset.g + tr.dataset.code]; if (old == null) return;
     const dy = old - tr.getBoundingClientRect().top;
