@@ -99,14 +99,14 @@ b{font-weight:600}
 }
 .wordmark{display:flex;align-items:center;gap:9px;text-decoration:none;color:var(--ink)}
 .wm-logo{
-  width:auto;height:30px;display:block;
+  width:25px;height:25px;display:block;
   animation:ballIn .8s cubic-bezier(.34,1.56,.64,1) both;
 }
-@keyframes ballIn{from{transform:translateY(-30px) rotate(-12deg);opacity:0}}
-.wm-text{font-family:var(--disp);font-weight:800;font-stretch:108%;font-size:18px;letter-spacing:.01em;line-height:1;white-space:nowrap}
-.wm-text b{color:var(--acc1);font-weight:900;transition:color .5s}
-.wm-fifa{font-weight:900;letter-spacing:.04em}
-.wm-short{display:none}
+@keyframes ballIn{from{transform:translateY(-26px) rotate(-20deg);opacity:0}}
+/* Wordmark hierarchy: a small, spaced supporting "FIFA", the bold "World Cup" hero, and "26" as the lone accent. */
+.wm-text{font-family:var(--disp);font-weight:800;font-stretch:104%;font-size:18px;letter-spacing:0;line-height:1;white-space:nowrap;color:var(--ink)}
+.wm-text b{color:var(--acc1);font-weight:800;transition:color .5s}
+.wm-fifa{font-size:.66em;font-weight:700;letter-spacing:.1em;color:var(--ink-soft);margin-right:.12em;vertical-align:.07em}
 .wordmark{flex-shrink:0}
 .topbar-right{display:flex;gap:8px;min-width:0}
 .chip{min-width:0}
@@ -1082,12 +1082,9 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
   .tabs{top:50px}
   .topbar-right{gap:6px}
   .chip{padding:6px 9px;font-size:12px;gap:5px}
-  .wm-text{font-size:14.5px}
-  .wm-logo{height:23px}
-  .wordmark{gap:6px}
-  .wm-full{display:none}
-  .wm-short{display:inline}
-  .wm-short .wm-fifa{font-size:.78em;opacity:.78}   /* understated mark, also saves width so "FIFA World Cup 26" fits narrow phones */
+  .wm-text{font-size:15px}
+  .wm-logo{width:21px;height:21px}
+  .wordmark{gap:7px}
   #teamChipName{max-width:92px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .topbar-right{gap:6px;flex:0 0 auto}
   .cd-cell{width:56px;padding:7px 0}
