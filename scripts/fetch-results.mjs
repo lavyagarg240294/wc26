@@ -109,11 +109,17 @@ async function fromFifa(prev, photoCodes) {
     if (f.home?.team && f.away?.team) byPair[pairKey(f.home.team, f.away.team)] = f;
     (bySlot[(f.utc || "").slice(0, 16)] ??= []).push(f);
   }
+  const byNum = {};
+  for (const f of fixtures) byNum[f.num] = f;
   const fifaForFixture = {};
   for (const x of rows) {
     const hc = toOur[x.Home?.IdCountry], ac = toOur[x.Away?.IdCountry];
-    let f = (hc && ac) ? byPair[pairKey(hc, ac)] : null;
-    if (!f) { const slot = bySlot[(x.Date || "").slice(0, 16)]; if (slot && slot.length === 1) f = slot[0]; }
+    let f = (hc && ac) ? byPair[pairKey(hc, ac)] : null;                 // group + resolved knockouts: by team pair
+    // Knockout placeholders can't pair-match. FIFA's MatchNumber is unreliable for GROUP matches (it orders them
+    // by group/matchday, not chronologically), but for KNOCKOUTS it's canonical and verified aligned (73→73…104→104),
+    // and unlike a kickoff-minute slot it survives a reschedule — so use it, guarded to only land on a knockout fixture.
+    if (!f) { const byN = byNum[Number(x.MatchNumber)]; if (byN && byN.stage !== "group") f = byN; }
+    if (!f) { const slot = bySlot[(x.Date || "").slice(0, 16)]; if (slot && slot.length === 1) f = slot[0]; }   // last resort
     if (f && !fifaForFixture[f.id]) fifaForFixture[f.id] = x;
   }
 
