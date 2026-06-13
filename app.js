@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "65";  // shown in footer; bump with the ?v= asset version
+const BUILD = "66";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1293,7 +1293,7 @@ function championBanner(code, predicted) {
 /* ---------------- tournament stats (team + player) ---------------- */
 function tournamentStats() {
   const fts = S.matches.filter(m => status(m) === ST.FT && res(m)?.h != null);
-  const gf = {}, ga = {}, poss = {}, possN = {}, sot = {}, sotN = {}, yel = {}, red = {}, played = {}, scorers = {}, assists = {};
+  const gf = {}, ga = {}, poss = {}, possN = {}, sot = {}, sotN = {}, yel = {}, red = {}, played = {}, scorers = {}, assists = {}, pyel = {}, pred = {};
   let goals = 0, totCards = 0;
   const add = (o, k, n = 1) => { if (k) o[k] = (o[k] || 0) + n; };
   for (const m of fts) {
@@ -1304,8 +1304,8 @@ function tournamentStats() {
     for (const e of (r.ev || [])) {
       const tc = e.tm === "h" ? hc : ac;
       if ((e.k === "G" || e.k === "P") && e.p) { add(scorers, e.p + "\t" + tc); if (e.a) add(assists, e.a + "\t" + tc); }   // own goals excluded from the Boot
-      if (e.k === "Y") { add(yel, tc); totCards++; }
-      else if (e.k === "R") { add(red, tc); totCards++; }
+      if (e.k === "Y") { add(yel, tc); totCards++; if (e.p) add(pyel, e.p + "\t" + tc); }
+      else if (e.k === "R") { add(red, tc); totCards++; if (e.p) add(pred, e.p + "\t" + tc); }
     }
     if (r.stats?.poss) { add(poss, hc, r.stats.poss[0]); add(possN, hc); add(poss, ac, r.stats.poss[1]); add(possN, ac); }
     if (r.stats?.sot) { add(sot, hc, r.stats.sot[0]); add(sotN, hc); add(sot, ac, r.stats.sot[1]); add(sotN, ac); }
@@ -1313,6 +1313,10 @@ function tournamentStats() {
   const split = k => { const i = k.indexOf("\t"); return [k.slice(0, i), k.slice(i + 1)]; };
   const scorerList = Object.entries(scorers).map(([k, g]) => { const [name, code] = split(k); return { name, code, goals: g, assists: assists[name + "\t" + code] || 0 }; })
     .sort((a, b) => b.goals - a.goals || b.assists - a.assists || a.name.localeCompare(b.name));
+  const assistList = Object.entries(assists).map(([k, a]) => { const [name, code] = split(k); return { name, code, assists: a }; })
+    .sort((a, b) => b.assists - a.assists || a.name.localeCompare(b.name));
+  const bookedList = [...new Set([...Object.keys(pyel), ...Object.keys(pred)])].map(k => { const [name, code] = split(k); return { name, code, y: pyel[k] || 0, r: pred[k] || 0 }; })
+    .sort((a, b) => b.r - a.r || b.y - a.y || a.name.localeCompare(b.name));
   const cardList = [...new Set([...Object.keys(yel), ...Object.keys(red)])]
     .map(c => ({ code: c, y: yel[c] || 0, r: red[c] || 0, v: (yel[c] || 0) + (red[c] || 0) }))
     .sort((a, b) => b.v - a.v || b.r - a.r);
@@ -1320,7 +1324,7 @@ function tournamentStats() {
   const perMatch = (tot, n) => Object.keys(tot).map(c => ({ code: c, v: tot[c] / (n[c] || 1) }));
   return {
     pulse: { goals, matches: fts.length, perMatch: fts.length ? goals / fts.length : 0, cards: totCards },
-    scorers: scorerList,
+    scorers: scorerList, assisters: assistList, booked: bookedList,
     teamCards: cardList,
     teamScored: perMatch(gf, played).sort((a, b) => b.v - a.v),
     teamConceded: perMatch(ga, played).sort((a, b) => a.v - b.v),
@@ -1328,39 +1332,57 @@ function tournamentStats() {
     possession: Object.keys(poss).map(c => ({ code: c, v: poss[c] / possN[c] })).filter(x => isFinite(x.v)).sort((a, b) => b.v - a.v),
   };
 }
+let statsTab = "players";   // active Stats sub-section (persists across re-renders)
 function renderStats() {
   const el = $("#view-stats"), s = tournamentStats();
   if (!s.pulse.matches) { el.innerHTML = `<div class="empty" style="margin:32px 16px">No matches played yet — tournament stats fill in as games kick off.</div>`; return; }
   const tile = (label, val) => `<div class="stat-tile"><span class="stat-val">${val}</span><span class="stat-lbl">${label}</span></div>`;
   const tname = c => esc(S.teams[c]?.name || c);
-  const scorerRow = (p, i) => { const ph = playerPhoto(p.name, p.code); return `<div class="lead-row lead-player" data-player="${esc(p.name)}|${p.code}" role="button" tabindex="0">
+  // a player leaderboard row (photo + name + value), taps through to the player profile
+  const playerRow = (p, i, val) => { const ph = playerPhoto(p.name, p.code); return `<div class="lead-row lead-player" data-player="${esc(p.name)}|${p.code}" role="button" tabindex="0">
     <span class="lead-rank">${i + 1}</span>${ph ? `<span class="lead-face" style="background-image:url('${ph}')"></span>` : `<span class="fl">${flag(p.code)}</span>`}
     <span class="lead-name">${esc(p.name)}<small>${flag(p.code)} ${tname(p.code)}</small></span>
-    <span class="lead-v">${p.goals}<small>${p.assists ? `${p.assists} ast` : "&nbsp;"}</small></span></div>`; };
+    <span class="lead-v">${val}</span></div>`; };
+  const scorerRow = (p, i) => playerRow(p, i, `${p.goals}<small>${p.assists ? `${p.assists} ast` : "&nbsp;"}</small>`);
+  const assistRow = (p, i) => playerRow(p, i, `${p.assists}<small>assist${p.assists > 1 ? "s" : ""}</small>`);
+  const bookedRow = (p, i) => playerRow(p, i, `<span class="card-tally">${p.y ? `<span class="ct ct-y">${p.y}</span>` : ""}${p.r ? `<span class="ct ct-r">${p.r}</span>` : ""}</span>`);
   const teamLead = (title, rows, fmt) => rows.length ? `<div class="lead-card"><h4>${title}</h4>${rows.slice(0, 5).map((x, i) => `<div class="lead-row" data-squad="${x.code}" role="button" tabindex="0">
     <span class="lead-rank">${i + 1}</span><span class="fl">${flag(x.code)}</span><span class="lead-name">${tname(x.code)}</span>
     <span class="lead-v">${fmt(x)}</span></div>`).join("")}</div>` : "";
   const perGame = x => `${x.v.toFixed(1)}<small>/ match</small>`;
-  // cards: yellow + red shown side by side in one box, colour-coded (a discipline tally, so kept as totals)
-  const cardLead = s.teamCards.length ? `<div class="lead-card"><h4>Cards</h4>${s.teamCards.slice(0, 5).map((x, i) => `<div class="lead-row" data-squad="${x.code}" role="button" tabindex="0">
+  const cardLead = s.teamCards.length ? `<div class="lead-card"><h4>Team cards</h4>${s.teamCards.slice(0, 5).map((x, i) => `<div class="lead-row" data-squad="${x.code}" role="button" tabindex="0">
     <span class="lead-rank">${i + 1}</span><span class="fl">${flag(x.code)}</span><span class="lead-name">${tname(x.code)}</span>
     <span class="lead-v card-tally"><span class="ct ct-y" title="${x.y} yellow">${x.y}</span><span class="ct ct-r" title="${x.r} red">${x.r}</span></span></div>`).join("")}</div>` : "";
-  el.innerHTML =
-    `<div class="eyebrow">Tournament pulse</div>
-    <div class="stat-tiles">
-      ${tile("Goals", s.pulse.goals)}${tile("Matches", s.pulse.matches)}
-      ${tile("Goals / match", s.pulse.perMatch.toFixed(2))}${tile("Cards", s.pulse.cards)}
-    </div>
-    ${s.scorers.length ? `<div class="eyebrow">⚽ Golden Boot</div>
-      <div class="lead-card lead-scorers">${s.scorers.slice(0, 12).map(scorerRow).join("")}</div>` : ""}
-    <div class="eyebrow">Team stats</div>
-    <div class="lead-grid">
+
+  // sections behind a segmented sub-nav so the tab grows down (not into one endless scroll)
+  const sections = [
+    ["players", "Players", `
+      ${s.scorers.length ? `<div class="eyebrow">⚽ Golden Boot</div><div class="lead-card lead-scorers">${s.scorers.slice(0, 12).map(scorerRow).join("")}</div>` : ""}
+      ${s.assisters.length ? `<div class="eyebrow">Playmakers · assists</div><div class="lead-card lead-scorers">${s.assisters.slice(0, 8).map(assistRow).join("")}</div>` : ""}
+      ${!s.scorers.length && !s.assisters.length ? `<div class="empty">No goals yet — the Golden Boot race starts with the first goal.</div>` : ""}`],
+    ["teams", "Teams", `<div class="lead-grid">
       ${teamLead("Attack", s.teamScored, perGame)}
       ${teamLead("Defence", s.teamConceded, perGame)}
       ${teamLead("Possession", s.possession, x => x.v.toFixed(1) + "%")}
       ${teamLead("Shots on target", s.teamSot, perGame)}
+    </div>`],
+    ["discipline", "Discipline", `<div class="lead-grid">
       ${cardLead}
-    </div>`;
+      ${s.booked.length ? `<div class="lead-card"><h4>Booked players</h4>${s.booked.slice(0, 8).map(bookedRow).join("")}</div>` : ""}
+    </div>${s.booked.length ? `<p class="sim-ko-hint">Two yellows (or a red) earn a one-match ban.</p>` : ""}`],
+    ["tournament", "Tournament", `<div class="stat-tiles">
+      ${tile("Goals", s.pulse.goals)}${tile("Matches", s.pulse.matches)}
+      ${tile("Goals / match", s.pulse.perMatch.toFixed(2))}${tile("Cards", s.pulse.cards)}
+    </div>`],
+  ];
+  if (!sections.some(([k]) => k === statsTab)) statsTab = "players";
+  el.innerHTML = `<div class="substat-nav">${sections.map(([k, label]) => `<button class="substat ${k === statsTab ? "is-on" : ""}" data-stat="${k}">${label}</button>`).join("")}</div>`
+    + sections.map(([k, , html]) => `<div class="substat-panel" data-panel="${k}"${k === statsTab ? "" : " hidden"}>${html}</div>`).join("");
+  $$(".substat", el).forEach(b => b.onclick = () => {
+    statsTab = b.dataset.stat;
+    $$(".substat", el).forEach(x => x.classList.toggle("is-on", x.dataset.stat === statsTab));
+    $$(".substat-panel", el).forEach(p => p.hidden = p.dataset.panel !== statsTab);
+  });
 }
 
 /* ---------------- navigation ---------------- */

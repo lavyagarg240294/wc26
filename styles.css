@@ -599,6 +599,13 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .md-goals-col.away{text-align:right}
 .md-goal{font-size:12.5px;color:var(--ink);font-family:var(--mono);font-variant-numeric:tabular-nums}
 /* tournament stats view */
+.substat-nav{display:flex;gap:6px;overflow-x:auto;margin:0 0 16px;padding-bottom:2px;scrollbar-width:none}
+.substat-nav::-webkit-scrollbar{display:none}
+.substat{flex:0 0 auto;font-family:var(--disp);font-weight:700;font-stretch:106%;font-size:12.5px;letter-spacing:.02em;padding:8px 15px;border-radius:99px;border:1px solid var(--line);background:var(--card);color:var(--ink-soft);white-space:nowrap;transition:background .15s,border-color .15s,color .15s}
+.substat:hover{border-color:color-mix(in srgb,var(--acc1) 40%,var(--line))}
+.substat.is-on{background:var(--acc1);border-color:var(--acc1);color:#fff}
+.substat-panel[hidden]{display:none}
+.substat-panel{animation:rise .35s both}
 .stat-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:8px}
 .stat-tile{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:2px;position:relative;overflow:hidden}
 .stat-tile::after{content:"";position:absolute;inset:0 0 auto;height:4px;background:linear-gradient(90deg,var(--acc1),var(--acc2))}
