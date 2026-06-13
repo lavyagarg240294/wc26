@@ -41,11 +41,13 @@ test("48 teams, every one appears in a group fixture, kit colours valid", () => 
     assert.ok(t.name, `${c} has a name`);
     assert.match(t.c1, /^#[0-9A-Fa-f]{6}$/, `${c} kit colour c1 is a hex`);
     assert.match(t.c2, /^#[0-9A-Fa-f]{6}$/, `${c} kit colour c2 is a hex`);
+    // every team needs a strength rating for the win-probability model (seeded World Football Elo)
+    assert.ok(Number.isFinite(t.elo) && t.elo > 1400 && t.elo < 2400, `${c} has a sane elo (got ${t.elo})`);
   }
 });
 
 test("results.json: only score/status fields; valid status, scores, resolved codes", () => {
-  const SLIM = new Set(["st", "h", "a", "hp", "ap", "ht", "at", "min"]);
+  const SLIM = new Set(["st", "h", "a", "hp", "ap", "ht", "at", "min", "ko"]);
   for (const [id, r] of Object.entries(results)) {
     assert.ok(ids.has(id), `results id ${id} is a real match`);
     for (const k of Object.keys(r)) assert.ok(SLIM.has(k), `results.json[${id}].${k} is a slim field (no split leak)`);
@@ -56,7 +58,7 @@ test("results.json: only score/status fields; valid status, scores, resolved cod
 });
 
 test("details.json: only heavy fields, keys are real matches", () => {
-  const SLIM = new Set(["st", "h", "a", "hp", "ap", "ht", "at", "min"]);
+  const SLIM = new Set(["st", "h", "a", "hp", "ap", "ht", "at", "min", "ko"]);
   for (const [id, d] of Object.entries(details)) {
     assert.ok(ids.has(id), `details id ${id} is a real match`);
     for (const k of Object.keys(d)) assert.ok(!SLIM.has(k), `details.json[${id}].${k} is not a slim field (no split leak)`);

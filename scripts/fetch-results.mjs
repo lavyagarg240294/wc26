@@ -112,6 +112,11 @@ async function fromFifa(prev, photoCodes) {
     else st = (kickoff && now >= kickoff && now < kickoff + 150 * 60000) ? "LIVE" : "FT"; // hedge ms 0
 
     const entry = { st };
+    // Persist the feed's real kickoff when it drifts from openfootball's static time (>1 min). The static
+    // schedule can be hours off the actual FIFA slate; the client overlays `ko` so countdowns, day-grouping
+    // and the live hero all agree with reality. Set for every status — SCHED needs it most (future kickoffs).
+    if (Number.isFinite(kickoff) && x.Date && Math.abs(kickoff - Date.parse(f.utc)) > 60000)
+      entry.ko = new Date(kickoff).toISOString();
     if (st !== "SCHED") {
       if (Number.isFinite(x.HomeTeamScore)) entry.h = x.HomeTeamScore;
       if (Number.isFinite(x.AwayTeamScore)) entry.a = x.AwayTeamScore;
@@ -346,7 +351,7 @@ try { await enrichStats(matches, prevMerged); } catch (e) { console.warn("ESPN s
 // Split the payload: results.json keeps only the small scores/status fields (it's polled every ~60s by every
 // open page); the heavy per-match detail (timeline, lineups, team stats, fallback scorers) goes to details.json,
 // fetched by the client only when scores actually change. Keeps the hot-path file tiny once knockouts fill it.
-const SLIM = ["st", "h", "a", "hp", "ap", "ht", "at", "min"];
+const SLIM = ["st", "h", "a", "hp", "ap", "ht", "at", "min", "ko"];
 const slim = {}, detail = {};
 for (const [id, m] of Object.entries(matches)) {
   const s = {}, d = {};

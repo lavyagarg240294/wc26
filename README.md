@@ -70,8 +70,8 @@ All sources are fetched **server-side in the Action** (even the CORS-enabled one
 | File | What | Written by |
 |---|---|---|
 | `matches.json` | 104 fixtures — UTC kickoffs, venues, stage/group, knockout slot placeholders (source: openfootball, public domain) | static |
-| `teams.json` | 48 teams — names, kit colours, confederation, World Cup titles | static |
-| `results.json` | per-match `{st,h,a,hp,ap,ht,at,min}` — score/status only (the small file polled every ~60s) | scores Action |
+| `teams.json` | 48 teams — names, kit colours, confederation, World Cup titles, and a seeded **Elo** strength rating (feeds the win-probability model) | static |
+| `results.json` | per-match `{st,h,a,hp,ap,ht,at,min,ko}` — score/status only (the small file polled every ~60s); `ko` is the feed's real kickoff when it drifts from the static schedule | scores Action |
 | `details.json` | per-match `{xi,ev,stats}` — lineups, event timeline, match stats (split out so it isn't re-polled every minute; the client merges it over `results.json`) | scores Action |
 | `photos.json` | official player headshots harvested from FIFA lineups (`"ShortName|CODE"` → image URL) | scores Action |
 | `squads.json` | 26-man squads per team | squads Action |

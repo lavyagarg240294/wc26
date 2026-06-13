@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "109";  // shown in footer; bump with the ?v= asset version
+const BUILD = "110";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -91,15 +91,29 @@ function rebuildMatchData() {
   for (const id in d) out[id] = { ...d[id] };
   for (const id in r) out[id] = { ...(out[id] || {}), ...r[id] };   // fresh scores win over (possibly older) detail
   S.matchData = out;
+  applyKickoffs();
+}
+// openfootball's static kickoff times can drift hours from the real FIFA slate; the scores Action persists the
+// feed's true kickoff as `ko` (results.json) when it differs. Overlay it onto each match's `utc` so countdowns,
+// day-grouping, sorting and the live hero all agree with reality — every renderer reads `m.utc`, so one overlay
+// fixes them all. The original static time is kept in `_utc0` so the overlay is idempotent and reverts if `ko` clears.
+function applyKickoffs() {
+  if (!S.matches) return;
+  for (const m of S.matches) {
+    if (m._utc0 === undefined) m._utc0 = m.utc;
+    const ko = S.matchData[m.id]?.ko;
+    m.utc = ko || m._utc0;
+  }
 }
 const ST = { SCHED: "SCHED", LIVE: "LIVE", HT: "HT", FT: "FT" };
 function status(m) {
   const r = res(m);
-  // kickoff has passed but the match isn't over (within a generous ~3h window)
-  const started = new Date(m.utc) <= new Date() && new Date() - new Date(m.utc) < 3 * 3600e3;
-  // the free data feed often lags — if it still says SCHED after kickoff, treat as live ("score updating")
-  if (r?.st) return (r.st === ST.SCHED && started) ? ST.LIVE : r.st;
-  return started ? ST.LIVE : ST.SCHED;
+  // The FIFA feed is authoritative for status — trust it. (We used to promote a "started by our clock but
+  // still SCHED" match to LIVE to mask feed lag, but openfootball's static kickoff times don't always match
+  // the real schedule, so that faked a live 0–0 on the wrong match. The feed says which game is actually live.)
+  if (r?.st) return r.st;
+  // no feed row yet (only before the very first Action run): best-effort from the scheduled time
+  return new Date(m.utc) <= new Date() && new Date() - new Date(m.utc) < 3 * 3600e3 ? ST.LIVE : ST.SCHED;
 }
 // live match clock: exact minute from the feed if present, else an estimate from kickoff
 // (the free feed often only flags "live" with no minute). Estimate allows for a 15′ half-time.
@@ -583,28 +597,45 @@ function koPath(m) {
   const steps = chain.slice(1).map(x => `${STAGE_NAME[x.stage] || x.stage}<small>M${x.num}</small>`);
   return `<div class="md-kopath"><span class="kp-label">Winner's road →</span> ${steps.join(`<span class="kp-arr">›</span>`)}</div>`;
 }
-// win-probability — a Poisson model from team ratings (World Cup pedigree + current-tournament form),
-// updated in-play by the live scoreline + minutes remaining. A clearly-labelled estimate, not a feed value.
+// win-probability — a bivariate-Poisson goals model. Team strength is each side's World Football Elo rating
+// (seeded snapshot in teams.json), nudged by current-tournament form; the Elo gap sets the goal supremacy that
+// splits the two scoring rates. Scorelines are summed with a Dixon-Coles low-score correction (independent
+// Poisson under-counts draws). In-play, the rates scale to the minutes remaining and the live scoreline is
+// carried as a head-start. A clearly-labelled model estimate — not a feed/betting value.
 const _FACT = [1, 1, 2, 6, 24, 120, 720, 5040, 40320, 362880];
 const _pois = (k, l) => Math.exp(-l) * Math.pow(l, k) / _FACT[k];
+const DC_RHO = 0.11;   // Dixon-Coles draw-inflation parameter (their paper lands ~0.13 for low-scoring leagues)
+// Dixon-Coles τ: nudges the four low scores independent Poisson gets wrong (mutual caution correlates 0-0/1-1 up).
+const _dcTau = (x, y, lh, la) =>
+  x === 0 && y === 0 ? 1 - lh * la * DC_RHO :
+  x === 0 && y === 1 ? 1 + lh * DC_RHO :
+  x === 1 && y === 0 ? 1 + la * DC_RHO :
+  x === 1 && y === 1 ? 1 - DC_RHO : 1;
 function teamRating(code) {
-  const t = S.teams[code]; if (!t) return 50;
+  const t = S.teams[code]; if (!t) return 1700;
+  // base = seeded World Football Elo; nudge by in-tournament form, bounded so a couple of group games can't
+  // swamp the prior (≈ a dynamic-Elo update of ±100 max — a few points per goal, a few more per result).
+  const base = t.elo || 1700;
   const g = groupOf(code), r = g ? standings(g).find(x => x.code === code) : null;
-  const form = r ? r.pts * 5 + (r.gf - r.ga) * 2 : 0;   // current-tournament form
-  return 50 + (t.titles || 0) * 4 + form;               // baseline + World Cup pedigree + form
+  const form = r ? Math.max(-100, Math.min(100, r.pts * 6 + (r.gf - r.ga) * 5)) : 0;
+  return base + form;
 }
 const liveMinute = (m, r) => r?.st === ST.HT ? 45 : Math.max(1, Math.min(95, Math.round((Date.now() - +new Date(m.utc)) / 60000)));
 function winProb(m) {
   const hc = slotInfo(m, "home").code, ac = slotInfo(m, "away").code, st = status(m), r = res(m);
   if (!hc || !ac || st === ST.FT) return null;           // need both teams; the result is already known at FT
   const live = st === ST.LIVE || st === ST.HT;
-  const sup = (teamRating(hc) - teamRating(ac)) / 40, mu = 1.35;   // goal supremacy; mu ≈ half the avg total goals
+  // Elo gap → goal supremacy. ~300 Elo ≈ a one-goal edge; clamped so blowout priors stay sane. mu = per-side
+  // base rate (≈ half the ~2.7 World Cup goals/game). Neutral venues — no home-advantage term (hosts aside).
+  const sup = Math.max(-2.5, Math.min(2.5, (teamRating(hc) - teamRating(ac)) / 300)), mu = 1.35;
   const remFrac = live ? Math.max(0.02, 1 - liveMinute(m, r) / 90) : 1;
-  const lamH = Math.max(0.22, mu + sup / 2) * remFrac, lamA = Math.max(0.22, mu - sup / 2) * remFrac;
+  const lamH = Math.max(0.18, mu + sup / 2) * remFrac, lamA = Math.max(0.18, mu - sup / 2) * remFrac;
   const lead = live && r && r.h != null ? r.h - r.a : 0;
   let pH = 0, pD = 0, pA = 0;
   for (let rh = 0; rh < 9; rh++) for (let ra = 0; ra < 9; ra++) {
-    const p = _pois(rh, lamH) * _pois(ra, lamA), fin = lead + rh - ra;
+    // DC correction applies to the actual final score, so only pre-match (live sums *remaining* goals on top of
+    // the current lead, where the low-score semantics don't hold). Its effect in-play is negligible anyway.
+    const p = _pois(rh, lamH) * _pois(ra, lamA) * (live ? 1 : _dcTau(rh, ra, lamH, lamA)), fin = lead + rh - ra;
     if (fin > 0) pH += p; else if (fin < 0) pA += p; else pD += p;
   }
   const tot = pH + pD + pA || 1;
@@ -619,7 +650,7 @@ function winProbBlock(m) {
       <div class="wp-bar" role="img" aria-label="${esc(h.name)} ${ph}%, draw ${pd}%, ${esc(a.name)} ${pa}%">
         <span class="wp-h" style="width:${ph}%"></span><span class="wp-d" style="width:${pd}%"></span><span class="wp-a" style="width:${pa}%"></span></div>
       <div class="wp-legend"><span class="wp-lh"><b>${ph}%</b> ${flag(h.code)} ${esc(h.name)}</span><span class="wp-ld">Draw <b>${pd}%</b></span><span class="wp-la">${esc(a.name)} ${flag(a.code)} <b>${pa}%</b></span></div>
-      <p class="wp-note">A model estimate from each team's <b>World Cup pedigree</b> (past titles) and <b>current-tournament form</b>${wp.live ? ", updated by the live score and minutes left" : ""} — not a betting line.</p>
+      <p class="wp-note">A Poisson model from each team's <b>strength rating</b> (World Football Elo) and <b>current-tournament form</b>${wp.live ? ", updated by the live score and minutes left" : ""} — not a betting line.</p>
     </div>`;
 }
 function openMatch(id) {
