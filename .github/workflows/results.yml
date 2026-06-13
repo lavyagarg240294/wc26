@@ -40,7 +40,13 @@ jobs:
             if ! git diff --quiet data/results.json data/details.json data/photos.json 2>/dev/null; then
               git add data/results.json data/details.json data/photos.json
               git commit -m "scores: $(date -u +'%Y-%m-%d %H:%M UTC')"
-              git push 2>/dev/null || { git pull --rebase origin main && git push; } || echo "push deferred to next loop"
+              # Self-healing push: data files are fully regenerated each loop, so on a rejected push we rebase
+              # preferring our fresh snapshot; if even that fails we abort + hard-resync to remote and let the next
+              # loop re-commit. This stops a concurrent push (e.g. a code commit) from wedging the loop in a
+              # half-finished rebase — the bug that froze scores at 20:14 last time.
+              git push 2>/dev/null \
+                || { git fetch origin main && git rebase -X theirs origin/main 2>/dev/null && git push 2>/dev/null; } \
+                || { git rebase --abort 2>/dev/null; git reset --hard origin/main; echo "push deferred — resynced, will retry next loop"; }
             else
               echo "no changes @ $(date -u +%H:%M) UTC"
             fi
