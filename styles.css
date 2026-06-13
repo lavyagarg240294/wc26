@@ -1020,11 +1020,13 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
   .tabs{top:50px}
   .topbar-right{gap:6px}
   .chip{padding:6px 9px;font-size:12px;gap:5px}
-  .wm-text{font-size:16px}
-  .wm-logo{height:26px}
+  .wm-text{font-size:14.5px}
+  .wm-logo{height:23px}
+  .wordmark{gap:6px}
   .wm-full{display:none}
   .wm-short{display:inline}
-  #teamChipName{max-width:104px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .wm-short .wm-fifa{font-size:.78em;opacity:.78}   /* understated mark, also saves width so "FIFA World Cup 26" fits narrow phones */
+  #teamChipName{max-width:92px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .topbar-right{gap:6px;flex:0 0 auto}
   .cd-cell{width:56px;padding:7px 0}
   .cd-num{font-size:19px}
