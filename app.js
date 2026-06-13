@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "94";  // shown in footer; bump with the ?v= asset version
+const BUILD = "95";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -258,11 +258,9 @@ function groupOutlookHTML(g) {
 function applyTheme(animateFrom) {
   const root = document.documentElement;
   const t = S.fav && S.teams[S.fav];
-  let c1 = t ? t.c1 : "", c2 = t ? t.c2 : "";
-  if (t && tooLight(c1)) [c1, c2] = [c2, c1];
-  if (t && tooLight(c1)) c1 = "#0BA360";
-  root.style.setProperty("--acc1", t ? c1 : "var(--pitch)");
-  root.style.setProperty("--acc2", t ? (tooLight(c2) ? "#0D1B2A" : c2) : "#0D1B2A");
+  const k1 = t ? t.c1 : "", k2 = t ? t.c2 : "";   // raw kit colours (used as-is for confetti)
+  root.style.setProperty("--acc1", t ? readableAccent(k1, k2) : "var(--pitch)");   // contrast-guarded accent for text/buttons
+  root.style.setProperty("--acc2", t ? (tooLight(k2) ? "#0D1B2A" : k2) : "#0D1B2A");
   $("#teamChipFlag").textContent = t ? flag(S.fav) : "⚽";
   $("#teamChipName").textContent = t ? t.name : "Pick a team";
   if (animateFrom && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
@@ -271,13 +269,26 @@ function applyTheme(animateFrom) {
     sw.style.top = r.top + r.height / 2 - innerHeight + "px";
     sw.style.width = innerWidth * 2 + "px"; sw.style.height = innerHeight * 2 + "px";
     sw.classList.remove("go"); void sw.offsetWidth; sw.classList.add("go");
-    confetti(c1 || "#0BA360", c2 || "#E8B931");
+    confetti(k1 || "#0BA360", k2 || "#E8B931");
   }
 }
 const tooLight = hex => {
   const n = parseInt(hex.slice(1), 16);
   return (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) > 200;
 };
+// WCAG relative luminance + contrast ratio, used to keep the team-themed accent readable on paper.
+const relLum = hex => { const n = parseInt(hex.slice(1), 16); const f = c => { c /= 255; return c <= .03928 ? c / 12.92 : ((c + .055) / 1.055) ** 2.4; }; return .2126 * f(n >> 16 & 255) + .7152 * f(n >> 8 & 255) + .0722 * f(n & 255); };
+const contrastRatio = (a, b) => { const x = relLum(a) + .05, y = relLum(b) + .05; return x > y ? x / y : y / x; };
+const scaleRGB = (hex, f) => { const n = parseInt(hex.slice(1), 16); const c = i => Math.max(0, Math.min(255, Math.round(i * f))); return "#" + ((1 << 24) + (c(n >> 16 & 255) << 16) + (c(n >> 8 & 255) << 8) + c(n & 255)).toString(16).slice(1); };
+// pick the team kit colour that reads best on the paper background, then darken it until it clears a
+// 3.5:1 contrast ratio — so bright mid-tones (orange, sky-blue) stay on-brand but legible, and pale
+// kits (yellow/white) fall back to their darker secondary rather than a washed-out accent.
+function readableAccent(c1, c2) {
+  const PAPER = "#FAFBF9";
+  const best = [c1, c2].filter(Boolean).sort((a, b) => contrastRatio(b, PAPER) - contrastRatio(a, PAPER))[0] || "#0BA360";
+  let f = 1; while (f > 0.15 && contrastRatio(scaleRGB(best, f), PAPER) < 3.5) f -= 0.05;
+  return scaleRGB(best, f);
+}
 
 /* ---------------- confetti ---------------- */
 function confetti(c1, c2, origin) {
