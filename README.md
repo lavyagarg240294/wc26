@@ -3,12 +3,13 @@
 A fast, no-build fan site for the **FIFA World Cup 2026** — every match in your timezone, a favorite team that re-themes the whole UI, and a tournament that fills itself in as games are played.
 
 **What's inside**
-- **Live match detail** — score + minute, a goal/card/sub **timeline** (tap any player for a mini profile — photo, club, caps & what they did in the match), **lineups on a formation pitch** (with official player photos), a match-flow sparkline, and **match stats** (possession, shots, corners, fouls).
-- **Groups** — live standings + a "what each team needs to qualify" outlook.
-- **Stats** — tournament pulse, the **Golden Boot** race, and per-match **team stats** (attack, defence, possession, shots on target, and yellow/red cards).
+- **Matches** — every fixture in your timezone with a live hero + countdown, a **Match of the day** marquee pick, and a **Day in review** digest (recap: results · goals · top scorer · biggest result; preview: a "one to watch" pick + the rest of the day's games), navigable by date.
+- **Live match detail** — score + minute, a goal/card/sub **timeline** (tap any player for a mini profile — photo, club, caps & what they did in the match), **lineups on a formation pitch** (official player photos), a match-flow sparkline, and **match stats** (possession, shots, corners, fouls).
+- **Teams** — tap any team anywhere for a detail sheet: overview, recent form, every fixture, the group standing + qualification outlook, a one-tap follow (re-themes the UI to their kit — contrast-guarded so it always stays readable), **squad rotation & minutes**, the full squad, **"road to the final"** (a projected knockout route from live standings), and a one-tap **calendar subscribe**.
+- **Groups** — 12 live tables + a "what each team needs to qualify" outlook, a **third-place race** tracker (the best-8-of-12 cut line the new format needs), and a collapsible **"projected Round of 32 if the groups ended today."**
 - **Predict** — order every group, pick the best third-placed teams, then tap winners through a full knockout **bracket** to crown your champion (seeded from live standings so it's ready to play with right away), see **how your call is tracking vs reality**, and **share your bracket as a ~30-character link**.
-- **Teams** — tap any team for a detail sheet: overview, recent form, every fixture, the group standing + qualification outlook, a one-tap follow (re-themes the UI), and the squad.
-- Plus: **global search** (⌘K — teams, players, matches), a **Day in review** digest (results, goals, top scorer & what's on, navigable by date), **installable to your home screen** (PWA), **dark mode**, a **Settings** sheet (anthem + goal horn + timezone), **calendar (.ics) export**, per-match **share cards** that unfurl on social, and a fully mobile-first, re-themable UI.
+- **Stats** (Players · Teams · Discipline · Records · Tournament) — the **Golden Boot** & **assists** races, **goalkeepers/clean sheets**, per-match **team stats**, a **suspension watch** and **fair-play** table, **records** (biggest win, fastest/latest goal…), a **player head-to-head** compare, tournament pulse and a **confederation** breakdown.
+- Plus: **global search** (⌘K — teams, players, matches), **installable to your home screen** (PWA), **dark mode**, **match alerts** (goal/kickoff notifications) and **data-saver** mode, a **Settings** sheet, **calendar** export + **webcal subscribe**, per-match **share cards** that unfurl on social, an accessibility pass (keyboard focus, reduced-motion, screen-reader live goals), and a fully mobile-first, re-themable UI.
 
 **Stack:** plain `index.html` + `styles.css` + one vanilla-JS `app.js` on GitHub Pages, fed by GitHub Actions that commit JSON into the repo. **No API keys are required to run it** — live scores, events, lineups, stats and player photos all come from free, keyless sources. Total cost: **$0**.
 
@@ -71,6 +72,7 @@ All sources are fetched **server-side in the Action** (even the CORS-enabled one
 | `details.json` | per-match `{xi,ev,stats}` — lineups, event timeline, match stats (split out so it isn't re-polled every minute; the client merges it over `results.json`) | scores Action |
 | `photos.json` | official player headshots harvested from FIFA lineups (`"ShortName|CODE"` → image URL) | scores Action |
 | `squads.json` | 26-man squads per team | squads Action |
+| `ics/*.ics` | static per-team + all-matches calendars for webcal subscription (schedule is fixed) | `scripts/make-ics.mjs`, one-off |
 
 The favorite team, timezone and saved prediction live in each visitor's `localStorage` — they never leave the device.
 
@@ -86,7 +88,7 @@ Edit anything, commit, push — every visitor sees it on their next load. **Ther
 ```
 `st`: `SCHED` | `LIVE` | `HT` | `FT` · `h/a`: goals · `hp/ap`: penalties · `ht/at`: resolved team codes (knockouts) · `min`: live minute. The heavy per-match detail (`xi`: lineups · `ev`: goal/card/sub timeline · `stats`: `[home,away]` pairs) lives in `data/details.json` (same `matches` keys), split out so the polled `results.json` stays small. Tap any match card for the full detail view.
 
-**Share cards** are the one piece with build tooling (`scripts/make-share-cards.mjs` uses `satori` + `@resvg/resvg-js`; see `package.json`). They run only in their own Action — `node_modules` is gitignored and the core scores pipeline stays dependency-free.
+**Share cards** are the one piece with npm build tooling (`scripts/make-share-cards.mjs` uses `satori` + `@resvg/resvg-js`; see `package.json`). They run only in their own Action — `node_modules` is gitignored and the core scores pipeline stays dependency-free. A few other assets are generated **once and committed** (no Action, no runtime cost): the social card (`scripts/make-og.py`, Pillow), the PWA icons (`scripts/make-icons.py`, Pillow), and the webcal calendars (`scripts/make-ics.mjs`, no deps).
 
 ---
 
