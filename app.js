@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "60";  // shown in footer; bump with the ?v= asset version
+const BUILD = "62";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -441,16 +441,17 @@ const EV_ICON = {
   R: `<span class="tl-card r" aria-hidden="true"></span>`,
   S: `<span class="tl-sub" aria-hidden="true">⇄</span>`,
 };
-function evText(e) {
-  if (e.k === "S") return `<span class="tl-p tl-in">${esc(e.on || "")}</span>${e.off ? `<span class="tl-off tl-out">${esc(e.off)}</span>` : ""}`;
+function evText(e, code) {
+  const P = (n, cls) => `<span class="${cls} tl-clk" data-player="${esc(n)}|${code}" role="button" tabindex="0">${esc(n)}</span>`;
+  if (e.k === "S") return `${e.on ? P(e.on, "tl-p tl-in") : ""}${e.off ? P(e.off, "tl-off tl-out") : ""}`;
   const tag = e.k === "P" ? ` <span class="tl-x">pen</span>` : e.k === "OG" ? ` <span class="tl-x">o.g.</span>` : "";
-  return `<span class="tl-p">${esc(e.p || "")}${tag}</span>${e.a ? `<span class="tl-off">${esc(e.a)}</span>` : ""}`;
+  return `${e.p ? P(e.p, "tl-p") : ""}${tag}${e.a ? P(e.a, "tl-off") : ""}`;
 }
-function mdTimeline(r) {
+function mdTimeline(r, hc, ac) {
   if (!r?.ev?.length) return "";
   const rows = r.ev.map(e => `<div class="tl ${e.tm === "h" ? "is-h" : "is-a"}${["G", "P", "OG"].includes(e.k) ? " is-goal" : ""}">
     <div class="tl-min">${esc(e.t || "")}</div>
-    <span class="tl-ev">${EV_ICON[e.k] || ""}<span class="tl-tx">${evText(e)}</span></span>
+    <span class="tl-ev">${EV_ICON[e.k] || ""}<span class="tl-tx">${evText(e, e.tm === "h" ? hc : ac)}</span></span>
   </div>`).join("");
   return `<div class="eyebrow">Match events</div><div class="md-tl">${rows}</div>`;
 }
@@ -537,7 +538,7 @@ function openMatch(id) {
     <div class="md-teams">${side(h, "home")}<div class="md-mid">${mid}</div>${side(a, "away")}</div>
     ${koPath(m)}
     ${liveNow ? xiBlock : ""}
-    ${r?.ev?.length ? mdTimeline(r) : (r?.gh?.length || r?.ga?.length) ? `<div class="md-goals">
+    ${r?.ev?.length ? mdTimeline(r, h.code, a.code) : (r?.gh?.length || r?.ga?.length) ? `<div class="md-goals">
       <div class="md-goals-col">${(r.gh || []).map(g => `<div class="md-goal">⚽ ${esc(g)}</div>`).join("")}</div>
       <div class="md-goals-col away">${(r.ga || []).map(g => `<div class="md-goal">${esc(g)} ⚽</div>`).join("")}</div>
     </div>` : ""}
@@ -575,7 +576,7 @@ function heroBlock(heroM, isLive) {
       <div class="hero-side"><span class="hero-flag">${a.code ? flag(a.code) : "·"}</span><span class="hero-name">${esc(a.name)}</span></div>
     </div>
     ${!isLive ? `<div class="countdown" id="cd" data-utc="${heroM.utc}">
-      ${["d", "h", "m", "s"].map(k => `<div class="cd-cell"><span class="cd-num" data-k="${k}">–</span><span class="cd-lab">${{ d: "days", h: "hrs", m: "min", s: "sec" }[k]}</span></div>`).join("")}
+      ${["h", "m", "s"].map(k => `<div class="cd-cell"><span class="cd-num" data-k="${k}">–</span><span class="cd-lab">${{ h: "hrs", m: "min", s: "sec" }[k]}</span></div>`).join("")}
     </div>` : ""}
     <div class="hero-meta">
       <span><b>${timeStr(heroM.utc)}</b></span>
@@ -709,7 +710,7 @@ function startCountdown() {
   const target = new Date(cd.dataset.utc);
   const tickFn = () => {
     let s = Math.max(0, Math.floor((target - new Date()) / 1000));
-    const v = { d: s / 86400 | 0, h: s / 3600 % 24 | 0, m: s / 60 % 60 | 0, s: s % 60 };
+    const v = { h: s / 3600 | 0, m: s / 60 % 60 | 0, s: s % 60 };   // hours run past 24 (no separate days box)
     $$(".cd-num", cd).forEach(n => {
       const k = n.dataset.k, val = String(v[k]).padStart(2, "0");
       if (prevCd[k] !== val) { n.textContent = val; n.classList.remove("tick"); void n.offsetWidth; n.classList.add("tick"); prevCd[k] = val; }
@@ -793,6 +794,54 @@ function openSquad(code) {
   $("#squadBody").innerHTML = sq ? rosterMarkup(sq)
     : `<div class="empty">${esc(t.name)}'s squad isn't published yet — check back closer to kickoff.</div>`;
   $("#squadDialog").showModal();
+}
+// best-effort match of a feed name (e.g. "Julian QUINONES") to a squad entry (names come from a different feed)
+function squadBio(name, code) {
+  const sq = S.squads?.[code]; if (!sq?.players) return null;
+  const norm = s => (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z]/gi, "").toLowerCase();
+  const surname = name.split(/\s+/).filter(w => w && w === w.toUpperCase()).join("");
+  const nn = norm(name), ns = norm(surname);
+  return sq.players.find(x => { const xn = norm(x.name); return xn === nn || (ns.length > 2 && (xn.includes(ns) || ns.includes(xn))); }) || null;
+}
+// tap a player in the timeline → a compact profile: photo, team, shirt no./position, what they did this match, bio
+function openPlayer(name, code) {
+  const team = S.teams[code];
+  const m = (() => { const id = $("#matchDialog")?.dataset.mid; return id ? S.matches.find(x => x.id === id) : null; })();
+  const r = m && res(m);
+  const photo = playerPhoto(name, code);
+  let num = null, pos = "";
+  if (r?.xi && m) {
+    const side = slotInfo(m, "home").code === code ? "h" : "a";
+    const row = (r.xi[side]?.xi || []).find(p => p[1] === name);
+    if (row) { num = row[0]; pos = ["Goalkeeper", "Defender", "Midfielder", "Forward"][row[2]] || ""; }
+  }
+  const bio = squadBio(name, code);
+  if (bio) { if (num == null && bio.n != null) num = bio.n; if (!pos && bio.pos) pos = { GK: "Goalkeeper", DF: "Defender", MF: "Midfielder", FW: "Forward" }[bio.pos] || ""; }
+  const acts = (r?.ev || []).filter(e => [e.p, e.a, e.on, e.off].includes(name)).map(e => {
+    const mn = esc(e.t || "");
+    if (["G", "P", "OG"].includes(e.k)) return `<span class="pl-act">⚽ ${mn}${e.k === "P" ? " pen" : e.k === "OG" ? " o.g." : ""}${e.a === name && e.p !== name ? " · assist" : ""}</span>`;
+    if (e.k === "Y") return `<span class="pl-act"><i class="tl-card y"></i> ${mn}</span>`;
+    if (e.k === "R") return `<span class="pl-act"><i class="tl-card r"></i> ${mn}</span>`;
+    if (e.k === "S") return `<span class="pl-act">${e.on === name ? "▲ on" : "▼ off"} ${mn}</span>`;
+    return "";
+  }).join("");
+  $("#playerTitle").textContent = "Player";
+  $("#playerBody").innerHTML = `
+    <div class="pl">
+      ${photo ? `<span class="pl-face" style="background-image:url('${photo}')"></span>` : `<span class="pl-face pl-flag">${code ? flag(code) : "·"}</span>`}
+      <div class="pl-meta">
+        <b class="pl-name">${esc(name)}</b>
+        <span class="pl-team">${code ? flag(code) + " " : ""}${esc(team?.name || code || "")}</span>
+        ${(num != null || pos) ? `<span class="pl-pos">${num != null ? "#" + num : ""}${num != null && pos ? " · " : ""}${pos}</span>` : ""}
+      </div>
+    </div>
+    ${bio && (bio.club || bio.caps != null) ? `<div class="pl-bio">
+      ${bio.club ? `<span><i>Club</i>${esc(bio.club)}</span>` : ""}
+      ${bio.caps != null ? `<span><i>Caps</i>${bio.caps}</span>` : ""}
+      ${bio.goals ? `<span><i>Career goals</i>${bio.goals}</span>` : ""}
+    </div>` : ""}
+    ${acts ? `<div class="eyebrow">In this match</div><div class="pl-acts">${acts}</div>` : ""}`;
+  $("#playerDialog").showModal();
 }
 const ordinal = n => n + (["th", "st", "nd", "rd"][((n % 100) - 20) % 10] || ["th", "st", "nd", "rd"][n % 100] || "th");
 
@@ -1403,6 +1452,16 @@ async function refreshResults() {
     if (!firstLoad) celebrateGoals(prev, S.results.matches); // only after we have a baseline
   } catch { /* offline or first deploy — schedule still works */ }
 }
+// Scores update live via the poll, but the *app itself* (HTML/CSS/JS) can't be force-reloaded on a static
+// site — a page left open keeps running its old build. So detect a new deploy (the live index.html bumps
+// app.js?v=<BUILD> each release) and offer a one-tap refresh instead of leaving people on a stale UI.
+async function checkVersion() {
+  try {
+    const html = await (await fetch("index.html?t=" + Date.now(), { cache: "no-store" })).text();
+    const m = html.match(/app\.js\?v=([\w.]+)/);
+    if (m && m[1] !== BUILD) { const p = $("#updatePill"); if (p) p.hidden = false; }
+  } catch { /* offline — try again next tick */ }
+}
 
 /* ---------------- boot ---------------- */
 async function boot() {
@@ -1441,6 +1500,8 @@ async function boot() {
     if (rf) { e.stopPropagation(); manualRefresh(); return; }
     const star = e.target.closest("[data-save]");
     if (star) { e.stopPropagation(); toggleSave(star.dataset.save); return; }
+    const pl = e.target.closest("[data-player]");
+    if (pl) { e.stopPropagation(); const [pn, pc] = pl.dataset.player.split("|"); openPlayer(pn, pc); return; }
     const sq = e.target.closest("[data-squad]");
     if (sq && sq.dataset.squad) { openSquad(sq.dataset.squad); return; }
     const hero = e.target.closest(".hero[data-mid]");
@@ -1451,7 +1512,7 @@ async function boot() {
   // keyboard: activate focusable custom controls (save stars, squad cells, sim picks, hero) with Enter/Space
   document.addEventListener("keydown", e => {
     if (e.key !== "Enter" && e.key !== " ") return;
-    const t = e.target.closest("[data-save],[data-squad],[data-pick],.up,.hero[data-mid],.mcard[data-mid]");
+    const t = e.target.closest("[data-save],[data-squad],[data-player],[data-pick],.up,.hero[data-mid],.mcard[data-mid]");
     if (t) { e.preventDefault(); t.click(); }
   });
   // a shared prediction link (#p=…) loads that bracket and opens the Predict tab
@@ -1469,6 +1530,8 @@ async function boot() {
   }
   refreshResults();
   setInterval(refreshResults, 60 * 1000); // pick up fresh scores every 60s (server loop refreshes ~1/min during matches)
+  $("#updatePill").onclick = () => location.reload();
+  setInterval(checkVersion, 120 * 1000);  // nudge open pages to refresh when a new build ships
 }
 boot();
 })();
