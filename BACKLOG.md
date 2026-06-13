@@ -46,7 +46,7 @@ Status: ✅ shipped · ⬜ backlog. Effort: S < a session · M ≈ a session · 
 - ✅ **Player profiles** — tap any name (timeline / pitch / Boot / squad)
 - ⬜ **Venue + weather** — kickoff conditions per match (open-meteo, keyless; city→lat/long static). → Match sheet + small card chip. **M**
 - ⬜ **Head-to-head** — recent meetings between the two teams. → Match sheet. **M–L** (needs a history source)
-- ⬜ **Live win-probability** — simple heuristic from score + minute + (opt) xG-less shot data. → Match sheet. **M**
+- ✅ **Win-probability** — a Poisson model from team ratings (World Cup pedigree + current-tournament form) on the match sheet, shown pre-match (a lean) and updated in-play by the live scoreline + minutes remaining; clearly labelled an estimate.
 - ⬜ **Penalty shootout detail** — kick-by-kick in KO ties. → Match sheet. **S**
 - ✅ **Match of the day** — a gold banner under the hero highlighting the marquee fixture in the next slate of games (scored by stage weight + the teams' World Cup pedigree + host bonus); hidden when it's already the hero. → Matches.
 - ✅ **Day in review** — a date-navigable digest (tap any day header, or browse with ‹ ›) split into two areas: a **recap** (results, total goals, top scorer, biggest result) and a **preview** (a gold "One to watch" marquee pick + the rest of the day's fixtures). → Matches. Pure client, zero payload.

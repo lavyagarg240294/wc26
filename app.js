@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "100";  // shown in footer; bump with the ?v= asset version
+const BUILD = "101";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -570,6 +570,44 @@ function koPath(m) {
   const steps = chain.slice(1).map(x => `${STAGE_NAME[x.stage] || x.stage}<small>M${x.num}</small>`);
   return `<div class="md-kopath"><span class="kp-label">Winner's road →</span> ${steps.join(`<span class="kp-arr">›</span>`)}</div>`;
 }
+// win-probability — a Poisson model from team ratings (World Cup pedigree + current-tournament form),
+// updated in-play by the live scoreline + minutes remaining. A clearly-labelled estimate, not a feed value.
+const _FACT = [1, 1, 2, 6, 24, 120, 720, 5040, 40320, 362880];
+const _pois = (k, l) => Math.exp(-l) * Math.pow(l, k) / _FACT[k];
+function teamRating(code) {
+  const t = S.teams[code]; if (!t) return 50;
+  const g = groupOf(code), r = g ? standings(g).find(x => x.code === code) : null;
+  const form = r ? r.pts * 5 + (r.gf - r.ga) * 2 : 0;   // current-tournament form
+  return 50 + (t.titles || 0) * 4 + form;               // baseline + World Cup pedigree + form
+}
+const liveMinute = (m, r) => r?.st === ST.HT ? 45 : Math.max(1, Math.min(95, Math.round((Date.now() - +new Date(m.utc)) / 60000)));
+function winProb(m) {
+  const hc = slotInfo(m, "home").code, ac = slotInfo(m, "away").code, st = status(m), r = res(m);
+  if (!hc || !ac || st === ST.FT) return null;           // need both teams; the result is already known at FT
+  const live = st === ST.LIVE || st === ST.HT;
+  const sup = (teamRating(hc) - teamRating(ac)) / 40, mu = 1.35;   // goal supremacy; mu ≈ half the avg total goals
+  const remFrac = live ? Math.max(0.02, 1 - liveMinute(m, r) / 90) : 1;
+  const lamH = Math.max(0.22, mu + sup / 2) * remFrac, lamA = Math.max(0.22, mu - sup / 2) * remFrac;
+  const lead = live && r && r.h != null ? r.h - r.a : 0;
+  let pH = 0, pD = 0, pA = 0;
+  for (let rh = 0; rh < 9; rh++) for (let ra = 0; ra < 9; ra++) {
+    const p = _pois(rh, lamH) * _pois(ra, lamA), fin = lead + rh - ra;
+    if (fin > 0) pH += p; else if (fin < 0) pA += p; else pD += p;
+  }
+  const tot = pH + pD + pA || 1;
+  return { h: pH / tot, d: pD / tot, a: pA / tot, live };
+}
+function winProbBlock(m) {
+  const wp = winProb(m); if (!wp) return "";
+  const h = slotInfo(m, "home"), a = slotInfo(m, "away");
+  const ph = Math.round(wp.h * 100), pd = Math.round(wp.d * 100), pa = 100 - ph - pd;
+  return `<div class="eyebrow">Win probability <span class="wp-est">${wp.live ? "live estimate" : "pre-match estimate"}</span></div>
+    <div class="wp">
+      <div class="wp-bar" role="img" aria-label="${esc(h.name)} ${ph}%, draw ${pd}%, ${esc(a.name)} ${pa}%">
+        <span class="wp-h" style="width:${ph}%"></span><span class="wp-d" style="width:${pd}%"></span><span class="wp-a" style="width:${pa}%"></span></div>
+      <div class="wp-legend"><span class="wp-lh"><b>${ph}%</b> ${flag(h.code)} ${esc(h.name)}</span><span class="wp-ld">Draw <b>${pd}%</b></span><span class="wp-la">${esc(a.name)} ${flag(a.code)} <b>${pa}%</b></span></div>
+    </div>`;
+}
 function openMatch(id) {
   const m = S.matches.find(x => x.id === id); if (!m) return;
   const h = slotInfo(m, "home"), a = slotInfo(m, "away"), r = res(m), st = status(m);
@@ -602,6 +640,7 @@ function openMatch(id) {
     </div>
     <div class="md-teams">${side(h, "home")}<div class="md-mid">${mid}</div>${side(a, "away")}</div>
     ${koPath(m)}
+    ${winProbBlock(m)}
     ${liveNow ? xiBlock : ""}
     ${r?.ev?.length ? mdTimeline(r, h.code, a.code) : (r?.gh?.length || r?.ga?.length) ? `<div class="md-goals">
       <div class="md-goals-col">${(r.gh || []).map(g => `<div class="md-goal">⚽ ${esc(g)}</div>`).join("")}</div>
