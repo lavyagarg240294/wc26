@@ -67,7 +67,8 @@ All sources are fetched **server-side in the Action** (even the CORS-enabled one
 |---|---|---|
 | `matches.json` | 104 fixtures — UTC kickoffs, venues, stage/group, knockout slot placeholders (source: openfootball, public domain) | static |
 | `teams.json` | 48 teams — names, kit colours, confederation, World Cup titles | static |
-| `results.json` | per-match `{st,h,a,hp,ap,ht,at,min,xi,ev,stats}` — score, status, resolved knockout teams, lineups, event timeline, match stats | scores Action |
+| `results.json` | per-match `{st,h,a,hp,ap,ht,at,min}` — score/status only (the small file polled every ~60s) | scores Action |
+| `details.json` | per-match `{xi,ev,stats}` — lineups, event timeline, match stats (split out so it isn't re-polled every minute; the client merges it over `results.json`) | scores Action |
 | `photos.json` | official player headshots harvested from FIFA lineups (`"ShortName|CODE"` → image URL) | scores Action |
 | `squads.json` | 26-man squads per team | squads Action |
 
@@ -83,7 +84,7 @@ Edit anything, commit, push — every visitor sees it on their next load. **Ther
 ```json
 "m12": { "st": "FT", "h": 2, "a": 1 }
 ```
-`st`: `SCHED` | `LIVE` | `HT` | `FT` · `h/a`: goals · `hp/ap`: penalties · `ht/at`: resolved team codes (knockouts) · `min`: live minute · `xi`: lineups · `ev`: goal/card/sub timeline · `stats`: `[home,away]` pairs. Tap any match card for the full detail view.
+`st`: `SCHED` | `LIVE` | `HT` | `FT` · `h/a`: goals · `hp/ap`: penalties · `ht/at`: resolved team codes (knockouts) · `min`: live minute. The heavy per-match detail (`xi`: lineups · `ev`: goal/card/sub timeline · `stats`: `[home,away]` pairs) lives in `data/details.json` (same `matches` keys), split out so the polled `results.json` stays small. Tap any match card for the full detail view.
 
 **Share cards** are the one piece with build tooling (`scripts/make-share-cards.mjs` uses `satori` + `@resvg/resvg-js`; see `package.json`). They run only in their own Action — `node_modules` is gitignored and the core scores pipeline stays dependency-free.
 

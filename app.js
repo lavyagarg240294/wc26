@@ -4,7 +4,7 @@
 
 /* ---------------- state ---------------- */
 const S = {
-  matches: [], teams: {}, results: { matches: {} },
+  matches: [], teams: {}, results: { matches: {} }, details: { matches: {} }, matchData: {},
   tz: localStorage.getItem("wc26.tz") || "auto",
   fav: localStorage.getItem("wc26.fav") || null,
   view: "matches",
@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "78";  // shown in footer; bump with the ?v= asset version
+const BUILD = "79";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -67,7 +67,15 @@ const tzOffsetLabel = zone => {
 };
 
 /* ---------------- results / resolution ---------------- */
-const res = m => S.results.matches?.[m.id] || null;
+// scores (results.json, polled) + heavy detail (details.json, fetched on change) are merged into
+// S.matchData so every renderer keeps reading one object per match via res().
+const res = m => S.matchData[m.id] || null;
+function rebuildMatchData() {
+  const r = S.results.matches || {}, d = S.details.matches || {}, out = {};
+  for (const id in d) out[id] = { ...d[id] };
+  for (const id in r) out[id] = { ...(out[id] || {}), ...r[id] };   // fresh scores win over (possibly older) detail
+  S.matchData = out;
+}
 const ST = { SCHED: "SCHED", LIVE: "LIVE", HT: "HT", FT: "FT" };
 function status(m) {
   const r = res(m);
@@ -1735,6 +1743,12 @@ async function manualRefresh() {
   try { await refreshResults(); }
   finally { setTimeout(() => $$("[data-refresh]").forEach(b => b.classList.remove("spinning")), Math.max(0, 650 - (Date.now() - t0))); }
 }
+// heavy per-match detail (timeline/lineups/stats) lives in its own file so it isn't re-downloaded
+// every 60s — fetched only when scores change (see refreshResults). Tolerates a missing file.
+async function loadDetails() {
+  try { const d = await (await fetch("data/details.json?t=" + Date.now(), { cache: "no-store" })).json(); S.details = d && d.matches ? d : { matches: {} }; }
+  catch { S.details = { matches: {} }; }
+}
 async function refreshResults() {
   try {
     const r = await fetch("data/results.json?t=" + Date.now(), { cache: "no-store" });
@@ -1745,6 +1759,8 @@ async function refreshResults() {
     const prev = S.results.matches || {};
     S._lastResults = txt;
     S.results = JSON.parse(txt);
+    await loadDetails();          // scores changed → pull the matching detail, then merge for the renderers
+    rebuildMatchData();
     $("#updatedLabel").textContent = S.results.updated
       ? "Scores updated " + new Intl.DateTimeFormat("en", { timeZone: tz(), hour: "2-digit", minute: "2-digit" }).format(new Date(S.results.updated))
       : "Schedule loaded";

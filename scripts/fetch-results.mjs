@@ -313,10 +313,16 @@ async function enrichStats(matches, prev) {
 }
 
 /* ---------------- run ---------------- */
-const path = "data/results.json";
-let prev = {};
+const path = "data/results.json", dPath = "data/details.json";
+let prev = {}, prevDetail = {};
 try { if (existsSync(path)) prev = JSON.parse(readFileSync(path, "utf8")); } catch { /* malformed/conflicted — overwrite */ }
-const prevMatches = prev.matches || {};
+try { if (existsSync(dPath)) prevDetail = JSON.parse(readFileSync(dPath, "utf8")); } catch { /* ignore */ }
+const prevMatches = prev.matches || {}, prevDetailMatches = prevDetail.matches || {};
+// the fetch/enrich carry-forward reads ev/xi/stats off the previous entries — those now live in details.json,
+// so feed the fetch logic a merged view (slim scores + heavy detail) exactly like the pre-split single file.
+const prevMerged = {};
+for (const id of new Set([...Object.keys(prevMatches), ...Object.keys(prevDetailMatches)]))
+  prevMerged[id] = { ...(prevDetailMatches[id] || {}), ...(prevMatches[id] || {}) };
 let prevPhotos = {};
 try { if (existsSync("data/photos.json")) prevPhotos = JSON.parse(readFileSync("data/photos.json", "utf8")); } catch { /* ignore */ }
 const photoCodes = new Set(Object.keys(prevPhotos).map(k => k.split("|")[1]));
@@ -324,7 +330,7 @@ const photoCodes = new Set(Object.keys(prevPhotos).map(k => k.split("|")[1]));
 const DRY = process.argv.includes("--dry-run");
 let matches;
 try {
-  matches = await fromFifa(prevMatches, photoCodes);
+  matches = await fromFifa(prevMerged, photoCodes);
 } catch (e1) {
   console.warn("Primary api.fifa.com failed:", e1.message, "— trying worldcup26.ir");
   try { matches = await fromWorldCup26(); }
@@ -335,18 +341,33 @@ try {
   }
 }
 
-try { await enrichStats(matches, prevMatches); } catch (e) { console.warn("ESPN stats enrichment failed:", e.message); }
+try { await enrichStats(matches, prevMerged); } catch (e) { console.warn("ESPN stats enrichment failed:", e.message); }
 
-const out = { updated: new Date().toISOString(), matches };
+// Split the payload: results.json keeps only the small scores/status fields (it's polled every ~60s by every
+// open page); the heavy per-match detail (timeline, lineups, team stats, fallback scorers) goes to details.json,
+// fetched by the client only when scores actually change. Keeps the hot-path file tiny once knockouts fill it.
+const SLIM = ["st", "h", "a", "hp", "ap", "ht", "at", "min"];
+const slim = {}, detail = {};
+for (const [id, m] of Object.entries(matches)) {
+  const s = {}, d = {};
+  for (const k in m) (SLIM.includes(k) ? s : d)[k] = m[k];
+  slim[id] = s;
+  if (Object.keys(d).length) detail[id] = d;
+}
+const now = new Date().toISOString();
 if (DRY) {
-  const ev = Object.entries(matches).filter(([, m]) => m.ev).map(([id, m]) => `${id}:${m.ev.length}ev`);
-  console.log("DRY RUN — not writing. matches:", Object.keys(matches).length, "| with events:", ev.join(", ") || "none");
-  console.log(JSON.stringify(Object.fromEntries(Object.entries(matches).filter(([, m]) => m.ev).slice(0, 1)), null, 1));
-} else if (JSON.stringify(prevMatches) !== JSON.stringify(out.matches)) {
-  writeFileSync(path, JSON.stringify(out));
-  console.log("results.json updated");
+  const ev = Object.entries(detail).filter(([, m]) => m.ev).map(([id, m]) => `${id}:${m.ev.length}ev`);
+  console.log("DRY RUN — not writing. matches:", Object.keys(slim).length, "| detail rows:", Object.keys(detail).length, "| with events:", ev.join(", ") || "none");
+  console.log(JSON.stringify(Object.fromEntries(Object.entries(detail).slice(0, 1)), null, 1));
 } else {
-  console.log("No score changes — skipping write");
+  if (JSON.stringify(prevMatches) !== JSON.stringify(slim)) {
+    writeFileSync(path, JSON.stringify({ updated: now, matches: slim }));
+    console.log("results.json updated");
+  } else console.log("No score changes — skipping results.json");
+  if (JSON.stringify(prevDetailMatches) !== JSON.stringify(detail)) {
+    writeFileSync(dPath, JSON.stringify({ updated: now, matches: detail }));
+    console.log("details.json updated");
+  } else console.log("No detail changes — skipping details.json");
 }
 
 // player photos: merge newly-harvested into data/photos.json (write only when changed)

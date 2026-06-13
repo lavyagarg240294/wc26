@@ -13,6 +13,8 @@ const SITE = "https://lavyagarg240294.github.io/wc26";
 const fixtures = JSON.parse(readFileSync("data/matches.json", "utf8")).matches;
 const teams = JSON.parse(readFileSync("data/teams.json", "utf8"));
 const results = (() => { try { return JSON.parse(readFileSync("data/results.json", "utf8")).matches || {}; } catch { return {}; } })();
+const details = (() => { try { return JSON.parse(readFileSync("data/details.json", "utf8")).matches || {}; } catch { return {}; } })();   // ev/xi/stats split out of results.json
+const mergedRes = id => ({ ...(details[id] || {}), ...(results[id] || {}) });   // card needs scores (slim) + scorers (detail)
 const byId = Object.fromEntries(fixtures.map(f => [f.id, f]));
 const font400 = readFileSync("assets/fonts/archivo-400.woff");
 const font700 = readFileSync("assets/fonts/archivo-700.woff");
@@ -75,7 +77,7 @@ const finished = fixtures.filter(f => { const r = results[f.id]; return r && r.s
 const force = process.argv.includes("--force");
 let made = 0;
 for (const f of finished) {
-  const r = results[f.id];
+  const r = mergedRes(f.id);   // scores from results.json + scorers (ev) from details.json
   if (!force && existsSync(`assets/og/${f.num}.png`)) continue;   // card already rendered (delete + --force to redo)
   try {
     const svg = await satori(card(f, r), { width: 1200, height: 630, fonts: [

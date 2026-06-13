@@ -87,7 +87,7 @@ Status: ✅ shipped · ⬜ backlog. Effort: S < a session · M ≈ a session · 
 - ⬜ **Lite / data-saver mode** — skip photos & heavy detail on slow connections. → Settings. **S**
 
 ### G. Platform & scale  _(do before knockouts)_
-- ⬜ **Split heavy match detail out of `results.json`** — keep the 1-min polled file to scores/status; lazy-load `ev`/`xi`/`stats` per match. **M**
+- ✅ **Split heavy match detail out of `results.json`** — the 60s-polled file is now scores/status only (`results.json`, ~2 KB); `ev`/`xi`/`stats` live in `details.json`, fetched by the client only when scores change and merged into `S.matchData`. Writer emits both (carry-forward via a merged prev view); share-cards + the workflow updated.
 - ⬜ **Offline service worker** — network-first (fresh online, cached offline); must cooperate with the version-nudge so it never serves a stale shell. **M** (risk)
 - ⬜ **i18n** — multi-language UI. **L**
 - ⬜ **Accessibility deep pass** — full keyboard/SR audit. **M**
