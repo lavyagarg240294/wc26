@@ -471,7 +471,8 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
   padding:10px;animation:tselIn .16s ease}
 .tsel-pop[hidden]{display:none}
 @keyframes tselIn{from{opacity:0;transform:translateY(-6px)}}
-.tsel-search{width:100%;box-sizing:border-box;padding:9px 12px;margin-bottom:8px;border:1px solid var(--line);border-radius:10px;font:inherit;font-size:13px;background:var(--paper);outline:none}
+.tsel-search{width:100%;box-sizing:border-box;padding:9px 12px;margin-bottom:8px;border:1px solid var(--line);border-radius:10px;font:inherit;font-size:13px;background:var(--paper);color:var(--ink);-webkit-text-fill-color:var(--ink);caret-color:var(--acc1);outline:none}
+.tsel-search::placeholder{color:var(--ink-soft);-webkit-text-fill-color:var(--ink-soft);opacity:1}
 .tsel-search:focus{border-color:var(--acc1)}
 .tsel-list{max-height:280px;overflow-y:auto;display:flex;flex-direction:column;gap:2px}
 .tsel-opt{display:flex;align-items:center;gap:9px;width:100%;text-align:left;padding:8px 10px;border:0;background:none;border-radius:9px;cursor:pointer;font:inherit;font-size:13px;font-weight:600;color:var(--ink);transition:background .12s}
@@ -992,7 +993,8 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .tz-opt:hover{background:var(--paper)}
 .tz-opt.is-on{background:color-mix(in srgb,var(--acc1) 10%,transparent);color:var(--ink);font-weight:600}
 .tz-opt .off{font-family:var(--mono);font-size:11.5px;color:var(--ink-soft)}
-.team-search{width:calc(100% - 40px);margin:0 20px 10px;padding:11px 14px;border:1px solid var(--line);border-radius:12px;font:inherit;font-size:14px;background:var(--paper);outline:none}
+.team-search{width:calc(100% - 40px);margin:0 20px 10px;padding:11px 14px;border:1px solid var(--line);border-radius:12px;font:inherit;font-size:14px;background:var(--paper);color:var(--ink);-webkit-text-fill-color:var(--ink);caret-color:var(--acc1);outline:none}
+.team-search::placeholder{color:var(--ink-soft);-webkit-text-fill-color:var(--ink-soft);opacity:1}
 .team-search:focus{border-color:var(--acc1)}
 /* global search results */
 .sr-hint{color:var(--ink-soft);font-size:13px;text-align:center;padding:24px 16px}
