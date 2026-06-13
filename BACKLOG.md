@@ -55,7 +55,7 @@ Status: ✅ shipped · ⬜ backlog. Effort: S < a session · M ≈ a session · 
 - ✅ 48-team grid, 26-man squads, player profiles, My Team + `.ics` export, team re-theming
 - ✅ **Team detail sheet** — tapping a team anywhere (grid, group table, leaderboards, match modal) opens a sheet with overview (conf · group · titles · live position), recent form, every fixture (results + upcoming, each drills into the match), the group standing + qualification outlook, a one-tap **Follow** (re-themes the UI), and the full squad (collapsible). _Forward-projected "road to final" knockout path still open — needs the bracket projection (see Groups → knockout projection)._
 - ✅ **Player comparison** — head-to-head of two players (tournament goals/assists/clean sheets/cards + career caps/goals/club), winning value highlighted. "⇄ Compare" from any player profile opens the search overlay in compare mode to pick the second; tolerant name matching bridges feed vs squad names.
-- ⬜ **Squad rotation / minutes played** — built from `xi` across matches. → Team sheet. **M**
+- ✅ **Squad rotation / minutes played** — a "Minutes & rotation" section on the team sheet built from each match's `xi` + substitution events: per-player total minutes (nominal 90' full-time), starts vs sub appearances, and a per-match rotation strip (started / subbed off / off the bench / unused). Taps through to the player profile.
 - ⬜ **Subscribe to a team's calendar** (webcal). → Team sheet / Settings. **S**
 
 ### C. Groups

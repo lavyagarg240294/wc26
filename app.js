@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "86";  // shown in footer; bump with the ?v= asset version
+const BUILD = "87";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -927,6 +927,43 @@ function squadSection(code) {
 // Team detail sheet — overview, recent form, every fixture (results + upcoming), the group
 // standing + qualification outlook, and the full squad (collapsible). Tapping a team anywhere
 // (grid, group table, leaderboards, match modal) opens this; match cards inside drill deeper.
+// minutes & rotation, built from each match's starting XI (xi) + substitutions (ev). Approximate
+// minutes (nominal 90' full-time): a starter not subbed = 90, subbed off at t = t, a sub on at t = 90−t.
+function teamRotation(code) {
+  const ms = S.matches.filter(m => matchHasTeam(m, code) && status(m) === ST.FT && res(m)?.xi).sort((a, b) => a.utc.localeCompare(b.utc));
+  if (!ms.length) return null;
+  const grid = ms.map(m => {
+    const r = res(m), side = slotInfo(m, "home").code === code ? "h" : "a";
+    const xi = new Set((r.xi[side]?.xi || []).map(p => p[1]));
+    const off = {}, on = {};
+    for (const e of (r.ev || [])) if (e.tm === side && e.k === "S") { if (e.off) off[e.off] = evMin(e.t); if (e.on) on[e.on] = evMin(e.t); }
+    return { xi, off, on, opp: slotInfo(m, side === "h" ? "away" : "home"), num: m.num };
+  });
+  const featured = new Set(); grid.forEach(g => { g.xi.forEach(n => featured.add(n)); Object.keys(g.on).forEach(n => featured.add(n)); });
+  const players = [...featured].map(name => {
+    let mins = 0, starts = 0, subs = 0;
+    const cells = grid.map(g => {
+      if (g.xi.has(name)) { starts++; const o = g.off[name]; if (o != null) { mins += Math.round(o); return { k: "P", t: `M${g.num}: started, off ${Math.round(o)}'` }; } mins += 90; return { k: "S", t: `M${g.num}: started (90')` }; }
+      if (g.on[name] != null) { subs++; mins += Math.max(0, 90 - Math.round(g.on[name])); return { k: "U", t: `M${g.num}: on ${Math.round(g.on[name])}'` }; }
+      return { k: "-", t: `M${g.num}: unused` };
+    });
+    return { name, code, mins, starts, subs, cells };
+  }).sort((a, b) => b.mins - a.mins || b.starts - a.starts || a.name.localeCompare(b.name));
+  return { matches: ms.length, players };
+}
+function rotationSection(code) {
+  const R = teamRotation(code);
+  if (!R) return "";
+  const row = p => { const ph = playerPhoto(p.name, p.code);
+    return `<div class="rt-row" data-player="${esc(p.name)}|${p.code}" role="button" tabindex="0">
+      ${ph ? `<span class="lead-face" style="background-image:url('${ph}')"></span>` : `<span class="fl">${flag(p.code)}</span>`}
+      <span class="rt-name">${esc(p.name)}<small>${p.starts} start${p.starts !== 1 ? "s" : ""}${p.subs ? ` · ${p.subs} sub` : ""}</small></span>
+      <span class="rt-cells">${p.cells.map(c => `<span class="rt-cell s-${c.k}" title="${esc(c.t)}"></span>`).join("")}</span>
+      <span class="rt-min">${p.mins}<small>min</small></span></div>`; };
+  return `<details class="ts-squad rt-block"><summary><span>Minutes &amp; rotation</span><small>${R.matches} match${R.matches !== 1 ? "es" : ""}</small></summary>
+    <div class="rt-list">${R.players.map(row).join("")}</div>
+    <div class="rt-legend"><span><i class="rt-cell s-S"></i>Started</span><span><i class="rt-cell s-P"></i>Subbed off</span><span><i class="rt-cell s-U"></i>Off the bench</span><span><i class="rt-cell s--"></i>Unused</span></div></details>`;
+}
 function openTeam(code) {
   const t = S.teams[code]; if (!t) return;
   const all = S.matches.filter(m => matchHasTeam(m, code)).sort((a, b) => a.utc.localeCompare(b.utc));
@@ -943,6 +980,7 @@ function openTeam(code) {
     ${upcoming.length ? `<div class="eyebrow">Fixtures</div>${upcoming.map((m, i) => matchCard(m, i)).join("")}` : (done.length ? "" : `<div class="empty">Fixtures to be confirmed.</div>`)}
     ${group ? `<div class="eyebrow">Group ${group}</div><div class="gwrap">${groupTable(group, 0)}</div>${groupOutlookHTML(group)}
       <div class="legend"><span class="l1"><i></i>Top 2 advance</span><span class="l3"><i></i>3rd — possible best-8 spot</span></div>` : ""}
+    ${rotationSection(code)}
     ${sq ? `<details class="ts-squad"><summary><span>Squad</span><small>${sq.players.length} players${sq.coach ? ` · ${esc(sq.coach)}` : ""}</small></summary>${rosterMarkup(sq, code)}</details>`
         : `<div class="eyebrow">Squad</div><div class="empty">${esc(t.name)}'s squad isn't published yet — check back closer to kickoff.</div>`}`;
   $("#teamSheet").showModal();

@@ -624,6 +624,26 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .ts-squad[open]>summary::after{transform:rotate(180deg)}
 .ts-squad[open]>summary{border-bottom:1px solid var(--line)}
 .ts-squad .roster{padding:14px}
+/* minutes & rotation */
+.rt-list{display:flex;flex-direction:column}
+.rt-row{display:flex;align-items:center;gap:10px;padding:9px 14px;border-top:1px solid color-mix(in srgb,var(--line) 55%,transparent);cursor:pointer;transition:background .15s}
+.rt-list .rt-row:first-child{border-top:none}
+.rt-row:hover{background:color-mix(in srgb,var(--acc1) 7%,transparent)}
+.rt-row .lead-face{width:28px;height:28px}
+.rt-row .fl{font-size:18px;flex:0 0 auto}
+.rt-name{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.25;font-weight:600;font-size:13px;overflow:hidden}
+.rt-name small{font-weight:500;font-size:10.5px;color:var(--ink-soft);white-space:nowrap}
+.rt-cells{display:flex;gap:3px;flex:0 0 auto}
+.rt-cell{width:13px;height:13px;border-radius:4px;display:inline-block;flex:0 0 auto}
+.rt-cell.s-S{background:var(--acc1)}
+.rt-cell.s-P{background:color-mix(in srgb,var(--acc1) 45%,var(--card));box-shadow:inset 0 0 0 1.5px var(--acc1)}
+.rt-cell.s-U{background:color-mix(in srgb,var(--gold) 75%,var(--card));box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--gold) 60%,var(--ink))}
+.rt-cell.s--{background:var(--line)}
+.rt-min{font-family:var(--mono);font-weight:700;font-size:14px;font-variant-numeric:tabular-nums;display:flex;flex-direction:column;align-items:flex-end;line-height:1;flex:0 0 auto;width:34px}
+.rt-min small{font-weight:500;font-size:8px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.03em}
+.rt-legend{display:flex;flex-wrap:wrap;gap:10px 14px;padding:12px 14px;border-top:1px solid var(--line);font-size:11px;color:var(--ink-soft)}
+.rt-legend span{display:inline-flex;align-items:center;gap:5px}
+.rt-legend i{width:11px;height:11px;border-radius:3px}
 /* multi-column so the 4 position cards pack with no floating gaps */
 /* all four position groups stacked one below the other — full-width, no float */
 .roster{display:flex;flex-direction:column;gap:14px}
