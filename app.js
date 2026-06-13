@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "99";  // shown in footer; bump with the ?v= asset version
+const BUILD = "100";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1278,10 +1278,15 @@ function roadToFinal(code) {
   return { code, path, reachesFinal: cur.stage === "final" };
 }
 function roadSection(code) {
-  const anyPlayed = S.matches.some(m => m.group && status(m) === ST.FT && res(m)?.h != null);
-  if (!anyPlayed) return "";
+  // only project a team's route once they've actually played — before that, standings are all level
+  // and any "road" would be arbitrary tiebreak noise.
+  const teamPlayed = S.matches.some(m => matchHasTeam(m, code) && status(m) === ST.FT && res(m)?.h != null);
+  if (!teamPlayed) {
+    const next = S.matches.filter(m => matchHasTeam(m, code) && status(m) === ST.SCHED).sort((a, b) => a.utc.localeCompare(b.utc))[0];
+    return `<div class="eyebrow">Road to the final</div><div class="empty">${esc(S.teams[code]?.name || code)}'s projected route opens once they kick off${next ? ` — first up ${fmt(next.utc, { weekday: "short", day: "numeric", month: "short" })}` : ""}.</div>`;
+  }
   const road = roadToFinal(code);
-  if (!road) return `<div class="eyebrow">Road to the final</div><div class="empty">As it stands, ${esc(S.teams[code]?.name || code)} are projected to miss the Round of 32 — win your group games to climb in.</div>`;
+  if (!road) return `<div class="eyebrow">Road to the final</div><div class="empty">As it stands, ${esc(S.teams[code]?.name || code)} are projected to miss the Round of 32 — a couple of group wins flips that.</div>`;
   const t = S.teams[code];
   const rows = road.path.map(({ m, opp }) => {
     const oc = opp && S.teams[opp];
@@ -2227,6 +2232,7 @@ async function boot() {
     history.replaceState(null, "", location.pathname + location.search);
   }
   nav(initView);
+  const bl = $("#bootLoading"); if (bl) { bl.classList.add("gone"); setTimeout(() => bl.remove(), 320); }   // first view rendered → reveal
   // a shared match link (?match=<id>, e.g. from a share-card stub) opens that match
   const mq = new URLSearchParams(location.search).get("match");
   if (mq && S.matches.some(m => m.id === mq)) {
