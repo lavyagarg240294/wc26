@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "63";  // shown in footer; bump with the ?v= asset version
+const BUILD = "65";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1103,6 +1103,27 @@ function seedSimThirds() {
     S.sim.thirds = ranked.slice().sort(() => Math.random() - 0.5).slice(0, 8);
 }
 
+// score the saved prediction against reality: predicted group top-2 vs live standings, and KO winners vs results
+function simScore() {
+  const fts = S.matches.filter(m => status(m) === ST.FT && res(m)?.h != null);
+  if (!fts.length) return null;
+  let gSpots = 0, gTotal = 0;
+  GROUPS.forEach(g => {
+    if (!fts.some(m => m.group === g)) return;            // only score groups that have kicked off
+    const pred = simOrder(g).slice(0, 2);
+    const actual = standings(g).slice(0, 2).map(r => r.code);
+    gTotal += 2; pred.forEach(c => { if (actual.includes(c)) gSpots++; });
+  });
+  let koHit = 0, koDecided = 0;
+  S.matches.filter(m => m.stage !== "group").forEach(m => {
+    const r = res(m); if (!(r && r.st === ST.FT && r.h != null)) return;
+    const hc = slotInfo(m, "home").code, ac = slotInfo(m, "away").code; if (!hc || !ac) return;
+    const homeWon = r.h > r.a || (r.h === r.a && (r.hp ?? -1) > (r.ap ?? -1));
+    const pick = S.sim.ko[m.num];
+    if (pick) { koDecided++; if (pick === (homeWon ? hc : ac)) koHit++; }
+  });
+  return gTotal || koDecided ? { gSpots, gTotal, koHit, koDecided } : null;
+}
 function renderSim() {
   const el = $("#view-sim");
   // seed a valid default set of thirds so the knockout bracket is visible & tappable from the first visit
@@ -1154,6 +1175,13 @@ function renderSim() {
     <span class="sg-prog" aria-label="${koPicked} of ${koMatches.length} ties picked">${koPicked}<i>/${koMatches.length}</i></span>
   </button>`;
 
+  // how the prediction is tracking against real results (only once something has been played)
+  const sc = simScore();
+  const scoreCard = sc ? `<div class="sim-score"><span class="ss-label">Your call vs reality</span>
+    ${sc.gTotal ? `<span class="ss-stat"><b>${sc.gSpots}</b><i>/ ${sc.gTotal}</i><small>group spots on track</small></span>` : ""}
+    ${sc.koDecided ? `<span class="ss-stat"><b>${sc.koHit}</b><i>/ ${sc.koDecided}</i><small>knockout calls right</small></span>` : ""}
+  </div>` : "";
+
   el.innerHTML = `
     <div class="sim-intro">
       <h2>Call the whole tournament 🔮</h2>
@@ -1166,6 +1194,7 @@ function renderSim() {
       </div>
     </div>
     ${champTeaser}
+    ${scoreCard}
     <div class="eyebrow"><span class="step-n">1</span> Order the groups — top two go through</div>
     <div class="gwrap">${GROUPS.map(groupCard).join("")}</div>
     <div class="eyebrow"><span class="step-n">2</span> Best third-placed teams <span class="tcount">${S.sim.thirds.length}/8</span></div>
