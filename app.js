@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "88";  // shown in footer; bump with the ?v= asset version
+const BUILD = "89";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -324,8 +324,15 @@ function celebrateGoals(prev, now) {
     const scorer = slotInfo(m, (b.h || 0) > (a.h || 0) ? "home" : "away").code;
     goalCelebration(scorer);
     maybeNotifyGoal(m, b, scorer);   // opt-in OS alert (only when the tab's backgrounded)
+    const hs = slotInfo(m, "home"), as = slotInfo(m, "away");   // screen-reader announcement
+    announce(`Goal! ${S.teams[scorer]?.name || ""}. ${esc(hs.name)} ${b.h}, ${esc(as.name)} ${b.a}.`);
     break; // one celebration per refresh is plenty
   }
+}
+// polite screen-reader live region; clear-then-set so an identical message re-announces
+function announce(msg) {
+  const el = $("#liveAnnounce"); if (!el) return;
+  el.textContent = ""; requestAnimationFrame(() => { el.textContent = msg; });
 }
 /* ---------------- match alerts (opt-in, while the tab is open) ---------------- */
 // Goals + kickoff reminders for the favourite team. No push backend — these fire from the same 60s

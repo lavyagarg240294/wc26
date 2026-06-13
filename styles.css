@@ -61,6 +61,8 @@ b{font-weight:600}
 /* a11y: a visible keyboard-focus ring on every interactive element (zero-specificity :where so
    component-specific focus styles still win). Mouse clicks don't trigger :focus-visible. */
 :where(a,button,summary,input,select,textarea,[role="button"],[tabindex]):focus-visible{outline:2px solid var(--acc1);outline-offset:2px}
+/* a11y: visually-hidden (for screen-reader-only live regions) */
+.vh{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 /* a11y: honour reduced-motion globally (covers every animation/transition, present and future) */
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
 
