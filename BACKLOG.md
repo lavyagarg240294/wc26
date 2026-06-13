@@ -83,7 +83,7 @@ Status: ✅ shipped · ⬜ backlog. Effort: S < a session · M ≈ a session · 
 - ✅ **Sounds** — anthem + a synthesized **goal horn** (opt-in). _More background tracks need audio files (royalty-free); won't add random songs._
 - ⬜ **Notifications (while open)** — "kickoff in 5" / "GOAL for your team" via the Notification API (no push backend). → Settings + per-team. **S–M**
 - ⬜ **Notifications (while open)** — "kickoff in 5" / "GOAL for your team" via the Notification API (no push backend). → Settings + per-team. **S–M**
-- ⬜ **Quick search / ⌘K** — jump to any team, player or match. → global overlay. **M**
+- ✅ **Quick search / ⌘K** — a global overlay (search chip + ⌘K/Ctrl-K, or "/") that jumps to any team, player (by name or club) or match (by team/city/stage), relevance-ranked (prefix beats mid-word); each result opens the right sheet.
 - ⬜ **Lite / data-saver mode** — skip photos & heavy detail on slow connections. → Settings. **S**
 
 ### G. Platform & scale  _(do before knockouts)_

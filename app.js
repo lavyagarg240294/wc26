@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "73";  // shown in footer; bump with the ?v= asset version
+const BUILD = "74";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -870,6 +870,52 @@ function openPlayer(name, code) {
 }
 const ordinal = n => n + (["th", "st", "nd", "rd"][((n % 100) - 20) % 10] || ["th", "st", "nd", "rd"][n % 100] || "th");
 
+/* ---------------- global search (teams · players · matches) ---------------- */
+// Result rows reuse the existing data-squad / data-player / data-mid delegation, so a tap
+// opens the right sheet; #searchResults' own listener just closes the overlay first.
+let SIDX = null;
+function buildSearchIndex() {
+  const teams = Object.keys(S.teams).map(c => ({ code: c, name: S.teams[c].name, conf: S.teams[c].conf || "" }));
+  const players = [];
+  for (const [code, sq] of Object.entries(S.squads || {}))
+    for (const p of (sq.players || [])) players.push({ name: (p.name || "").replace(" (captain)", ""), code, club: p.club || "" });
+  const matches = S.matches.map(m => {
+    const h = slotInfo(m, "home"), a = slotInfo(m, "away");
+    return { id: m.id, hc: h.code, ac: a.code,
+      hn: h.code ? S.teams[h.code].name : slotText(m, "home", h),
+      an: a.code ? S.teams[a.code].name : slotText(m, "away", a),
+      stage: m.group ? "Group " + m.group : (m.round || ""), city: (m.city || "").split(",")[0] };
+  });
+  return { teams, players, matches };
+}
+function openSearch() {
+  SIDX = buildSearchIndex();
+  const inp = $("#searchInput");
+  inp.value = ""; renderSearch("");
+  $("#searchDialog").showModal();
+  $("#searchResults").onclick = () => $("#searchDialog").close();   // close, then the doc handler opens the target
+  setTimeout(() => inp.focus(), 60);
+}
+function renderSearch(raw) {
+  const q = raw.trim().toLowerCase(), res = $("#searchResults");
+  if (!q) { res.innerHTML = `<div class="sr-hint">Jump to any team, player or match.</div>`; return; }
+  const has = s => (s || "").toLowerCase().includes(q);
+  // relevance: a word that *starts* with the query beats a mid-word hit (so "mess" → Messi, not a club coincidence)
+  const rank = s => { const n = (s || "").toLowerCase(); return n.startsWith(q) ? 0 : n.split(/\s+/).some(w => w.startsWith(q)) ? 1 : 2; };
+  const byRank = key => (a, b) => rank(key(a)) - rank(key(b)) || key(a).localeCompare(key(b));
+  const teams = SIDX.teams.filter(t => has(t.name) || t.code.toLowerCase() === q || has(t.conf)).sort(byRank(t => t.name)).slice(0, 6);
+  const players = SIDX.players.filter(p => has(p.name) || has(p.club)).sort(byRank(p => p.name)).slice(0, 8);
+  const matches = SIDX.matches.filter(m => has(m.hn) || has(m.an) || has(m.city) || has(m.stage)).slice(0, 6);
+  const tname = c => esc(S.teams[c]?.name || c);
+  const teamHtml = teams.length ? `<div class="sr-label">Teams</div>` + teams.map(t =>
+    `<button class="sr-row" data-squad="${t.code}"><span class="fl">${flag(t.code)}</span><span class="sr-name">${esc(t.name)}<small>${esc(t.conf)}</small></span></button>`).join("") : "";
+  const playerHtml = players.length ? `<div class="sr-label">Players</div>` + players.map(p => { const ph = playerPhoto(p.name, p.code);
+    return `<button class="sr-row" data-player="${esc(p.name)}|${p.code}">${ph ? `<span class="lead-face" style="background-image:url('${ph}')"></span>` : `<span class="fl">${flag(p.code)}</span>`}<span class="sr-name">${esc(p.name)}<small>${flag(p.code)} ${tname(p.code)}${p.club ? ` · ${esc(p.club)}` : ""}</small></span></button>`; }).join("") : "";
+  const matchHtml = matches.length ? `<div class="sr-label">Matches</div>` + matches.map(m =>
+    `<button class="sr-row" data-mid="${m.id}"><span class="sr-vs">${m.hc ? flag(m.hc) : "•"}${m.ac ? flag(m.ac) : "•"}</span><span class="sr-name">${esc(m.hn)} <i>v</i> ${esc(m.an)}<small>${esc(m.stage)}${m.city ? ` · ${esc(m.city)}` : ""}</small></span></button>`).join("") : "";
+  res.innerHTML = (teamHtml + playerHtml + matchHtml) || `<div class="sr-hint">No teams, players or matches match “${esc(raw.trim())}”.</div>`;
+}
+
 /* ---------------- render: groups ---------------- */
 const TABLE_COLS = `<colgroup><col class="c-name"><col class="c-n"><col class="c-n"><col class="c-n"><col class="c-n"><col class="c-gd"><col class="c-pts"></colgroup>`;
 function groupTable(g, i) {
@@ -1638,6 +1684,12 @@ async function boot() {
   $("#settingsChip").onclick = () => $("#settingsDialog").showModal();
   $("#tzRow").onclick = () => { $("#settingsDialog").close(); $("#tzDialog").showModal(); };
   $("#teamChip").onclick = () => $("#teamDialog").showModal();
+  $("#searchChip").onclick = openSearch;
+  $("#searchInput").oninput = e => renderSearch(e.target.value);
+  addEventListener("keydown", e => {   // ⌘K / Ctrl-K anywhere, or "/" when not already typing
+    if ((e.key === "k" || e.key === "K") && (e.metaKey || e.ctrlKey)) { e.preventDefault(); openSearch(); }
+    else if (e.key === "/" && !$("#searchDialog").open && !/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || "")) { e.preventDefault(); openSearch(); }
+  });
   // dark mode + goal horn (live in the Settings sheet)
   $("#themeState").textContent = currentDark() ? "On" : "Off";
   $("#themeToggle").setAttribute("aria-pressed", String(currentDark()));

@@ -29,7 +29,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=Instrument+Sans:wght@400;500;600&family=Spline+Sans+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=73">
+<link rel="stylesheet" href="styles.css?v=74">
 <link rel="icon" href="assets/wc26-emblem.svg">
 </head>
 <body>
@@ -46,6 +46,9 @@
     </span>
   </a>
   <div class="topbar-right">
+    <button class="chip chip-icon" id="searchChip" title="Search (⌘K)" aria-label="Search">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+    </button>
     <button class="chip chip-icon" id="settingsChip" title="Settings" aria-label="Settings">
       <svg class="ic-music" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
     </button>
@@ -132,6 +135,13 @@
   <div class="sheet-body" id="teamSheetBody"></div>
 </dialog>
 
+<!-- Global search -->
+<dialog id="searchDialog" class="sheet">
+  <div class="sheet-head"><h3>Search</h3><button class="sheet-x" data-close>✕</button></div>
+  <input class="team-search" id="searchInput" type="search" placeholder="Teams, players, matches…" autocomplete="off" autocapitalize="off" spellcheck="false">
+  <div class="sheet-body" id="searchResults"></div>
+</dialog>
+
 <!-- Team picker -->
 <dialog id="teamDialog" class="sheet">
   <div class="sheet-head"><h3>Your team</h3><button class="sheet-x" data-close>✕</button></div>
@@ -158,6 +168,6 @@
 <canvas id="confetti" aria-hidden="true"></canvas>
 <audio id="bgm" loop preload="none" src="assets/anthem.mp3"></audio>
 
-<script src="app.js?v=73"></script>
+<script src="app.js?v=74"></script>
 </body>
 </html>
