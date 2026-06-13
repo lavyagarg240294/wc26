@@ -45,6 +45,9 @@ Add under **Settings → Secrets and variables → Actions** only if you want th
 - `FOOTBALL_DATA_TOKEN` — a free [football-data.org](https://www.football-data.org/client/register) token, used **only as a last-resort fallback** if both FIFA and ESPN are unreachable.
 - `API_FOOTBALL_KEY` — a free [API-Football](https://www.api-football.com) key for the squads workflow (caps/goals/club). Without it, the 16 seeded squads still show.
 
+### Optional: analytics (off by default)
+The site ships with **no tracking**. To turn on **cookieless, no-PII** analytics, create a free [GoatCounter](https://www.goatcounter.com) site and set `window.ANALYTICS_URL` in `index.html`'s head to your `…/count` endpoint — the script then loads and counts pageviews + per-tab views (via `goatcounter.count` in `nav()`). Leave it empty and nothing third-party loads.
+
 ---
 
 ## How it works
