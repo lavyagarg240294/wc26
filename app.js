@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "105";  // shown in footer; bump with the ?v= asset version
+const BUILD = "106";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1629,6 +1629,41 @@ function simScore() {
   });
   return gTotal || koDecided ? { gSpots, gTotal, koHit, koDecided } : null;
 }
+// a shareable champion card — drawn on a canvas (same-origin flag SVG → not tainted), then offered via
+// the Web Share API (files) where supported, falling back to a download. Turns the prediction into reach.
+function rrect(x, X, Y, W, H, r) { x.beginPath(); x.moveTo(X + r, Y); x.arcTo(X + W, Y, X + W, Y + H, r); x.arcTo(X + W, Y + H, X, Y + H, r); x.arcTo(X, Y + H, X, Y, r); x.arcTo(X, Y, X + W, Y, r); x.closePath(); }
+async function shareChampionImage(code) {
+  const t = code && S.teams[code]; if (!t) { flashToast("Crown a champion first"); return; }
+  try { await document.fonts.ready; } catch { /* fall back to system fonts */ }
+  const W = 1080, H = 1080, c = document.createElement("canvas"); c.width = W; c.height = H;
+  const x = c.getContext("2d");
+  const g = x.createLinearGradient(0, 0, W, H); g.addColorStop(0, "#0c1a28"); g.addColorStop(1, "#08231b");
+  x.fillStyle = g; x.fillRect(0, 0, W, H);
+  const glow = (cx, cy, r, col) => { const rg = x.createRadialGradient(cx, cy, 0, cx, cy, r); rg.addColorStop(0, col); rg.addColorStop(1, "rgba(0,0,0,0)"); x.fillStyle = rg; x.fillRect(0, 0, W, H); };
+  glow(170, 150, 460, "rgba(11,163,96,.34)"); glow(930, 940, 480, "rgba(232,185,49,.24)");
+  x.textAlign = "center";
+  x.fillStyle = "#E8B931"; x.font = "700 36px Archivo, sans-serif"; x.fillText("FIFA WORLD CUP 2026", W / 2, 132);
+  x.fillStyle = "#9fb0bd"; x.font = "600 30px 'Instrument Sans', sans-serif"; x.fillText("MY PREDICTED CHAMPION", W / 2, 198);
+  const img = new Image(); img.src = "assets/flags/" + code + ".svg";
+  try { await img.decode(); } catch { /* draw without the flag */ }
+  const fw = 420, fh = Math.round(fw * ((img.naturalHeight / img.naturalWidth) || 0.66)), fx = W / 2 - fw / 2, fy = 300;
+  x.save(); rrect(x, fx, fy, fw, fh, 16); x.clip(); x.fillStyle = "#fff"; x.fillRect(fx, fy, fw, fh);
+  if (img.complete && img.naturalWidth) x.drawImage(img, fx, fy, fw, fh); x.restore();
+  x.lineWidth = 2; x.strokeStyle = "rgba(255,255,255,.22)"; rrect(x, fx, fy, fw, fh, 16); x.stroke();
+  x.fillStyle = "#fff"; x.font = "900 96px Archivo, sans-serif"; x.fillText(t.name.toUpperCase(), W / 2, fy + fh + 152);
+  x.fillStyle = "#1FD673"; x.font = "800 52px Archivo, sans-serif"; x.fillText("CHAMPIONS", W / 2, fy + fh + 226);
+  x.fillStyle = "#7b8894"; x.font = "500 28px 'Spline Sans Mono', monospace"; x.fillText("July 19 · MetLife Stadium", W / 2, H - 112);
+  x.fillStyle = "#5b6b7a"; x.font = "500 25px 'Spline Sans Mono', monospace"; x.fillText((location.host + location.pathname).replace(/\/$/, ""), W / 2, H - 62);
+  c.toBlob(async blob => {
+    if (!blob) { flashToast("Couldn't make the image"); return; }
+    const file = new File([blob], "my-wc26-champion.png", { type: "image/png" });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file], title: `My World Cup 2026 champion: ${t.name}` }); return; } catch { /* cancelled → fall through to download */ }
+    }
+    const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = "my-wc26-champion.png"; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 3000); flashToast("Champion card saved");
+  }, "image/png");
+}
 function renderSim() {
   const el = $("#view-sim");
   // seed a valid default set of thirds so the knockout bracket is visible & tappable from the first visit
@@ -1696,6 +1731,7 @@ function renderSim() {
         <button class="btn ghost" id="simShuffle"><span class="b-lg">Shuffle it all</span><span class="b-sm">Shuffle</span></button>
         <button class="btn ghost" id="simReset"><span class="b-lg">Start over</span><span class="b-sm">Reset</span></button>
         <button class="btn" id="simShare">🔗 Share prediction</button>
+        ${champ ? `<button class="btn" id="simShareImg">📷 Champion card</button>` : ""}
       </div>
     </div>
     ${champTeaser}
@@ -1772,6 +1808,7 @@ function renderSim() {
     try { await navigator.clipboard.writeText(url); flashToast("Prediction link copied — share it!"); }
     catch { prompt("Copy your prediction link:", url); }
   };
+  $("#simShareImg")?.addEventListener("click", () => shareChampionImage(S.sim.ko[104]));
   layoutBracket(el);
 }
 function simMatch(m, i, alloc) {
