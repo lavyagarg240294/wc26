@@ -90,9 +90,15 @@ Status: ✅ shipped · ⬜ backlog. Effort: S < a session · M ≈ a session · 
 - ✅ **Lite / data-saver mode** — a Settings toggle that suppresses the hot-linked player photos (the bulk of as-you-browse image weight) and falls back to flags everywhere; skips the `photos.json` fetch entirely when enabled at load, lazy-loads it if turned off later. → Settings.
 
 ### G. Platform & scale  _(do before knockouts)_
+- ✅ **Self-hosted SVG flags** — real flags from `assets/flags/` (fixes emoji-flag breakage on Windows).
+- ✅ **Self-hosted fonts** — Archivo / Instrument Sans / Spline Sans Mono served locally (no Google dependency), SW-cached.
+- ✅ **Test suite + CI** — `node --test` data-integrity + smoke tests; a Tests workflow on code/static-data pushes.
+- ✅ **Opt-in analytics** — cookieless GoatCounter, off by default (zero third-party load until configured).
+- ✅ **Champion card** — shareable canvas image of your predicted champion (Predict).
+- ✅ **About the tournament** sheet — 48-team format explainer + hosts/dates.
 - ✅ **Split heavy match detail out of `results.json`** — the 60s-polled file is now scores/status only (`results.json`, ~2 KB); `ev`/`xi`/`stats` live in `details.json`, fetched by the client only when scores change and merged into `S.matchData`. Writer emits both (carry-forward via a merged prev view); share-cards + the workflow updated.
-- ⬜ **Offline service worker** — network-first (fresh online, cached offline); must cooperate with the version-nudge so it never serves a stale shell. **M** (risk)
-- ⬜ **i18n** — multi-language UI. **L**
+- ✅ **Offline service worker** — `sw.js`, network-first for HTML/JS/CSS/JSON (online is always fresh; the version nudge still prompts reloads), cache-first for flags/icons/fonts. Cache keys strip `?t=`/`?v=`; activate() purges old caches.
+- ⬜ **i18n** — multi-language UI. **L** — a dedicated effort (extract every string + translation system); a partial translation reads worse than none, so deferred whole rather than half-shipped.
 - 🟡 **Accessibility pass** (two waves shipped) — global keyboard `:focus-visible` ring on every interactive element, blanket `prefers-reduced-motion` reset, accessible names on all 8 dialogs + labelled close buttons, `aria-current` on the active tab, Enter/Space activation for every custom `role="button"`, and an `aria-live` region that announces goals as they're detected. _Still open: full SR walkthrough, contrast spot-check._
 - ⬜ **Goal sound / richer celebration**. **S**
 
