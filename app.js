@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "91";  // shown in footer; bump with the ?v= asset version
+const BUILD = "92";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -44,6 +44,10 @@ const ZONES = [
 /* ---------------- utils ---------------- */
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+// open a <dialog> modally — closing first if it's already open (re-entering the same sheet from a
+// stacked context would otherwise throw InvalidStateError on Safari/Firefox, or silently update the
+// hidden dialog underneath on Chromium). Brings the sheet to the front with its fresh content.
+const showSheet = d => { if (d && d.open) d.close(); d && d.showModal(); };
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
 function flag(code) {
@@ -598,7 +602,7 @@ function openMatch(id) {
     </div>
     ${liveNow ? "" : xiBlock}
     ${squadLinks ? `<div class="md-squads">${squadLinks}</div>` : ""}`;
-  const md = $("#matchDialog"); md.dataset.openMid = id; md.showModal();   // openMid (not data-mid) so the global match-open click handler never matches the dialog itself
+  const md = $("#matchDialog"); md.dataset.openMid = id; showSheet(md);   // openMid (not data-mid) so the global match-open click handler never matches the dialog itself
 }
 
 /* ---------------- render: matches (today + full calendar) ---------------- */
@@ -680,7 +684,7 @@ function openDayReview(dk) {
   const days = matchDays();
   dayCursor = days.includes(dk) ? dk : (days.filter(d => d <= dayKey(new Date().toISOString())).pop() || days[0]);
   renderDayReview();
-  $("#dayDialog").showModal();
+  showSheet($("#dayDialog"));
 }
 function renderDayReview() {
   const D = dayDigest(dayCursor), days = matchDays(), idx = days.indexOf(dayCursor);
@@ -990,7 +994,7 @@ function openTeam(code) {
     ${rotationSection(code)}
     ${sq ? `<details class="ts-squad"><summary><span>Squad</span><small>${sq.players.length} players${sq.coach ? ` · ${esc(sq.coach)}` : ""}</small></summary>${rosterMarkup(sq, code)}</details>`
         : `<div class="eyebrow">Squad</div><div class="empty">${esc(t.name)}'s squad isn't published yet — check back closer to kickoff.</div>`}`;
-  $("#teamSheet").showModal();
+  showSheet($("#teamSheet"));
 }
 // best-effort match of a feed name (e.g. "Julian QUINONES") to a squad entry (names come from a different feed)
 function squadBio(name, code) {
@@ -1043,7 +1047,7 @@ function openPlayer(name, code) {
     <button class="pl-compare" data-compare-seed="${esc(name)}|${code}">⇄ Compare with another player</button>`;
   const cmpBtn = $("#playerBody [data-compare-seed]");
   if (cmpBtn) cmpBtn.onclick = () => { const [n, c] = cmpBtn.dataset.compareSeed.split("|"); $("#playerDialog").close(); openCompareSearch({ name: n, code: c }); };
-  $("#playerDialog").showModal();
+  showSheet($("#playerDialog"));
 }
 const ordinal = n => n + (["th", "st", "nd", "rd"][((n % 100) - 20) % 10] || ["th", "st", "nd", "rd"][n % 100] || "th");
 
@@ -1073,7 +1077,7 @@ function openSearchOverlay() {
   const inp = $("#searchInput");
   inp.value = ""; inp.placeholder = compareSeed ? `Compare ${compareSeed.name} with…` : "Teams, players, matches…";
   renderSearch("");
-  $("#searchDialog").showModal();
+  showSheet($("#searchDialog"));
   $("#searchResults").onclick = e => {              // close, then let the doc handler open the target…
     const cmp = e.target.closest("[data-compare]");  // …unless we're in compare mode and a player was picked
     if (cmp) { const [n, c] = cmp.dataset.compare.split("|"); const seed = compareSeed; compareSeed = null; $("#searchDialog").close(); openCompare(seed, { name: n, code: c }); return; }
@@ -1152,7 +1156,7 @@ function openCompare(a, b) {
     <button class="pl-compare" data-recompare="${esc(a.name)}|${a.code}">⇄ Compare ${esc(a.name)} with someone else</button></div>`;
   const re = $("#playerBody [data-recompare]");
   if (re) re.onclick = () => { const [n, c] = re.dataset.recompare.split("|"); $("#playerDialog").close(); openCompareSearch({ name: n, code: c }); };
-  $("#playerDialog").showModal();
+  showSheet($("#playerDialog"));
 }
 
 /* ---------------- render: groups ---------------- */
@@ -2091,6 +2095,7 @@ async function boot() {
   initMusic();
   $$("[data-close]").forEach(b => b.onclick = () => b.closest("dialog").close());
   $$("dialog").forEach(d => d.onclick = e => { if (e.target === d) d.close(); });
+  $("#searchDialog").addEventListener("close", () => { compareSeed = null; });   // never leave compare mode armed after the overlay closes
   addEventListener("resize", () => {
     moveInk();
     if (S.view === "sim") layoutBracket($("#view-sim"));
