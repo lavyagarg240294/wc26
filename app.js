@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "108";  // shown in footer; bump with the ?v= asset version
+const BUILD = "109";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -402,7 +402,7 @@ function renderTicker() {
   const item = m => {
     const h = slotInfo(m, "home"), a = slotInfo(m, "away"), r = res(m), st = status(m);
     const mid = [ST.LIVE, ST.HT].includes(st)
-      ? (r && r.h != null ? `<span class="tk-live">● ${r.h}–${r.a}</span>` : `<span class="tk-live">● LIVE</span>`)
+      ? `<span class="tk-live">● ${r?.h ?? 0}–${r?.a ?? 0}</span>`
       : st === ST.FT ? `<b>${r.h}–${r.a}</b> FT`
       : `<span class="tk-acc">${timeStr(m.utc)}</span>`;
     const nm = s => s.code ? `${flag(s.code)} ${esc(S.teams[s.code]?.name || s.code)}` : "TBD";
@@ -433,7 +433,9 @@ function matchCard(m, i, opts = {}) {
   const r = res(m), st = status(m);
   const fav = isFavMatch(m);
   const stageL = m.group ? `Group ${m.group}` : m.round;
-  const score = r && r.h != null;
+  const live = st === ST.LIVE || st === ST.HT;
+  const score = r && r.h != null;   // a real, feed-reported scoreline
+  const sh = r?.h ?? 0, sa = r?.a ?? 0;   // display score — a live match with no goal data shows 0–0
   const winH = score && st === ST.FT && (r.h > r.a || (r.h === r.a && (r.hp ?? -1) > (r.ap ?? -1)));
   const winA = score && st === ST.FT && (r.a > r.h || (r.h === r.a && (r.ap ?? -1) > (r.hp ?? -1)));
   const badge = st === ST.LIVE ? `<span class="badge live">${clockStr(m, r) || "Live"}</span>`
@@ -449,8 +451,8 @@ function matchCard(m, i, opts = {}) {
     <div class="mcard-row">
       <div class="mcard-time">${timeStr(m.utc)}<small>${fmt(m.utc, { day: "numeric", month: "short" })}</small></div>
       <div class="mcard-teams">${teamRow(h, "home", winA)}${teamRow(a, "away", winH)}</div>
-      <div class="mcard-right">${score
-        ? `<div class="mcard-score"><span class="${winA ? "lo" : ""}">${r.h}</span><span class="${winH ? "lo" : ""}">${r.a}</span>${r.hp != null ? `<span class="pens">(${r.hp}–${r.ap} pens)</span>` : ""}</div>`
+      <div class="mcard-right">${(score || live)
+        ? `<div class="mcard-score${live ? " is-live" : ""}"><span class="${winA ? "lo" : ""}">${sh}</span><span class="${winH ? "lo" : ""}">${sa}</span>${r?.hp != null ? `<span class="pens">(${r.hp}–${r.ap} pens)</span>` : ""}</div>${live ? badge : ""}`
         : badge}</div>
     </div>
     ${opts.sub !== false ? `<div class="mcard-sub"><span class="grp">${esc(stageL)}</span><span>${esc(m.stadium)}</span><span>${esc(m.city)}</span><span class="mcard-go">Details ›</span></div>` : ""}
@@ -617,11 +619,13 @@ function winProbBlock(m) {
       <div class="wp-bar" role="img" aria-label="${esc(h.name)} ${ph}%, draw ${pd}%, ${esc(a.name)} ${pa}%">
         <span class="wp-h" style="width:${ph}%"></span><span class="wp-d" style="width:${pd}%"></span><span class="wp-a" style="width:${pa}%"></span></div>
       <div class="wp-legend"><span class="wp-lh"><b>${ph}%</b> ${flag(h.code)} ${esc(h.name)}</span><span class="wp-ld">Draw <b>${pd}%</b></span><span class="wp-la">${esc(a.name)} ${flag(a.code)} <b>${pa}%</b></span></div>
+      <p class="wp-note">A model estimate from each team's <b>World Cup pedigree</b> (past titles) and <b>current-tournament form</b>${wp.live ? ", updated by the live score and minutes left" : ""} — not a betting line.</p>
     </div>`;
 }
 function openMatch(id) {
   const m = S.matches.find(x => x.id === id); if (!m) return;
   const h = slotInfo(m, "home"), a = slotInfo(m, "away"), r = res(m), st = status(m);
+  const live = st === ST.LIVE || st === ST.HT;
   const score = r && r.h != null;
   const stageL = m.group ? `Group ${m.group}` : m.round;
   const sv = isSaved(id);
@@ -636,8 +640,8 @@ function openMatch(id) {
       ${s.code && formChips(s.code) ? `<span class="md-form">${formChips(s.code)}</span>` : ""}</div>`;
   const squadLinks = [h, a].filter(s => s.code)
     .map(s => `<button class="md-squad-link" data-squad="${s.code}"><span class="fl">${flag(s.code)}</span> ${esc(s.name)} ›</button>`).join("");
-  const mid = score
-    ? `<div class="md-score">${r.h}<span>–</span>${r.a}</div>${r.hp != null ? `<div class="md-pens">${r.hp}–${r.ap} on penalties</div>` : ""}`
+  const mid = (score || live)
+    ? `<div class="md-score">${r?.h ?? 0}<span>–</span>${r?.a ?? 0}</div>${r?.hp != null ? `<div class="md-pens">${r.hp}–${r.ap} on penalties</div>` : ""}`
     : `<div class="md-vs">VS</div>`;
   const liveNow = st === ST.LIVE || st === ST.HT;
   // lineups on the formation pitch — promoted above the timeline while a match is live (the XI is the headline then)
@@ -685,7 +689,7 @@ function heroBlock(heroM, isLive) {
     <div class="hero-teams">
       <div class="hero-side"><span class="hero-flag">${h.code ? flag(h.code) : "·"}</span><span class="hero-name">${esc(h.name)}</span></div>
       <div class="hero-mid">${isLive
-        ? `${r && r.h != null ? `<span class="hero-score">${r.h}–${r.a}</span>` : ""}<span class="hero-livechip">${r?.st === ST.HT ? "Half-time" : (clockStr(heroM, r) || "Live")}</span>`
+        ? `<span class="hero-score">${r?.h ?? 0}–${r?.a ?? 0}</span><span class="hero-livechip">${r?.st === ST.HT ? "Half-time" : (clockStr(heroM, r) || "Live")}</span>`
         : `<span class="hero-vs">VS</span>`}</div>
       <div class="hero-side"><span class="hero-flag">${a.code ? flag(a.code) : "·"}</span><span class="hero-name">${esc(a.name)}</span></div>
     </div>
@@ -756,7 +760,7 @@ function renderDayReview() {
     const r = res(m), h = slotInfo(m, "home"), a = slotInfo(m, "away"), st = status(m);
     const nm = (s, side) => esc(s.code ? s.name : slotText(m, side, s));
     const mid = st === ST.FT ? `<b>${r.h}–${r.a}</b>` : [ST.LIVE, ST.HT].includes(st)
-      ? `<span class="dr-live">${r && r.h != null ? `${r.h}–${r.a}` : "LIVE"}</span>` : `<span class="dr-time">${timeStr(m.utc)}</span>`;
+      ? `<span class="dr-live">${r?.h ?? 0}–${r?.a ?? 0}</span>` : `<span class="dr-time">${timeStr(m.utc)}</span>`;
     return `<button class="dr-row" data-mid="${m.id}"><span class="dr-side"><span class="fl">${h.code ? flag(h.code) : "·"}</span>${nm(h, "home")}</span><span class="dr-mid">${mid}</span><span class="dr-side dr-r">${nm(a, "away")}<span class="fl">${a.code ? flag(a.code) : "·"}</span></span></button>`;
   };
   const list = (label, arr) => arr.length ? `<div class="eyebrow">${label}</div><div class="dr-list">${arr.map(drRow).join("")}</div>` : "";

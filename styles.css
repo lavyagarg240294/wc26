@@ -299,7 +299,7 @@ b{font-weight:600}
 .mcard-team .fl{font-size:17px;width:26px;text-align:center;flex:0 0 26px}
 .mcard-team.is-ph{color:var(--ink-soft);font-weight:500;font-style:italic}
 .mcard-team.is-lost{opacity:.5}
-.mcard-right{text-align:right}
+.mcard-right{display:flex;flex-direction:column;align-items:flex-end;gap:5px}
 .mcard-score{font-family:var(--mono);font-weight:700;font-size:17px;font-variant-numeric:tabular-nums;display:flex;flex-direction:column;gap:5px;line-height:1.2;padding-left:18px}
 .mcard-score .lo{opacity:.45;font-weight:400}
 .mcard-score .pens{font-size:10.5px;color:var(--ink-soft);font-weight:400}
@@ -588,6 +588,8 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .wp-legend{display:flex;justify-content:space-between;gap:8px;margin-top:7px;font-size:11.5px;color:var(--ink-soft)}
 .wp-legend b{font-family:var(--mono);font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
 .wp-legend .flagimg{max-height:1.1em;vertical-align:-.18em}
+.wp-note{font-size:11px;line-height:1.45;color:var(--ink-soft);margin:8px 0 0}
+.wp-note b{color:var(--ink);font-weight:600}
 .wp-lh{color:var(--acc1)}.wp-lh b{color:var(--acc1)}
 .wp-la{text-align:right}
 .wp-ld{flex:0 0 auto;text-align:center}
