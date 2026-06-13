@@ -19,7 +19,7 @@ function toggleSave(id) {
   localStorage.setItem("wc26.saved", JSON.stringify([...S.saved]));
   RENDER[S.view]();
   const md = document.getElementById("matchDialog");
-  if (md && md.open && md.dataset.mid === id) {
+  if (md && md.open && md.dataset.openMid === id) {
     const b = md.querySelector(".md-save"), on = S.saved.has(id);
     if (b) { b.classList.toggle("is-on", on); b.setAttribute("aria-pressed", on); b.textContent = on ? "★" : "☆"; b.title = on ? "Saved" : "Save match"; b.setAttribute("aria-label", on ? "Remove from saved" : "Save match"); }
   }
@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "90";  // shown in footer; bump with the ?v= asset version
+const BUILD = "91";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -598,7 +598,7 @@ function openMatch(id) {
     </div>
     ${liveNow ? "" : xiBlock}
     ${squadLinks ? `<div class="md-squads">${squadLinks}</div>` : ""}`;
-  const md = $("#matchDialog"); md.dataset.mid = id; md.showModal();
+  const md = $("#matchDialog"); md.dataset.openMid = id; md.showModal();   // openMid (not data-mid) so the global match-open click handler never matches the dialog itself
 }
 
 /* ---------------- render: matches (today + full calendar) ---------------- */
@@ -1005,7 +1005,7 @@ function squadBio(name, code) {
 function openPlayer(name, code) {
   const team = S.teams[code];
   const md = $("#matchDialog");
-  const m = (md?.open && md.dataset.mid) ? S.matches.find(x => x.id === md.dataset.mid) : null;
+  const m = (md?.open && md.dataset.openMid) ? S.matches.find(x => x.id === md.dataset.openMid) : null;
   const r = m && res(m);
   const bio = squadBio(name, code);
   const photo = bestPhoto(name, code) || bio?.photo || "";
@@ -2099,6 +2099,9 @@ async function boot() {
     if (S.view === "sim") layoutBracket($("#view-sim"));
   });
   document.addEventListener("click", e => {
+    // a close button or a backdrop (click landing on the <dialog> itself) is handled by the dialog's own
+    // close wiring — never let it fall through to an open-handler, or closing would immediately re-open.
+    if (e.target.closest("[data-close]") || e.target.tagName === "DIALOG") return;
     const rf = e.target.closest("[data-refresh]");
     if (rf) { e.stopPropagation(); manualRefresh(); return; }
     const star = e.target.closest("[data-save]");
@@ -2114,8 +2117,8 @@ async function boot() {
     if (sq && sq.dataset.squad) { openTeam(sq.dataset.squad); return; }
     const day = e.target.closest("[data-day]");   // a day header → that day's digest
     if (day) { openDayReview(day.dataset.day); return; }
-    const mid = e.target.closest("[data-mid]");   // hero, match card, or a record row
-    if (mid) { openMatch(mid.dataset.mid); }
+    const mid = e.target.closest("[data-mid]");   // hero, match card, or a record row (never a dialog)
+    if (mid && mid.tagName !== "DIALOG") { openMatch(mid.dataset.mid); }
   });
   // keyboard: activate focusable custom controls (save stars, squad cells, sim picks, hero) with Enter/Space
   document.addEventListener("keydown", e => {
