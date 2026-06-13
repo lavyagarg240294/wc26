@@ -470,6 +470,35 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .dayhead{font-family:var(--disp);font-weight:800;font-stretch:112%;font-size:15px;margin:26px 0 12px;display:flex;align-items:baseline;gap:10px;position:sticky;top:105px;background:var(--paper);padding:6px 0 6px 11px;z-index:5;border-left:4px solid var(--acc1);border-radius:2px}
 .dayhead small{font-family:var(--mono);font-weight:400;font-size:11px;color:var(--ink-soft);letter-spacing:.04em}
 .dayhead.is-today{border-left-color:var(--gold)}
+.dayhead[data-day]{cursor:pointer;width:100%;text-align:left}
+.dh-go{margin-left:auto;font-family:var(--body);font-weight:700;font-size:11px;color:var(--acc1);opacity:0;transition:opacity .15s;letter-spacing:0}
+.dayhead[data-day]:hover .dh-go,.dayhead[data-day]:focus-visible .dh-go{opacity:1}
+@media(hover:none){.dh-go{opacity:.7}}
+/* day in review digest */
+.dr-nav{display:flex;align-items:center;gap:10px;margin:2px 0 6px}
+.dr-arrow{width:38px;height:38px;flex:0 0 auto;border-radius:50%;border:1px solid var(--line);background:var(--card);font-size:20px;color:var(--ink);display:grid;place-items:center;cursor:pointer;transition:border-color .15s,background .15s}
+.dr-arrow:hover:not(:disabled){border-color:var(--acc1);color:var(--acc1)}
+.dr-arrow:disabled{opacity:.3;cursor:default}
+.dr-date{flex:1;text-align:center;display:flex;flex-direction:column;gap:1px;line-height:1.15}
+.dr-date b{font-family:var(--disp);font-weight:800;font-stretch:110%;font-size:16px}
+.dr-date small{font-family:var(--mono);font-size:11px;color:var(--ink-soft)}
+.dr-list{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:var(--shadow)}
+.dr-row{display:flex;align-items:center;gap:8px;width:100%;padding:10px 14px;border-top:1px solid color-mix(in srgb,var(--line) 55%,transparent);cursor:pointer;transition:background .15s}
+.dr-list .dr-row:first-child{border-top:none}
+.dr-row:hover{background:color-mix(in srgb,var(--acc1) 7%,transparent)}
+.dr-side{flex:1;min-width:0;display:flex;align-items:center;gap:7px;font-weight:600;font-size:13.5px;overflow:hidden;white-space:nowrap}
+.dr-side.dr-r{flex-direction:row-reverse;text-align:right}
+.dr-side .fl{font-size:18px;flex:0 0 auto}
+.dr-mid{flex:0 0 auto;font-family:var(--mono);font-variant-numeric:tabular-nums;min-width:54px;text-align:center}
+.dr-mid b{font-weight:700;font-size:15px}
+.dr-live{color:var(--live);font-weight:700;font-size:13px}
+.dr-time{color:var(--ink-soft);font-weight:500;font-size:12px}
+.dr-his{display:flex;flex-direction:column;gap:8px}
+.dr-hi{display:flex;align-items:center;gap:11px;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:11px 14px;box-shadow:var(--shadow);cursor:pointer;transition:background .15s}
+.dr-hi:hover{background:color-mix(in srgb,var(--acc1) 7%,transparent)}
+.dr-hi-ic{font-size:20px;flex:0 0 auto}
+.dr-hi span:last-child{display:flex;flex-direction:column;gap:2px;font-weight:600;font-size:13.5px;min-width:0}
+.dr-hi i{font-style:normal;font-size:9.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-soft)}
 /* collapsible "Earlier results" (finished games) */
 .earlier{margin:6px 0;border:1px solid var(--line);border-radius:14px;background:color-mix(in srgb,var(--paper) 55%,var(--card));overflow:hidden}
 .earlier summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;padding:13px 16px;font-family:var(--disp);font-weight:800;font-stretch:110%;font-size:14px;color:var(--ink-soft)}

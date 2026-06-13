@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "83";  // shown in footer; bump with the ?v= asset version
+const BUILD = "84";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -650,6 +650,59 @@ function motdBanner(m) {
     <span class="motd-meta"><b>${timeStr(m.utc)}</b> · ${esc(m.group ? "Group " + m.group : m.round)} · ${esc((m.city || "").split(",")[0])}</span>
   </button>`;
 }
+/* ---------------- day in review (per-day digest) ---------------- */
+const matchDays = () => [...new Set(S.matches.map(m => dayKey(m.utc)))].sort();
+function dayDigest(dk) {
+  const ms = S.matches.filter(m => dayKey(m.utc) === dk).sort((a, b) => a.utc.localeCompare(b.utc));
+  const ft = ms.filter(m => status(m) === ST.FT && res(m)?.h != null);
+  const live = ms.filter(m => [ST.LIVE, ST.HT].includes(status(m)));
+  const sched = ms.filter(m => status(m) === ST.SCHED);
+  let goals = 0, big = null; const scorers = {};
+  for (const m of ft) {
+    const r = res(m); goals += r.h + r.a;
+    const mar = Math.abs(r.h - r.a); if (mar > 0 && (!big || mar > big.mar)) big = { m, mar };
+    const hc = slotInfo(m, "home").code, ac = slotInfo(m, "away").code;
+    for (const e of (r.ev || [])) if ((e.k === "G" || e.k === "P") && e.p) { const k = e.p + "\t" + (e.tm === "h" ? hc : ac); scorers[k] = (scorers[k] || 0) + 1; }
+  }
+  const topScorers = Object.entries(scorers).map(([k, n]) => { const i = k.indexOf("\t"); return { name: k.slice(0, i), code: k.slice(i + 1), n }; }).sort((a, b) => b.n - a.n);
+  return { dk, ms, ft, live, sched, goals, big, topScorers };
+}
+let dayCursor = null;
+function openDayReview(dk) {
+  const days = matchDays();
+  dayCursor = days.includes(dk) ? dk : (days.filter(d => d <= dayKey(new Date().toISOString())).pop() || days[0]);
+  renderDayReview();
+  $("#dayDialog").showModal();
+}
+function renderDayReview() {
+  const D = dayDigest(dayCursor), days = matchDays(), idx = days.indexOf(dayCursor);
+  const drRow = m => {
+    const r = res(m), h = slotInfo(m, "home"), a = slotInfo(m, "away"), st = status(m);
+    const nm = (s, side) => esc(s.code ? s.name : slotText(m, side, s));
+    const mid = st === ST.FT ? `<b>${r.h}–${r.a}</b>` : [ST.LIVE, ST.HT].includes(st)
+      ? `<span class="dr-live">${r && r.h != null ? `${r.h}–${r.a}` : "LIVE"}</span>` : `<span class="dr-time">${timeStr(m.utc)}</span>`;
+    return `<button class="dr-row" data-mid="${m.id}"><span class="dr-side"><span class="fl">${h.code ? flag(h.code) : "·"}</span>${nm(h, "home")}</span><span class="dr-mid">${mid}</span><span class="dr-side dr-r">${nm(a, "away")}<span class="fl">${a.code ? flag(a.code) : "·"}</span></span></button>`;
+  };
+  const list = (label, arr) => arr.length ? `<div class="eyebrow">${label}</div><div class="dr-list">${arr.map(drRow).join("")}</div>` : "";
+  let hi = "";
+  if (D.ft.length) {
+    const parts = [];
+    if (D.topScorers.length) { const top = D.topScorers.filter(s => s.n === D.topScorers[0].n).slice(0, 3);
+      parts.push(`<button class="dr-hi" data-player="${esc(top[0].name)}|${top[0].code}"><span class="dr-hi-ic">⚽</span><span><i>Top scorer</i>${top.map(s => `${flag(s.code)} ${esc(s.name)}${s.n > 1 ? ` (${s.n})` : ""}`).join(", ")}</span></button>`); }
+    if (D.big) { const r = res(D.big.m), h = slotInfo(D.big.m, "home"), a = slotInfo(D.big.m, "away"), hw = r.h > r.a;
+      parts.push(`<button class="dr-hi" data-mid="${D.big.m.id}"><span class="dr-hi-ic">💥</span><span><i>Biggest result</i>${flag((hw ? h : a).code)} ${esc((hw ? h : a).name)} beat ${esc((hw ? a : h).name)} ${Math.max(r.h, r.a)}–${Math.min(r.h, r.a)}</span></button>`); }
+    if (parts.length) hi = `<div class="eyebrow">Highlights</div><div class="dr-his">${parts.join("")}</div>`;
+  }
+  $("#dayBody").innerHTML = `<div class="dr-nav">
+      <button class="dr-arrow" id="drPrev"${idx <= 0 ? " disabled" : ""} aria-label="Previous match day">‹</button>
+      <div class="dr-date"><b>${fmt(D.ms[0].utc, { weekday: "long", day: "numeric", month: "long" })}</b><small>${D.ms.length} match${D.ms.length !== 1 ? "es" : ""}${D.ft.length ? ` · ${D.goals} goal${D.goals !== 1 ? "s" : ""}` : ""}</small></div>
+      <button class="dr-arrow" id="drNext"${idx >= days.length - 1 ? " disabled" : ""} aria-label="Next match day">›</button>
+    </div>
+    ${list("Live now", D.live)}${list("Results", D.ft)}${hi}${list(D.ft.length || D.live.length ? "Still to come" : "Fixtures", D.sched)}`;
+  const prev = $("#drPrev"), next = $("#drNext");
+  if (prev) prev.onclick = () => { if (idx > 0) { dayCursor = days[idx - 1]; renderDayReview(); $("#dayBody").scrollTop = 0; } };
+  if (next) next.onclick = () => { if (idx < days.length - 1) { dayCursor = days[idx + 1]; renderDayReview(); $("#dayBody").scrollTop = 0; } };
+}
 function renderMatches() {
   const el = $("#view-matches");
   const now = new Date();
@@ -665,7 +718,7 @@ function renderMatches() {
   if (f.saved) list = list.filter(m => isSaved(m.id));
 
   // 1A: finished games go into a collapsible "Earlier results"; live + upcoming show below
-  const dayGroups = arr => { const d = {}; arr.forEach(m => (d[dayKey(m.utc)] ??= []).push(m)); return Object.entries(d).map(([k, ms]) => `<div class="dayhead ${k === todayK ? "is-today" : ""}">${dayLabel(ms[0].utc)} <small>${ms.length} match${ms.length > 1 ? "es" : ""}</small></div>` + ms.map((m, i) => matchCard(m, Math.min(i, 8))).join("")).join(""); };
+  const dayGroups = arr => { const d = {}; arr.forEach(m => (d[dayKey(m.utc)] ??= []).push(m)); return Object.entries(d).map(([k, ms]) => `<div class="dayhead ${k === todayK ? "is-today" : ""}" data-day="${k}" role="button" tabindex="0" title="Day in review">${dayLabel(ms[0].utc)} <small>${ms.length} match${ms.length > 1 ? "es" : ""}</small><span class="dh-go">review ›</span></div>` + ms.map((m, i) => matchCard(m, Math.min(i, 8))).join("")).join(""); };
   const past = list.filter(m => status(m) === ST.FT);
   const ahead = list.filter(m => status(m) !== ST.FT);
 
@@ -1983,13 +2036,15 @@ async function boot() {
     }
     const sq = e.target.closest("[data-squad]");
     if (sq && sq.dataset.squad) { openTeam(sq.dataset.squad); return; }
+    const day = e.target.closest("[data-day]");   // a day header → that day's digest
+    if (day) { openDayReview(day.dataset.day); return; }
     const mid = e.target.closest("[data-mid]");   // hero, match card, or a record row
     if (mid) { openMatch(mid.dataset.mid); }
   });
   // keyboard: activate focusable custom controls (save stars, squad cells, sim picks, hero) with Enter/Space
   document.addEventListener("keydown", e => {
     if (e.key !== "Enter" && e.key !== " ") return;
-    const t = e.target.closest("[data-save],[data-squad],[data-player],[data-pick],.up,[data-mid]");
+    const t = e.target.closest("[data-save],[data-squad],[data-player],[data-pick],.up,[data-mid],[data-day]");
     if (t) { e.preventDefault(); t.click(); }
   });
   // a shared prediction link (#p=…) loads that bracket and opens the Predict tab
