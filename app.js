@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "92";  // shown in footer; bump with the ?v= asset version
+const BUILD = "94";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -991,6 +991,7 @@ function openTeam(code) {
     ${upcoming.length ? `<div class="eyebrow">Fixtures</div>${upcoming.map((m, i) => matchCard(m, i)).join("")}` : (done.length ? "" : `<div class="empty">Fixtures to be confirmed.</div>`)}
     ${group ? `<div class="eyebrow">Group ${group}</div><div class="gwrap">${groupTable(group, 0)}</div>${groupOutlookHTML(group)}
       <div class="legend"><span class="l1"><i></i>Top 2 advance</span><span class="l3"><i></i>3rd — possible best-8 spot</span></div>` : ""}
+    ${roadSection(code)}
     ${rotationSection(code)}
     ${sq ? `<details class="ts-squad"><summary><span>Squad</span><small>${sq.players.length} players${sq.coach ? ` · ${esc(sq.coach)}` : ""}</small></summary>${rosterMarkup(sq, code)}</details>`
         : `<div class="eyebrow">Squad</div><div class="empty">${esc(t.name)}'s squad isn't published yet — check back closer to kickoff.</div>`}`;
@@ -1220,6 +1221,61 @@ function projR32HTML() {
   return `<details class="proj"${allDone ? " open" : ""}><summary><span>Projected Round of 32</span><small>if the groups ended today</small></summary>
     <div class="proj-body">${rows}</div>
     <p class="sim-ko-hint">Live group winners &amp; runners-up plus the best-8 third places, routed through FIFA's slot rules. Make your own calls in <b>Predict</b>.</p></details>`;
+}
+// a team's current-standings strength (for projecting knockout winners)
+function teamStrength(code) {
+  const g = groupOf(code); if (!g) return -1;
+  const r = standings(g).find(x => x.code === code);
+  return r ? r.pts * 1000 + (r.gf - r.ga) * 10 + r.gf : -1;
+}
+// project the whole knockout bracket from live standings: winner of every match = the stronger team
+// (ties → the "home"/upper slot). Returns { W: matchNum→winnerCode }.
+function projectBracket() {
+  const W = {};
+  const str = c => (c ? teamStrength(c) : -1);
+  const pick = (h, a) => (h && a) ? (str(h) >= str(a) ? h : a) : (h || a || null);
+  for (const { m, h, a } of projectedR32()) W[m.num] = pick(h, a);
+  S.matches.filter(m => ["r16", "qf", "sf", "final"].includes(m.stage)).sort((x, y) => x.num - y.num)
+    .forEach(m => { const side = s => s.team || (s.feeds ? W[s.feeds] : null); W[m.num] = pick(side(m.home), side(m.away)); });
+  return W;
+}
+// a team's projected route to the final from where they currently sit: their R32 tie, then each
+// onward round assuming they keep winning, with the opponent = the projected winner of the other side.
+function roadToFinal(code) {
+  const r32 = projectedR32().find(t => t.h === code || t.a === code);
+  if (!r32) return null;                                    // not projected into the Round of 32
+  const W = projectBracket();
+  const feedsTo = {}; S.matches.forEach(m => ["home", "away"].forEach(s => { if (m[s]?.feeds) feedsTo[m[s].feeds] = m.num; }));
+  const byNum = n => S.matches.find(m => m.num === n);
+  const path = [{ m: r32.m, opp: r32.h === code ? r32.a : r32.h }];
+  let cur = r32.m, guard = 0;
+  while (guard++ < 6) {
+    const nextNum = feedsTo[cur.num]; if (!nextNum) break;  // the final feeds nowhere
+    const nm = byNum(nextNum); if (!nm || nm.stage === "third") break;
+    const sib = [nm.home, nm.away].find(s => s.feeds && s.feeds !== cur.num);
+    path.push({ m: nm, opp: sib ? W[sib.feeds] : null });
+    cur = nm;
+  }
+  return { code, path, reachesFinal: cur.stage === "final" };
+}
+function roadSection(code) {
+  const anyPlayed = S.matches.some(m => m.group && status(m) === ST.FT && res(m)?.h != null);
+  if (!anyPlayed) return "";
+  const road = roadToFinal(code);
+  if (!road) return `<div class="eyebrow">Road to the final</div><div class="empty">As it stands, ${esc(S.teams[code]?.name || code)} are projected to miss the Round of 32 — win your group games to climb in.</div>`;
+  const t = S.teams[code];
+  const rows = road.path.map(({ m, opp }) => {
+    const oc = opp && S.teams[opp];
+    return `<button class="road-row" data-mid="${m.id}">
+      <span class="road-rd">${esc(m.round)}</span>
+      <span class="road-body">
+        <span class="road-opp">${oc ? `<i>vs</i> <span class="fl">${flag(opp)}</span>${esc(S.teams[opp].name)}` : `<i>vs the projected winners</i>`}</span>
+        <span class="road-meta">${fmt(m.utc, { day: "numeric", month: "short" })} · ${esc((m.city || "").split(",")[0])}</span>
+      </span></button>`;
+  }).join("");
+  return `<div class="eyebrow">Road to the final${road.reachesFinal ? " 🏆" : ""}</div>
+    <div class="road">${rows}</div>
+    <p class="sim-ko-hint">Projected from live standings — assumes ${esc(t.name)} keep winning; opponents are the stronger projected team in each tie.</p>`;
 }
 function renderGroups() {
   const el = $("#view-groups");
