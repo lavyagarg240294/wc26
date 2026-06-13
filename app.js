@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "97";  // shown in footer; bump with the ?v= asset version
+const BUILD = "98";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -50,10 +50,11 @@ const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const showSheet = d => { if (d && d.open) d.close(); d && d.showModal(); };
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
+// real SVG flags (self-hosted) — emoji regional-indicator flags don't render on Windows, where the
+// whole flag-heavy UI would degrade to "BR"/"US" letter boxes. alt falls back to the code if a file 404s.
 function flag(code) {
-  if (code === "GB-ENG") return "🏴󠁧󠁢󠁥󠁮󠁧󠁿";
-  if (code === "GB-SCT") return "🏴󠁧󠁢󠁳󠁣󠁴󠁿";
-  return code.replace(/./g, ch => String.fromCodePoint(127397 + ch.charCodeAt(0)));
+  if (!code) return "";
+  return `<img class="flagimg" src="assets/flags/${code}.svg" alt="${code}" loading="lazy" decoding="async">`;
 }
 const fmt = (iso, opts) => new Intl.DateTimeFormat("en", { timeZone: tz(), ...opts }).format(new Date(iso));
 const timeStr = iso => fmt(iso, { hour: "2-digit", minute: "2-digit", hour12: false });
@@ -264,7 +265,7 @@ function applyTheme(animateFrom) {
   const k1 = t ? t.c1 : "", k2 = t ? t.c2 : "";   // raw kit colours (used as-is for confetti)
   root.style.setProperty("--acc1", t ? readableAccent(k1, k2) : "var(--pitch)");   // contrast-guarded accent for text/buttons
   root.style.setProperty("--acc2", t ? (tooLight(k2) ? "#0D1B2A" : k2) : "#0D1B2A");
-  $("#teamChipFlag").textContent = t ? flag(S.fav) : "⚽";
+  $("#teamChipFlag").innerHTML = t ? flag(S.fav) : "⚽";
   $("#teamChipName").textContent = t ? t.name : "Pick a team";
   if (animateFrom && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
     const sw = $("#themeSweep"), r = animateFrom.getBoundingClientRect();

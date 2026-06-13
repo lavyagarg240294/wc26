@@ -293,7 +293,10 @@ b{font-weight:600}
 .mcard-time small{display:block;font-weight:400;font-size:10.5px;color:var(--ink-soft);letter-spacing:.05em}
 .mcard-teams{display:flex;flex-direction:column;gap:5px;min-width:0}
 .mcard-team{display:flex;align-items:center;gap:8px;font-weight:600;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.mcard-team .fl{font-size:17px;width:22px;text-align:center;flex:0 0 22px}
+/* self-hosted SVG flags — scale with the surrounding .fl font-size, natural aspect, hairline ring so
+   white-edged flags read on white cards. ultra-wide flags (Qatar) cap so fixed columns don't overflow. */
+.flagimg{display:inline-block;height:1em;width:auto;max-width:1.62em;object-fit:contain;vertical-align:-.14em;border-radius:2px;background:#fff;box-shadow:0 0 0 .5px rgba(13,27,42,.16),0 1px 2px -1px rgba(13,27,42,.25)}
+.mcard-team .fl{font-size:17px;width:26px;text-align:center;flex:0 0 26px}
 .mcard-team.is-ph{color:var(--ink-soft);font-weight:500;font-style:italic}
 .mcard-team.is-lost{opacity:.5}
 .mcard-right{text-align:right}
@@ -424,7 +427,7 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .bm:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--acc1) 45%,var(--line));box-shadow:0 8px 22px -10px rgba(13,27,42,.30)}
 .bm-row{display:flex;align-items:center;gap:7px;padding:9px 10px}
 .bm-row+.bm-row{border-top:1px solid color-mix(in srgb,var(--line) 60%,transparent)}
-.bm-row .fl{width:18px;text-align:center}
+.bm-row .fl{width:24px;text-align:center}
 .bm-row .nm{flex:1;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bm-row .nm.ph{color:var(--ink-soft);font-weight:500;font-style:italic;font-size:11.5px}
 .bm-label{font-family:var(--mono);font-size:9.5px;color:var(--ink-soft);padding:4px 10px;background:color-mix(in srgb,var(--paper) 70%,transparent);border-top:1px solid var(--line);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
