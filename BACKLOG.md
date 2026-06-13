@@ -72,7 +72,7 @@ Status: ✅ shipped · ⬜ backlog. Effort: S < a session · M ≈ a session · 
 
 ### E. Stats & records  _(home: Stats tab + new sub-nav)_
 - ✅ Tournament pulse, **Golden Boot**, per-match team stats, yellow/red cards
-- ⬜ **Assists / playmakers race**. → Players. **S** (data already aggregated)
+- ✅ **Assists / playmakers race** — a "Playmakers · assists" leaderboard in the Players sub-section, taps through to the profile.
 - ✅ **Clean sheets** (team shutouts) — leaderboard in the Teams sub-section.
 - ✅ **Goalkeepers · clean sheets** (per-keeper) — credits the starting GK (pos 0 in the lineup) with each shutout; leaderboard in the Players sub-section, tapping through to the keeper's profile.
 - ✅ **Suspension watch** — Discipline sub-section flags who's banned next match (red / 2nd yellow) and who's "on a yellow", derived from the card tallies. Note explains FIFA clears single yellows after the QF.
