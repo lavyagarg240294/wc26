@@ -9,9 +9,10 @@
  *   2. FALLBACK worldcup26.ir       — free, no key. Live score + minute only (no events).
  *   3. FALLBACK football-data.org   — needs FOOTBALL_DATA_TOKEN. Reliable at full-time.
  *
- * Match mapping: FIFA `MatchNumber` == our match `num` (1–104), verified. FIFA team codes
- * are 3-letter (MEX/RSA); we auto-learn the 3-letter→our-code map from the group fixtures
- * (where our codes are already known) and use it to resolve knockout teams.
+ * Match mapping: FIFA's `MatchNumber` is NOT chronological and does NOT equal our openfootball `num`
+ * (FIFA #8 == our m5), so we join feed rows to fixtures by their TEAMS, never by number. FIFA team codes
+ * are 3-letter (MEX/RSA/QAT); we learn the 3-letter→our-code map by matching team NAMES against teams.json
+ * (44/48 auto; 4 aliases), then pair each row to the fixture with that team pair (knockouts: by kickoff slot).
  */
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 
@@ -85,16 +86,35 @@ async function fromFifa(prev, photoCodes) {
   const cal = await fifaGet(`${FIFA}/calendar/matches?idCompetition=${COMP}&idSeason=${SEASON}&language=en&count=104`);
   const rows = cal.Results || [];
   if (!rows.length) throw new Error("FIFA calendar empty");
-  const fifaByNum = {};
-  for (const x of rows) fifaByNum[Number(x.MatchNumber)] = x;
+  // FIFA's MatchNumber is NOT chronological and does NOT equal our openfootball `num` (e.g. FIFA #8 == our m5),
+  // so we must never join on it — that writes the live match's score onto the wrong fixture. Identify each feed
+  // row by its TEAMS instead. First learn FIFA's 3-letter IdCountry -> our code by matching team names against
+  // teams.json (auto-covers 44/48); a few aliases cover the names FIFA spells differently than we do.
+  const ALIAS = { KOR: "KR", BIH: "BA", IRN: "IR", COD: "CD" };
+  const norm = s => (Array.isArray(s) ? s[0]?.Description : s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z]/g, "");
+  const ourByName = {};
+  for (const [c, t] of Object.entries(teams)) ourByName[norm(t.name)] = c;
+  const toOur = {};                                   // FIFA IdCountry -> our code
+  for (const x of rows) for (const s of [x.Home, x.Away]) {
+    const id = s?.IdCountry;
+    if (id && /^[A-Z]{3}$/.test(id) && !toOur[id]) { const c = ALIAS[id] || ourByName[norm(s.TeamName)]; if (c) toOur[id] = c; }
+  }
 
-  // learn FIFA 3-letter -> our team code from the group stage (our codes are known there)
-  const toOur = {};
+  // Pair each feed row to our fixture by the unordered pair of teams — robust to FIFA's numbering and to
+  // simultaneous kickoffs. Knockout slots stay placeholders in our schedule until the bracket fills, so for
+  // those fall back to the kickoff slot (a unique minute); they carry no live data yet anyway.
+  const pairKey = (a, b) => [a, b].sort().join("|");
+  const byPair = {}, bySlot = {};
   for (const f of fixtures) {
-    if (f.stage !== "group") continue;
-    const x = fifaByNum[f.num]; if (!x) continue;
-    if (f.home?.team && x.Home?.IdCountry) toOur[x.Home.IdCountry] = f.home.team;
-    if (f.away?.team && x.Away?.IdCountry) toOur[x.Away.IdCountry] = f.away.team;
+    if (f.home?.team && f.away?.team) byPair[pairKey(f.home.team, f.away.team)] = f;
+    (bySlot[(f.utc || "").slice(0, 16)] ??= []).push(f);
+  }
+  const fifaForFixture = {};
+  for (const x of rows) {
+    const hc = toOur[x.Home?.IdCountry], ac = toOur[x.Away?.IdCountry];
+    let f = (hc && ac) ? byPair[pairKey(hc, ac)] : null;
+    if (!f) { const slot = bySlot[(x.Date || "").slice(0, 16)]; if (slot && slot.length === 1) f = slot[0]; }
+    if (f && !fifaForFixture[f.id]) fifaForFixture[f.id] = x;
   }
 
   const now = Date.now();
@@ -103,7 +123,7 @@ async function fromFifa(prev, photoCodes) {
   let liveCount = 0, doneCount = 0;
 
   for (const f of fixtures) {
-    const x = fifaByNum[f.num]; if (!x) continue;
+    const x = fifaForFixture[f.id]; if (!x) continue;
     const kickoff = Date.parse(x.Date || f.utc);
     const ms = x.MatchStatus;                       // 1 = upcoming, 0 = finished, 3 = live (documented)
     let st;

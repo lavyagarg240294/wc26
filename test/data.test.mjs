@@ -44,6 +44,12 @@ test("48 teams, every one appears in a group fixture, kit colours valid", () => 
     // every team needs a strength rating for the win-probability model (seeded World Football Elo)
     assert.ok(Number.isFinite(t.elo) && t.elo > 1400 && t.elo < 2400, `${c} has a sane elo (got ${t.elo})`);
   }
+  // fetch-results.mjs joins FIFA feed rows to fixtures by matching team NAMES (normalized) → our code, so those
+  // normalized names MUST be unique; a collision would route a live score onto the wrong team. (Regression guard
+  // for the FIFA-MatchNumber≠our-num bug, where Qatar–Switzerland's live score showed up on Australia–Türkiye.)
+  const norm = s => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z]/g, "");
+  const normNames = Object.values(teams).map(t => norm(t.name));
+  assert.equal(new Set(normNames).size, normNames.length, "team names are unique after normalization");
 });
 
 test("results.json: only score/status fields; valid status, scores, resolved codes", () => {
