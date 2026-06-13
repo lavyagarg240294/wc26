@@ -623,6 +623,12 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .ts-meta .ts-cup{color:var(--gold)}
 .ts-form{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink-soft);margin:6px 0 2px}
 .ts-follow{width:100%;justify-content:center;margin:12px 0 4px}
+/* team-sheet calendar actions (subscribe via webcal + download .ics) */
+.ts-cal{display:flex;gap:8px;margin:0 0 6px}
+.ts-cal-btn{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:9px 12px;border-radius:12px;font-weight:600;font-size:12.5px;text-decoration:none;cursor:pointer;border:1px solid var(--line);background:color-mix(in srgb,var(--acc1) 8%,var(--card));color:var(--acc1);transition:background .15s,border-color .15s}
+.ts-cal-btn:hover{background:color-mix(in srgb,var(--acc1) 14%,var(--card));border-color:color-mix(in srgb,var(--acc1) 40%,var(--line))}
+.ts-cal-btn.ghost{background:transparent;color:var(--ink-soft)}
+.ts-cal-btn.ghost:hover{color:var(--ink);background:color-mix(in srgb,var(--ink) 4%,transparent)}
 .ts-squad{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden;margin-top:6px}
 .ts-squad>summary{list-style:none;cursor:pointer;display:flex;align-items:baseline;gap:10px;padding:13px 16px;font-family:var(--disp);font-weight:800;font-stretch:113%;font-size:13px;letter-spacing:.09em;text-transform:uppercase}
 .ts-squad>summary::-webkit-details-marker{display:none}
@@ -789,6 +795,7 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .susp-tag.is-risk{background:color-mix(in srgb,var(--gold) 24%,var(--card));color:color-mix(in srgb,var(--gold) 55%,var(--ink))}
 .lead-scorers .lead-row:first-of-type .lead-rank{color:var(--gold)}
 .lead-scorers .lead-row:first-of-type .lead-v{color:var(--gold)}
+.lead-fair-top .lead-rank,.lead-fair-top .lead-v{color:var(--pitch)}
 /* confederation breakdown rows */
 .conf-row{display:flex;align-items:center;gap:11px;padding:11px 14px;border-top:1px solid color-mix(in srgb,var(--line) 55%,transparent)}
 .conf-card .conf-row:first-child{border-top:none}

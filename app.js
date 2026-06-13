@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "96";  // shown in footer; bump with the ?v= asset version
+const BUILD = "97";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -142,6 +142,9 @@ function formChips(code) {
 
 /* ---------------- calendar (.ics) export — client-side, kickoffs in UTC ---------------- */
 const CAL_SVG = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>`;
+// webcal:// URL to a committed static calendar (data/ics/…) for an auto-updating subscription.
+// Derived from the current page so it works wherever the site is hosted.
+const webcalURL = file => "webcal://" + location.origin.replace(/^https?:\/\//, "") + location.pathname.replace(/[^/]*$/, "") + "data/ics/" + file;
 const icsEsc = s => String(s).replace(/[\\;,]/g, m => "\\" + m).replace(/\n/g, "\\n");
 const icsStamp = iso => new Date(iso).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
 function icsFold(line) { let o = ""; while (line.length > 73) { o += line.slice(0, 73) + "\r\n "; line = line.slice(73); } return o + line; }
@@ -998,6 +1001,10 @@ function openTeam(code) {
     <div class="ts-meta">${t.conf ? esc(t.conf) : ""}${group ? ` · Group ${group}` : ""}${t.titles ? ` · <b class="ts-cup">🏆 ${t.titles}× champion${t.titles > 1 ? "s" : ""}</b>` : ""}${played ? ` · <b>${ordinal(pos)}</b> after ${played} match${played > 1 ? "es" : ""}` : ""}</div>
     ${formChips(code) ? `<div class="ts-form">Recent form ${formChips(code)}</div>` : ""}
     <button class="btn ts-follow ${isFav ? "ghost" : ""}" data-follow="${code}">${isFav ? "★ Your team — following" : `Follow ${esc(t.name)}`}</button>
+    <div class="ts-cal">
+      <a class="ts-cal-btn" href="${webcalURL(code + '.ics')}">${CAL_SVG} Subscribe to fixtures</a>
+      <button class="ts-cal-btn ghost" data-ics="${code}">${CAL_SVG} Download .ics</button>
+    </div>
     ${done.length ? `<div class="eyebrow">Results</div>${done.map((m, i) => matchCard(m, i)).join("")}` : ""}
     ${upcoming.length ? `<div class="eyebrow">Fixtures</div>${upcoming.map((m, i) => matchCard(m, i)).join("")}` : (done.length ? "" : `<div class="empty">Fixtures to be confirmed.</div>`)}
     ${group ? `<div class="eyebrow">Group ${group}</div><div class="gwrap">${groupTable(group, 0)}</div>${groupOutlookHTML(group)}
@@ -1799,6 +1806,10 @@ function tournamentStats() {
     records: rec,
     scorers: scorerList, assisters: assistList, booked: bookedList,
     teamCards: cardList,
+    // FIFA fair-play points (a real group tiebreaker): −1 per yellow, −3 per red (we can't tell a
+    // second-yellow from a straight red, so reds are flat −3). Ranked cleanest-first across played teams.
+    fairPlay: Object.keys(played).map(c => ({ code: c, y: yel[c] || 0, r: red[c] || 0, pts: (yel[c] || 0) + (red[c] || 0) * 3 }))
+      .sort((a, b) => a.pts - b.pts || a.y - b.y || a.code.localeCompare(b.code)),
     teamScored: perMatch(gf, played).sort((a, b) => b.v - a.v),
     teamConceded: perMatch(ga, played).sort((a, b) => a.v - b.v),
     cleanSheets: Object.entries(cs).map(([code, v]) => ({ code, v })).sort((a, b) => b.v - a.v),
@@ -1841,6 +1852,9 @@ function renderStats() {
     <span class="lead-rank">${i + 1}</span><span class="fl">${flag(x.code)}</span><span class="lead-name">${tname(x.code)}</span>
     <span class="lead-v">${fmt(x)}</span></div>`).join("")}</div>` : "";
   const perGame = x => `${x.v.toFixed(1)}<small>/ match</small>`;
+  const fairLead = s.fairPlay.length ? `<div class="lead-card"><h4>Fair play</h4>${s.fairPlay.slice(0, 5).map((x, i) => `<div class="lead-row ${i === 0 ? "lead-fair-top" : ""}" data-squad="${x.code}" role="button" tabindex="0">
+    <span class="lead-rank">${i + 1}</span><span class="fl">${flag(x.code)}</span><span class="lead-name">${tname(x.code)}</span>
+    <span class="lead-v">${x.pts}<small>pts</small></span></div>`).join("")}</div>` : "";
   const cardLead = s.teamCards.length ? `<div class="lead-card"><h4>Team cards</h4>${s.teamCards.slice(0, 5).map((x, i) => `<div class="lead-row" data-squad="${x.code}" role="button" tabindex="0">
     <span class="lead-rank">${i + 1}</span><span class="fl">${flag(x.code)}</span><span class="lead-name">${tname(x.code)}</span>
     <span class="lead-v card-tally"><span class="ct ct-y" title="${x.y} yellow">${x.y}</span><span class="ct ct-r" title="${x.r} red">${x.r}</span></span></div>`).join("")}</div>` : "";
@@ -1885,8 +1899,9 @@ function renderStats() {
     ["discipline", "Discipline", `<div class="lead-grid">
       ${suspHtml}
       ${cardLead}
+      ${fairLead}
       ${s.booked.length ? `<div class="lead-card"><h4>Booked players</h4>${s.booked.slice(0, 8).map(bookedRow).join("")}</div>` : ""}
-    </div>${s.booked.length ? `<p class="sim-ko-hint">A red card or a second yellow means a one-match ban — FIFA clears single yellows after the quarter-finals.</p>` : ""}`],
+    </div>${s.fairPlay.length ? `<p class="sim-ko-hint">Fair play points — −1 a yellow, −3 a red — are a real group tiebreaker; fewer is cleaner. A red or second yellow also means a one-match ban (single yellows clear after the quarter-finals).</p>` : ""}`],
     ["records", "Records", recordsHtml],
     ["tournament", "Tournament", `<div class="stat-tiles">
       ${tile("Goals", s.pulse.goals)}${tile("Matches", s.pulse.matches)}
@@ -2107,6 +2122,7 @@ async function boot() {
   $$("[data-nav]").forEach(b => b.onclick = e => { e.preventDefault(); nav(b.dataset.nav); });
   $("#settingsChip").onclick = () => $("#settingsDialog").showModal();
   $("#tzRow").onclick = () => { $("#settingsDialog").close(); $("#tzDialog").showModal(); };
+  $("#calRow").onclick = () => { $("#settingsDialog").close(); location.href = webcalURL("all.ics"); };
   $("#teamChip").onclick = () => $("#teamDialog").showModal();
   $("#searchChip").onclick = openSearch;
   $("#searchInput").oninput = e => renderSearch(e.target.value);
@@ -2185,6 +2201,8 @@ async function boot() {
       e.stopPropagation(); S.fav = fol.dataset.follow; localStorage.setItem("wc26.fav", S.fav);
       $("#teamSheet").close(); applyTheme($("#teamChip")); buildPickers(); RENDER[S.view](); return;
     }
+    const ic = e.target.closest("[data-ics]");
+    if (ic) { e.stopPropagation(); const c = ic.dataset.ics; downloadICS(S.matches.filter(m => matchHasTeam(m, c)).sort((a, b) => a.utc.localeCompare(b.utc)), `${S.teams[c].name} · World Cup 2026`); return; }
     const sq = e.target.closest("[data-squad]");
     if (sq && sq.dataset.squad) { openTeam(sq.dataset.squad); return; }
     const day = e.target.closest("[data-day]");   // a day header → that day's digest
