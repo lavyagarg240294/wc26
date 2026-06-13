@@ -532,8 +532,22 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 /* ---------- squad roster ---------- */
 .tname[data-squad]{cursor:pointer}
 .tname[data-squad]:hover{text-decoration:underline;text-decoration-color:var(--acc1);text-underline-offset:2px}
-#squadTitle{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-#squadTitle .sq-meta{font-family:var(--mono);font-size:11px;font-weight:500;color:var(--ink-soft)}
+#teamSheetTitle{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+#teamSheetTitle .fl{font-size:22px}
+/* team detail sheet — overview line, form, follow CTA, collapsible squad */
+.ts-meta{font-size:13px;color:var(--ink-soft);margin:-2px 0 4px}
+.ts-meta b{color:var(--ink)}
+.ts-meta .ts-cup{color:var(--gold)}
+.ts-form{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink-soft);margin:6px 0 2px}
+.ts-follow{width:100%;justify-content:center;margin:12px 0 4px}
+.ts-squad{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden;margin-top:6px}
+.ts-squad>summary{list-style:none;cursor:pointer;display:flex;align-items:baseline;gap:10px;padding:13px 16px;font-family:var(--disp);font-weight:800;font-stretch:113%;font-size:13px;letter-spacing:.09em;text-transform:uppercase}
+.ts-squad>summary::-webkit-details-marker{display:none}
+.ts-squad>summary small{font-family:var(--mono);font-weight:500;font-size:11px;letter-spacing:0;text-transform:none;color:var(--ink-soft)}
+.ts-squad>summary::after{content:"▾";margin-left:auto;color:var(--ink-soft);transition:transform .2s}
+.ts-squad[open]>summary::after{transform:rotate(180deg)}
+.ts-squad[open]>summary{border-bottom:1px solid var(--line)}
+.ts-squad .roster{padding:14px}
 /* multi-column so the 4 position cards pack with no floating gaps */
 /* all four position groups stacked one below the other — full-width, no float */
 .roster{display:flex;flex-direction:column;gap:14px}

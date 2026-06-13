@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "71";  // shown in footer; bump with the ?v= asset version
+const BUILD = "72";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -522,7 +522,7 @@ function openMatch(id) {
       ${s.code ? `<span class="md-teaminfo">${esc(S.teams[s.code].conf || "")}${S.teams[s.code].titles ? ` · 🏆 ${S.teams[s.code].titles}` : ""}</span>` : ""}
       ${s.code && formChips(s.code) ? `<span class="md-form">${formChips(s.code)}</span>` : ""}</div>`;
   const squadLinks = [h, a].filter(s => s.code)
-    .map(s => `<button class="md-squad-link" data-squad="${s.code}"><span class="fl">${flag(s.code)}</span> ${esc(s.name)} squad ›</button>`).join("");
+    .map(s => `<button class="md-squad-link" data-squad="${s.code}"><span class="fl">${flag(s.code)}</span> ${esc(s.name)} ›</button>`).join("");
   const mid = score
     ? `<div class="md-score">${r.h}<span>–</span>${r.a}</div>${r.hp != null ? `<div class="md-pens">${r.hp}–${r.ap} on penalties</div>` : ""}`
     : `<div class="md-vs">VS</div>`;
@@ -767,7 +767,7 @@ function renderTeams() {
         <span><span class="fl">${flag("US")}</span><b>Clutch</b> the eagle</span>
       </div>
     </div>`;
-  el.innerHTML = head + `<div class="eyebrow">All teams <span style="color:var(--ink-soft);font-weight:600">— tap for squad</span></div><div class="teamsgrid">${grid}</div>${mascots}`;
+  el.innerHTML = head + `<div class="eyebrow">All teams <span style="color:var(--ink-soft);font-weight:600">— tap for detail</span></div><div class="teamsgrid">${grid}</div>${mascots}`;
   const cta = $("#ctaPick", el); if (cta) cta.onclick = () => $("#teamDialog").showModal();
   const chg = $("#ctaChange", el); if (chg) chg.onclick = () => $("#teamDialog").showModal();
   const ics = $("#icsTeam", el);
@@ -795,15 +795,28 @@ function squadSection(code) {
   return `<div class="eyebrow">Squad — ${sq.players.length} players${sq.coach ? ` · Coach <b style="color:var(--ink)">&nbsp;${esc(sq.coach)}</b>` : ""}</div>
     ${rosterMarkup(sq, code)}`;
 }
-function openSquad(code) {
+// Team detail sheet — overview, recent form, every fixture (results + upcoming), the group
+// standing + qualification outlook, and the full squad (collapsible). Tapping a team anywhere
+// (grid, group table, leaderboards, match modal) opens this; match cards inside drill deeper.
+function openTeam(code) {
   const t = S.teams[code]; if (!t) return;
-  const sq = S.squads?.[code];
-  $("#squadTitle").innerHTML = `<span class="fl">${flag(code)}</span> ${esc(t.name)}`
-    + `<span class="sq-meta">${esc(t.conf || "")}${t.titles ? ` · 🏆 ${t.titles}` : ""}${sq ? ` · ${sq.players.length} players${sq.coach ? ` · ${esc(sq.coach)}` : ""}` : ""}</span>`
-    + (formChips(code) ? `<span class="sq-form">Form ${formChips(code)}</span>` : "");
-  $("#squadBody").innerHTML = sq ? rosterMarkup(sq, code)
-    : `<div class="empty">${esc(t.name)}'s squad isn't published yet — check back closer to kickoff.</div>`;
-  $("#squadDialog").showModal();
+  const all = S.matches.filter(m => matchHasTeam(m, code)).sort((a, b) => a.utc.localeCompare(b.utc));
+  const group = groupOf(code), tbl = group ? standings(group) : [];
+  const pos = tbl.findIndex(r => r.code === code) + 1, played = tbl.find(r => r.code === code)?.p || 0;
+  const done = all.filter(m => status(m) !== ST.SCHED), upcoming = all.filter(m => status(m) === ST.SCHED);
+  const sq = S.squads?.[code], isFav = code === S.fav;
+  $("#teamSheetTitle").innerHTML = `<span class="fl">${flag(code)}</span> ${esc(t.name)}`;
+  $("#teamSheetBody").innerHTML = `
+    <div class="ts-meta">${t.conf ? esc(t.conf) : ""}${group ? ` · Group ${group}` : ""}${t.titles ? ` · <b class="ts-cup">🏆 ${t.titles}× champion${t.titles > 1 ? "s" : ""}</b>` : ""}${played ? ` · <b>${ordinal(pos)}</b> after ${played} match${played > 1 ? "es" : ""}` : ""}</div>
+    ${formChips(code) ? `<div class="ts-form">Recent form ${formChips(code)}</div>` : ""}
+    <button class="btn ts-follow ${isFav ? "ghost" : ""}" data-follow="${code}">${isFav ? "★ Your team — following" : `Follow ${esc(t.name)}`}</button>
+    ${done.length ? `<div class="eyebrow">Results</div>${done.map((m, i) => matchCard(m, i)).join("")}` : ""}
+    ${upcoming.length ? `<div class="eyebrow">Fixtures</div>${upcoming.map((m, i) => matchCard(m, i)).join("")}` : (done.length ? "" : `<div class="empty">Fixtures to be confirmed.</div>`)}
+    ${group ? `<div class="eyebrow">Group ${group}</div><div class="gwrap">${groupTable(group, 0)}</div>${groupOutlookHTML(group)}
+      <div class="legend"><span class="l1"><i></i>Top 2 advance</span><span class="l3"><i></i>3rd — possible best-8 spot</span></div>` : ""}
+    ${sq ? `<details class="ts-squad"><summary><span>Squad</span><small>${sq.players.length} players${sq.coach ? ` · ${esc(sq.coach)}` : ""}</small></summary>${rosterMarkup(sq, code)}</details>`
+        : `<div class="eyebrow">Squad</div><div class="empty">${esc(t.name)}'s squad isn't published yet — check back closer to kickoff.</div>`}`;
+  $("#teamSheet").showModal();
 }
 // best-effort match of a feed name (e.g. "Julian QUINONES") to a squad entry (names come from a different feed)
 function squadBio(name, code) {
@@ -864,7 +877,7 @@ function groupTable(g, i) {
   return `<div class="gtable" style="--i:${i}"><h4>Group <span>${g}</span></h4>
     <table>${TABLE_COLS}<thead><tr><th>Team</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GD</th><th>Pts</th></tr></thead><tbody>
     ${rows.map((r, idx) => `<tr class="${idx < 2 ? "q1" : idx === 2 ? "q3" : ""} ${r.code === S.fav ? "is-fav" : ""}" data-g="${g}" data-code="${r.code}">
-      <td class="tname" title="View ${esc(S.teams[r.code].name)} squad" data-squad="${r.code}" role="button" tabindex="0"><span class="fl">${flag(r.code)}</span>${esc(S.teams[r.code].name)}</td>
+      <td class="tname" title="View ${esc(S.teams[r.code].name)}" data-squad="${r.code}" role="button" tabindex="0"><span class="fl">${flag(r.code)}</span>${esc(S.teams[r.code].name)}</td>
       <td>${r.p}</td><td>${r.w}</td><td>${r.d}</td><td>${r.l}</td><td>${r.gf - r.ga > 0 ? "+" : ""}${r.gf - r.ga}</td><td><b>${r.pts}</b></td></tr>`).join("")}
     </tbody></table></div>`;
 }
@@ -1647,8 +1660,13 @@ async function boot() {
     if (star) { e.stopPropagation(); toggleSave(star.dataset.save); return; }
     const pl = e.target.closest("[data-player]");
     if (pl) { e.stopPropagation(); const [pn, pc] = pl.dataset.player.split("|"); openPlayer(pn, pc); return; }
+    const fol = e.target.closest("[data-follow]");
+    if (fol) {   // "Follow this team" from inside the team sheet
+      e.stopPropagation(); S.fav = fol.dataset.follow; localStorage.setItem("wc26.fav", S.fav);
+      $("#teamSheet").close(); applyTheme($("#teamChip")); buildPickers(); RENDER[S.view](); return;
+    }
     const sq = e.target.closest("[data-squad]");
-    if (sq && sq.dataset.squad) { openSquad(sq.dataset.squad); return; }
+    if (sq && sq.dataset.squad) { openTeam(sq.dataset.squad); return; }
     const mid = e.target.closest("[data-mid]");   // hero, match card, or a record row
     if (mid) { openMatch(mid.dataset.mid); }
   });
