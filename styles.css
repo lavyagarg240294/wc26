@@ -57,6 +57,8 @@ body{
   padding-bottom:env(safe-area-inset-bottom);
 }
 button{font:inherit;color:inherit;background:none;border:none;cursor:pointer;-webkit-tap-highlight-color:transparent}
+/* kill the default blue tap-highlight box on non-button interactive elements (cards, rows, links, summaries) */
+a,summary,label,[role="button"],[tabindex]{-webkit-tap-highlight-color:transparent}
 b{font-weight:600}
 /* a11y: a visible keyboard-focus ring on every interactive element (zero-specificity :where so
    component-specific focus styles still win). Mouse clicks don't trigger :focus-visible. */

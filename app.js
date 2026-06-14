@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "122";  // shown in footer; bump with the ?v= asset version
+const BUILD = "123";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -829,7 +829,7 @@ function heroBlock(heroM, isLive) {
     </div>
     ${(() => { const s = matchStakes(heroM); return s ? `<div class="hero-stakes">${s.lines[0]}</div>` : ""; })()}
     ${!isLive ? `<div class="countdown" id="cd" data-utc="${heroM.utc}">
-      ${["h", "m", "s"].map((k, i) => `${i ? `<span class="cd-sep" aria-hidden="true">:</span>` : ""}<div class="cd-cell"><span class="cd-num" data-k="${k}">–</span><span class="cd-lab">${{ h: "hrs", m: "min", s: "sec" }[k]}</span></div>`).join("")}
+      ${["h", "m"].map((k, i) => `${i ? `<span class="cd-sep" aria-hidden="true">:</span>` : ""}<div class="cd-cell"><span class="cd-num" data-k="${k}">–</span><span class="cd-lab">${{ h: "hrs", m: "min" }[k]}</span></div>`).join("")}
     </div>` : ""}
     <div class="hero-meta">
       <span><b>${timeStr(heroM.utc)}</b></span>
