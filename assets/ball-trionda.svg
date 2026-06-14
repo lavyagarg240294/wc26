@@ -1,0 +1,15 @@
+<svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="adidas Trionda — the official 2026 World Cup match ball">
+  <defs><clipPath id="tball"><circle cx="60" cy="60" r="54"/></clipPath></defs>
+  <circle cx="60" cy="60" r="54" fill="#FCFCFB"/>
+  <g clip-path="url(#tball)">
+    <!-- three "la ola" waves for the three hosts: red, green, blue -->
+    <path d="M-12 30 C 18 16, 48 44, 78 30 S 132 16, 142 30 L142 50 C 112 64, 82 36, 52 50 S -2 64, -12 50 Z" fill="#E0473B"/>
+    <path d="M-12 60 C 18 46, 48 74, 78 60 S 132 46, 142 60 L142 80 C 112 94, 82 66, 52 80 S -2 94, -12 80 Z" fill="#1E9E57"/>
+    <path d="M-12 90 C 18 76, 48 104, 78 90 S 132 76, 142 90 L142 112 C 112 126, 82 98, 52 112 S -2 126, -12 112 Z" fill="#2C7BE5"/>
+    <!-- gold threads -->
+    <path d="M-12 45 C 18 31, 48 59, 78 45 S 132 31, 142 45" fill="none" stroke="#E8B931" stroke-width="2.6"/>
+    <path d="M-12 75 C 18 61, 48 89, 78 75 S 132 61, 142 75" fill="none" stroke="#E8B931" stroke-width="2.6"/>
+  </g>
+  <ellipse cx="43" cy="40" rx="17" ry="10" fill="#fff" opacity=".35"/>
+  <circle cx="60" cy="60" r="54" fill="none" stroke="rgba(13,27,42,.16)" stroke-width="1.5"/>
+</svg>

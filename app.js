@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "141";  // shown in footer; bump with the ?v= asset version
+const BUILD = "142";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -86,7 +86,8 @@ const dayLabel = iso => fmt(iso, { weekday: "long", day: "numeric", month: "long
 // 9pm–9am, with a long match-free gap through the local daytime where 10am sits). Only those two use it; the list
 // above stays on the calendar date.
 const DAY_ROLLOVER_H = 10;
-const viewDay = iso => fmt(new Date(Date.parse(iso) - DAY_ROLLOVER_H * 36e5).toISOString(), { year: "numeric", month: "2-digit", day: "2-digit" });
+// en-CA → "2026-06-14": a SORTABLE practical-day key (used for equality + ordering by the ticker window + match-of-day).
+const viewDay = iso => new Intl.DateTimeFormat("en-CA", { timeZone: tz(), year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(Date.parse(iso) - DAY_ROLLOVER_H * 36e5));
 // uniform offset label everywhere ("GMT+4", "GMT-5", "GMT+5:30") — not the mixed EST/IST/GMT+N that "short" gives
 const tzShort = () => {
   try { return new Intl.DateTimeFormat("en", { timeZone: tz(), timeZoneName: "shortOffset" }).formatToParts(new Date()).find(p => p.type === "timeZoneName").value.replace(/^GMT$/, "GMT+0"); }
@@ -442,8 +443,16 @@ function checkKickoffAlert() {
 
 /* ---------------- ticker ---------------- */
 function renderTicker() {
-  const todayK = viewDay(new Date().toISOString());
-  const todays = S.matches.filter(m => viewDay(m.utc) === todayK).sort((a, b) => a.utc.localeCompare(b.utc));
+  // Two practical days at once: the PREVIOUS day's final scores + the CURRENT day's matches (kickoff times →
+  // live → finals as they play). At each ~10am boundary the window slides forward one day — today's finals become
+  // the "previous", tomorrow's fixtures become the new "current". Always relevant: what just happened + what's next.
+  const cur = viewDay(new Date().toISOString());
+  const byDay = {};
+  for (const m of S.matches) (byDay[viewDay(m.utc)] ??= []).push(m);
+  const days = Object.keys(byDay).sort();
+  const curDay = byDay[cur] ? cur : days.find(d => d > cur);                                   // today's slate, or the next one with matches
+  const prevDay = curDay ? [...days].reverse().find(d => d < curDay) : days[days.length - 1];  // last completed slate
+  const todays = [...(byDay[prevDay] || []), ...(byDay[curDay] || [])].sort((a, b) => a.utc.localeCompare(b.utc));
   const wrap = $("#ticker");
   if (!todays.length) { wrap.hidden = true; return; }
   const item = m => {
