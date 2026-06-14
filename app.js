@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "135";  // shown in footer; bump with the ?v= asset version
+const BUILD = "136";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -2378,10 +2378,10 @@ const playerPhoto = (name, code) => (!LITE() && S.photos && S.photos[name + "|" 
 const normName = s => (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z]/gi, "").toLowerCase();
 function bestPhoto(name, code) {
   if (LITE()) return "";
-  const direct = playerPhoto(name, code); if (direct || !S.photos) return direct;
+  const direct = playerPhoto(name, code); if (direct) return direct;
   const suf = "|" + code, ns = normName(name);
-  for (const k in S.photos) if (k.endsWith(suf) && normName(k.slice(0, -suf.length)) === ns) return S.photos[k];
-  return "";
+  if (S.photos) for (const k in S.photos) if (k.endsWith(suf) && normName(k.slice(0, -suf.length)) === ns) return S.photos[k];
+  return squadBio(name, code)?.photo || "";   // fall back to the API-Football headshot committed in squads.json
 }
 // manual "refresh scores" controls (footer + hero) — re-fetch the published results.json now
 async function manualRefresh() {

@@ -64,7 +64,17 @@ for (const t of apiTeams) {
       out.squads[code] = { coach: prev.squads?.[code]?.coach || null, players };
       done++;
     } else if (prev.squads?.[code]) {
-      console.log(`API squad thin for ${code}; keeping seeded list`);
+      // API squad too thin to replace the hand-seeded list — but still backfill headshots onto it by name match
+      const apiPlayers = sq[0]?.players || [];
+      let added = 0;
+      const seeded = prev.squads[code].players.map(x => {
+        if (x.photo) return x;
+        const m = apiPlayers.find(p => p.photo && (norm(p.name).includes(norm(x.name).slice(0, 8)) || norm(x.name).includes(norm(p.name).slice(0, 8))));
+        if (m) { added++; return { ...x, photo: m.photo }; }
+        return x;
+      });
+      out.squads[code] = { ...prev.squads[code], players: seeded };
+      console.log(`API squad thin for ${code}; kept seeded list${added ? ` + ${added} photos` : ""}`);
     }
   } catch (e) { console.warn("squad fetch failed", code, e.message); }
   await new Promise(r => setTimeout(r, 250)); // stay friendly to rate limits
