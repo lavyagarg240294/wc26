@@ -667,6 +667,10 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .ts-meta .ts-cup{color:var(--gold)}
 .ts-form{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink-soft);margin:6px 0 2px}
 .ts-follow{width:100%;justify-content:center;margin:12px 0 4px}
+/* "make my team" — a quiet personalisation shortcut, not a primary action */
+.ts-setfav{margin:10px 0 2px;display:inline-flex;align-items:center;gap:6px;padding:7px 13px;border-radius:999px;font-weight:600;font-size:12.5px;cursor:pointer;border:1px solid var(--line);background:transparent;color:var(--ink-soft);transition:color .15s,border-color .15s,background .15s}
+.ts-setfav:hover{color:var(--acc1);border-color:color-mix(in srgb,var(--acc1) 45%,var(--line));background:color-mix(in srgb,var(--acc1) 6%,transparent)}
+.ts-fav-tag{margin:10px 0 2px;font-size:12px;font-weight:700;color:var(--gold);letter-spacing:.02em}
 /* team-sheet calendar actions (subscribe via webcal + download .ics) */
 .ts-cal{display:flex;gap:8px;margin:0 0 6px}
 .ts-cal-btn{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:9px 12px;border-radius:12px;font-weight:600;font-size:12.5px;text-decoration:none;cursor:pointer;border:1px solid var(--line);background:color-mix(in srgb,var(--acc1) 8%,var(--card));color:var(--acc1);transition:background .15s,border-color .15s}

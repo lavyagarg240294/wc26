@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "129";  // shown in footer; bump with the ?v= asset version
+const BUILD = "130";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1145,11 +1145,9 @@ function openTeam(code) {
   $("#teamSheetBody").innerHTML = `
     <div class="ts-meta">${t.conf ? esc(t.conf) : ""}${group ? ` · Group ${group}` : ""}${t.titles ? ` · <b class="ts-cup">🏆 ${t.titles}× champion${t.titles > 1 ? "s" : ""}</b>` : ""}${played ? ` · <b>${ordinal(pos)}</b> after ${played} match${played > 1 ? "es" : ""}` : ""}</div>
     ${formChips(code) ? `<div class="ts-form">Recent form ${formChips(code)}</div>` : ""}
-    <button class="btn ts-follow ${isFav ? "ghost" : ""}" data-follow="${code}">${isFav ? "★ Your team — following" : `Follow ${esc(t.name)}`}</button>
-    <div class="ts-cal">
-      <a class="ts-cal-btn" href="${webcalURL(code + '.ics')}">${CAL_SVG} Subscribe to fixtures</a>
-      <button class="ts-cal-btn ghost" data-ics="${code}">${CAL_SVG} Download .ics</button>
-    </div>
+    ${isFav
+      ? `<div class="ts-fav-tag">★ Your team</div>`
+      : `<button class="ts-setfav" data-follow="${code}">★ Make ${esc(t.name)} my team</button>`}
     ${done.length ? `<div class="eyebrow">Results</div>${done.map((m, i) => matchCard(m, i)).join("")}` : ""}
     ${upcoming.length ? `<div class="eyebrow">Fixtures</div>${upcoming.map((m, i) => matchCard(m, i)).join("")}` : (done.length ? "" : `<div class="empty">Fixtures to be confirmed.</div>`)}
     ${group ? `<div class="eyebrow">Group ${group}</div><div class="gwrap">${groupTable(group, 0)}</div>${groupOutlookHTML(group)}
