@@ -30,18 +30,18 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "140";  // shown in footer; bump with the ?v= asset version
+const BUILD = "141";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
-  ["Asia/Dubai", "Dubai"], ["Asia/Riyadh", "Riyadh"], ["Asia/Karachi", "Karachi"],
-  ["Asia/Kolkata", "India"], ["Asia/Singapore", "Singapore"], ["Asia/Tokyo", "Tokyo"],
-  ["Australia/Sydney", "Sydney"], ["Europe/London", "London"], ["Europe/Paris", "Paris / Berlin"],
-  ["Europe/Istanbul", "Istanbul"], ["Africa/Cairo", "Cairo"], ["Africa/Lagos", "Lagos"],
-  ["Africa/Johannesburg", "Johannesburg"], ["America/Sao_Paulo", "São Paulo"],
-  ["America/New_York", "New York"], ["America/Toronto", "Toronto"], ["America/Chicago", "Chicago"],
-  ["America/Denver", "Denver"], ["America/Mexico_City", "Mexico City"],
-  ["America/Los_Angeles", "Los Angeles"], ["America/Vancouver", "Vancouver"],
+  ["Asia/Dubai", "Dubai, UAE"], ["Asia/Riyadh", "Riyadh, Saudi Arabia"], ["Asia/Karachi", "Karachi, Pakistan"],
+  ["Asia/Kolkata", "Mumbai, India"], ["Asia/Singapore", "Singapore"], ["Asia/Tokyo", "Tokyo, Japan"],
+  ["Australia/Sydney", "Sydney, Australia"], ["Europe/London", "London, UK"], ["Europe/Paris", "Paris, France"],
+  ["Europe/Istanbul", "Istanbul, Türkiye"], ["Africa/Cairo", "Cairo, Egypt"], ["Africa/Lagos", "Lagos, Nigeria"],
+  ["Africa/Johannesburg", "Johannesburg, South Africa"], ["America/Sao_Paulo", "São Paulo, Brazil"],
+  ["America/New_York", "New York, USA"], ["America/Toronto", "Toronto, Canada"], ["America/Chicago", "Chicago, USA"],
+  ["America/Denver", "Denver, USA"], ["America/Mexico_City", "Mexico City, Mexico"],
+  ["America/Los_Angeles", "Los Angeles, USA"], ["America/Vancouver", "Vancouver, Canada"],
 ];
 
 /* ---------------- utils ---------------- */
@@ -77,15 +77,16 @@ const ICO = {
 };
 const fmt = (iso, opts) => new Intl.DateTimeFormat("en", { timeZone: tz(), ...opts }).format(new Date(iso));
 const timeStr = iso => fmt(iso, { hour: "2-digit", minute: "2-digit", hour12: false });
-// The "viewing day" rolls over at ~10am LOCAL, not midnight — so a night's slate stays grouped on one day instead
-// of splitting a 2am/5am match off into "tomorrow". From the real schedule, Dubai kickoffs run 8pm–8am and India
-// 9pm–9am (a continuous overnight block), with a long match-free gap through the local daytime — 10am sits in that
-// gap for GMT+4…+5:30 (the bulk of our audience). Group/ticker/match-of-day/"today" all use this. Kickoff TIMES
-// shown on cards are unshifted (the real clock time); only the day a match is filed under shifts.
+// The matches LIST groups by the real, technical calendar date in the visitor's timezone — Sunday's matches under
+// "Sunday", a 2am-Monday kickoff under "Monday". Straightforward and correct.
+const dayKey = iso => fmt(iso, { year: "numeric", month: "2-digit", day: "2-digit" });
+const dayLabel = iso => fmt(iso, { weekday: "long", day: "numeric", month: "long" });
+// The "viewing day" is slate-aware — it rolls over at ~10am LOCAL, not midnight — so the TICKER and MATCH OF THE DAY
+// treat a night's football as one block even when it runs past midnight (for Dubai the WC slate is 8pm–8am, India
+// 9pm–9am, with a long match-free gap through the local daytime where 10am sits). Only those two use it; the list
+// above stays on the calendar date.
 const DAY_ROLLOVER_H = 10;
-const viewingISO = iso => new Date(Date.parse(iso) - DAY_ROLLOVER_H * 36e5).toISOString();
-const dayKey = iso => fmt(viewingISO(iso), { year: "numeric", month: "2-digit", day: "2-digit" });
-const dayLabel = iso => fmt(viewingISO(iso), { weekday: "long", day: "numeric", month: "long" });
+const viewDay = iso => fmt(new Date(Date.parse(iso) - DAY_ROLLOVER_H * 36e5).toISOString(), { year: "numeric", month: "2-digit", day: "2-digit" });
 // uniform offset label everywhere ("GMT+4", "GMT-5", "GMT+5:30") — not the mixed EST/IST/GMT+N that "short" gives
 const tzShort = () => {
   try { return new Intl.DateTimeFormat("en", { timeZone: tz(), timeZoneName: "shortOffset" }).formatToParts(new Date()).find(p => p.type === "timeZoneName").value.replace(/^GMT$/, "GMT+0"); }
@@ -441,8 +442,8 @@ function checkKickoffAlert() {
 
 /* ---------------- ticker ---------------- */
 function renderTicker() {
-  const todayK = dayKey(new Date().toISOString());
-  const todays = S.matches.filter(m => dayKey(m.utc) === todayK).sort((a, b) => a.utc.localeCompare(b.utc));
+  const todayK = viewDay(new Date().toISOString());
+  const todays = S.matches.filter(m => viewDay(m.utc) === todayK).sort((a, b) => a.utc.localeCompare(b.utc));
   const wrap = $("#ticker");
   if (!todays.length) { wrap.hidden = true; return; }
   const item = m => {
@@ -908,8 +909,8 @@ const marqueeOf = list => list.length ? list.slice().sort((a, b) => prestige(b) 
 // it's never a tomorrow match mislabelled "of the day", and it re-computes when you change timezone. Null on a
 // rest day with nothing left to play (the hero's next-kickoff card carries the gap instead).
 function matchOfDay() {
-  const todayK = dayKey(new Date().toISOString());
-  return marqueeOf(S.matches.filter(m => status(m) !== ST.FT && dayKey(m.utc) === todayK));
+  const todayK = viewDay(new Date().toISOString());
+  return marqueeOf(S.matches.filter(m => status(m) !== ST.FT && viewDay(m.utc) === todayK));
 }
 function motdBanner(m) {
   const h = slotInfo(m, "home"), a = slotInfo(m, "away");

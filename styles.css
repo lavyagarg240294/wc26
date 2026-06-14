@@ -602,6 +602,11 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .about-tiles div{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:13px 4px;text-align:center;box-shadow:var(--shadow)}
 .about-tiles b{display:block;font-family:var(--disp);font-weight:900;font-stretch:108%;font-size:26px;color:var(--acc-text);line-height:1.05}
 .about-tiles span{font-size:10px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.03em}
+.about-mascots{display:flex;gap:8px;margin:0 0 10px}
+.amasc{flex:1;text-align:center;background:var(--card);border:1px solid var(--line);border-radius:13px;padding:11px 6px;box-shadow:var(--shadow)}
+.amasc-ic{font-size:25px;line-height:1;display:block}
+.amasc b{display:block;font-family:var(--disp);font-weight:800;font-size:13.5px;margin-top:5px}
+.amasc small{display:block;font-size:10px;color:var(--ink-soft);margin-top:1px}
 .about-steps{margin:0 0 8px;padding:0;list-style:none;counter-reset:step}
 .about-steps li{position:relative;padding:9px 0 9px 40px;font-size:13.5px;line-height:1.45;border-top:1px solid color-mix(in srgb,var(--line) 60%,transparent)}
 .about-steps li:first-child{border-top:none}
