@@ -635,7 +635,26 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 /* first-launch welcome / onboarding */
 .welcome-sheet::backdrop{background:color-mix(in srgb,var(--ink) 40%,transparent);backdrop-filter:blur(3px)}
 .welcome{text-align:center;padding:8px 4px 4px}
-.welcome-mark{display:block;margin:0 auto 13px;border-radius:13px;box-shadow:var(--shadow)}
+.welcome-mark{display:block;margin:0 auto 13px;border-radius:14px;box-shadow:var(--shadow)}
+.welcome-mark .wm-circle{stroke-dasharray:151;stroke-dashoffset:151}
+.welcome-mark .wm-line{stroke-dasharray:73;stroke-dashoffset:73}
+.welcome-mark .wm-spot{opacity:0;transform-box:fill-box;transform-origin:center}
+@media (prefers-reduced-motion:no-preference){
+  #welcomeDialog[open] .wm-circle{animation:wmDraw .8s .15s cubic-bezier(.6,0,.2,1) forwards}
+  #welcomeDialog[open] .wm-line{animation:wmDraw .55s .62s cubic-bezier(.6,0,.2,1) forwards}
+  #welcomeDialog[open] .wm-spot{animation:wmPop .42s .95s both}
+  /* first-paint cascade: header -> tabs -> ticker rise in once on initial load */
+  html.booting .topbar{animation:bootRise .5s .02s both}
+  html.booting .tabs{animation:bootRise .5s .12s both}
+  html.booting .ticker:not([hidden]){animation:bootRise .5s .2s both}
+}
+@media (prefers-reduced-motion:reduce){
+  .welcome-mark .wm-circle,.welcome-mark .wm-line{stroke-dashoffset:0}
+  .welcome-mark .wm-spot{opacity:1}
+}
+@keyframes wmDraw{to{stroke-dashoffset:0}}
+@keyframes wmPop{from{opacity:0;transform:scale(.2)}to{opacity:1;transform:scale(1)}}
+@keyframes bootRise{from{opacity:0;transform:translateY(9px)}to{opacity:1;transform:none}}
 .welcome h3{font-family:var(--disp);font-weight:800;font-stretch:108%;font-size:22px;letter-spacing:-.015em;margin:0 0 6px;line-height:1.1}
 .welcome-lead{font-size:14px;color:var(--ink-soft);line-height:1.5;margin:0 auto 18px;max-width:36ch}
 .welcome-pts{display:flex;flex-direction:column;gap:9px;text-align:left;margin:0 0 18px}
@@ -1150,8 +1169,8 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 
 /* ---------- football + goal celebration + delight ---------- */
 .ball{display:inline-block;line-height:0;vertical-align:middle}
-.ball svg{width:100%;height:100%;display:block}
-.live-ball{width:15px;height:15px;animation:ballSpin 2.6s linear infinite}
+.ball svg,.ball img{width:100%;height:100%;display:block}
+.live-ball{width:16px;height:16px;animation:ballSpin 2.6s linear infinite}
 @keyframes ballSpin{to{transform:rotate(360deg)}}
 .goal-toast{position:fixed;left:50%;top:18%;transform:translateX(-50%);z-index:300;pointer-events:none;
   display:flex;align-items:center;gap:13px;background:var(--ink);color:var(--paper);

@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "143";  // shown in footer; bump with the ?v= asset version
+const BUILD = "144";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -377,7 +377,8 @@ function confetti(c1, c2, origin) {
 }
 
 /* ---------------- football + goal celebration ---------------- */
-const BALL = `<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="46" fill="#fff" stroke="#0D1B2A" stroke-width="4"/><polygon points="50,34 65.2,45.1 59.4,62.9 40.6,62.9 34.8,45.1" fill="#0D1B2A"/><g stroke="#0D1B2A" stroke-width="4" stroke-linecap="round"><path d="M50 34V7"/><path d="M65.2 45.1L89 33"/><path d="M59.4 62.9L74 87"/><path d="M40.6 62.9L26 87"/><path d="M34.8 45.1L11 33"/></g></svg>`;
+// Spinning live/goal ball: the classic black-&-white football (Wikimedia Commons "Soccerball.svg", CC0 / public domain).
+const BALL = `<img src="assets/football.svg" alt="" decoding="async">`;
 const ballSVG = cls => `<span class="ball ${cls || ""}" aria-hidden="true">${BALL}</span>`;
 
 function goalCelebration(code) {

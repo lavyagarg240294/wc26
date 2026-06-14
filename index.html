@@ -19,7 +19,7 @@
 <meta name="twitter:description" content="Live scores, lineups & match stats, group tables, the Golden Boot race, and a bracket predictor you can call all the way to the champion. All 104 matches in your timezone — free, no sign-up.">
 <meta name="twitter:image" content="https://lavyagarg240294.github.io/wc26/assets/og.png?v=143">
 <meta name="theme-color" content="#0BA360">
-<script>try{var t=localStorage.getItem('wc26.theme');if(t==='dark'||(!t&&matchMedia('(prefers-color-scheme:dark)').matches)){document.documentElement.dataset.theme='dark';var m=document.querySelector('meta[name=theme-color]');if(m)m.content='#0E1822';}}catch(e){}</script>
+<script>try{var t=localStorage.getItem('wc26.theme');if(t==='dark'||(!t&&matchMedia('(prefers-color-scheme:dark)').matches)){document.documentElement.dataset.theme='dark';var m=document.querySelector('meta[name=theme-color]');if(m)m.content='#0E1822';}}catch(e){}try{document.documentElement.classList.add('booting');setTimeout(function(){document.documentElement.classList.remove('booting');},1600);}catch(e){}</script>
 <!-- Privacy-friendly, cookieless analytics (GoatCounter) — OFF by default (no third-party request, no tracking).
      To enable: create a free GoatCounter site and set ANALYTICS_URL to its /count endpoint. No cookies, no PII. -->
 <script>
@@ -33,7 +33,7 @@
 <meta name="apple-mobile-web-app-title" content="World Cup 26">
 <meta name="application-name" content="World Cup 26">
 <link rel="stylesheet" href="assets/fonts.css?v=112">
-<link rel="stylesheet" href="styles.css?v=143">
+<link rel="stylesheet" href="styles.css?v=144">
 <link rel="icon" href="assets/mark.svg">
 <link rel="icon" type="image/png" href="assets/icon-32.png" sizes="32x32">
 </head>
@@ -273,7 +273,18 @@
 <!-- First-launch welcome / onboarding -->
 <dialog id="welcomeDialog" class="sheet welcome-sheet" aria-labelledby="welcomeTitle">
   <div class="sheet-body welcome">
-    <img class="welcome-mark" src="assets/mark.svg" width="48" height="48" alt="" decoding="async">
+    <svg class="welcome-mark" width="58" height="58" viewBox="0 0 100 100" role="img" aria-label="World Cup 26">
+      <defs>
+        <radialGradient id="wmg" cx="50%" cy="40%" r="72%"><stop offset="0" stop-color="#12463A"/><stop offset=".62" stop-color="#0C342C"/><stop offset="1" stop-color="#06141A"/></radialGradient>
+        <linearGradient id="wmgold" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#F6D679"/><stop offset=".5" stop-color="#E8B931"/><stop offset="1" stop-color="#C99A1F"/></linearGradient>
+      </defs>
+      <rect width="100" height="100" rx="24" fill="url(#wmg)"/>
+      <g fill="none" stroke="url(#wmgold)" stroke-width="6" stroke-linecap="round">
+        <circle class="wm-circle" cx="50" cy="50" r="24"/>
+        <line class="wm-line" x1="13.5" y1="50" x2="86.5" y2="50"/>
+      </g>
+      <circle class="wm-spot" cx="50" cy="50" r="5.6" fill="url(#wmgold)"/>
+    </svg>
     <h3 id="welcomeTitle">Your World Cup, in one page</h3>
     <p class="welcome-lead">All 104 matches of the 2026 World Cup — live, free, no sign-up.</p>
     <div class="welcome-pts">
@@ -292,6 +303,6 @@
 <canvas id="confetti" aria-hidden="true"></canvas>
 <audio id="bgm" preload="none"></audio>
 
-<script src="app.js?v=143"></script>
+<script src="app.js?v=144"></script>
 </body>
 </html>
