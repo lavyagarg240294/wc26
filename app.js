@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "125";  // shown in footer; bump with the ?v= asset version
+const BUILD = "126";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -2309,7 +2309,9 @@ async function boot() {
   $$("[data-nav]").forEach(b => b.onclick = e => { e.preventDefault(); nav(b.dataset.nav); });
   $("#settingsChip").onclick = () => $("#settingsDialog").showModal();
   $("#tzRow").onclick = () => { $("#settingsDialog").close(); $("#tzDialog").showModal(); };
-  $("#calRow").onclick = () => { $("#settingsDialog").close(); location.href = webcalURL("all.ics"); };
+  // keep the sheet open — webcal opens the Calendar app (mobile); if nothing handles it, Download is right there
+  $("#calSubscribe").onclick = () => { location.href = webcalURL("all.ics"); };
+  $("#calDownload").onclick = () => downloadICS(S.matches.slice().sort((a, b) => a.utc.localeCompare(b.utc)), "FIFA World Cup 2026");
   $("#aboutBtn").onclick = () => showSheet($("#aboutDialog"));
   $("#teamChip").onclick = () => $("#teamDialog").showModal();
   $("#searchChip").onclick = openSearch;
