@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "126";  // shown in footer; bump with the ?v= asset version
+const BUILD = "127";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -909,6 +909,7 @@ function renderMatches() {
       </div>
       <button class="fbtn ${f.saved ? "is-on" : ""}" data-saved>★ Saved${S.saved.size ? ` <b>${S.saved.size}</b>` : ""}</button>
     </div>` +
+    (f.saved && S.saved.size ? `<button class="saved-cal" data-cal-saved>${CAL_SVG} Add ${S.saved.size} saved match${S.saved.size > 1 ? "es" : ""} to calendar</button>` : "") +
     (past.length ? `<details class="earlier"><summary><span class="ear-tri">▸</span> Earlier results <b>${past.length}</b><span class="ear-hint">view</span></summary><div class="ear-body">${dayGroups(past)}</div></details>` : "") +
     (ahead.length ? dayGroups(ahead) : (past.length ? "" : `<div class="empty">No matches for this filter.</div>`));
 
@@ -920,6 +921,7 @@ function renderMatches() {
     $("#teamSelSearch", el).oninput = e => renderTeamSelList(e.target.value);
   }
   const sb = $("[data-saved]", el); if (sb) sb.onclick = () => { f.saved = !f.saved; renderMatches(); };
+  const scb = $("[data-cal-saved]", el); if (scb) scb.onclick = () => downloadICS(S.matches.filter(m => isSaved(m.id)).sort((a, b) => a.utc.localeCompare(b.utc)), "My World Cup 2026 matches");
   requestAnimationFrame(updateJumpNow);
 }
 // custom searchable team filter (favourite pinned on top, then alphabetical)
