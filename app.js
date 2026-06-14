@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "119";  // shown in footer; bump with the ?v= asset version
+const BUILD = "120";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -47,7 +47,12 @@ const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 // open a <dialog> modally — closing first if it's already open (re-entering the same sheet from a
 // stacked context would otherwise throw InvalidStateError on Safari/Firefox, or silently update the
 // hidden dialog underneath on Chromium). Brings the sheet to the front with its fresh content.
-const showSheet = d => { if (d && d.open) d.close(); d && d.showModal(); };
+const showSheet = d => { if (!d) return; if (d.open) d.close(); d.showModal(); d.querySelectorAll(".sheet-body").forEach(b => b.scrollTop = 0); };
+// A collapsible section inside a sheet that opens off-screen feels like nothing happened — scroll it into view.
+document.addEventListener("toggle", e => {
+  const d = e.target;
+  if (d.tagName === "DETAILS" && d.open && d.closest(".sheet-body")) requestAnimationFrame(() => d.scrollIntoView({ behavior: "smooth", block: "nearest" }));
+}, true);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
 // real SVG flags (self-hosted) — emoji regional-indicator flags don't render on Windows, where the
@@ -478,6 +483,7 @@ function matchCard(m, i, opts = {}) {
         ? `<div class="mcard-score${live ? " is-live" : ""}"><span class="${winA ? "lo" : ""}">${sh}</span><span class="${winH ? "lo" : ""}">${sa}</span>${r?.hp != null ? `<span class="pens">(${r.hp}–${r.ap} pens)</span>` : ""}</div>${live ? badge : ""}`
         : badge}</div>
     </div>
+    ${(() => { const s = matchStakes(m); return s && s.definitive ? `<div class="mcard-stake">${s.lines[0]}</div>` : ""; })()}
     ${opts.sub !== false ? `<div class="mcard-sub"><span class="grp">${esc(stageL)}</span><span>${esc(m.stadium)}</span><span>${esc(m.city)}</span><span class="mcard-go">Details ›</span></div>` : ""}
   </div>`;
 }
@@ -732,15 +738,13 @@ function matchStakes(m) {
     return null;
   };
   const lines = [say(H), say(A)].filter(Boolean);
-  if (!lines.length) {
-    const p = _provPos(g);
-    lines.push(`As it stands, ${nm(H)} are ${ordinal(p[H])} and ${nm(A)} are ${ordinal(p[A])} in Group ${g}.`);
-  }
-  return lines;
+  if (lines.length) return { lines, definitive: true };          // crisp qualification call
+  const p = _provPos(g);
+  return { lines: [`As it stands, ${nm(H)} are ${ordinal(p[H])} and ${nm(A)} are ${ordinal(p[A])} in Group ${g}.`], definitive: false };
 }
 function stakesBlock(m) {
-  const lines = matchStakes(m); if (!lines) return "";
-  return `<div class="eyebrow">What's at stake</div><ul class="stakes">${lines.map(l => `<li>${l}</li>`).join("")}</ul>`;
+  const s = matchStakes(m); if (!s) return "";
+  return `<div class="eyebrow">What's at stake</div><ul class="stakes">${s.lines.map(l => `<li>${l}</li>`).join("")}</ul>`;
 }
 function openMatch(id) {
   const m = S.matches.find(x => x.id === id); if (!m) return;
@@ -823,7 +827,7 @@ function heroBlock(heroM, isLive) {
         : `<span class="hero-vs">VS</span>`}</div>
       <div class="hero-side"><span class="hero-flag">${a.code ? flag(a.code) : "·"}</span><span class="hero-name">${esc(a.name)}</span></div>
     </div>
-    ${(() => { const s = matchStakes(heroM); return s && s[0] ? `<div class="hero-stakes">${s[0]}</div>` : ""; })()}
+    ${(() => { const s = matchStakes(heroM); return s ? `<div class="hero-stakes">${s.lines[0]}</div>` : ""; })()}
     ${!isLive ? `<div class="countdown" id="cd" data-utc="${heroM.utc}">
       ${["h", "m", "s"].map(k => `<div class="cd-cell"><span class="cd-num" data-k="${k}">–</span><span class="cd-lab">${{ h: "hrs", m: "min", s: "sec" }[k]}</span></div>`).join("")}
     </div>` : ""}
@@ -1383,10 +1387,17 @@ function openCompare(a, b) {
 const TABLE_COLS = `<colgroup><col class="c-name"><col class="c-n"><col class="c-n"><col class="c-n"><col class="c-n"><col class="c-gd"><col class="c-pts"></colgroup>`;
 function groupTable(g, i) {
   const rows = standings(g);
+  const started = S.matches.some(x => x.group === g && status(x) === ST.FT && res(x)?.h != null);
+  const qtag = code => {                                  // through / out-of-top-two markers (same engine as the stakes line)
+    if (!started) return "";
+    const q = _qualScan(g, code);
+    return q.clinched ? `<span class="qx qx-in" title="Through to the Round of 32">Q</span>`
+      : q.out ? `<span class="qx qx-out" title="Can no longer finish in the top two">out</span>` : "";
+  };
   return `<div class="gtable" style="--i:${i}"><h4>Group <span>${g}</span></h4>
     <table>${TABLE_COLS}<thead><tr><th>Team</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GD</th><th>Pts</th></tr></thead><tbody>
     ${rows.map((r, idx) => `<tr class="${idx < 2 ? "q1" : idx === 2 ? "q3" : ""} ${r.code === S.fav ? "is-fav" : ""}" data-g="${g}" data-code="${r.code}">
-      <td class="tname" title="View ${esc(S.teams[r.code].name)}" data-squad="${r.code}" role="button" tabindex="0"><span class="fl">${flag(r.code)}</span>${esc(S.teams[r.code].name)}</td>
+      <td class="tname" title="View ${esc(S.teams[r.code].name)}" data-squad="${r.code}" role="button" tabindex="0"><span class="fl">${flag(r.code)}</span>${esc(S.teams[r.code].name)}${qtag(r.code)}</td>
       <td>${r.p}</td><td>${r.w}</td><td>${r.d}</td><td>${r.l}</td><td>${r.gf - r.ga > 0 ? "+" : ""}${r.gf - r.ga}</td><td><b>${r.pts}</b></td></tr>`).join("")}
     </tbody></table></div>`;
 }
@@ -1535,7 +1546,7 @@ function slotText(m, side, si) {
   const slot = m[side];
   if (slot.feeds) return feedLabel(slot.feeds, false); // "Winner QF1"
   if (slot.feedsL) return feedLabel(slot.feedsL, true);// "Loser SF1" (third-place)
-  return slot.short || si.name;                        // group placeholder (1E, 2A, 3rd A/B/…)
+  return si.name;                                      // group placeholder — the friendly "Runner-up Group A" (not the terse "2A")
 }
 // position every bracket card at the vertical midpoint of its feeder matches (a true bracket tree)
 function layoutBracket(scope) {

@@ -606,6 +606,14 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .stakes li::before{content:"";position:absolute;left:1px;top:.45em;width:7px;height:7px;border-radius:2px;background:var(--acc1)}
 .hero-stakes{margin-top:12px;text-align:center;font-size:13px;line-height:1.4;color:var(--ink-soft)}
 .hero-stakes b{color:var(--ink);font-weight:700}
+/* compact stakes line on a match card */
+.mcard-stake{margin:9px 0 0;padding-left:11px;position:relative;font-size:12.5px;line-height:1.35;color:var(--ink-soft)}
+.mcard-stake::before{content:"";position:absolute;left:0;top:.4em;width:5px;height:5px;border-radius:1px;background:var(--acc1)}
+.mcard-stake b{color:var(--ink);font-weight:700}
+/* group-table qualification markers */
+.qx{display:inline-block;margin-left:7px;padding:1px 6px;border-radius:99px;font-size:10px;font-weight:800;font-stretch:104%;letter-spacing:.04em;vertical-align:1.5px;text-transform:uppercase}
+.qx-in{background:color-mix(in srgb,var(--acc1) 16%,transparent);color:color-mix(in srgb,var(--acc1) 72%,var(--ink))}
+.qx-out{background:color-mix(in srgb,var(--ink) 8%,transparent);color:var(--ink-soft)}
 .wp-note b{color:var(--ink);font-weight:600}
 .wp-lh{color:var(--acc1)}.wp-lh b{color:var(--acc1)}
 .wp-la{text-align:right}
