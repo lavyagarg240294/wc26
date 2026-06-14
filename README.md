@@ -13,6 +13,8 @@ A fast, no-build fan site for the **FIFA World Cup 2026** — every match in you
 
 **Stack:** plain `index.html` + `styles.css` + one vanilla-JS `app.js` on GitHub Pages, fed by GitHub Actions that commit JSON into the repo. **No API keys are required to run it** — live scores, events, lineups, stats and player photos all come from free, keyless sources. Total cost: **$0**.
 
+📐 For how it's built — file map, data model, the polling loop, the design system — see **[ARCHITECTURE.md](ARCHITECTURE.md)**.
+
 ---
 
 ## One-time setup (~5 minutes)
@@ -108,3 +110,9 @@ The loop **auto-stops after 2026-07-20** (both "Update scores" and its "Restart 
 - **Player & share-card images** are hot-linked from FIFA's CDN; if a URL ever 404s, the dot/preview falls back gracefully.
 - **Brand & marks.** The site's own logo is the gold **centre-circle mark** (`assets/mark.svg`) — a pure-geometry pitch centre circle — reused for the favicon, the PWA/home-screen icons (`scripts/make-icons.py`), the social/OG card (`scripts/make-og.py`) and the in-app *About* sheets. The spinning live/goal ball is the public-domain (CC0) `Soccerball.svg`. **No official FIFA emblem, mascot or match-ball imagery is used** — only generic, freely-licensed or original artwork.
 - Unofficial fan project; **not affiliated with FIFA**.
+
+---
+
+## License
+
+[MIT](LICENSE) for the source code. Football data, team/competition names, flags and related marks belong to their respective owners.
