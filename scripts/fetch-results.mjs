@@ -161,7 +161,7 @@ async function fromFifa(prev, photoCodes) {
     // Knockout placeholders can't pair-match. FIFA's MatchNumber is unreliable for GROUP matches (it orders them
     // by group/matchday, not chronologically), but for KNOCKOUTS it's canonical and verified aligned (73→73…104→104),
     // and unlike a kickoff-minute slot it survives a reschedule — so use it, guarded to only land on a knockout fixture.
-    if (!f) { const byN = byNum[Number(x.MatchNumber)]; if (byN && byN.stage !== "group") f = byN; }
+    if (!f) { const n = Number(x.MatchNumber); const byN = byNum[n]; if (n >= 73 && byN && byN.stage !== "group") f = byN; }   // source AND target must be knockout (73-104)
     if (!f) { const slot = bySlot[(x.Date || "").slice(0, 16)]; if (slot && slot.length === 1) f = slot[0]; }   // last resort
     if (f && !fifaForFixture[f.id]) fifaForFixture[f.id] = x;
   }
@@ -178,6 +178,7 @@ async function fromFifa(prev, photoCodes) {
     let st;
     if (ms === 1) st = "SCHED";
     else if (ms === 3) st = "LIVE";
+    else if (Number.isFinite(kickoff) && now < kickoff) st = "SCHED";   // missing/odd status on a future kickoff → not a finished 0-0
     else st = (kickoff && now >= kickoff && now < kickoff + 150 * 60000) ? "LIVE" : "FT"; // hedge ms 0
 
     const entry = { st };
@@ -372,9 +373,14 @@ async function enrichStats(matches, prev, prevReports) {
     const e = matches[f.id]; if (!e) return false;
     if (e.st === "LIVE" || e.st === "HT") return true;       // live → fresh stats + commentary every poll
     if (e.st !== "FT") return false;
-    const recent = Date.now() - new Date(f.utc).getTime() < RECENT;
-    return !prev[f.id]?.stats || (recent && !prevReports[f.num]?.rep);  // need stats, or still waiting on the write-up
+    const since = Date.now() - new Date(f.utc).getTime();
+    const freshlyDone = since < 5 * 36e5;   // keep refreshing stats+commentary for ~3h after FT — also regenerates a
+                                            // commentary file if a rare push race + `reset --hard` discarded it
+    return freshlyDone || !prev[f.id]?.stats || (since < RECENT && !prevReports[f.num]?.rep);
   });
+  // live games first — the LIVE_FETCH_CAP is shared, and a busy day's backlog of finished matches still chasing
+  // reports must not starve currently-live matches of fresh stats + commentary.
+  need.sort((a, b) => (["LIVE", "HT"].includes(matches[b.id]?.st) ? 1 : 0) - (["LIVE", "HT"].includes(matches[a.id]?.st) ? 1 : 0));
   for (const f of fixtures) {                              // carry cached stats for finished matches we won't refetch
     const e = matches[f.id];
     if (e && e.st === "FT" && prev[f.id]?.stats && !need.includes(f)) e.stats = prev[f.id].stats;
@@ -450,6 +456,12 @@ try {
 }
 
 try { await enrichStats(matches, prevMerged, prevReportMatches); } catch (e) { console.warn("ESPN stats enrichment failed:", e.message); }
+
+// DATA-LOSS GUARD: a fallback feed (worldcup26.ir / football-data) only returns the fixtures it knows about, and
+// the writer below overwrites results.json/details.json wholesale. So overlay this run's matches onto the previous
+// snapshot — a sparse fallback can then only UPDATE a fixture, never DELETE a finished score we already published.
+// (FIFA-primary already returns all 104 fixtures, so this is a no-op there.)
+matches = { ...prevMerged, ...matches };
 
 // Split the payload: results.json keeps only the small scores/status fields (it's polled every ~60s by every
 // open page); the heavy per-match detail (timeline, lineups, team stats, fallback scorers) goes to details.json,

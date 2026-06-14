@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "136";  // shown in footer; bump with the ?v= asset version
+const BUILD = "137";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -62,7 +62,7 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;",
 // whole flag-heavy UI would degrade to "BR"/"US" letter boxes. alt falls back to the code if a file 404s.
 function flag(code) {
   if (!code) return "";
-  return `<img class="flagimg" src="assets/flags/${code}.svg" alt="${code}" loading="lazy" decoding="async">`;
+  return `<img class="flagimg" src="assets/flags/${code}.svg" alt="${esc(S.teams?.[code]?.name || "")}" loading="lazy" decoding="async">`;
 }
 // consistent inline-SVG content icons (replacing eclectic emoji in stat/record headings). The thematic
 // ⚽ / 🏆 / ★ are kept as-is. Stroke style matches the UI's SVG chrome.
@@ -386,7 +386,7 @@ function celebrateGoals(prev, now) {
     goalCelebration(scorer);
     maybeNotifyGoal(m, b, scorer);   // opt-in OS alert (only when the tab's backgrounded)
     const hs = slotInfo(m, "home"), as = slotInfo(m, "away");   // screen-reader announcement
-    announce(`Goal! ${S.teams[scorer]?.name || ""}. ${esc(hs.name)} ${b.h}, ${esc(as.name)} ${b.a}.`);
+    announce(`Goal! ${S.teams[scorer]?.name || ""}. ${hs.name} ${b.h}, ${as.name} ${b.a}.`);   // raw text — announce() sets textContent, so esc() would speak "&#039;"
     break; // one celebration per refresh is plenty
   }
 }
@@ -600,6 +600,7 @@ function flowColor(hex) {
   return `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`;
 }
 function mdFlow(r, h, a) {
+  if (!r) return "";   // no data row yet (scheduled match / empty results.json / offline) — guard like mdStats/mdTimeline
   const goals = (r.ev || []).filter(e => ["G", "P", "OG"].includes(e.k));
   if (goals.length < 2) return "";
   const end = Math.max(90, ...goals.map(g => evMin(g.t)));
@@ -1262,7 +1263,7 @@ function openPlayer(name, code) {
     if (e.k === "S") return `<span class="pl-act">${e.on === name ? "▲ on" : "▼ off"} ${mn}</span>`;
     return "";
   }).join("");
-  $("#playerTitle").textContent = "Player";
+  $("#playerTitle").textContent = name;   // real dialog name for screen readers (was a generic "Player")
   $("#playerBody").innerHTML = `
     <div class="pl">
       ${photo ? `<span class="pl-face" style="background-image:url('${photo}')"></span>` : `<span class="pl-face pl-flag">${code ? flag(code) : "·"}</span>`}
@@ -1693,9 +1694,21 @@ function applyPacked(bytes) {
   }
   return true;
 }
+// scrub a decoded (legacy-JSON) prediction so a hand-crafted #p= link can't inject fake team codes that would
+// crash renderSim at S.teams[c].name — keep only real codes / valid group permutations.
+function sanitizeSim(d) {
+  const out = { order: {}, thirds: [], ko: {} };
+  for (const g of GROUPS) {
+    const canon = groupTeams(g), o = d.order?.[g];
+    if (Array.isArray(o) && o.length === canon.length && new Set(o).size === o.length && o.every(c => canon.includes(c))) out.order[g] = o;
+  }
+  out.thirds = (Array.isArray(d.thirds) ? d.thirds : []).filter(c => typeof c === "string" && S.teams[c]);
+  for (const [k, v] of Object.entries(d.ko || {})) if (/^\d+$/.test(k) && typeof v === "string" && S.teams[v]) out.ko[k] = v;
+  return out;
+}
 function loadSharedSim(enc) {
   try { const b = b64urlToBytes(enc); if (b[0] === 1 && applyPacked(b)) return true; } catch { /* not compact → try JSON */ }
-  const d = decodeSim(enc); if (d) { S.sim = d; return true; }
+  const d = decodeSim(enc); if (d) { S.sim = sanitizeSim(d); return true; }
   return false;
 }
 
