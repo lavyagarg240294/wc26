@@ -38,12 +38,12 @@ Live at `https://<username>.github.io/wc26/` within a minute or two.
 **Actions** tab:
 - **Update scores → Run workflow** — first scores commit; then it keeps itself running (a self-relaunching polling loop), refreshing ~every minute during live matches.
 - **Share cards** runs automatically after each scores update (renders the OG card per finished match).
-- **Update squads → Run workflow** — fills all 48 squads (16 official lists ship pre-seeded).
+- **Update squads → Run workflow** — *optional*; refreshes caps/goals/club via API-Football. All 48 squads already ship pre-filled from official FIFA squad lists.
 
 ### Optional API keys (you can skip all of these)
 Add under **Settings → Secrets and variables → Actions** only if you want them:
 - `FOOTBALL_DATA_TOKEN` — a free [football-data.org](https://www.football-data.org/client/register) token, used **only as a last-resort fallback** if both FIFA and ESPN are unreachable.
-- `API_FOOTBALL_KEY` — a free [API-Football](https://www.api-football.com) key for the squads workflow (caps/goals/club). Without it, the 16 seeded squads still show.
+- `API_FOOTBALL_KEY` — a free [API-Football](https://www.api-football.com) key that lets the *Update squads* workflow refresh caps/goals/club. Without it (the default), all 48 squads still show — they ship pre-filled from official FIFA squad lists.
 
 ### Optional: analytics (off by default)
 The site ships with **no tracking**. To turn on **cookieless, no-PII** analytics, create a free [GoatCounter](https://www.goatcounter.com) site and set `window.ANALYTICS_URL` in `index.html`'s head to your `…/count` endpoint — the script then loads and counts pageviews + per-tab views (via `goatcounter.count` in `nav()`). Leave it empty and nothing third-party loads.
