@@ -6,13 +6,18 @@ any size. Content sits inside the maskable safe circle. Supersampled 2x for smoo
 from PIL import Image, ImageDraw
 
 GOLD = (232, 185, 49)
-TOP, BOT = (12, 52, 44), (8, 24, 30)      # deep pitch green, leaning toward ink (nocturnal / floodlit)
+CTR, EDG = (18, 70, 58), (6, 20, 26)      # floodlit centre -> deep ink edges (radial vignette, premium depth)
 
 def ground(S):
-    g = Image.new("RGB", (1, S))
-    for i in range(S):
-        g.putpixel((0, i), tuple(int(TOP[j] + (BOT[j] - TOP[j]) * (i / S)) for j in range(3)))
-    return g.resize((S, S))
+    s = 112                               # compute small, upscale smooth
+    base = Image.new("RGB", (s, s))
+    cx, cy = s * 0.5, s * 0.42            # light source slightly above centre
+    maxd = (max(cx, s - cx) ** 2 + max(cy, s - cy) ** 2) ** 0.5
+    for y in range(s):
+        for x in range(s):
+            d = min(1.0, (((x - cx) ** 2 + (y - cy) ** 2) ** 0.5) / maxd)
+            base.putpixel((x, y), tuple(int(CTR[j] + (EDG[j] - CTR[j]) * d) for j in range(3)))
+    return base.resize((S, S), Image.LANCZOS)
 
 def pitch_mark(d, S, cy, r, lw, line_half):
     cap = lw / 2

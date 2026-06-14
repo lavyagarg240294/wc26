@@ -609,8 +609,12 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .amasc small{display:block;font-size:10px;color:var(--ink-soft);margin-top:1px}
 .about-show{display:flex;align-items:center;gap:14px;margin:0 0 8px}
 .about-show .about-p{margin:0;flex:1;min-width:0}
-.about-ball{width:76px;height:76px;flex:0 0 auto}
-.about-logo{width:88px;height:auto;flex:0 0 auto;background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 12px;box-shadow:var(--shadow)}
+.about-ball{width:88px;height:88px;flex:0 0 auto;filter:drop-shadow(0 6px 12px rgba(13,27,42,.22))}
+.about-logo{height:118px;width:auto;flex:0 0 auto;background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 14px;box-shadow:var(--shadow)}
+.about-cap{font-size:11.5px;line-height:1.5;color:var(--ink-soft);margin:2px 0 10px}
+.about-cap b{color:var(--ink-soft)}
+.about-cap a{color:var(--acc-text);text-decoration:underline}
+.about-site-mark{display:block;margin:2px auto 13px;border-radius:13px;box-shadow:var(--shadow)}
 @media(max-width:400px){.about-show{flex-direction:column;align-items:flex-start}}
 .about-steps{margin:0 0 8px;padding:0;list-style:none;counter-reset:step}
 .about-steps li{position:relative;padding:9px 0 9px 40px;font-size:13.5px;line-height:1.45;border-top:1px solid color-mix(in srgb,var(--line) 60%,transparent)}
