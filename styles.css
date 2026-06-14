@@ -248,12 +248,14 @@ b{font-weight:600}
 .hero-refresh.spinning svg{animation:spin .7s linear infinite}
 .hero-livechip{display:inline-block;font-family:var(--mono);font-weight:700;font-size:13px;color:#fff;background:var(--live);padding:4px 12px;border-radius:99px;font-variant-numeric:tabular-nums;white-space:nowrap;letter-spacing:.03em}
 
-.countdown{display:flex;gap:8px;justify-content:center;margin-top:20px}
-.cd-cell{background:color-mix(in srgb,var(--acc1) 10%,var(--card));border:1px solid color-mix(in srgb,var(--acc1) 25%,var(--line));border-radius:12px;padding:8px 0;width:64px;text-align:center}
-.cd-num{font-family:var(--mono);font-weight:700;font-size:22px;font-variant-numeric:tabular-nums;display:block}
+/* countdown — a clean mono "clock" (no boxes): big tabular numbers, hairline colons, quiet unit labels */
+.countdown{display:flex;align-items:flex-start;justify-content:center;gap:7px;margin-top:18px}
+.cd-cell{display:flex;flex-direction:column;align-items:center;min-width:40px}
+.cd-num{font-family:var(--mono);font-weight:700;font-size:clamp(26px,7vw,34px);font-variant-numeric:tabular-nums;color:var(--ink);line-height:1.02;letter-spacing:.01em}
+.cd-sep{font-family:var(--mono);font-weight:500;font-size:clamp(22px,6vw,28px);color:var(--ink-soft);opacity:.35;line-height:1.18}
 .cd-num.tick{animation:tick .3s ease}
 @keyframes tick{0%{transform:translateY(-7px);opacity:0}100%{transform:none;opacity:1}}
-.cd-lab{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft)}
+.cd-lab{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft);font-weight:600;margin-top:5px}
 
 .hero-meta{display:flex;flex-wrap:wrap;gap:6px 16px;justify-content:center;margin-top:18px;font-size:13px;color:var(--ink-soft)}
 .hero-meta b{color:var(--ink);font-family:var(--mono);font-weight:500}
@@ -1105,8 +1107,7 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
   .wordmark{gap:7px}
   #teamChipName{max-width:92px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .topbar-right{gap:6px;flex:0 0 auto}
-  .cd-cell{width:56px;padding:7px 0}
-  .cd-num{font-size:19px}
+  .cd-cell{min-width:34px}
   .dayhead{top:95px}
   .mcard{padding:12px 13px}
   .mcard-row{grid-template-columns:52px 1fr auto;gap:10px}
