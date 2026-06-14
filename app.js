@@ -30,13 +30,13 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "139";  // shown in footer; bump with the ?v= asset version
+const BUILD = "140";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
   ["Asia/Dubai", "Dubai"], ["Asia/Riyadh", "Riyadh"], ["Asia/Karachi", "Karachi"],
-  ["Asia/Kolkata", "Mumbai"], ["Asia/Singapore", "Singapore"], ["Asia/Tokyo", "Tokyo"],
-  ["Australia/Sydney", "Sydney"], ["Europe/London", "London"], ["Europe/Paris", "Paris"],
+  ["Asia/Kolkata", "India"], ["Asia/Singapore", "Singapore"], ["Asia/Tokyo", "Tokyo"],
+  ["Australia/Sydney", "Sydney"], ["Europe/London", "London"], ["Europe/Paris", "Paris / Berlin"],
   ["Europe/Istanbul", "Istanbul"], ["Africa/Cairo", "Cairo"], ["Africa/Lagos", "Lagos"],
   ["Africa/Johannesburg", "Johannesburg"], ["America/Sao_Paulo", "São Paulo"],
   ["America/New_York", "New York"], ["America/Toronto", "Toronto"], ["America/Chicago", "Chicago"],
@@ -77,8 +77,15 @@ const ICO = {
 };
 const fmt = (iso, opts) => new Intl.DateTimeFormat("en", { timeZone: tz(), ...opts }).format(new Date(iso));
 const timeStr = iso => fmt(iso, { hour: "2-digit", minute: "2-digit", hour12: false });
-const dayKey = iso => fmt(iso, { year: "numeric", month: "2-digit", day: "2-digit" });
-const dayLabel = iso => fmt(iso, { weekday: "long", day: "numeric", month: "long" });
+// The "viewing day" rolls over at ~10am LOCAL, not midnight — so a night's slate stays grouped on one day instead
+// of splitting a 2am/5am match off into "tomorrow". From the real schedule, Dubai kickoffs run 8pm–8am and India
+// 9pm–9am (a continuous overnight block), with a long match-free gap through the local daytime — 10am sits in that
+// gap for GMT+4…+5:30 (the bulk of our audience). Group/ticker/match-of-day/"today" all use this. Kickoff TIMES
+// shown on cards are unshifted (the real clock time); only the day a match is filed under shifts.
+const DAY_ROLLOVER_H = 10;
+const viewingISO = iso => new Date(Date.parse(iso) - DAY_ROLLOVER_H * 36e5).toISOString();
+const dayKey = iso => fmt(viewingISO(iso), { year: "numeric", month: "2-digit", day: "2-digit" });
+const dayLabel = iso => fmt(viewingISO(iso), { weekday: "long", day: "numeric", month: "long" });
 // uniform offset label everywhere ("GMT+4", "GMT-5", "GMT+5:30") — not the mixed EST/IST/GMT+N that "short" gives
 const tzShort = () => {
   try { return new Intl.DateTimeFormat("en", { timeZone: tz(), timeZoneName: "shortOffset" }).formatToParts(new Date()).find(p => p.type === "timeZoneName").value.replace(/^GMT$/, "GMT+0"); }
