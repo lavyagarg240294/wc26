@@ -731,16 +731,38 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .roster-pos{background:var(--card);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;box-shadow:var(--shadow);animation:rise .45s both}
 .roster-pos h5{font-family:var(--disp);font-weight:800;font-stretch:115%;font-size:12px;letter-spacing:.11em;text-transform:uppercase;padding:10px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between}
 .roster-pos h5 span{color:var(--acc1);font-family:var(--mono)}
-.roster-row{display:flex;align-items:baseline;gap:10px;padding:9px 16px;border-bottom:1px solid color-mix(in srgb,var(--line) 45%,transparent);font-size:13.5px}
+.roster-row{display:flex;align-items:center;gap:11px;padding:8px 14px;border-bottom:1px solid color-mix(in srgb,var(--line) 45%,transparent);font-size:13.5px}
 .roster-row[data-player]{cursor:pointer;transition:background .15s}
 .roster-row[data-player]:hover{background:color-mix(in srgb,var(--acc1) 7%,transparent)}
 .roster-row:last-child{border-bottom:none}
-.rnum{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--acc1);width:20px;text-align:right;flex:0 0 20px}
-.rname{font-weight:600;white-space:nowrap;flex:0 0 auto}
-.rclub{flex:1 1 auto;min-width:0;font-size:12px;color:var(--ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.rclub::before{content:"· "}
+.rnum{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--acc1);width:18px;text-align:right;flex:0 0 18px}
+.rface{width:34px;height:34px;border-radius:50%;flex:0 0 auto;background-color:var(--paper);background-repeat:no-repeat;background-size:215%;background-position:center top;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--ink) 13%,transparent);display:grid;place-items:center;overflow:hidden}
+.rface .flagimg{width:20px;border-radius:0}
+.rname{flex:1;min-width:0;font-weight:600;display:flex;flex-direction:column;line-height:1.22;overflow:hidden}
+.rname small{font-weight:500;font-size:11px;color:var(--ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cpt{display:inline-grid;place-items:center;font-style:normal;font-size:8.5px;font-weight:800;width:14px;height:14px;border-radius:4px;background:var(--gold);color:var(--ink);margin-left:6px;vertical-align:1px}
-.rstat{flex:0 0 auto;margin-left:auto;font-family:var(--mono);font-size:10.5px;color:var(--ink-soft);white-space:nowrap}
+.rstat{flex:0 0 auto;margin-left:auto;font-family:var(--mono);font-size:12px;color:var(--ink);font-weight:700;text-align:right;line-height:1.1;white-space:nowrap}
+.rstat i{font-style:normal;font-size:8.5px;font-weight:600;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.02em;margin-left:2px}
+.rstat em{font-style:normal;color:var(--acc1);margin-left:5px}
+/* team pedigree (titles · best finish · appearances) + coach */
+.ts-ped{display:flex;gap:8px;margin:2px 0 10px;flex-wrap:wrap}
+.tp{flex:1 1 0;min-width:74px;background:var(--card);border:1px solid var(--line);border-radius:13px;padding:11px 12px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:2px}
+.tp b{font-family:var(--disp);font-weight:900;font-stretch:106%;font-size:21px;line-height:1;color:var(--ink)}
+.tp span{font-size:9.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);font-weight:600}
+.tp-gold b{color:var(--gold)}
+.tp-wide{flex:2 1 130px}
+.tp-wide b{font-size:16px;font-stretch:100%}
+.ts-coach{display:flex;align-items:center;gap:11px;background:var(--card);border:1px solid var(--line);border-radius:13px;padding:10px 13px;box-shadow:var(--shadow);margin:0 0 6px}
+.ts-coach-badge{flex:0 0 auto;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:color-mix(in srgb,var(--acc1) 13%,var(--card));color:var(--acc1);font-family:var(--disp);font-weight:800;font-size:13px;letter-spacing:.02em}
+.ts-coach-tx{display:flex;flex-direction:column;gap:1px;min-width:0}
+.ts-coach-tx i{font-style:normal;font-size:9.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);font-weight:600}
+.ts-coach-tx b{font-weight:700;font-size:14px}
+/* player — this-World-Cup record tiles */
+.pl-wc{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin:0 0 6px}
+.pl-wc .pw{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 4px;text-align:center;box-shadow:var(--shadow)}
+.pl-wc .pw b{display:block;font-family:var(--disp);font-weight:900;font-stretch:106%;font-size:22px;color:var(--acc1);line-height:1.05}
+.pl-wc .pw span{font-size:9px;text-transform:uppercase;letter-spacing:.03em;color:var(--ink-soft);font-weight:600}
+.pw-rc{font-size:13px;color:var(--live);vertical-align:6px;margin-left:1px}
 
 /* ---------- starting XI panel ---------- */
 .xi-hint{color:var(--acc1);font-weight:700;font-family:var(--disp);font-stretch:112%;letter-spacing:.06em;text-transform:uppercase;font-size:10px}

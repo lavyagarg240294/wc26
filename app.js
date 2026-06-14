@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "134";  // shown in footer; bump with the ?v= asset version
+const BUILD = "135";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1105,25 +1105,64 @@ function renderTeams() {
     S.matches.filter(isFavMatch).sort((a, b) => a.utc.localeCompare(b.utc)),
     `${S.teams[S.fav].name} · World Cup 2026`);
 }
+// authoritative head coach: curated teams.json value (web-verified, all 48), API-squad coach as a fallback
+const teamCoach = code => S.teams[code]?.coach || S.squads?.[code]?.coach || "";
+const initials = n => (n || "").split(/\s+/).filter(Boolean).map(w => w[0]).slice(0, 2).join("").toUpperCase();
 function rosterMarkup(sq, code) {
   const groups = { GK: "Goalkeepers", DF: "Defenders", MF: "Midfielders", FW: "Forwards" };
   const byPos = p => sq.players.filter(x => x.pos === p);
   return `<div class="roster">${Object.entries(groups).map(([p, label]) => {
     const ps = byPos(p);
     return ps.length ? `<div class="roster-pos"><h5>${label} <span>${ps.length}</span></h5>
-      ${ps.map(x => { const nm = x.name.replace(" (captain)", ""); return `<div class="roster-row" data-player="${esc(nm)}|${code}" role="button" tabindex="0">
+      ${ps.map(x => { const nm = x.name.replace(" (captain)", ""), ph = bestPhoto(nm, code);
+        return `<div class="roster-row" data-player="${esc(nm)}|${code}" role="button" tabindex="0">
         <span class="rnum">${x.n ?? "·"}</span>
-        <span class="rname">${esc(nm)}${x.name.includes("(captain)") ? `<i class="cpt">C</i>` : ""}</span>
-        ${x.club ? `<span class="rclub">${esc(x.club)}</span>` : ""}
-        ${x.caps != null ? `<span class="rstat">${x.caps} caps${x.goals ? ` · ${x.goals}g` : ""}</span>` : ""}
+        <span class="rface"${ph ? ` style="background-image:url('${ph}')"` : ""}>${ph ? "" : flag(code)}</span>
+        <span class="rname">${esc(nm)}${x.name.includes("(captain)") ? `<i class="cpt">C</i>` : ""}${x.club ? `<small>${esc(x.club)}</small>` : ""}</span>
+        ${x.caps != null ? `<span class="rstat">${x.caps}<i>caps</i>${x.goals ? `<em>${x.goals} g</em>` : ""}</span>` : ""}
       </div>`; }).join("")}</div>` : "";
   }).join("")}</div>`;
 }
 function squadSection(code) {
-  const sq = S.squads?.[code];
+  const sq = S.squads?.[code], coach = teamCoach(code);
   if (!sq) return `<div class="eyebrow">Squad</div><div class="empty">Squad not published yet — check back closer to kickoff.</div>`;
-  return `<div class="eyebrow">Squad — ${sq.players.length} players${sq.coach ? ` · Coach <b style="color:var(--ink)">&nbsp;${esc(sq.coach)}</b>` : ""}</div>
+  return `<div class="eyebrow">Squad — ${sq.players.length} players${coach ? ` · Coach <b style="color:var(--ink)">&nbsp;${esc(coach)}</b>` : ""}</div>
     ${rosterMarkup(sq, code)}`;
+}
+// World Cup pedigree (titles · best finish · appearances) + the head coach — the "what this team is about" header
+function teamOverview(code) {
+  const t = S.teams[code]; if (!t) return "";
+  const titles = t.titles || 0, debut = t.best === "First appearance";
+  const [finish, yr] = (t.best || "").split(" · ");
+  const coach = teamCoach(code);
+  const tiles = [
+    t.apps != null ? `<div class="tp"><b>${t.apps}</b><span>World Cup${t.apps !== 1 ? "s" : ""}</span></div>` : "",
+    titles ? `<div class="tp tp-gold"><b>${titles}×</b><span>Champion${titles !== 1 ? "s" : ""}</span></div>` : "",
+    `<div class="tp tp-wide"><b>${esc(debut ? "Debut" : finish)}</b><span>${debut ? "First World Cup" : `Best finish${yr ? ` · ${esc(yr)}` : ""}`}</span></div>`,
+  ].filter(Boolean).join("");
+  return `<div class="ts-ped">${tiles}</div>
+    ${coach ? `<div class="ts-coach"><span class="ts-coach-badge">${esc(initials(coach))}</span><span class="ts-coach-tx"><i>Head coach</i><b>${esc(coach)}</b></span></div>` : ""}`;
+}
+// a player's record at THIS World Cup — counted from the team's played matches (tolerant name match vs feed names)
+function playerWC(name, code) {
+  let g = 0, a = 0, y = 0, rc = 0, apps = 0;
+  for (const m of S.matches) {
+    if (!matchHasTeam(m, code) || status(m) === ST.SCHED) continue;
+    const r = res(m); if (!r) continue;
+    const side = slotInfo(m, "home").code === code ? "h" : slotInfo(m, "away").code === code ? "a" : null;
+    if (!side) continue;
+    const inXI = (r.xi?.[side]?.xi || []).some(p => sameName(p[1], name));
+    const onBench = (r.ev || []).some(e => e.tm === side && e.k === "S" && e.on && sameName(e.on, name));
+    if (inXI || onBench) apps++;
+    for (const e of (r.ev || [])) {
+      if (e.tm !== side) continue;
+      if (["G", "P"].includes(e.k) && e.p && sameName(e.p, name)) g++;
+      if (e.a && sameName(e.a, name)) a++;
+      if (e.k === "Y" && e.p && sameName(e.p, name)) y++;
+      if (e.k === "R" && e.p && sameName(e.p, name)) rc++;
+    }
+  }
+  return { g, a, y, rc, apps };
 }
 // Team detail sheet — overview, recent form, every fixture (results + upcoming), the group
 // standing + qualification outlook, and the full squad (collapsible). Tapping a team anywhere
@@ -1174,19 +1213,20 @@ function openTeam(code) {
   const sq = S.squads?.[code], isFav = code === S.fav;
   $("#teamSheetTitle").innerHTML = `<span class="fl">${flag(code)}</span> ${esc(t.name)}`;
   $("#teamSheetBody").innerHTML = `
-    <div class="ts-meta">${t.conf ? esc(t.conf) : ""}${group ? ` · Group ${group}` : ""}${t.titles ? ` · <b class="ts-cup">🏆 ${t.titles}× champion${t.titles > 1 ? "s" : ""}</b>` : ""}${played ? ` · <b>${ordinal(pos)}</b> after ${played} match${played > 1 ? "es" : ""}` : ""}</div>
-    ${formChips(code) ? `<div class="ts-form">Recent form ${formChips(code)}</div>` : ""}
+    <div class="ts-meta">${t.conf ? esc(t.conf) : ""}${group ? ` · Group ${group}` : ""}${played ? ` · <b>${ordinal(pos)}</b> after ${played} match${played > 1 ? "es" : ""}` : ""}</div>
+    ${teamOverview(code)}
     ${isFav
       ? `<div class="ts-fav-tag">★ Your team</div>`
       : `<button class="ts-setfav" data-follow="${code}">★ Make ${esc(t.name)} my team</button>`}
+    ${formChips(code) ? `<div class="ts-form">Recent form ${formChips(code)}</div>` : ""}
+    ${sq ? `<details class="ts-squad" open><summary><span>Squad</span><small>${sq.players.length} players${teamCoach(code) ? ` · ${esc(teamCoach(code))}` : ""}</small></summary>${rosterMarkup(sq, code)}</details>`
+        : `<div class="eyebrow">Squad</div><div class="empty">${esc(t.name)}'s squad isn't published yet — check back closer to kickoff.</div>`}
     ${done.length ? `<div class="eyebrow">Results</div>${done.map((m, i) => matchCard(m, i)).join("")}` : ""}
     ${upcoming.length ? `<div class="eyebrow">Fixtures</div>${upcoming.map((m, i) => matchCard(m, i)).join("")}` : (done.length ? "" : `<div class="empty">Fixtures to be confirmed.</div>`)}
     ${group ? `<div class="eyebrow">Group ${group}</div><div class="gwrap">${groupTable(group, 0)}</div>${groupOutlookHTML(group)}
       <div class="legend"><span class="l1"><i></i>Top 2 advance</span><span class="l3"><i></i>3rd — possible best-8 spot</span></div>` : ""}
     ${roadSection(code)}
-    ${rotationSection(code)}
-    ${sq ? `<details class="ts-squad"><summary><span>Squad</span><small>${sq.players.length} players${sq.coach ? ` · ${esc(sq.coach)}` : ""}</small></summary>${rosterMarkup(sq, code)}</details>`
-        : `<div class="eyebrow">Squad</div><div class="empty">${esc(t.name)}'s squad isn't published yet — check back closer to kickoff.</div>`}`;
+    ${rotationSection(code)}`;
   showSheet($("#teamSheet"));
 }
 // best-effort match of a feed name (e.g. "Julian QUINONES") to a squad entry (names come from a different feed)
@@ -1213,6 +1253,7 @@ function openPlayer(name, code) {
     if (row) { num = row[0]; pos = ["Goalkeeper", "Defender", "Midfielder", "Forward"][row[2]] || ""; }
   }
   if (bio) { if (num == null && bio.n != null) num = bio.n; if (!pos && bio.pos) pos = { GK: "Goalkeeper", DF: "Defender", MF: "Midfielder", FW: "Forward" }[bio.pos] || ""; }
+  const wc = playerWC(name, code);   // this-tournament record, counted from the team's played matches
   const acts = (r?.ev || []).filter(e => [e.p, e.a, e.on, e.off].includes(name)).map(e => {
     const mn = esc(e.t || "");
     if (["G", "P", "OG"].includes(e.k)) return `<span class="pl-act">⚽ ${mn}${e.k === "P" ? " pen" : e.k === "OG" ? " o.g." : ""}${e.a === name && e.p !== name ? " · assist" : ""}</span>`;
@@ -1235,6 +1276,12 @@ function openPlayer(name, code) {
       ${bio.club ? `<span><i>Club</i>${esc(bio.club)}</span>` : ""}
       ${bio.caps != null ? `<span><i>Caps</i>${bio.caps}</span>` : ""}
       ${bio.goals ? `<span><i>Career goals</i>${bio.goals}</span>` : ""}
+    </div>` : ""}
+    ${wc.apps ? `<div class="eyebrow">This World Cup</div><div class="pl-wc">
+      <div class="pw"><b>${wc.apps}</b><span>App${wc.apps !== 1 ? "s" : ""}</span></div>
+      <div class="pw"><b>${wc.g}</b><span>Goal${wc.g !== 1 ? "s" : ""}</span></div>
+      <div class="pw"><b>${wc.a}</b><span>Assist${wc.a !== 1 ? "s" : ""}</span></div>
+      <div class="pw"><b>${wc.y}${wc.rc ? `<span class="pw-rc">${wc.rc}</span>` : ""}</b><span>${wc.rc ? "Yel · Red" : "Yellow" + (wc.y !== 1 ? "s" : "")}</span></div>
     </div>` : ""}
     ${acts ? `<div class="eyebrow">In this match</div><div class="pl-acts">${acts}</div>` : ""}
     <button class="pl-compare" data-compare-seed="${esc(name)}|${code}">⇄ Compare with another player</button>`;
@@ -2315,8 +2362,8 @@ function goalHorn() {
 /* ---------------- data ---------------- */
 async function loadStatic() {
   const [m, t] = await Promise.all([
-    fetch("data/matches.json").then(r => r.json()),
-    fetch("data/teams.json").then(r => r.json()),
+    fetch("data/matches.json?v=" + BUILD).then(r => r.json()),
+    fetch("data/teams.json?v=" + BUILD).then(r => r.json()),   // ?v=BUILD so the browser refetches when team data (pedigree/coach) changes per deploy
   ]);
   S.matches = m.matches; S.teams = t;
   // squads.json is committed data that changes (squad updates) — bypass cache so it's always current
