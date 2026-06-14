@@ -30,13 +30,13 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "138";  // shown in footer; bump with the ?v= asset version
+const BUILD = "139";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
   ["Asia/Dubai", "Dubai"], ["Asia/Riyadh", "Riyadh"], ["Asia/Karachi", "Karachi"],
-  ["Asia/Kolkata", "India"], ["Asia/Singapore", "Singapore"], ["Asia/Tokyo", "Tokyo"],
-  ["Australia/Sydney", "Sydney"], ["Europe/London", "London"], ["Europe/Paris", "Paris / Berlin"],
+  ["Asia/Kolkata", "Mumbai"], ["Asia/Singapore", "Singapore"], ["Asia/Tokyo", "Tokyo"],
+  ["Australia/Sydney", "Sydney"], ["Europe/London", "London"], ["Europe/Paris", "Paris"],
   ["Europe/Istanbul", "Istanbul"], ["Africa/Cairo", "Cairo"], ["Africa/Lagos", "Lagos"],
   ["Africa/Johannesburg", "Johannesburg"], ["America/Sao_Paulo", "São Paulo"],
   ["America/New_York", "New York"], ["America/Toronto", "Toronto"], ["America/Chicago", "Chicago"],
@@ -79,16 +79,20 @@ const fmt = (iso, opts) => new Intl.DateTimeFormat("en", { timeZone: tz(), ...op
 const timeStr = iso => fmt(iso, { hour: "2-digit", minute: "2-digit", hour12: false });
 const dayKey = iso => fmt(iso, { year: "numeric", month: "2-digit", day: "2-digit" });
 const dayLabel = iso => fmt(iso, { weekday: "long", day: "numeric", month: "long" });
+// uniform offset label everywhere ("GMT+4", "GMT-5", "GMT+5:30") — not the mixed EST/IST/GMT+N that "short" gives
 const tzShort = () => {
-  try { return new Intl.DateTimeFormat("en", { timeZone: tz(), timeZoneName: "short" }).formatToParts(new Date()).find(p => p.type === "timeZoneName").value; }
+  try { return new Intl.DateTimeFormat("en", { timeZone: tz(), timeZoneName: "shortOffset" }).formatToParts(new Date()).find(p => p.type === "timeZoneName").value.replace(/^GMT$/, "GMT+0"); }
   catch { return tz(); }
 };
 const tzOffsetLabel = zone => {
   try {
     const p = new Intl.DateTimeFormat("en", { timeZone: zone === "auto" ? AUTO_TZ : zone, timeZoneName: "shortOffset" }).formatToParts(new Date());
-    return p.find(x => x.type === "timeZoneName").value.replace("GMT", "UTC");
+    return p.find(x => x.type === "timeZoneName").value.replace(/^GMT$/, "GMT+0");   // GMT everywhere (matches tzShort), incl. GMT+0 for London
   } catch { return ""; }
 };
+// friendly CITY name for the active zone — from the ZONES list if listed, else the IANA city. Always a city
+// (never a country/region) so every place the timezone is shown reads the same way.
+const tzCity = () => (ZONES.find(z => z[0] === tz())?.[1]) || tz().split("/").pop().replace(/_/g, " ");
 
 /* ---------------- results / resolution ---------------- */
 // scores (results.json, polled) + heavy detail (details.json, fetched on change) are merged into
@@ -893,9 +897,12 @@ function prestige(m) {
   return (MOTD_STAGE[m.stage] || 0) + strength + even + titles + host + (!!h.code + !!a.code);   // prefer known fixtures
 }
 const marqueeOf = list => list.length ? list.slice().sort((a, b) => prestige(b) - prestige(a) || a.utc.localeCompare(b.utc))[0] : null;
+// the marquee of TODAY's remaining fixtures — "today" is the visitor's local day (same one the ticker uses), so
+// it's never a tomorrow match mislabelled "of the day", and it re-computes when you change timezone. Null on a
+// rest day with nothing left to play (the hero's next-kickoff card carries the gap instead).
 function matchOfDay() {
-  const ahead = S.matches.filter(m => status(m) !== ST.FT).sort((a, b) => a.utc.localeCompare(b.utc));
-  return marqueeOf(ahead.slice(0, 6));   // ~the next day's worth of fixtures, timezone-agnostic
+  const todayK = dayKey(new Date().toISOString());
+  return marqueeOf(S.matches.filter(m => status(m) !== ST.FT && dayKey(m.utc) === todayK));
 }
 function motdBanner(m) {
   const h = slotInfo(m, "home"), a = slotInfo(m, "away");
@@ -2316,8 +2323,8 @@ function buildPickers() {
   };
 }
 function syncTzLabels() {
-  const tzl = $("#tzState"); if (tzl) tzl.textContent = S.tz === "auto" ? `Auto · ${tzShort()}` : (ZONES.find(z => z[0] === S.tz)?.[1] || S.tz);
-  $("#footTz").textContent = `${tz()} (${tzShort()})`;
+  const tzl = $("#tzState"); if (tzl) tzl.textContent = `${tzCity()} · ${tzShort()}${S.tz === "auto" ? " · auto" : ""}`;
+  $("#footTz").textContent = `${tzCity()} · ${tzShort()}`;
   const bt = $("#buildTag"); if (bt) bt.textContent = "build " + BUILD;
   setFreshness();   // re-render the "scores from / checked" times in the new timezone
 }
@@ -2528,7 +2535,7 @@ async function boot() {
   if (!localStorage.getItem("wc26.seen")) {
     const w = $("#welcomeDialog");
     if (w) {
-      const tzl = $("#welcomeTz"); if (tzl) tzl.textContent = `${tz().split("/").pop().replace(/_/g, " ")} · ${tzShort()}`;
+      const tzl = $("#welcomeTz"); if (tzl) tzl.textContent = `${tzCity()} · ${tzShort()}`;
       const seen = () => localStorage.setItem("wc26.seen", "1");
       w.addEventListener("close", seen);   // also covers Escape / backdrop dismissal
       $("#welcomePick").onclick = () => { seen(); w.close(); $("#teamDialog").showModal(); };
