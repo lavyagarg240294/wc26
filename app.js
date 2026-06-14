@@ -31,7 +31,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "131";  // shown in footer; bump with the ?v= asset version
+const BUILD = "133";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -588,6 +588,18 @@ function mdStats(r) {
 }
 const evMin = s => { const m = String(s || "").match(/(\d+)(?:'?\+(\d+))?/); return m ? +m[1] + (m[2] ? +m[2] / 100 : 0) : 0; };
 // "match flow" — the running lead (home − away) over the timeline, as a signed area
+// kit colours off the shirt can be near-white or near-black — invisible on the card. Nudge each into a
+// readable band for the current theme so the match-flow fill (and its legend swatch) always reads.
+function flowColor(hex) {
+  let c = String(hex || "").replace("#", "");
+  if (c.length === 3) c = c.split("").map(x => x + x).join("");
+  if (c.length !== 6) return currentDark() ? "#9FB2C4" : "#5B6B7A";
+  let r = parseInt(c.slice(0, 2), 16), g = parseInt(c.slice(2, 4), 16), b = parseInt(c.slice(4, 6), 16);
+  const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  if (!currentDark() && lum > 0.68) { const f = 0.58 / lum; r *= f; g *= f; b *= f; }            // light kit on paper → darken
+  else if (currentDark() && lum < 0.34) { const t = 165; r += (t - r) * 0.55; g += (t - g) * 0.55; b += (t - b) * 0.55; } // dark kit on dark card → lift
+  return `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`;
+}
 function mdFlow(r, h, a) {
   const goals = (r.ev || []).filter(e => ["G", "P", "OG"].includes(e.k));
   if (goals.length < 2) return "";
@@ -599,13 +611,14 @@ function mdFlow(r, h, a) {
   const W = 100, H = 44, mid = H / 2, sx = m => (m / end * W).toFixed(1), sy = v => (mid - v / maxAbs * (mid - 4)).toFixed(1);
   const line = pts.map((p, i) => `${i ? "L" : "M"}${sx(p[0])} ${sy(p[1])}`).join(" ");
   const area = `M0 ${mid} ` + pts.map(p => `L${sx(p[0])} ${sy(p[1])}`).join(" ") + ` L${W} ${mid} Z`;
-  const hc = (h.code && S.teams[h.code]?.c1) || "#0BA360", ac = (a.code && S.teams[a.code]?.c1) || "#5B6B7A";
+  const hc = flowColor((h.code && S.teams[h.code]?.c1) || "#0BA360"), ac = flowColor((a.code && S.teams[a.code]?.c1) || "#5B6B7A");
+  const gid = `flowg-${h.code || "h"}${a.code || "a"}`;
   return `<div class="eyebrow">Match flow</div>
     <div class="md-flow"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
-      <defs><linearGradient id="flowg-${h.code}${a.code}" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stop-color="${hc}" stop-opacity=".55"/><stop offset="49%" stop-color="${hc}" stop-opacity=".06"/>
-        <stop offset="51%" stop-color="${ac}" stop-opacity=".06"/><stop offset="1" stop-color="${ac}" stop-opacity=".55"/></linearGradient></defs>
-      <path d="${area}" fill="url(#flowg-${h.code}${a.code})"/>
+      <defs><linearGradient id="${gid}" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="${H}">
+        <stop offset="0" stop-color="${hc}" stop-opacity=".92"/><stop offset="48%" stop-color="${hc}" stop-opacity=".26"/>
+        <stop offset="52%" stop-color="${ac}" stop-opacity=".26"/><stop offset="1" stop-color="${ac}" stop-opacity=".92"/></linearGradient></defs>
+      <path d="${area}" fill="url(#${gid})"/>
       <line x1="0" y1="${mid}" x2="${W}" y2="${mid}" class="flow-mid"/><path d="${line}" class="flow-line"/></svg>
     <div class="flow-legend"><span><i style="background:${hc}"></i>${esc(h.code ? h.name : "Home")} ahead</span>
       <span>${esc(a.code ? a.name : "Away")} ahead<i style="background:${ac}"></i></span></div></div>`;
@@ -2282,11 +2295,27 @@ function syncTzLabels() {
 }
 
 /* ---------------- background music (off by default) ---------------- */
+// Royalty-free "stadium mix" — 14 match-day tracks sourced by the user (Pixabay/Uppbeat artists:
+// hitslab, ikoliks, mfcc, nastelbom, positive_sound, prettyjohn1, soundsurfer, starostin, the_mountain,
+// tunetank, yevhenastafiev). Curated from 15 by dropping a 0.95-similar duplicate (prettyjohn twin);
+// the rest were ordered/kept by a timbre-similarity pass so near-alike tracks don't cluster.
+const MUSIC = ["hitslab-334834", "ikoliks-381489", "mfcc-414731", "nastelbom-412586", "positivesound-487188",
+  "prettyjohn1-499975", "soundsurfer-516385", "soundsurfer-edit-276736", "starostin-samba-260573",
+  "starostin-541750", "themountain-485564", "themountain-496555", "tunetank-349258", "yevhenastafiev-526075"]
+  .map(n => `assets/music/${n}.mp3`);
 // The button reflects the audio's REAL paused state (not just a saved flag), so it
 // can never get out of sync with what you actually hear.
 function initMusic() {
   const a = $("#bgm"), btn = $("#musicToggle"); if (!btn || !a) return;
   a.volume = 0.32;
+  let queue = [], qi = 0;
+  const shuffle = arr => { const x = arr.slice(); for (let i = x.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [x[i], x[j]] = [x[j], x[i]]; } return x; };
+  const cue = () => {                                  // load the next track; reshuffle a fresh queue when one's exhausted
+    if (qi >= queue.length) { queue = shuffle(MUSIC); qi = 0; }
+    a.src = queue[qi++];
+  };
+  const play = () => { if (!a.src) cue(); return a.play(); };
+  a.addEventListener("ended", () => { cue(); a.play().catch(() => {}); });   // rolling playlist, never stops on its own
   const sync = () => {
     const playing = !a.paused;
     btn.setAttribute("aria-pressed", String(playing));
@@ -2296,13 +2325,13 @@ function initMusic() {
   a.addEventListener("play", sync);
   a.addEventListener("pause", sync);
   btn.onclick = () => {
-    if (a.paused) { a.play().then(() => localStorage.setItem("wc26.music", "on")).catch(() => {}); }
+    if (a.paused) { play().then(() => localStorage.setItem("wc26.music", "on")).catch(() => {}); }
     else { a.pause(); localStorage.setItem("wc26.music", "off"); }
   };
   // resume a previously-on preference on the first interaction (autoplay is blocked on load) —
   // but ignore a tap on the toggle itself, so toggling can never fight the resume
   if (localStorage.getItem("wc26.music") === "on") {
-    const resume = e => { if (!e.target.closest("#musicToggle")) a.play().catch(() => {}); };
+    const resume = e => { if (!e.target.closest("#musicToggle")) play().catch(() => {}); };
     addEventListener("pointerdown", resume, { once: true });
   }
   sync();

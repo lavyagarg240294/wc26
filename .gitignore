@@ -1,6 +1,9 @@
 # OS cruft
 .DS_Store
 
+# source audio — the raw originals are re-encoded into assets/music/; don't commit the 45MB raw set
+music new/
+
 # Local Claude Code settings (machine-specific, not part of the site)
 .claude/settings.local.json
 
