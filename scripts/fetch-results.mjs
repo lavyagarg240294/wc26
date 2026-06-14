@@ -14,7 +14,7 @@
  * are 3-letter (MEX/RSA/QAT); we learn the 3-letter→our-code map by matching team NAMES against teams.json
  * (44/48 auto; 4 aliases), then pair each row to the fixture with that team pair (knockouts: by kickoff slot).
  */
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 
 const fixtures = JSON.parse(readFileSync("data/matches.json", "utf8")).matches;
 const teams = JSON.parse(readFileSync("data/teams.json", "utf8"));
@@ -44,6 +44,49 @@ function harvestPhotos(team, code) {
     const url = p.PlayerPicture?.PictureUrl, nm = loc(p.ShortName) || loc(p.PlayerName);
     if (url && nm) harvestedPhotos[nm + "|" + code] = url;
   }
+}
+
+// credited match reports (→ data/reports.json) + live commentary (→ data/commentary/<num>.json), both harvested
+// from ESPN's free summary feed (the same call we already make for stats). Keyed by our openfootball match number.
+const harvestedReports = {}, harvestedCommentary = {};
+const stripHtml = s => String(s || "")
+  .replace(/<photo[^>]*>[\s\S]*?<\/photo>/gi, "").replace(/<photo[^>]*\/?>/gi, "")
+  .replace(/<[^>]+>/g, "")
+  .replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&#39;|&rsquo;|&lsquo;/g, "'")
+  .replace(/&quot;|&ldquo;|&rdquo;/g, '"').replace(/&#?[a-z0-9]+;/gi, " ").replace(/\s+/g, " ").trim();
+// ESPN summary.article → {hl, rep:[paragraphs], by, src, url}. Articles publish a little after FT, so a finished
+// match is re-polled (within a 2-day window) until one lands; null until then.
+function parseArticle(sum) {
+  const a = sum.article;
+  if (!a || !a.story) return null;
+  const paras = String(a.story).split(/<\/p>/i).map(stripHtml).filter(p => p && p.length > 4).slice(0, 6);
+  if (!paras.length) return null;
+  return {
+    hl: stripHtml(a.headline) || undefined,
+    rep: paras,
+    by: (a.byline || a.source || "").trim() || undefined,
+    src: "ESPN",
+    url: a.links?.web?.href || a.links?.mobile?.href || undefined,
+  };
+}
+// ESPN summary.commentary[] (chronological) → latest-first [{t,x,k?}] with a light goal/card/sub tag
+function parseCommentary(sum) {
+  const c = sum.commentary;
+  if (!Array.isArray(c) || !c.length) return null;
+  const items = c.map(x => {
+    const txt = (x.text || "").trim();
+    if (!txt) return null;
+    const low = ((x.play?.type?.text || "") + " " + txt).toLowerCase();
+    let k;
+    if (/\bgoal\b/.test(low) && !/disallow|no goal|own goal chance|nearly|almost/.test(low)) k = "goal";
+    else if (/red card|sent off/.test(low)) k = "red";
+    else if (/yellow card|booked|caution/.test(low)) k = "yellow";
+    else if (/substitution|subbed/.test(low)) k = "sub";
+    return { t: x.time?.displayValue || "", x: txt, ...(k ? { k } : {}) };
+  }).filter(Boolean).reverse();
+  if (!items.length) return null;
+  const url = (sum.header?.links || []).find(l => (l.rel || []).includes("summary") || (l.rel || []).includes("desktop"))?.href;
+  return { src: "ESPN", url: url || undefined, items };
 }
 // Build the goals/cards/subs timeline (+ basic lineups) from a FIFA live-match object.
 function buildEvents(lv) {
@@ -323,10 +366,14 @@ function parseEspnStats(sum, f, entry) {
   }
   return Object.keys(stats).length ? stats : null;
 }
-async function enrichStats(matches, prev) {
+async function enrichStats(matches, prev, prevReports) {
+  const RECENT = 2 * 864e5;                                 // chase a finished match's (later-published) report for ~2 days
   const need = fixtures.filter(f => {
     const e = matches[f.id]; if (!e) return false;
-    return e.st === "LIVE" || e.st === "HT" || (e.st === "FT" && !prev[f.id]?.stats);
+    if (e.st === "LIVE" || e.st === "HT") return true;       // live → fresh stats + commentary every poll
+    if (e.st !== "FT") return false;
+    const recent = Date.now() - new Date(f.utc).getTime() < RECENT;
+    return !prev[f.id]?.stats || (recent && !prevReports[f.num]?.rep);  // need stats, or still waiting on the write-up
   });
   for (const f of fixtures) {                              // carry cached stats for finished matches we won't refetch
     const e = matches[f.id];
@@ -360,9 +407,13 @@ async function enrichStats(matches, prev) {
       const sum = await fetch(`${ESPN}/summary?event=${eid}`, { headers: { "User-Agent": UA } }).then(r => r.json());
       const st = parseEspnStats(sum, f, matches[f.id]);
       if (st) { matches[f.id].stats = st; ok++; }
+      const rep = parseArticle(sum); if (rep) harvestedReports[f.num] = rep;        // credited write-up
+      const com = parseCommentary(sum); if (com) harvestedCommentary[f.num] = com;   // live/full play-by-play
     } catch { /* skip */ }
   }
   if (ok) console.log(`ESPN stats: enriched ${ok} match(es)`);
+  const nr = Object.keys(harvestedReports).length, nc = Object.keys(harvestedCommentary).length;
+  if (nr || nc) console.log(`ESPN content: ${nr} report(s), ${nc} commentary feed(s)`);
 }
 
 /* ---------------- run ---------------- */
@@ -379,6 +430,10 @@ for (const id of new Set([...Object.keys(prevMatches), ...Object.keys(prevDetail
 let prevPhotos = {};
 try { if (existsSync("data/photos.json")) prevPhotos = JSON.parse(readFileSync("data/photos.json", "utf8")); } catch { /* ignore */ }
 const photoCodes = new Set(Object.keys(prevPhotos).map(k => k.split("|")[1]));
+// previously-captured reports (keyed by match number) — so we stop re-polling a finished match once its report lands
+let prevReports = { matches: {} };
+try { if (existsSync("data/reports.json")) prevReports = JSON.parse(readFileSync("data/reports.json", "utf8")); } catch { /* ignore */ }
+const prevReportMatches = prevReports.matches || {};
 
 const DRY = process.argv.includes("--dry-run");
 let matches;
@@ -394,7 +449,7 @@ try {
   }
 }
 
-try { await enrichStats(matches, prevMerged); } catch (e) { console.warn("ESPN stats enrichment failed:", e.message); }
+try { await enrichStats(matches, prevMerged, prevReportMatches); } catch (e) { console.warn("ESPN stats enrichment failed:", e.message); }
 
 // Split the payload: results.json keeps only the small scores/status fields (it's polled every ~60s by every
 // open page); the heavy per-match detail (timeline, lineups, team stats, fallback scorers) goes to details.json,
@@ -433,4 +488,26 @@ if (!DRY && Object.keys(harvestedPhotos).length) {
     writeFileSync(pPath, JSON.stringify(merged));
     console.log(`photos.json updated (${Object.keys(merged).length} players)`);
   }
+}
+
+// credited match reports: merge newly-harvested over the committed set (reports persist once captured).
+if (!DRY && Object.keys(harvestedReports).length) {
+  const merged = { ...prevReportMatches, ...harvestedReports };
+  if (JSON.stringify(prevReportMatches) !== JSON.stringify(merged)) {
+    writeFileSync("data/reports.json", JSON.stringify({ updated: now, matches: merged }));
+    console.log(`reports.json updated (${Object.keys(merged).length} reports)`);
+  }
+}
+// live commentary: one file per match so the client lazy-loads only what it opens; write a match's file only when it changed.
+if (!DRY && Object.keys(harvestedCommentary).length) {
+  mkdirSync("data/commentary", { recursive: true });
+  let wrote = 0;
+  for (const [num, com] of Object.entries(harvestedCommentary)) {
+    const cPath = `data/commentary/${num}.json`;
+    let prevCom = null;
+    try { if (existsSync(cPath)) prevCom = readFileSync(cPath, "utf8"); } catch { /* overwrite */ }
+    const next = JSON.stringify(com);
+    if (prevCom !== next) { writeFileSync(cPath, next); wrote++; }
+  }
+  if (wrote) console.log(`commentary updated (${wrote} match file(s))`);
 }

@@ -5,14 +5,18 @@
 /* ---------------- state ---------------- */
 const S = {
   matches: [], teams: {}, results: { matches: {} }, details: { matches: {} }, matchData: {},
+  reports: { matches: {} }, commentary: {},   // credited match reports (reports.json) + lazy per-match live commentary
   tz: localStorage.getItem("wc26.tz") || "auto",
   fav: localStorage.getItem("wc26.fav") || null,
   view: "matches",
   filters: { stage: "all", team: "", saved: false },
   saved: new Set(JSON.parse(localStorage.getItem("wc26.saved") || "[]")),
   sim: JSON.parse(localStorage.getItem("wc26.sim") || "null") || { order: {}, thirds: [], ko: {} },
+  dailyDay: null,   // selected day in the Daily tab (a dayKey); null → auto-pick today/latest
   _lastResults: null, lastChecked: null,
 };
+// a committed match report (reports.json), keyed by openfootball match number; null until the Action writes one
+const report = m => (S.reports.matches || {})[m.num] || null;
 const isSaved = id => S.saved.has(id);
 function toggleSave(id) {
   S.saved.has(id) ? S.saved.delete(id) : S.saved.add(id);
@@ -27,7 +31,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "130";  // shown in footer; bump with the ?v= asset version
+const BUILD = "131";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -789,6 +793,8 @@ function openMatch(id) {
     </div>` : ""}
     ${mdStats(r)}
     ${mdFlow(r, h, a)}
+    ${mdReport(m)}
+    ${mdCommentaryShell(m)}
     <div class="md-meta">
       <span>${fmt(m.utc, { weekday: "long", day: "numeric", month: "long" })}</span>
       <span>${timeStr(m.utc)}</span>
@@ -798,6 +804,15 @@ function openMatch(id) {
     ${liveNow ? "" : xiBlock}
     ${squadLinks ? `<div class="md-squads">${squadLinks}</div>` : ""}`;
   const md = $("#matchDialog"); md.dataset.openMid = id; showSheet(md);   // openMid (not data-mid) so the global match-open click handler never matches the dialog itself
+  // commentary is heavy + per-match, so only fetch it when the visitor expands the section
+  const comm = $("#mdComm", md);
+  if (comm) comm.addEventListener("toggle", async () => {
+    if (!comm.open || comm.dataset.loaded) return;
+    comm.dataset.loaded = "1";
+    const body = $("#mdCommBody", md);
+    body.innerHTML = `<div class="md-comm-spin">Loading commentary…</div>`;
+    body.innerHTML = renderCommentary(await loadCommentary(m.num));
+  });
 }
 
 /* ---------------- render: matches (today + full calendar) ---------------- */
@@ -2137,8 +2152,86 @@ function renderStats() {
   });
 }
 
+/* ---------------- render: Daily (a day-by-day rundown with credited match reports) ---------------- */
+const clip = (s, n) => s && s.length > n ? s.slice(0, n).replace(/\s+\S*$/, "") + "…" : (s || "");
+// a plain factual headline when no credited report has landed yet (e.g. before the source publishes one)
+function autoHeadline(h, a, r) {
+  if (!r || r.h == null) return "Result to be confirmed";
+  if (r.h === r.a) return r.h === 0 ? "Goalless draw" : `${h.name} and ${a.name} share the spoils`;
+  const w = r.h > r.a ? h : a, l = r.h > r.a ? a : h, ws = Math.max(r.h, r.a), ls = Math.min(r.h, r.a);
+  return `${w.name} beat ${l.name} ${ws}–${ls}`;
+}
+function renderDaily() {
+  const el = $("#view-daily");
+  const byKey = {};
+  S.matches.forEach(m => { const k = dayKey(m.utc); (byKey[k] ??= { key: k, rep: m.utc, ms: [] }); byKey[k].ms.push(m); if (m.utc < byKey[k].rep) byKey[k].rep = m.utc; });
+  const days = Object.values(byKey).sort((a, b) => a.rep.localeCompare(b.rep));
+  days.forEach(d => d.ms.sort((a, b) => a.utc.localeCompare(b.utc)));
+  if (!days.length) { el.innerHTML = `<div class="empty" style="margin:32px 16px">No fixtures.</div>`; return; }
+  const todayK = dayKey(new Date().toISOString());
+  let sel = days.find(d => d.key === S.dailyDay) || days.find(d => d.key === todayK);
+  if (!sel) { const now = new Date(); const past = days.filter(d => new Date(d.ms[d.ms.length - 1].utc) < now); sel = past.length ? past[past.length - 1] : days[0]; }
+  S.dailyDay = sel.key;
+  const i = days.indexOf(sel), prev = days[i - 1], next = days[i + 1];
+  const ms = sel.ms;
+  const live = ms.filter(m => [ST.LIVE, ST.HT].includes(status(m)));
+  const done = ms.filter(m => status(m) === ST.FT);
+  const upcoming = ms.filter(m => status(m) === ST.SCHED);
+  const goals = [...done, ...live].reduce((n, m) => { const r = res(m); return n + (r && r.h != null ? r.h + r.a : 0); }, 0);
+
+  const nav = `<div class="dl-nav">
+    <button class="dl-arrow" ${prev ? `data-dlday="${esc(prev.key)}"` : "disabled"} aria-label="Previous matchday">‹</button>
+    <div class="dl-day"><b>${esc(dayLabel(sel.rep))}</b><small>${ms.length} match${ms.length > 1 ? "es" : ""}${goals ? ` · ${goals} goal${goals !== 1 ? "s" : ""}` : ""}${live.length ? ` · <span class="dl-live">● ${live.length} live</span>` : ""}</small></div>
+    <button class="dl-arrow" ${next ? `data-dlday="${esc(next.key)}"` : "disabled"} aria-label="Next matchday">›</button>
+  </div>${sel.key !== todayK && days.some(d => d.key === todayK) ? `<button class="dl-today" data-dlday="${esc(todayK)}">Jump to today ›</button>` : ""}`;
+
+  const recapCard = m => {
+    const h = slotInfo(m, "home"), a = slotInfo(m, "away"), r = res(m), rp = report(m);
+    const sc = r && r.h != null ? `${r.h}–${r.a}` : "–";
+    const hl = rp?.hl || autoHeadline(h, a, r);
+    const snip = rp?.rep?.[0] ? clip(rp.rep[0], 165) : "";
+    const credit = rp?.src ? `<span class="dl-credit">${rp.by ? esc(rp.by) + " · " : ""}${esc(rp.src)}</span>` : "";
+    return `<button class="dl-recap" data-mid="${m.id}">
+      <div class="dl-recap-score"><span class="fl">${h.code ? flag(h.code) : "·"}</span><b>${sc}</b><span class="fl">${a.code ? flag(a.code) : "·"}</span></div>
+      <div class="dl-recap-tx"><span class="dl-teams">${esc(h.name)} <i>v</i> ${esc(a.name)}</span><span class="dl-hl">${esc(hl)}</span>${snip ? `<span class="dl-snip">${esc(snip)}</span>` : ""}${credit}</div>
+    </button>`;
+  };
+  const liveCard = m => {
+    const h = slotInfo(m, "home"), a = slotInfo(m, "away"), r = res(m);
+    return `<button class="dl-recap dl-livecard" data-mid="${m.id}">
+      <div class="dl-recap-score"><span class="fl">${h.code ? flag(h.code) : "·"}</span><b>${r?.h ?? 0}–${r?.a ?? 0}</b><span class="fl">${a.code ? flag(a.code) : "·"}</span></div>
+      <div class="dl-recap-tx"><span class="dl-teams">${esc(h.name)} <i>v</i> ${esc(a.name)}</span><span class="dl-hl dl-livehl"><span class="md-tag live">● ${clockStr(m, r)}</span> Live commentary ›</span></div>
+    </button>`;
+  };
+
+  el.innerHTML = nav
+    + (live.length ? `<div class="eyebrow">● Live now</div>${live.map(liveCard).join("")}` : "")
+    + (done.length ? `<div class="eyebrow">${live.length || upcoming.length ? "Results &amp; reports" : "Match reports"}</div>${done.map(recapCard).join("")}` : "")
+    + (upcoming.length ? `<div class="eyebrow">${done.length || live.length ? "Still to come" : "Fixtures"}</div>${upcoming.map(m => matchCard(m, 0)).join("")}` : "")
+    + `<p class="sim-ko-hint">Reports &amp; commentary are pulled from public feeds and credited on each match. Tap a result for the full write-up.</p>`;
+  $$("[data-dlday]", el).forEach(b => b.onclick = () => { S.dailyDay = b.dataset.dlday; renderDaily(); scrollTo({ top: 0, behavior: "instant" }); });
+}
+// match-popup blocks: the full credited report + a lazy-loaded commentary feed
+function mdReport(m) {
+  const rp = report(m); if (!rp || !(rp.rep?.length || rp.hl)) return "";
+  const paras = (rp.rep || []).map(p => `<p>${esc(p)}</p>`).join("");
+  const credit = (rp.src || rp.by) ? `<div class="md-credit">Report: ${rp.by ? esc(rp.by) + " · " : ""}${rp.url ? `<a href="${esc(rp.url)}" target="_blank" rel="noopener noreferrer">${esc(rp.src || "source")} ↗</a>` : esc(rp.src || "")}</div>` : "";
+  return `<div class="eyebrow">Match report</div><div class="md-report">${rp.hl ? `<h4>${esc(rp.hl)}</h4>` : ""}${paras}${credit}</div>`;
+}
+function mdCommentaryShell(m) {
+  if (![ST.LIVE, ST.HT, ST.FT].includes(status(m))) return "";
+  const ft = status(m) === ST.FT;
+  return `<details class="md-comm" id="mdComm"><summary><span>${ft ? "Full commentary" : "Live commentary"}</span><small class="md-comm-hint">tap to load</small></summary><div class="md-comm-body" id="mdCommBody"></div></details>`;
+}
+function renderCommentary(c) {
+  if (!c || !c.items?.length) return `<div class="empty">No commentary published for this match.</div>`;
+  const rows = c.items.map(it => `<div class="cm-row${it.k ? ` cm-${esc(it.k)}` : ""}">${it.t ? `<span class="cm-t">${esc(it.t)}</span>` : `<span class="cm-t cm-t-x"></span>`}<span class="cm-x">${esc(it.x || "")}</span></div>`).join("");
+  const credit = c.src ? `<div class="md-credit">Commentary: ${c.url ? `<a href="${esc(c.url)}" target="_blank" rel="noopener noreferrer">${esc(c.src)} ↗</a>` : esc(c.src)}</div>` : "";
+  return rows + credit;
+}
+
 /* ---------------- navigation ---------------- */
-const RENDER = { matches: renderMatches, teams: renderTeams, groups: renderGroups, stats: renderStats, sim: renderSim };
+const RENDER = { matches: renderMatches, daily: renderDaily, teams: renderTeams, groups: renderGroups, stats: renderStats, sim: renderSim };
 function nav(v) {
   S.view = v;
   $$(".view").forEach(el => el.hidden = el.id !== "view-" + v);
@@ -2283,6 +2376,18 @@ async function loadDetails() {
   try { const d = await (await fetch("data/details.json?t=" + Date.now(), { cache: "no-store" })).json(); S.details = d && d.matches ? d : { matches: {} }; }
   catch { S.details = { matches: {} }; }
 }
+// credited match reports (headline + prose) — small file, refreshed on score change like details.json. Tolerates absence.
+async function loadReports() {
+  try { const d = await (await fetch("data/reports.json?t=" + Date.now(), { cache: "no-store" })).json(); S.reports = d && d.matches ? d : { matches: {} }; }
+  catch { /* keep whatever we have — reports are optional */ }
+}
+// heavy live commentary lives in one file per match so we only download it when a popup actually wants it
+async function loadCommentary(num) {
+  if (S.commentary[num] !== undefined) return S.commentary[num];   // cached (incl. null for "none")
+  try { S.commentary[num] = await (await fetch(`data/commentary/${num}.json?t=` + Date.now(), { cache: "no-store" })).json(); }
+  catch { S.commentary[num] = null; }
+  return S.commentary[num];
+}
 // footer line: separate "when we last checked" (every poll) from "when the scores last changed"
 // (results.json's `updated`), so a quiet hour never reads as a stale/broken site.
 function setFreshness() {
@@ -2303,7 +2408,8 @@ async function refreshResults() {
     const prev = S.results.matches || {};
     S._lastResults = txt;
     S.results = JSON.parse(txt);
-    await loadDetails();          // scores changed → pull the matching detail, then merge for the renderers
+    await Promise.all([loadDetails(), loadReports()]);   // scores changed → pull detail + reports, then merge for the renderers
+    S.commentary = {};            // live commentary may have advanced — drop the per-match cache so popups re-fetch
     rebuildMatchData();
     setFreshness();
     renderTicker();
