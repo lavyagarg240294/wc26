@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "146";  // shown in footer; bump with the ?v= asset version
+const BUILD = "147";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -782,8 +782,16 @@ function matchStakes(m) {
   };
   const lines = [say(H), say(A)].filter(Boolean);
   if (lines.length) return { lines, definitive: true };          // crisp qualification call
-  const p = _provPos(g);
-  return { lines: [`As it stands, ${nm(H)} are ${ordinal(p[H])} and ${nm(A)} are ${ordinal(p[A])} in Group ${g}.`], definitive: false };
+  // "As it stands" positions are only meaningful for teams that have actually played — a team on 0
+  // games is "Nth" purely by tiebreak among everyone tied on 0 points, which misreads as a real standing.
+  const counted = x => { const r = res(x); return r && r.h != null && [ST.FT, ST.LIVE, ST.HT].includes(r.st); };
+  const playedIn = code => S.matches.some(x => x.group === g && (x.home.team === code || x.away.team === code) && counted(x));
+  const pH = playedIn(H), pA = playedIn(A);
+  if (!pH && !pA) return { lines: [`Both sides open their Group ${g} campaign.`], definitive: false };
+  const p = _provPos(g), parts = [];
+  if (pH) parts.push(`${nm(H)} are ${ordinal(p[H])}`);
+  if (pA) parts.push(`${nm(A)} are ${ordinal(p[A])}`);
+  return { lines: [`As it stands, ${parts.join(" and ")} in Group ${g}.`], definitive: false };
 }
 function stakesBlock(m) {
   const s = matchStakes(m); if (!s) return "";
