@@ -45,6 +45,29 @@ function harvestPhotos(team, code) {
     if (url && nm) harvestedPhotos[nm + "|" + code] = url;
   }
 }
+// FIFA's per-team squad endpoint carries official headshots for EVERY player pre-tournament (no key, no waiting
+// for a team to play). Backfill a few teams per run — keyed by BOTH full and short name so roster taps (squad
+// names) and timeline taps (feed names) both resolve. `teamIdByCode` is learned in fromFifa from the calendar.
+const teamIdByCode = {};
+const SQUAD_PHOTO_CAP = 6;
+async function harvestSquadPhotos(photoCodes) {
+  const todo = Object.keys(teamIdByCode).filter(c => !photoCodes.has(c));
+  let teams = 0;
+  for (const code of todo) {
+    if (teams >= SQUAD_PHOTO_CAP) break;
+    try {
+      const sq = await fifaGet(`${FIFA}/teams/${teamIdByCode[code]}/squad?idCompetition=${COMP}&idSeason=${SEASON}&language=en`);
+      let added = 0;
+      for (const p of (sq.Players || [])) {
+        const url = p.PlayerPicture?.PictureUrl; if (!url) continue;
+        for (const nm of [loc(p.PlayerName), loc(p.ShortName)]) if (nm) harvestedPhotos[nm + "|" + code] = url;
+        added++;
+      }
+      if (added) teams++;
+    } catch { /* skip this team this run */ }
+  }
+  if (teams) console.log(`FIFA squad photos: backfilled ${teams} team(s)`);
+}
 
 // credited match reports (→ data/reports.json) + live commentary (→ data/commentary/<num>.json), both harvested
 // from ESPN's free summary feed (the same call we already make for stats). Keyed by our openfootball match number.
@@ -157,6 +180,8 @@ async function fromFifa(prev, photoCodes) {
   const fifaForFixture = {};
   for (const x of rows) {
     const hc = toOur[x.Home?.IdCountry], ac = toOur[x.Away?.IdCountry];
+    if (hc && x.Home?.IdTeam) teamIdByCode[hc] = x.Home.IdTeam;          // learn code→FIFA team id for the squad-photo backfill
+    if (ac && x.Away?.IdTeam) teamIdByCode[ac] = x.Away.IdTeam;
     let f = (hc && ac) ? byPair[pairKey(hc, ac)] : null;                 // group + resolved knockouts: by team pair
     // Knockout placeholders can't pair-match. FIFA's MatchNumber is unreliable for GROUP matches (it orders them
     // by group/matchday, not chronologically), but for KNOCKOUTS it's canonical and verified aligned (73→73…104→104),
@@ -456,6 +481,7 @@ try {
 }
 
 try { await enrichStats(matches, prevMerged, prevReportMatches); } catch (e) { console.warn("ESPN stats enrichment failed:", e.message); }
+try { await harvestSquadPhotos(photoCodes); } catch (e) { console.warn("squad photo backfill failed:", e.message); }   // no-op if FIFA primary didn't run
 
 // DATA-LOSS GUARD: a fallback feed (worldcup26.ir / football-data) only returns the fixtures it knows about, and
 // the writer below overwrites results.json/details.json wholesale. So overlay this run's matches onto the previous
