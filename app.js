@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "124";  // shown in footer; bump with the ?v= asset version
+const BUILD = "125";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -774,6 +774,7 @@ function openMatch(id) {
   $("#matchBody").innerHTML = `
     <div class="md-tagrow">${statusTag}
       <div class="md-actions">
+        <button class="md-cal" data-cal="${id}" aria-label="Add to calendar" title="Add this match to your calendar">${CAL_SVG}</button>
         <button class="md-save ${sv ? "is-on" : ""}" data-save="${id}" aria-pressed="${sv}" aria-label="${sv ? "Remove from saved" : "Save match"}" title="${sv ? "Saved" : "Save match"}">${sv ? "★" : "☆"}</button>
       </div>
     </div>
@@ -2391,6 +2392,8 @@ async function boot() {
     }
     const ic = e.target.closest("[data-ics]");
     if (ic) { e.stopPropagation(); const c = ic.dataset.ics; downloadICS(S.matches.filter(m => matchHasTeam(m, c)).sort((a, b) => a.utc.localeCompare(b.utc)), `${S.teams[c].name} · World Cup 2026`); return; }
+    const cal = e.target.closest("[data-cal]");   // add a single match to the calendar (.ics download)
+    if (cal) { e.stopPropagation(); const m = S.matches.find(x => x.id === cal.dataset.cal); if (m) { const h = slotInfo(m, "home"), a = slotInfo(m, "away"); downloadICS([m], `${h.code ? h.name : slotText(m, "home", h)} v ${a.code ? a.name : slotText(m, "away", a)}`); } return; }
     const sq = e.target.closest("[data-squad]");
     if (sq && sq.dataset.squad) { openTeam(sq.dataset.squad); return; }
     const ab = e.target.closest("[data-about]");   // "how the format works" → tournament info sheet
