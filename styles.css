@@ -618,6 +618,19 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .about-list li::before{content:"";position:absolute;left:3px;top:14px;width:6px;height:6px;border-radius:50%;background:var(--acc1)}
 .about-list b{color:var(--ink);font-weight:700}
 .about-disclaimer{font-size:11.5px;line-height:1.5;color:var(--ink-soft);opacity:.85;margin:14px 0 6px;padding-top:12px;border-top:1px solid var(--line)}
+/* first-launch welcome / onboarding */
+.welcome-sheet::backdrop{background:color-mix(in srgb,var(--ink) 40%,transparent);backdrop-filter:blur(3px)}
+.welcome{text-align:center;padding:8px 4px 4px}
+.welcome-mark{display:block;margin:0 auto 13px;border-radius:13px;box-shadow:var(--shadow)}
+.welcome h3{font-family:var(--disp);font-weight:800;font-stretch:108%;font-size:22px;letter-spacing:-.015em;margin:0 0 6px;line-height:1.1}
+.welcome-lead{font-size:14px;color:var(--ink-soft);line-height:1.5;margin:0 auto 18px;max-width:36ch}
+.welcome-pts{display:flex;flex-direction:column;gap:9px;text-align:left;margin:0 0 18px}
+.wp{background:color-mix(in srgb,var(--ink) 3%,var(--card));border:1px solid var(--line);border-radius:14px;padding:11px 14px}
+.wp>b{display:block;font-size:14px;font-weight:700;margin-bottom:2px}
+.wp small{font-size:12.5px;color:var(--ink-soft);line-height:1.45}
+.wp small b{color:var(--ink);font-weight:700}
+.welcome-actions{display:flex;flex-direction:column;gap:9px}
+.welcome-actions .btn{width:100%;justify-content:center}
 .foot-about{font:inherit;color:var(--ink-soft);text-decoration:underline;text-decoration-color:color-mix(in srgb,var(--acc1) 45%,transparent);text-underline-offset:2px;cursor:pointer}
 .foot-about:hover{color:var(--acc-text)}
 .legend-about{font:inherit;font-size:12px;color:var(--acc-text);font-weight:600;cursor:pointer;margin-left:auto;white-space:nowrap}

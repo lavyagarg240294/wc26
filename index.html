@@ -33,7 +33,7 @@
 <meta name="apple-mobile-web-app-title" content="World Cup 26">
 <meta name="application-name" content="World Cup 26">
 <link rel="stylesheet" href="assets/fonts.css?v=112">
-<link rel="stylesheet" href="styles.css?v=137">
+<link rel="stylesheet" href="styles.css?v=138">
 <link rel="icon" href="assets/mark.svg">
 <link rel="icon" type="image/png" href="assets/icon-32.png" sizes="32x32">
 </head>
@@ -251,9 +251,28 @@
   </div>
 </dialog>
 
+<!-- First-launch welcome / onboarding -->
+<dialog id="welcomeDialog" class="sheet welcome-sheet" aria-labelledby="welcomeTitle">
+  <div class="sheet-body welcome">
+    <img class="welcome-mark" src="assets/mark.svg" width="48" height="48" alt="" decoding="async">
+    <h3 id="welcomeTitle">Your World Cup, in one page</h3>
+    <p class="welcome-lead">All 104 matches of the 2026 World Cup — live, free, no sign-up.</p>
+    <div class="welcome-pts">
+      <div class="wp"><b>🕑 Every kickoff in your timezone</b><small>Auto-detected — <b id="welcomeTz">your local time</b>. Change it in Settings.</small></div>
+      <div class="wp"><b>★ Pick your team</b><small>The whole app dresses in their colours and pulls up their fixtures.</small></div>
+      <div class="wp"><b>🔮 Call the bracket</b><small>In <b>Predict</b>, tap winners from the groups all the way to the champion.</small></div>
+      <div class="wp"><b>⚽ Live as it happens</b><small>Scores, line-ups, stats, match reports &amp; commentary. Tap anything to dive in.</small></div>
+    </div>
+    <div class="welcome-actions">
+      <button class="btn" id="welcomePick">★ Pick my team</button>
+      <button class="btn ghost" id="welcomeGo">Explore the site</button>
+    </div>
+  </div>
+</dialog>
+
 <canvas id="confetti" aria-hidden="true"></canvas>
 <audio id="bgm" preload="none"></audio>
 
-<script src="app.js?v=137"></script>
+<script src="app.js?v=138"></script>
 </body>
 </html>

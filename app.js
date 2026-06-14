@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "137";  // shown in footer; bump with the ?v= asset version
+const BUILD = "138";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -116,9 +116,11 @@ function applyKickoffs() {
     // stale would still show the wrong slot. Its real kickoff is ~now minus the minute the feed reports — so
     // derive it, keeping the live hero/day-grouping honest until the authoritative `ko` lands next poll.
     if (!ko && (md?.st === ST.LIVE || md?.st === ST.HT)) {
-      const min = md.st === ST.HT ? 45 : (Number.isFinite(md.min) ? md.min : null);
-      if (min != null) ko = new Date(now - min * 60000).toISOString();
-    }
+      // derive ONCE and cache — re-deriving every poll drifts the synthesized kickoff (now advances but a stale
+      // `min` doesn't), wobbling day-grouping for that match until the authoritative `ko` lands.
+      if (m._koDerived) ko = m._koDerived;
+      else { const min = md.st === ST.HT ? 45 : (Number.isFinite(md.min) ? md.min : null); if (min != null) ko = m._koDerived = new Date(now - min * 60000).toISOString(); }
+    } else if (ko) m._koDerived = undefined;   // authoritative ko arrived → drop the estimate
     m.utc = ko || m._utc0;
   }
 }
@@ -377,17 +379,19 @@ function goalCelebration(code) {
 }
 // compare previous vs new results; fire a celebration when a LIVE score ticks up
 function celebrateGoals(prev, now) {
+  let celebrated = false;   // one visual horn/confetti per refresh, but announce every goal + status change for screen readers
   for (const id in now) {
-    const a = prev[id], b = now[id];
-    if (!a || !b || ![ST.LIVE, ST.HT].includes(b.st)) continue;
-    if (((b.h || 0) + (b.a || 0)) <= ((a.h || 0) + (a.a || 0))) continue;
+    const a = prev[id], b = now[id]; if (!a || !b) continue;
     const m = S.matches.find(x => x.id === id); if (!m) continue;
-    const scorer = slotInfo(m, (b.h || 0) > (a.h || 0) ? "home" : "away").code;
-    goalCelebration(scorer);
-    maybeNotifyGoal(m, b, scorer);   // opt-in OS alert (only when the tab's backgrounded)
-    const hs = slotInfo(m, "home"), as = slotInfo(m, "away");   // screen-reader announcement
-    announce(`Goal! ${S.teams[scorer]?.name || ""}. ${hs.name} ${b.h}, ${as.name} ${b.a}.`);   // raw text — announce() sets textContent, so esc() would speak "&#039;"
-    break; // one celebration per refresh is plenty
+    const hs = slotInfo(m, "home"), as = slotInfo(m, "away");
+    const score = `${hs.name} ${b.h ?? 0}, ${as.name} ${b.a ?? 0}`;
+    // a new goal — counts even when this poll also flipped the match to FT (the late winner), which the old guard missed
+    if (((b.h || 0) + (b.a || 0)) > ((a.h || 0) + (a.a || 0)) && [ST.LIVE, ST.HT, ST.FT].includes(b.st)) {
+      const scorer = slotInfo(m, (b.h || 0) > (a.h || 0) ? "home" : "away").code;
+      if (!celebrated) { goalCelebration(scorer); maybeNotifyGoal(m, b, scorer); celebrated = true; }
+      announce(`Goal! ${S.teams[scorer]?.name || ""}. ${score}.`);   // raw text — announce() sets textContent
+    } else if (a.st !== b.st && b.st === ST.HT) announce(`Half-time. ${score}.`);
+    else if (a.st !== b.st && b.st === ST.FT) announce(`Full time. ${score}.`);
   }
 }
 // polite screen-reader live region; clear-then-set so an identical message re-announces
@@ -876,12 +880,17 @@ function heroBlock(heroM, isLive) {
 // fixtures (not a local-day boundary) so a late-night kickoff isn't shoved into "tomorrow" by the tz.
 const MOTD_STAGE = { group: 0, r32: 3, r16: 4, qf: 6, sf: 8, third: 5, final: 12 };
 const HOSTS = ["CA", "MX", "US"];
-// how marquee a fixture is: stage weight + the two teams' World Cup pedigree + a host bonus
+// how marquee a fixture is: stage weight + the two teams' current strength (Elo) + historic pedigree (titles) +
+// a host bonus. Elo is the main team-quality signal — titles alone can't rank a Netherlands–Croatia tie (both
+// 0 titles) above a minnows game; the closeness of the two sides also nudges a balanced heavyweight clash up.
 function prestige(m) {
   const h = slotInfo(m, "home"), a = slotInfo(m, "away");
+  const eh = S.teams[h.code]?.elo || 1500, ea = S.teams[a.code]?.elo || 1500;
+  const strength = (eh + ea - 3000) / 80;          // combined quality, ~0 (minnows) … ~14 (two giants)
+  const even = h.code && a.code ? Math.max(0, 3 - Math.abs(eh - ea) / 120) : 0;   // closely-matched = more marquee
   const titles = (S.teams[h.code]?.titles || 0) + (S.teams[a.code]?.titles || 0);
   const host = HOSTS.includes(h.code) || HOSTS.includes(a.code) ? 1 : 0;
-  return (MOTD_STAGE[m.stage] || 0) + titles * 2 + host + (!!h.code + !!a.code);   // prefer known fixtures
+  return (MOTD_STAGE[m.stage] || 0) + strength + even + titles + host + (!!h.code + !!a.code);   // prefer known fixtures
 }
 const marqueeOf = list => list.length ? list.slice().sort((a, b) => prestige(b) - prestige(a) || a.utc.localeCompare(b.utc))[0] : null;
 function matchOfDay() {
@@ -907,7 +916,9 @@ function renderMatches() {
   const liveMatches = S.matches.filter(m => [ST.LIVE, ST.HT].includes(status(m)))
     .sort((a, b) => a.utc.localeCompare(b.utc));
   const nextM = liveMatches.length ? null
-    : S.matches.filter(m => new Date(m.utc) > now && status(m) === ST.SCHED).sort((a, b) => a.utc.localeCompare(b.utc))[0];
+    // include a SCHED match whose kickoff just passed (feed not yet flipped to LIVE) so the hero never goes blank
+    // in that gap; the countdown clamps to 0 and re-polls. Bounded to ~2.5h overdue so a stuck fixture isn't pinned.
+    : S.matches.filter(m => status(m) === ST.SCHED && new Date(m.utc).getTime() > now.getTime() - 9e6).sort((a, b) => a.utc.localeCompare(b.utc))[0];
   const heroIds = new Set([...liveMatches.map(m => m.id), ...(nextM ? [nextM.id] : [])]);
   const f = S.filters;
   let list = S.matches.slice().sort((a, b) => a.utc.localeCompare(b.utc));
@@ -951,6 +962,17 @@ function renderMatches() {
   if (tb) {
     tb.onclick = () => { $("#teamSelPop").hidden ? openTeamSel() : closeTeamSel(); };
     $("#teamSelSearch", el).oninput = e => renderTeamSelList(e.target.value);
+    // keyboard: the role="listbox" implies arrow-key traversal — wire it (↓/↑ move, Enter selects, ↑ off the top returns to search)
+    $("#teamSelPop", el).onkeydown = e => {
+      if (!["ArrowDown", "ArrowUp", "Enter"].includes(e.key)) return;
+      const opts = $$("#teamSelList .tsel-opt", el), cur = opts.indexOf(document.activeElement);
+      if (!opts.length) return;
+      if (e.key === "Enter") { if (cur >= 0) { e.preventDefault(); opts[cur].click(); } return; }
+      e.preventDefault();
+      if (cur === 0 && e.key === "ArrowUp") return $("#teamSelSearch", el).focus();
+      const next = cur < 0 ? (e.key === "ArrowDown" ? 0 : opts.length - 1) : Math.max(0, Math.min(opts.length - 1, cur + (e.key === "ArrowDown" ? 1 : -1)));
+      opts[next].focus();
+    };
   }
   const sb = $("[data-saved]", el); if (sb) sb.onclick = () => { f.saved = !f.saved; renderMatches(); };
   const scb = $("[data-cal-saved]", el); if (scb) scb.onclick = () => downloadICS(S.matches.filter(m => isSaved(m.id)).sort((a, b) => a.utc.localeCompare(b.utc)), "My World Cup 2026 matches");
@@ -2502,6 +2524,18 @@ async function boot() {
   $("#aboutBtn").onclick = () => showSheet($("#aboutDialog"));
   $("#aboutSiteBtn").onclick = () => showSheet($("#aboutSiteDialog"));
   $("#teamChip").onclick = () => $("#teamDialog").showModal();
+  // first-launch onboarding — a short, skippable welcome shown once (any dismissal marks it seen)
+  if (!localStorage.getItem("wc26.seen")) {
+    const w = $("#welcomeDialog");
+    if (w) {
+      const tzl = $("#welcomeTz"); if (tzl) tzl.textContent = `${tz().split("/").pop().replace(/_/g, " ")} · ${tzShort()}`;
+      const seen = () => localStorage.setItem("wc26.seen", "1");
+      w.addEventListener("close", seen);   // also covers Escape / backdrop dismissal
+      $("#welcomePick").onclick = () => { seen(); w.close(); $("#teamDialog").showModal(); };
+      $("#welcomeGo").onclick = () => { seen(); w.close(); };
+      setTimeout(() => { if (w.isConnected && !w.open) w.showModal(); }, 700);
+    }
+  }
   $("#searchChip").onclick = openSearch;
   $("#searchInput").oninput = e => renderSearch(e.target.value);
   addEventListener("keydown", e => {   // ⌘K / Ctrl-K anywhere, or "/" when not already typing
