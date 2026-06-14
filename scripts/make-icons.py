@@ -35,7 +35,7 @@ def make(size, favicon=False):
     if favicon:
         pitch_mark(d, S, S * 0.50, r=S * 0.27, lw=round(S * 0.052), line_half=S * 0.40)
     else:
-        pitch_mark(d, S, S * 0.50, r=S * 0.215, lw=round(S * 0.028), line_half=S * 0.335)   # mark only, centred
+        pitch_mark(d, S, S * 0.50, r=S * 0.215, lw=round(S * 0.028), line_half=S * 0.42)   # edge-to-edge halfway line
     return img.resize((size, size), Image.LANCZOS)
 
 for s in (512, 192, 180):
