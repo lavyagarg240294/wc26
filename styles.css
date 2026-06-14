@@ -1114,9 +1114,13 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
   .mcard-team{font-size:13.5px}
   .hero-meta{font-size:12px;gap:4px 12px}
   .gwrap{grid-template-columns:1fr}
-  col.c-n{width:27px}        /* trim stat columns so long names (Bosnia & Herzegovina) fit */
-  col.c-gd{width:36px}
-  col.c-pts{width:34px}
+  col.c-n{width:26px}        /* trim stat columns so long names get more room */
+  col.c-gd{width:34px}
+  col.c-pts{width:33px}
+  /* the longest country names can't fit one line on a narrow phone — wrap to two instead of clipping them */
+  td.tname{white-space:normal;line-height:1.16;padding-left:11px;hyphens:none}
+  .mcard-team{white-space:normal}
+  .mcard-team>span:last-child{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.2}
   .teamsgrid{grid-template-columns:1fr 1fr;gap:8px}
   .teamcard{padding:10px 11px;gap:8px}
   .teamcard .fl{font-size:21px}
