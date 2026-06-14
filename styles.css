@@ -827,6 +827,21 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .lead-name small{font-weight:500;font-size:10.5px;color:var(--ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lead-v{font-family:var(--mono);font-weight:700;font-size:15px;font-variant-numeric:tabular-nums;text-align:right;display:flex;flex-direction:column;align-items:flex-end;line-height:1.15}
 .lead-v small{font-weight:500;font-size:9px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.03em}
+/* FIFA ranking panel */
+.rk-pre{font-size:12.5px;color:var(--ink-soft);line-height:1.5;margin:0 2px 16px}
+.rk-note{font-size:12.5px;color:var(--ink-soft);line-height:1.55;margin:0 2px 12px}
+.rk-note b{color:var(--ink);font-weight:700}
+.rk-list .rk-row{display:flex;align-items:center;gap:11px;padding:8px 14px;font-size:13px;border-top:1px solid color-mix(in srgb,var(--line) 55%,transparent);transition:background .15s}
+.rk-list .rk-row:first-child{border-top:none}
+.rk-row[data-squad]{cursor:pointer}
+.rk-row[data-squad]:hover{background:color-mix(in srgb,var(--acc1) 7%,transparent)}
+.rk-row .fl{font-size:18px;line-height:1;flex:0 0 auto}
+.rk-num{font-family:var(--mono);font-size:12px;font-weight:700;color:var(--ink-soft);width:22px;text-align:right;flex:0 0 22px;font-variant-numeric:tabular-nums}
+.rk-name{flex:1;font-weight:600;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rk-q{flex:0 0 auto;color:var(--acc1);font-weight:800;font-size:13px}
+.rk-no{flex:0 0 auto;font-size:10px;font-weight:600;letter-spacing:.02em;color:var(--ink-soft);text-transform:uppercase;opacity:.75}
+.rk-out{opacity:.5}
+.rk-out .rk-name{font-weight:500}
 /* cards leaderboard: yellow + red side by side, each a little card chip + count */
 .lead-v.card-tally{flex-direction:row;align-items:center;gap:11px}
 .ct{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-weight:700;font-size:14px}
@@ -886,11 +901,12 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 /* match-events timeline (home left / away right of a centre line) */
 .md-tl{position:relative;display:flex;flex-direction:column;gap:9px;margin:4px 0 14px;padding:6px 0}
 .md-tl::before{content:"";position:absolute;left:50%;top:0;bottom:0;width:2px;background:var(--line);transform:translateX(-50%)}
-.tl{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;column-gap:12px}
-.tl-min{grid-column:2;font-family:var(--mono);font-size:10.5px;font-weight:700;color:var(--ink-soft);background:var(--paper);border:1px solid var(--line);padding:2px 6px;border-radius:20px;min-width:38px;text-align:center;z-index:1;font-variant-numeric:tabular-nums}
-.tl-ev{display:inline-flex;align-items:flex-start;gap:7px;font-size:12.5px;color:var(--ink)}
-.tl.is-h .tl-ev{grid-column:1;justify-content:flex-end;text-align:right}
-.tl.is-a .tl-ev{grid-column:3;justify-content:flex-start;text-align:left;flex-direction:row-reverse}
+.tl{display:grid;grid-template-columns:1fr auto 1fr;align-items:start;column-gap:12px}
+.tl-min{grid-column:2;grid-row:1;font-family:var(--mono);font-size:10.5px;font-weight:700;color:var(--ink-soft);background:var(--paper);border:1px solid var(--line);padding:2px 6px;border-radius:20px;min-width:38px;text-align:center;z-index:1;font-variant-numeric:tabular-nums}
+.tl-ev{display:inline-flex;align-items:flex-start;gap:7px;font-size:12.5px;line-height:1.35;color:var(--ink)}
+.tl-ic{flex:0 0 auto;align-self:flex-start;display:inline-flex;align-items:center;justify-content:center;width:1.2em;height:1.35em;line-height:1;font-size:1em}
+.tl.is-h .tl-ev{grid-column:1;grid-row:1;justify-content:flex-end;text-align:right;flex-direction:row-reverse}
+.tl.is-a .tl-ev{grid-column:3;grid-row:1;justify-content:flex-start;text-align:left}
 .tl-tx{display:flex;flex-direction:column;gap:1px;min-width:0}
 .tl.is-h .tl-tx{align-items:flex-start}
 .tl.is-a .tl-tx{align-items:flex-end}

@@ -27,7 +27,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "127";  // shown in footer; bump with the ?v= asset version
+const BUILD = "129";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -562,7 +562,7 @@ function mdTimeline(r, hc, ac) {
     const scorerCode = e.k === "OG" ? (e.tm === "h" ? ac : hc) : (e.tm === "h" ? hc : ac);
     return `<div class="tl ${e.tm === "h" ? "is-h" : "is-a"}${["G", "P", "OG"].includes(e.k) ? " is-goal" : ""}">
     <div class="tl-min">${esc(e.t || "")}</div>
-    <span class="tl-ev">${EV_ICON[e.k] || ""}<span class="tl-tx">${evText(e, scorerCode)}</span></span>
+    <span class="tl-ev"><span class="tl-tx">${evText(e, scorerCode)}</span>${EV_ICON[e.k] ? `<span class="tl-ic">${EV_ICON[e.k]}</span>` : ""}</span>
   </div>`;
   }).join("");
   return `<div class="eyebrow">Match events</div><div class="md-tl">${rows}</div>`;
@@ -2013,9 +2013,41 @@ function tournamentStats() {
   };
 }
 let statsTab = "players";   // active Stats sub-section (persists across re-renders)
+// FIFA World Ranking — June-2026 snapshot (top 50). A bare string = a qualified WC26 team (name/flag from
+// teams.json); a [code,name] pair = a top-50 nation that did NOT make the field (its flag is self-hosted too).
+// Rank is the array index + 1. The 11 finalists ranked outside the top 50 are derived (teams.json minus this list).
+const FIFA_RANK = [
+  "AR", "ES", "FR", "GB-ENG", "PT", "BR", "MA", "NL", "BE", "DE", "HR", ["IT", "Italy"],
+  "CO", "MX", "SN", "UY", "US", "JP", "CH", "IR", ["DK", "Denmark"], "TR", "EC", "AT", "KR",
+  ["NG", "Nigeria"], "AU", "DZ", "EG", "CA", "NO", ["UA", "Ukraine"], "CI", "PA",
+  ["RU", "Russia"], ["PL", "Poland"], ["GB-WLS", "Wales"], "SE", ["HU", "Hungary"], "CZ", "PY", "GB-SCT",
+  ["RS", "Serbia"], ["CM", "Cameroon"], "TN", "CD", ["SK", "Slovakia"], ["GR", "Greece"], ["VE", "Venezuela"], "UZ",
+];
+function fifaRankingPanel() {
+  const ranked = new Set(FIFA_RANK.map(e => typeof e === "string" ? e : e[0]));
+  const topRows = FIFA_RANK.map((e, i) => {
+    const q = typeof e === "string", code = q ? e : e[0], name = q ? (S.teams[code]?.name || code) : e[1];
+    return `<div class="rk-row${q ? "" : " rk-out"}"${q ? ` data-squad="${code}" role="button" tabindex="0"` : ""}>
+      <span class="rk-num">${i + 1}</span><span class="fl">${flag(code)}</span>
+      <span class="rk-name">${esc(name)}</span>
+      ${q ? `<span class="rk-q" title="In the World Cup">✓</span>` : `<span class="rk-no">Did not qualify</span>`}</div>`;
+  }).join("");
+  // the finalists FIFA ranks below 50 — shown without a fabricated exact position (ordered by Elo strength)
+  const out = Object.keys(S.teams).filter(c => !ranked.has(c)).sort((a, b) => (S.teams[b].elo || 0) - (S.teams[a].elo || 0));
+  const outRows = out.map(code => `<div class="rk-row" data-squad="${code}" role="button" tabindex="0">
+    <span class="rk-num">·</span><span class="fl">${flag(code)}</span>
+    <span class="rk-name">${esc(S.teams[code].name)}</span><span class="rk-q" title="In the World Cup">✓</span></div>`).join("");
+  return `<div class="rk-note">All 48 finalists are marked <b>✓</b>. The biggest names watching from home: <b>Italy</b> (12th), <b>Denmark</b> (21st), <b>Nigeria</b> (26th).</div>
+    <div class="eyebrow">FIFA World Ranking · top 50 · June 2026</div>
+    <div class="lead-card rk-list">${topRows}</div>
+    <div class="eyebrow">Also in the World Cup · ranked outside the top 50</div>
+    <div class="lead-card rk-list">${outRows}</div>
+    <p class="sim-ko-hint">Source: FIFA World Ranking, June 2026. Tap any finalist to open its team page.</p>`;
+}
+
 function renderStats() {
   const el = $("#view-stats"), s = tournamentStats();
-  if (!s.pulse.matches) { el.innerHTML = `<div class="empty" style="margin:32px 16px">No matches played yet — tournament stats fill in as games kick off.</div>`; return; }
+  if (!s.pulse.matches) { el.innerHTML = `<div class="rk-pre">Tournament stats — scorers, records, team form — fill in as matches kick off. Until then, here's the field by world ranking.</div>${fifaRankingPanel()}`; return; }
   const tile = (label, val) => `<div class="stat-tile"><span class="stat-val">${val}</span><span class="stat-lbl">${label}</span></div>`;
   const tname = c => esc(S.teams[c]?.name || c);
   // a player leaderboard row (photo + name + value), taps through to the player profile
@@ -2095,6 +2127,7 @@ function renderStats() {
       ${tile("Goals", s.pulse.goals)}${tile("Matches", s.pulse.matches)}
       ${tile("Goals / match", s.pulse.perMatch.toFixed(2))}${tile("Cards", s.pulse.cards)}
     </div>${confHtml}`],
+    ["rankings", "Rankings", fifaRankingPanel()],
   ];
   if (!sections.some(([k]) => k === statsTab)) statsTab = "players";
   el.innerHTML = `<div class="substat-nav">${sections.map(([k, label]) => `<button class="substat ${k === statsTab ? "is-on" : ""}" data-stat="${k}">${label}</button>`).join("")}</div>`
