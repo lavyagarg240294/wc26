@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "170";  // shown in footer; bump with the ?v= asset version
+const BUILD = "171";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1447,7 +1447,7 @@ function openPlayer(name, code) {
       ${bio.goals ? `<span><i>Career goals</i>${bio.goals}</span>` : ""}
     </div>` : ""}
     ${wc.apps ? `<div class="eyebrow">This World Cup</div><div class="pl-wc">
-      <div class="pw"><b>${wc.apps}</b><span>App${wc.apps !== 1 ? "s" : ""}</span></div>
+      <div class="pw"><b>${wc.apps}</b><span>Played</span></div>
       ${isGK
         ? `<div class="pw"><b>${wc.cs}</b><span>Clean sheet${wc.cs !== 1 ? "s" : ""}</span></div>
       <div class="pw"><b>${wc.ga}</b><span>Conceded</span></div>`
@@ -1456,7 +1456,7 @@ function openPlayer(name, code) {
       <div class="pw"><b>${wc.g}</b><span>Goal${wc.g !== 1 ? "s" : ""}</span></div>`
         : `<div class="pw"><b>${wc.g}</b><span>Goal${wc.g !== 1 ? "s" : ""}</span></div>
       <div class="pw"><b>${wc.a}</b><span>Assist${wc.a !== 1 ? "s" : ""}</span></div>`}
-      <div class="pw"><b>${wc.y}${wc.rc ? `<span class="pw-rc">${wc.rc}</span>` : ""}</b><span>${wc.rc ? "Yel · Red" : "Yellow" + (wc.y !== 1 ? "s" : "")}</span></div>
+      <div class="pw"><b class="pw-cards">${wc.y || wc.rc ? `${wc.y ? `<span class="cc cc-y">${wc.y}</span>` : ""}${wc.rc ? `<span class="cc cc-r">${wc.rc}</span>` : ""}` : "0"}</b><span>Cards</span></div>
     </div>` : ""}
     ${(boxHtml || acts) ? `<div class="eyebrow">In this match</div>${boxHtml ? `<div class="pl-box">${boxHtml}</div>` : ""}${acts ? `<div class="pl-acts">${acts}</div>` : ""}` : ""}
     <button class="pl-compare" data-compare-seed="${esc(name)}|${code}">⇄ Compare with another player</button>`;
@@ -2707,7 +2707,7 @@ async function refreshResults() {
     renderTicker();
     // Predict is driven by the user's saved picks, not live results — re-rendering it on a poll would
     // just reset their bracket scroll / interrupt them for no benefit. Refresh every other view.
-    if (S.view !== "sim") RENDER[S.view]();
+    if (S.view && S.view !== "sim") RENDER[S.view]();   // S.view is unset on the pre-first-paint load — boot's nav() does that render
     if (!firstLoad) celebrateGoals(prev, S.results.matches); // only after we have a baseline
   } catch { /* offline or first deploy — schedule still works */ }
 }
@@ -2886,6 +2886,10 @@ async function boot() {
     initView = HASH_VIEW[location.hash.slice(1)];             // deep-link straight to a tab (#teams, #groups, #predict, #stats)
   }
   setChromeVars();
+  // Load live scores + detail BEFORE the first paint, so a refresh never flickers from a no-scores render to the
+  // live one — the visitor always opens straight onto current data. Raced with a timeout so a slow/hung network
+  // can't block the page; if the data is late it simply re-renders when it lands.
+  await Promise.race([refreshResults(), new Promise(r => setTimeout(r, 3500))]);
   nav(initView);
   addEventListener("hashchange", () => { const v = HASH_VIEW[location.hash.slice(1)]; if (v && v !== S.view) nav(v); });  // a shared #tab link opened in-session / back-forward
   const bl = $("#bootLoading"); if (bl) { bl.classList.add("gone"); setTimeout(() => bl.remove(), 320); }   // first view rendered → reveal
@@ -2895,8 +2899,7 @@ async function boot() {
     history.replaceState(null, "", location.pathname);
     setTimeout(() => openMatch(mq), 350);
   }
-  refreshResults();
-  setInterval(() => { refreshResults(); refreshOpenCommentary(); }, 60 * 1000); // fresh scores + live commentary every 60s
+  setInterval(() => { refreshResults(); refreshOpenCommentary(); }, 60 * 1000); // fresh scores + live commentary every 60s (initial load already done pre-paint)
   checkKickoffAlert();
   setInterval(checkKickoffAlert, 60 * 1000); // fire a kickoff reminder for the favourite team (opt-in)
   $("#updatePill").onclick = hardRefresh;

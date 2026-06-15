@@ -801,7 +801,10 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .pl-wc .pw{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 4px;text-align:center;box-shadow:var(--shadow)}
 .pl-wc .pw b{display:block;font-family:var(--disp);font-weight:900;font-stretch:106%;font-size:22px;color:var(--acc-text);line-height:1.05}
 .pl-wc .pw span{font-size:9px;text-transform:uppercase;letter-spacing:.03em;color:var(--ink-soft);font-weight:600}
-.pw-rc{font-size:13px;color:var(--live);vertical-align:6px;margin-left:1px}
+.pw-cards{display:flex;gap:5px;justify-content:center;align-items:center;min-height:26px}
+.cc{display:inline-flex;align-items:center;justify-content:center;min-width:21px;height:25px;border-radius:5px;font-family:var(--mono);font-weight:800;font-size:14px;padding:0 5px;line-height:1}
+.cc-y{background:var(--gold);color:#3a2c05}
+.cc-r{background:var(--live);color:#fff}
 
 /* ---------- starting XI panel ---------- */
 .xi-hint{color:var(--acc-text);font-weight:700;font-family:var(--disp);font-stretch:112%;letter-spacing:.06em;text-transform:uppercase;font-size:10px}
