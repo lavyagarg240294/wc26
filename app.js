@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "148";  // shown in footer; bump with the ?v= asset version
+const BUILD = "149";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -2297,8 +2297,13 @@ function renderCommentary(c) {
 
 /* ---------------- navigation ---------------- */
 const RENDER = { matches: renderMatches, teams: renderTeams, groups: renderGroups, stats: renderStats, sim: renderSim };
+// shareable per-tab URL hash (Matches is the default → no hash; Predict's internal view name is "sim")
+const VIEW_HASH = { teams: "teams", groups: "groups", sim: "predict", stats: "stats" };
+const HASH_VIEW = { matches: "matches", teams: "teams", groups: "groups", predict: "sim", stats: "stats" };
 function nav(v) {
   S.view = v;
+  const _want = VIEW_HASH[v] ? "#" + VIEW_HASH[v] : "";       // reflect the tab in the URL so it's shareable / bookmarkable
+  if (location.hash !== _want && !location.hash.startsWith("#p=")) history.replaceState(null, "", location.pathname + location.search + _want);
   $$(".view").forEach(el => el.hidden = el.id !== "view-" + v);
   $$(".tab").forEach(t => { const on = t.dataset.nav === v; t.classList.toggle("is-active", on); on ? t.setAttribute("aria-current", "page") : t.removeAttribute("aria-current"); });
   moveInk();
@@ -2660,9 +2665,12 @@ async function boot() {
   if (location.hash.startsWith("#p=")) {
     if (loadSharedSim(location.hash.slice(3))) { pruneSim(); saveSim(); initView = "sim"; setTimeout(() => flashToast("Loaded a shared prediction"), 400); }
     history.replaceState(null, "", location.pathname + location.search);
+  } else if (HASH_VIEW[location.hash.slice(1)]) {
+    initView = HASH_VIEW[location.hash.slice(1)];             // deep-link straight to a tab (#teams, #groups, #predict, #stats)
   }
   setChromeVars();
   nav(initView);
+  addEventListener("hashchange", () => { const v = HASH_VIEW[location.hash.slice(1)]; if (v && v !== S.view) nav(v); });  // a shared #tab link opened in-session / back-forward
   const bl = $("#bootLoading"); if (bl) { bl.classList.add("gone"); setTimeout(() => bl.remove(), 320); }   // first view rendered → reveal
   // a shared match link (?match=<id>, e.g. from a share-card stub) opens that match
   const mq = new URLSearchParams(location.search).get("match");
@@ -2679,7 +2687,14 @@ async function boot() {
   // offline support — network-first SW (registered after first render so it never blocks paint).
   // The shell stays network-first so an online visitor always gets the latest build; the version
   // nudge still handles prompting a reload when a new app.js ships.
-  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("sw.js").then(reg => {
+      const poke = () => reg.update().catch(() => {});           // re-check for a new worker promptly (don't wait on the browser's lazy ~24h schedule)
+      addEventListener("focus", poke); setInterval(poke, 120 * 1000);
+    }).catch(() => {});
+    // a freshly-activated worker (a new deploy just took over) pings open pages → surface the one-tap refresh immediately
+    navigator.serviceWorker.addEventListener("message", e => { if (e.data && e.data.type === "wc26-updated") { const p = $("#updatePill"); if (p) p.hidden = false; } });
+  }
 }
 boot();
 })();

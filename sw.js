@@ -7,14 +7,17 @@
  * Cache keys strip ?t= / ?v= so the every-60s polled files and versioned assets don't pile up.
  * Bump CACHE per deploy; activate() purges old caches and claims clients.
  */
-const CACHE = "wc26-148";
+const CACHE = "wc26-149";
 const keyFor = req => new Request(new URL(req.url).origin + new URL(req.url).pathname); // drop the query
 
 self.addEventListener("install", () => self.skipWaiting());
 
 self.addEventListener("activate", e => e.waitUntil((async () => {
-  for (const k of await caches.keys()) if (k !== CACHE) await caches.delete(k);
+  const old = (await caches.keys()).filter(k => k !== CACHE);
+  for (const k of old) await caches.delete(k);
   await self.clients.claim();
+  // if we replaced an older cache (a real update, not a first install), ping open pages so they offer a one-tap refresh
+  if (old.length) for (const c of await self.clients.matchAll()) c.postMessage({ type: "wc26-updated" });
 })()));
 
 self.addEventListener("fetch", e => {
