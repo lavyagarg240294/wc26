@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "154";  // shown in footer; bump with the ?v= asset version
+const BUILD = "155";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -2356,7 +2356,7 @@ function buildPickers() {
   };
 }
 function syncTzLabels() {
-  const tzl = $("#tzState"); if (tzl) tzl.textContent = `${tzCity()} · ${tzShort()}${S.tz === "auto" ? " · auto" : ""}`;
+  const tzl = $("#tzState"); if (tzl) tzl.textContent = `${tzCity().split(",")[0].trim()} · ${tzShort()}`;  // compact: City · GMT±N (no country / "auto" clutter)
   $("#footTz").textContent = `${tzCity()} · ${tzShort()}`;
   const bt = $("#buildTag"); if (bt) bt.textContent = "build " + BUILD;
   setFreshness();   // re-render the "scores from / checked" times in the new timezone
