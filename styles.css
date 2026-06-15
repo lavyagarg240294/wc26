@@ -192,7 +192,7 @@ b{font-weight:600}
 .ticker-track.is-static{animation:none;display:flex;justify-content:center;width:100%;transform:none}
 .tk-sep{opacity:.35}
 .ticker-item{display:inline-flex;align-items:center;gap:8px}
-.ticker-item .tk-live{color:#FF7B73;font-weight:700;animation:blink 1.2s step-end infinite}
+.ticker-item .tk-live{color:color-mix(in srgb,var(--live) 60%,#fff);font-weight:700;animation:blink 1.2s step-end infinite}   /* lightened --live for contrast on the dark ticker bar */
 @keyframes blink{50%{opacity:.35}}
 .ticker-item .tk-acc{color:color-mix(in srgb,var(--acc1) 70%,#fff)}
 @keyframes tick-scroll{to{transform:translateX(-50%)}}
@@ -956,11 +956,11 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .ct{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-weight:700;font-size:14px}
 .ct::before{content:"";width:11px;height:15px;border-radius:2.5px;flex:none;box-shadow:0 1px 2px rgba(13,27,42,.25)}
 .ct-y::before{background:var(--gold)}
-.ct-r::before{background:#E5443B}
+.ct-r::before{background:var(--live)}
 .ct-r{color:var(--ink-soft)}
 /* suspension-watch status pills */
 .susp-tag{font-family:var(--disp);font-weight:800;font-stretch:106%;font-size:9.5px;letter-spacing:.04em;text-transform:uppercase;padding:4px 10px;border-radius:99px;white-space:nowrap;flex:0 0 auto}
-.susp-tag.is-ban{background:color-mix(in srgb,#E5443B 18%,var(--card));color:#E5443B}
+.susp-tag.is-ban{background:color-mix(in srgb,var(--live) 18%,var(--card));color:var(--live)}
 .susp-tag.is-risk{background:color-mix(in srgb,var(--gold) 24%,var(--card));color:color-mix(in srgb,var(--gold) 55%,var(--ink))}
 .lead-scorers .lead-row:first-of-type .lead-rank{color:var(--gold-text)}
 .lead-scorers .lead-row:first-of-type .lead-v{color:var(--gold-text)}
@@ -1049,11 +1049,11 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .tl.is-goal .tl-ev{font-size:13.5px}
 .tl-off{color:var(--ink-soft);font-size:.86em}
 .tl-in::before{content:"▲";color:var(--pitch);font-size:.72em;font-weight:900;margin-right:4px;vertical-align:1.5px}
-.tl-out::before{content:"▼";color:#E5443B;font-size:.72em;font-weight:900;margin-right:4px;vertical-align:1.5px}
+.tl-out::before{content:"▼";color:var(--live);font-size:.72em;font-weight:900;margin-right:4px;vertical-align:1.5px}
 .tl-x{font-family:var(--disp);font-weight:700;font-size:8.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);border:1px solid var(--line);border-radius:4px;padding:1px 4px}
 .tl-card{display:inline-block;width:9px;height:12px;border-radius:2px;flex:none}
 .tl-card.y{background:var(--gold)}
-.tl-card.r{background:#E5443B}
+.tl-card.r{background:var(--live)}
 .tl-sub{color:var(--pitch);font-weight:800;font-size:13px}
 .tl-clk{cursor:pointer}
 .tl-clk:hover,.tl-clk:focus-visible{text-decoration:underline;text-decoration-color:var(--acc-text);text-underline-offset:2px;outline:none}
@@ -1098,7 +1098,7 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .form-d{display:inline-block;width:17px;height:17px;border-radius:5px;font-family:var(--disp);font-weight:800;font-size:10px;line-height:17px;text-align:center;color:#fff}
 .form-d.is-w{background:var(--pitch)}
 .form-d.is-d{background:#94A2AE}
-.form-d.is-l{background:#E5443B}
+.form-d.is-l{background:var(--live)}
 .th-form{display:flex;align-items:center;gap:8px;margin-top:9px;font-size:11px;font-weight:600;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.05em}
 .sq-form,.md-form{display:inline-flex;align-items:center;gap:7px}
 .md-form{margin-top:6px}

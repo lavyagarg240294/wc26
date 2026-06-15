@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "171";  // shown in footer; bump with the ?v= asset version
+const BUILD = "172";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -79,8 +79,10 @@ const ICO = {
   link: _ico('<path d="M10.6 13.4a3.4 3.4 0 0 0 4.8 0l2.4-2.4a3.4 3.4 0 0 0-4.8-4.8l-1.2 1.2M13.4 10.6a3.4 3.4 0 0 0-4.8 0L6.2 13a3.4 3.4 0 0 0 4.8 4.8l1.2-1.2"/>'),
   camera: _ico('<rect x="3" y="7" width="18" height="13" rx="2.5"/><circle cx="12" cy="13.5" r="3.3"/><path d="M8.5 7l1.2-2.2h4.6L15.5 7"/>'),
   tap: _ico('<path d="M9 11.2V6a1.5 1.5 0 0 1 3 0v4M12 10V8a1.5 1.5 0 0 1 3 0v2.5M15 10.5v-1a1.5 1.5 0 0 1 3 0V15a5 5 0 0 1-5 5h-.7a4 4 0 0 1-2.9-1.2L7 16a1.45 1.45 0 0 1 2.1-2l.9.9"/>'),
+  subs: _ico('<path d="M4 9h12M13 6l3 3-3 3M20 15H8M11 12l-3 3 3 3"/>'),       // two opposing arrows — substitution
+  compare: _ico('<path d="M4 20h16M7.5 20v-6M12 20V5M16.5 20v-9"/>'),         // bars — compare two players
 };
-const TROPHY = `<span class="ico-gold">${ICO.trophy}</span>`;   // gold-tinted trophy, used wherever ${TROPHY} was
+const TROPHY = `<span class="ico-gold">${ICO.trophy}</span>`;   // gold-tinted trophy (replaces the old emoji)
 const fmt = (iso, opts) => new Intl.DateTimeFormat("en", { timeZone: tz(), ...opts }).format(new Date(iso));
 const timeStr = iso => fmt(iso, { hour: "2-digit", minute: "2-digit", hour12: false });
 // The matches LIST groups by the real, technical calendar date in the visitor's timezone — Sunday's matches under
@@ -210,7 +212,7 @@ function formChips(code) {
 }
 
 /* ---------------- calendar (.ics) export — client-side, kickoffs in UTC ---------------- */
-const CAL_SVG = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>`;
+const CAL_SVG = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>`;
 // webcal:// URL to a committed static calendar (data/ics/…) for an auto-updating subscription.
 // Derived from the current page so it works wherever the site is hosted.
 const webcalURL = file => "webcal://" + location.origin.replace(/^https?:\/\//, "") + location.pathname.replace(/[^/]*$/, "") + "data/ics/" + file;
@@ -624,7 +626,7 @@ const EV_ICON = {
   G: ICO.ball, P: ICO.ball, OG: ICO.ball,
   Y: `<span class="tl-card y" aria-hidden="true"></span>`,
   R: `<span class="tl-card r" aria-hidden="true"></span>`,
-  S: `<span class="tl-sub" aria-hidden="true">⇄</span>`,
+  S: `<span class="tl-sub">${ICO.subs}</span>`,
 };
 function evText(e, code) {
   const P = (n, cls) => `<span class="${cls} tl-clk" data-player="${esc(n)}|${code}" role="button" tabindex="0">${esc(n)}</span>`;
@@ -1227,7 +1229,7 @@ function renderTeams() {
   const head = S.fav
     ? myTeamBlock()
     : `<div class="pick-cta">
-        <span style="font-size:42px">🏟️</span>
+        <span style="font-size:42px;color:var(--pitch);display:inline-flex">${ICO.ball}</span>
         <span class="big">Who are you backing?</span>
         <span style="color:var(--ink-soft);font-size:13.5px;max-width:300px">Pick a team — the site takes their colors, pins their matches and tracks their road to the final.</span>
         <button class="btn" id="ctaPick">Choose your team</button></div>`;
@@ -1459,7 +1461,7 @@ function openPlayer(name, code) {
       <div class="pw"><b class="pw-cards">${wc.y || wc.rc ? `${wc.y ? `<span class="cc cc-y">${wc.y}</span>` : ""}${wc.rc ? `<span class="cc cc-r">${wc.rc}</span>` : ""}` : "0"}</b><span>Cards</span></div>
     </div>` : ""}
     ${(boxHtml || acts) ? `<div class="eyebrow">In this match</div>${boxHtml ? `<div class="pl-box">${boxHtml}</div>` : ""}${acts ? `<div class="pl-acts">${acts}</div>` : ""}` : ""}
-    <button class="pl-compare" data-compare-seed="${esc(name)}|${code}">⇄ Compare with another player</button>`;
+    <button class="pl-compare" data-compare-seed="${esc(name)}|${code}">${ICO.compare} Compare with another player</button>`;
   const cmpBtn = $("#playerBody [data-compare-seed]");
   if (cmpBtn) cmpBtn.onclick = () => { const [n, c] = cmpBtn.dataset.compareSeed.split("|"); $("#playerDialog").close(); openCompareSearch({ name: n, code: c }); };
   showSheet($("#playerDialog"));
@@ -1568,7 +1570,7 @@ function openCompare(a, b) {
       ${row("Career goals", A.careerGoals, B.careerGoals)}
       <div class="cmp-row"><span class="cmp-a cmp-txt">${A.club ? esc(A.club) : "–"}</span><span class="cmp-lbl">Club</span><span class="cmp-b cmp-txt">${B.club ? esc(B.club) : "–"}</span></div>
     </div>` : ""}
-    <button class="pl-compare" data-recompare="${esc(a.name)}|${a.code}">⇄ Compare ${esc(a.name)} with someone else</button></div>`;
+    <button class="pl-compare" data-recompare="${esc(a.name)}|${a.code}">${ICO.compare} Compare ${esc(a.name)} with someone else</button></div>`;
   const re = $("#playerBody [data-recompare]");
   if (re) re.onclick = () => { const [n, c] = re.dataset.recompare.split("|"); $("#playerDialog").close(); openCompareSearch({ name: n, code: c }); };
   showSheet($("#playerDialog"));
