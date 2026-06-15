@@ -312,7 +312,7 @@ b{font-weight:600}
 .mcard-time{font-family:var(--mono);font-weight:700;font-size:15px;font-variant-numeric:tabular-nums}
 .mcard-time small{display:block;font-weight:400;font-size:10.5px;color:var(--ink-soft);letter-spacing:.05em}
 .mcard-teams{display:flex;flex-direction:column;gap:5px;min-width:0}
-.mcard-team{display:flex;align-items:center;gap:8px;font-weight:600;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mcard-team{display:flex;align-items:center;gap:8px;font-weight:600;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-inline-end:3px}
 /* self-hosted SVG flags — scale with the surrounding .fl font-size, natural aspect, hairline ring so
    white-edged flags read on white cards. ultra-wide flags (Qatar) cap so fixed columns don't overflow. */
 /* Flags: every team's SVG has a different native aspect (Qatar 2.5:1 … Switzerland 1:1), so rendering them at
@@ -527,6 +527,7 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .ol-name{font-weight:700;flex:0 0 auto;min-width:84px}
 .ol-status{color:var(--ink-soft);font-size:11.5px}
 .ol-status b{color:var(--ink);font-weight:700}
+.ol-pts{font-family:var(--mono);font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
 .ol-row.is-fav{background:color-mix(in srgb,var(--acc1) 7%,transparent)}
 .ol-q{border-left-color:var(--pitch)}
 .ol-q .ol-status b{color:var(--pitch)}
@@ -1205,7 +1206,9 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
   /* the longest country names can't fit one line on a narrow phone — wrap to two instead of clipping them */
   td.tname{white-space:normal;line-height:1.16;padding-left:11px;hyphens:none}
   .mcard-team{white-space:normal}
-  .mcard-team>span:last-child{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.2}
+  /* italic placeholder names (e.g. "Runner-up Group F") lean past their box — the overflow:hidden the
+     line-clamp needs would shave the final glyph, so reserve a few px of trailing room for the slant */
+  .mcard-team>span:last-child{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.2;padding-inline-end:4px}
   .teamsgrid{grid-template-columns:1fr 1fr;gap:8px}
   .teamcard{padding:10px 11px;gap:8px}
   .teamcard .fl{font-size:21px}

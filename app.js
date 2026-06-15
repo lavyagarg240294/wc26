@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "160";  // shown in footer; bump with the ?v= asset version
+const BUILD = "161";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -316,25 +316,31 @@ function groupOutlook(g) {
   };
 
   const range = ranksFor({}, rem);
+  const nmOf = c => S.teams[c]?.name || c;
   return codes.map(c => {
     const { B, W } = range[c];
     let status, k;
     if (W <= 1) { status = "Group winners — confirmed"; k = "q"; }
     else if (W <= 2) { status = "Through to the last 32"; k = "q"; }
-    else if (B <= 2) { status = "In the hunt for the top two"; k = "live"; }
-    else if (B === 3) { status = "3rd place — best-eight hopes"; k = "third"; }
+    else if (B <= 2) { status = "Still in the top-two race"; k = "live"; }
+    else if (B === 3) { status = "3rd place — chasing a best-eight spot"; k = "third"; }
     else { status = "Eliminated"; k = "out"; }
-    // on this team's final matchday, work out the result they need
+    // concrete "what they need" — resolvable once a team has a single group game left to play, naming the
+    // opponent and the exact result. winW/drawW = worst finish if they win/draw; winB = best finish if they win.
     let need = "";
     const mine = rem.filter(m => m.home.team === c || m.away.team === c);
-    if (mine.length === 1 && B <= 2 && W > 2) {
-      const mc = mine[0], opp = mc.home.team === c ? mc.away.team : mc.home.team, others = rem.filter(m => m !== mc);
-      const w = ranksFor({ [c]: base[c] + 3, [opp]: base[opp] }, others)[c].W;
-      const d = ranksFor({ [c]: base[c] + 1, [opp]: base[opp] + 1 }, others)[c].W;
-      if (d <= 2) need = "a draw guarantees top 2";
-      else if (w <= 2) need = "win to be sure of the top 2";
+    if (mine.length === 1 && W > 1 && B <= 3) {
+      const mc = mine[0], opp = mc.home.team === c ? mc.away.team : mc.home.team, others = rem.filter(m => m !== mc), on = nmOf(opp);
+      const winW = ranksFor({ [c]: base[c] + 3, [opp]: base[opp] }, others)[c].W;
+      const drawW = ranksFor({ [c]: base[c] + 1, [opp]: base[opp] + 1 }, others)[c].W;
+      const winB = ranksFor({ [c]: base[c] + 3, [opp]: base[opp] }, others)[c].B;
+      if (W <= 2) need = `already through — ${on} decides top spot`;
+      else if (drawW <= 2) need = `a draw with ${on} is enough for the top 2`;
+      else if (winW <= 2) need = `beat ${on} to be sure of the top 2`;
+      else if (winB <= 2) need = `beat ${on}, then hope other results help`;
+      else need = `a win over ${on} keeps best-eight hopes alive`;
     }
-    return { code: c, status, k, need };
+    return { code: c, status, k, need, pts: base[c] };
   }).sort((a, b) => standings(g).findIndex(r => r.code === a.code) - standings(g).findIndex(r => r.code === b.code));
 }
 function groupOutlookHTML(g) {
@@ -344,7 +350,7 @@ function groupOutlookHTML(g) {
   return `<details class="outlook"${open}><summary><span class="ear-tri">▸</span> What each team needs</summary>
     <div class="outlook-body">${o.map(t => `<div class="ol-row ol-${t.k} ${t.code === S.fav ? "is-fav" : ""}">
       <span class="fl">${flag(t.code)}</span><span class="ol-name">${esc(S.teams[t.code]?.name || t.code)}</span>
-      <span class="ol-status">${t.status}${t.need ? ` · <b>${t.need}</b>` : ""}</span></div>`).join("")}</div></details>`;
+      <span class="ol-status"><span class="ol-pts">${t.pts} pt${t.pts !== 1 ? "s" : ""}</span> · ${t.status}${t.need ? ` · <b>${t.need}</b>` : ""}</span></div>`).join("")}</div></details>`;
 }
 
 /* ---------------- theming ---------------- */
@@ -1242,15 +1248,20 @@ function teamOverview(code) {
 }
 // a player's record at THIS World Cup — counted from the team's played matches (tolerant name match vs feed names)
 function playerWC(name, code) {
-  let g = 0, a = 0, y = 0, rc = 0, apps = 0;
+  let g = 0, a = 0, y = 0, rc = 0, apps = 0, gkStarts = 0, cs = 0, ga = 0;
   for (const m of S.matches) {
     if (!matchHasTeam(m, code) || status(m) === ST.SCHED) continue;
     const r = res(m); if (!r) continue;
     const side = slotInfo(m, "home").code === code ? "h" : slotInfo(m, "away").code === code ? "a" : null;
     if (!side) continue;
-    const inXI = (r.xi?.[side]?.xi || []).some(p => sameName(p[1], name));
+    const xi = r.xi?.[side]?.xi || [];
+    const inXI = xi.some(p => sameName(p[1], name));
     const onBench = (r.ev || []).some(e => e.tm === side && e.k === "S" && e.on && sameName(e.on, name));
     if (inXI || onBench) apps++;
+    // goalkeeper line: if this player started in goal (lineup slot 0), credit the shutout / goals conceded
+    if (r.h != null && xi.some(p => p[2] === 0 && sameName(p[1], name))) {
+      gkStarts++; const conceded = side === "h" ? r.a : r.h; ga += conceded; if (conceded === 0) cs++;
+    }
     for (const e of (r.ev || [])) {
       if (e.tm !== side) continue;
       if (["G", "P"].includes(e.k) && e.p && sameName(e.p, name)) g++;
@@ -1259,7 +1270,7 @@ function playerWC(name, code) {
       if (e.k === "R" && e.p && sameName(e.p, name)) rc++;
     }
   }
-  return { g, a, y, rc, apps };
+  return { g, a, y, rc, apps, gkStarts, cs, ga };
 }
 // Team detail sheet — overview, recent form, every fixture (results + upcoming), the group
 // standing + qualification outlook, and the full squad (collapsible). Tapping a team anywhere
@@ -1351,6 +1362,7 @@ function openPlayer(name, code) {
   }
   if (bio) { if (num == null && bio.n != null) num = bio.n; if (!pos && bio.pos) pos = { GK: "Goalkeeper", DF: "Defender", MF: "Midfielder", FW: "Forward" }[bio.pos] || ""; }
   const wc = playerWC(name, code);   // this-tournament record, counted from the team's played matches
+  const isGK = pos === "Goalkeeper" || bio?.pos === "GK";   // keepers get clean sheets / conceded, not goals / assists
   const acts = (r?.ev || []).filter(e => [e.p, e.a, e.on, e.off].includes(name)).map(e => {
     const mn = esc(e.t || "");
     if (["G", "P", "OG"].includes(e.k)) return `<span class="pl-act">⚽ ${mn}${e.k === "P" ? " pen" : e.k === "OG" ? " o.g." : ""}${e.a === name && e.p !== name ? " · assist" : ""}</span>`;
@@ -1376,8 +1388,11 @@ function openPlayer(name, code) {
     </div>` : ""}
     ${wc.apps ? `<div class="eyebrow">This World Cup</div><div class="pl-wc">
       <div class="pw"><b>${wc.apps}</b><span>App${wc.apps !== 1 ? "s" : ""}</span></div>
-      <div class="pw"><b>${wc.g}</b><span>Goal${wc.g !== 1 ? "s" : ""}</span></div>
-      <div class="pw"><b>${wc.a}</b><span>Assist${wc.a !== 1 ? "s" : ""}</span></div>
+      ${isGK
+        ? `<div class="pw"><b>${wc.cs}</b><span>Clean sheet${wc.cs !== 1 ? "s" : ""}</span></div>
+      <div class="pw"><b>${wc.ga}</b><span>Conceded</span></div>`
+        : `<div class="pw"><b>${wc.g}</b><span>Goal${wc.g !== 1 ? "s" : ""}</span></div>
+      <div class="pw"><b>${wc.a}</b><span>Assist${wc.a !== 1 ? "s" : ""}</span></div>`}
       <div class="pw"><b>${wc.y}${wc.rc ? `<span class="pw-rc">${wc.rc}</span>` : ""}</b><span>${wc.rc ? "Yel · Red" : "Yellow" + (wc.y !== 1 ? "s" : "")}</span></div>
     </div>` : ""}
     ${acts ? `<div class="eyebrow">In this match</div><div class="pl-acts">${acts}</div>` : ""}
