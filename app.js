@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "165";  // shown in footer; bump with the ?v= asset version
+const BUILD = "166";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -2259,23 +2259,27 @@ const FIFA_POS = {}; FIFA_RANK.forEach((e, i) => { FIFA_POS[typeof e === "string
 // final group-stage tiebreak per FIFA regulations art.13 step 3 (FIFA World Ranking). Teams outside the top-50
 // snapshot fall back to their Elo so it's still skill-based — never the alphabetical code.
 const tiebreakRank = code => FIFA_POS[code] != null ? FIFA_POS[code] : 100 - (S.teams[code]?.elo || 0) / 100;
+const CONF_FULL = { UEFA: "Europe", CONMEBOL: "South America", CONCACAF: "N. & C. America", AFC: "Asia", CAF: "Africa", OFC: "Oceania" };
 function fifaRankingPanel() {
-  // The useful view on a World Cup site is the field itself, ordered by world ranking — not a top-50 cut padded
-  // with teams that didn't qualify. Real FIFA position comes from the top-50 snapshot (index+1); the ~13 finalists
-  // ranked below it order by Elo strength after them (shown "50+", never a fabricated exact number).
-  const worldRank = {}; FIFA_RANK.forEach((e, i) => { if (typeof e === "string") worldRank[e] = i + 1; });
-  const quals = Object.keys(S.teams).sort((a, b) =>
-    (worldRank[a] || 999) - (worldRank[b] || 999) || (S.teams[b].elo || 0) - (S.teams[a].elo || 0));
-  const rows = quals.map((code, n) => `<div class="rk-row" data-squad="${code}" role="button" tabindex="0">
-    <span class="rk-num">${n + 1}</span><span class="fl">${flag(code)}</span>
-    <span class="rk-name">${esc(S.teams[code]?.name || code)}</span>
-    <span class="rk-wr${worldRank[code] ? "" : " rk-wr-out"}">${worldRank[code] ? "FIFA #" + worldRank[code] : "50+"}</span></div>`).join("");
-  const missed = FIFA_RANK.map((e, i) => ({ e, i })).filter(({ e }) => typeof e !== "string")
-    .slice(0, 6).map(({ e, i }) => `${e[1]} (${ordinal(i + 1)})`).join(" · ");
-  return `<div class="eyebrow">World Cup field · by FIFA world ranking</div>
-    <div class="lead-card rk-list">${rows}</div>
-    <div class="rk-note">All 48 finalists, strongest to weakest — FIFA world rank shown where inside the top 50. Biggest names <b>watching from home</b>: ${missed}.</div>
-    <p class="sim-ko-hint">Source: FIFA World Ranking · June 2026 · tap any team for its page.</p>`;
+  const rk = S.fifaRanking;
+  if (!rk?.length) {   // ranking file not loaded (stale cache / offline) — minimal fallback from teams.json
+    const quals = Object.keys(S.teams).sort((a, b) => (S.teams[b].elo || 0) - (S.teams[a].elo || 0));
+    return `<div class="eyebrow">World Cup field</div><div class="lead-card rk-list">${quals.map((c, n) => `<div class="rk-row" data-squad="${c}" role="button" tabindex="0"><span class="rk-num">${n + 1}</span><span class="fl">${flag(c)}</span><span class="rk-name">${esc(S.teams[c].name)}</span></div>`).join("")}</div>`;
+  }
+  const qCount = rk.filter(t => t.q).length;
+  const row = t => `<div class="rk-row${t.q ? "" : " rk-nq"}"${t.q ? ` data-squad="${t.q}" role="button" tabindex="0"` : ""}>
+    <span class="rk-num">${t.r ?? "—"}</span>
+    <img class="rk-flag" loading="lazy" src="${esc(t.flag || "")}" alt="" width="26" height="17">
+    <span class="rk-name">${esc(t.name)}</span>
+    <span class="rk-conf" title="${CONF_FULL[t.conf] || ""}">${esc(t.conf || "")}</span>
+    ${t.q ? `<span class="rk-q" title="Qualified for the 2026 World Cup">WC</span>` : ""}</div>`;
+  return `<div class="eyebrow">FIFA World Ranking · all ${rk.length} teams</div>
+    <div class="rk-filter">
+      <button class="rk-fbtn is-on" data-rkf="all">All teams · ${rk.length}</button>
+      <button class="rk-fbtn" data-rkf="q">World Cup · ${qCount}</button>
+    </div>
+    <div class="lead-card rk-list" id="rkList">${rk.map(row).join("")}</div>
+    <p class="sim-ko-hint">Source: FIFA / Coca-Cola Men's World Ranking · the <b>WC</b> badge marks the 48 finalists · tap one for its page.</p>`;
 }
 
 function renderStats() {
@@ -2374,6 +2378,11 @@ function renderStats() {
     statsTab = b.dataset.stat;
     $$(".substat", el).forEach(x => x.classList.toggle("is-on", x.dataset.stat === statsTab));
     $$(".substat-panel", el).forEach(p => p.hidden = p.dataset.panel !== statsTab);
+  });
+  // FIFA-ranking filter (All / World Cup) — a CSS class toggle, no re-render
+  $$(".rk-fbtn", el).forEach(b => b.onclick = () => {
+    $("#rkList", el)?.classList.toggle("q-only", b.dataset.rkf === "q");
+    $$(".rk-fbtn", el).forEach(x => x.classList.toggle("is-on", x === b));
   });
 }
 
@@ -2545,11 +2554,12 @@ function goalHorn() {
 
 /* ---------------- data ---------------- */
 async function loadStatic() {
-  const [m, t] = await Promise.all([
+  const [m, t, fr] = await Promise.all([
     fetch("data/matches.json?v=" + BUILD).then(r => r.json()),
     fetch("data/teams.json?v=" + BUILD).then(r => r.json()),   // ?v=BUILD so the browser refetches when team data (pedigree/coach) changes per deploy
+    fetch("data/fifa-ranking.json?v=" + BUILD).then(r => r.json()).catch(() => null),   // full 211-team FIFA ranking (static snapshot, frozen during the WC)
   ]);
-  S.matches = m.matches; S.teams = t;
+  S.matches = m.matches; S.teams = t; S.fifaRanking = fr?.teams || null;
   // squads.json is committed data that changes (squad updates) — bypass cache so it's always current
   try { S.squads = (await (await fetch("data/squads.json?t=" + Date.now(), { cache: "no-store" })).json()).squads || {}; }
   catch { S.squads = {}; }

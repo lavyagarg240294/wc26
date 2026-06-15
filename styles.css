@@ -910,12 +910,16 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .rk-row .fl{font-size:18px;line-height:1;flex:0 0 auto}
 .rk-num{font-family:var(--mono);font-size:12px;font-weight:700;color:var(--ink-soft);width:22px;text-align:right;flex:0 0 22px;font-variant-numeric:tabular-nums}
 .rk-name{flex:1;font-weight:600;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.rk-q{flex:0 0 auto;color:var(--acc-text);font-weight:800;font-size:13px}
+.rk-q{flex:0 0 auto;font-family:var(--disp);font-weight:800;font-size:9px;letter-spacing:.04em;background:var(--acc1);color:#fff;border-radius:5px;padding:2px 5px}
 .rk-no{flex:0 0 auto;font-size:10px;font-weight:600;letter-spacing:.02em;color:var(--ink-soft);text-transform:uppercase;opacity:.75}
 .rk-out{opacity:.5}
 .rk-out .rk-name{font-weight:500}
-.rk-wr{flex:0 0 auto;font-family:var(--mono);font-size:10px;font-weight:700;color:var(--ink-soft);font-variant-numeric:tabular-nums;background:color-mix(in srgb,var(--line) 60%,transparent);border-radius:6px;padding:2px 6px}
-.rk-wr-out{opacity:.6;font-weight:600}
+.rk-flag{flex:0 0 auto;width:26px;height:17px;object-fit:cover;border-radius:2px;box-shadow:0 0 0 1px color-mix(in srgb,var(--line) 70%,transparent);background:var(--line)}
+.rk-conf{flex:0 0 auto;font-family:var(--mono);font-size:9.5px;font-weight:700;letter-spacing:.02em;color:var(--ink-soft);background:color-mix(in srgb,var(--line) 55%,transparent);border-radius:5px;padding:2px 5px}
+.rk-filter{display:flex;gap:8px;margin:0 2px 11px}
+.rk-fbtn{font-family:inherit;font-size:12px;font-weight:700;padding:7px 14px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--ink-soft);cursor:pointer;transition:background .15s,color .15s}
+.rk-fbtn.is-on{background:var(--acc1);color:#fff;border-color:transparent}
+.rk-list.q-only .rk-nq{display:none}
 /* ---- match-popup report + commentary ---- */
 .md-report{background:color-mix(in srgb,var(--ink) 3%,var(--card));border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin:0 0 6px}
 .md-report h4{font-family:var(--disp);font-weight:800;font-stretch:106%;font-size:16px;line-height:1.25;margin:0 0 8px;letter-spacing:-.01em}
