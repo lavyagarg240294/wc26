@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "162";  // shown in footer; bump with the ?v= asset version
+const BUILD = "163";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -2218,6 +2218,7 @@ function tournamentStats() {
   };
 }
 let statsTab = "players";   // active Stats sub-section (persists across re-renders)
+let _statsHTML = "";        // last rendered Stats markup — re-rendered only when it actually changes (see renderStats)
 // FIFA World Ranking — June-2026 snapshot (top 50). A bare string = a qualified WC26 team (name/flag from
 // teams.json); a [code,name] pair = a top-50 nation that did NOT make the field (its flag is self-hosted too).
 // Rank is the array index + 1. The 11 finalists ranked outside the top 50 are derived (teams.json minus this list).
@@ -2339,8 +2340,13 @@ function renderStats() {
     ["rankings", "Rankings", fifaRankingPanel()],
   ];
   if (!sections.some(([k]) => k === statsTab)) statsTab = "players";
-  el.innerHTML = `<div class="substat-nav">${sections.map(([k, label]) => `<button class="substat ${k === statsTab ? "is-on" : ""}" data-stat="${k}">${label}</button>`).join("")}</div>`
+  const out = `<div class="substat-nav">${sections.map(([k, label]) => `<button class="substat ${k === statsTab ? "is-on" : ""}" data-stat="${k}">${label}</button>`).join("")}</div>`
     + sections.map(([k, , html]) => `<div class="substat-panel" data-panel="${k}"${k === statsTab ? "" : " hidden"}>${html}</div>`).join("");
+  // a live match rewrites results.json every poll (the minute ticks), which re-renders the active view. If the
+  // Stats markup is byte-identical, keep the existing DOM — otherwise a tap mid-poll lands on a freshly-swapped row.
+  if (out === _statsHTML && el.firstChild) return;
+  _statsHTML = out;
+  el.innerHTML = out;
   $$(".substat", el).forEach(b => b.onclick = () => {
     statsTab = b.dataset.stat;
     $$(".substat", el).forEach(x => x.classList.toggle("is-on", x.dataset.stat === statsTab));
@@ -2364,7 +2370,18 @@ function mdCommentaryShell(m) {
 }
 function renderCommentary(c) {
   if (!c || !c.items?.length) return `<div class="empty">No commentary published for this match.</div>`;
-  const rows = c.items.map(it => `<div class="cm-row${it.k ? ` cm-${esc(it.k)}` : ""}">${it.t ? `<span class="cm-t">${esc(it.t)}</span>` : `<span class="cm-t cm-t-x"></span>`}<span class="cm-x">${esc(it.x || "")}</span></div>`).join("");
+  // ESPN ships terse VAR strings (e.g. "VAR Decision: Other Decision Cancelled.") — badge them and say it plainly
+  const clarify = t => {
+    const m = /^VAR Decision:\s*(.+?)\.?\s*$/i.exec(t || "");
+    if (!m) return esc(t || "");
+    let d = m[1].trim();
+    if (/^other decision cancelled$/i.test(d)) d = "an on-field decision was overturned after review";
+    return `<b class="cm-var">VAR</b> ${esc(d)}`;
+  };
+  const rows = c.items.map(it => {
+    const isVar = /^VAR Decision:/i.test(it.x || "");
+    return `<div class="cm-row${it.k ? ` cm-${esc(it.k)}` : ""}${isVar ? " cm-var-row" : ""}">${it.t ? `<span class="cm-t">${esc(it.t)}</span>` : `<span class="cm-t cm-t-x"></span>`}<span class="cm-x">${isVar ? clarify(it.x) : esc(it.x || "")}</span></div>`;
+  }).join("");
   const credit = c.src ? `<div class="md-credit">Commentary: ${c.url ? `<a href="${esc(c.url)}" target="_blank" rel="noopener noreferrer">${esc(c.src)} ↗</a>` : esc(c.src)}</div>` : "";
   return rows + credit;
 }
@@ -2515,14 +2532,34 @@ const LITE = () => localStorage.getItem("wc26.lite") === "on";   // data-saver: 
 // `url('…')` background-images, where esc() wouldn't even cover the quote/paren — so sanitise at the source.
 const safePhoto = u => /^https:\/\/[^\s'"()<>]+$/.test(u || "") ? u : "";
 const playerPhoto = (name, code) => safePhoto((!LITE() && S.photos && S.photos[name + "|" + code]) || "");
-// like playerPhoto, but also matches a full squad name against the FIFA short-name keys (case/accent-insensitive)
+// like playerPhoto, but tolerantly matches a full squad name ("Mathew Ryan") against the terser FIFA
+// short-name photo keys ("M. RYAN", "RYAN", "Mathew RYAN") — accent-insensitive and surname-anchored, so a
+// roster tap resolves even though the feed stored only the surname or an initial.
 const normName = s => (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z]/gi, "").toLowerCase();
+const PH_SUFFIX = new Set(["jr", "junior", "jnr", "filho", "neto", "segundo", "ii", "iii"]);   // ignored when picking a surname
+const nameToks = s => (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z ]/g, " ").split(/\s+/).filter(Boolean);
+const sigToks = s => { const t = nameToks(s).filter(w => !PH_SUFFIX.has(w)); return t.length ? t : nameToks(s); };
+const surnameOf = s => { const t = sigToks(s); return t[t.length - 1] || ""; };
 function bestPhoto(name, code) {
   if (LITE()) return "";
   const direct = playerPhoto(name, code); if (direct) return direct;
-  const suf = "|" + code, ns = normName(name);
-  if (S.photos) for (const k in S.photos) if (k.endsWith(suf) && normName(k.slice(0, -suf.length)) === ns) return safePhoto(S.photos[k]);
-  return safePhoto(squadBio(name, code)?.photo || "");   // fall back to the API-Football headshot committed in squads.json
+  const suf = "|" + code, fall = () => safePhoto(squadBio(name, code)?.photo || "");   // last resort: squads.json headshot
+  if (!S.photos) return fall();
+  const keys = []; for (const k in S.photos) if (k.endsWith(suf)) keys.push(k.slice(0, -suf.length));
+  const ns = normName(name);
+  for (const k of keys) if (normName(k) === ns) return safePhoto(S.photos[k + suf]);   // 1) whole-name equality
+  const nsig = sigToks(name), nsur = surnameOf(name), nfi = (nsig[0] || "")[0];
+  const pick = list => {                                  // exactly one candidate, or break a tie on the first initial
+    if (list.length === 1) return list[0];
+    if (list.length > 1) { const ini = list.filter(k => { const f = sigToks(k)[0]; return f && nfi && f[0] === nfi; }); return ini.length === 1 ? ini[0] : null; }
+    return null;
+  };
+  let hit = pick(keys.filter(k => surnameOf(k) === nsur));   // 2) surname-anchored
+  if (!hit) {                                                // 3) token subset — mononyms ("Alisson") & suffix variants ("Vinicius Jr")
+    const nset = new Set(nsig);
+    hit = pick(keys.filter(k => { const kt = sigToks(k), kset = new Set(kt); return kt.length && (kt.every(w => nset.has(w)) || nsig.every(w => kset.has(w))) && (kset.has(nsur) || nset.has(surnameOf(k))); }));
+  }
+  return hit ? safePhoto(S.photos[hit + suf]) : fall();
 }
 // manual "refresh scores" controls (footer + hero) — re-fetch the published results.json now
 async function manualRefresh() {

@@ -933,6 +933,8 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .cm-row:first-child{border-top:none}
 .cm-t{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--ink-soft);text-align:right;font-variant-numeric:tabular-nums}
 .cm-x{min-width:0}
+.cm-var{display:inline-block;font-family:var(--disp);font-weight:800;font-size:9px;letter-spacing:.06em;background:var(--acc1);color:#fff;border-radius:5px;padding:1px 5px;margin-right:6px;vertical-align:middle;transform:translateY(-1px)}
+.cm-var-row .cm-x{color:var(--ink-soft)}
 .cm-goal{background:color-mix(in srgb,var(--acc1) 7%,transparent)}
 .cm-goal .cm-x{font-weight:700}
 /* cards leaderboard: yellow + red side by side, each a little card chip + count */
