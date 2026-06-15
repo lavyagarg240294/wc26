@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "167";  // shown in footer; bump with the ?v= asset version
+const BUILD = "168";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1342,6 +1342,17 @@ function rotationSection(code) {
     <div class="rt-list">${R.players.map(row).join("")}</div>
     <div class="rt-legend"><span><i class="rt-cell s-S"></i>Started</span><span><i class="rt-cell s-P"></i>Subbed off</span><span><i class="rt-cell s-U"></i>Off the bench</span><span><i class="rt-cell s--"></i>Unused</span></div></details>`;
 }
+// a team's "playing style" fingerprint — five identity axes, each a bar showing where the team sits among
+// the field (min-max percentile over teams that have a match-stats line). It's a shape, not a ranking.
+function styleSection(code) {
+  const me = tournamentStats().style, mine = me.find(x => x.code === code);
+  if (!mine || me.length < 4) return "";
+  const AXES = [["poss", "Possession", v => v.toFixed(0) + "%"], ["passAcc", "Passing", v => v.toFixed(0) + "%"],
+    ["directness", "Direct play", v => v.toFixed(0) + "%"], ["pressPg", "Pressing", v => v.toFixed(0) + "/g"], ["shotsPg", "Attacking", v => v.toFixed(1) + "/g"]];
+  const pct = key => { const vs = me.map(x => x[key]), lo = Math.min(...vs), hi = Math.max(...vs); return hi > lo ? Math.round((mine[key] - lo) / (hi - lo) * 100) : 50; };
+  const rows = AXES.map(([key, label, fmt]) => `<div class="sty-row"><span class="sty-lbl">${label}</span><span class="sty-bar"><i style="width:${pct(key)}%"></i></span><span class="sty-v">${fmt(mine[key])}</span></div>`).join("");
+  return `<div class="eyebrow">Playing style</div><div class="sty-card">${rows}<p class="sty-hint">Where ${esc(S.teams[code].name)} ranks among teams with match stats — a fuller bar means more than its rivals, not "better".</p></div>`;
+}
 function openTeam(code) {
   const t = S.teams[code]; if (!t) return;
   const all = S.matches.filter(m => matchHasTeam(m, code)).sort((a, b) => a.utc.localeCompare(b.utc));
@@ -1357,6 +1368,7 @@ function openTeam(code) {
       ? `<div class="ts-fav-tag">★ Your team</div>`
       : `<button class="ts-setfav" data-follow="${code}">★ Make ${esc(t.name)} my team</button>`}
     ${formChips(code) ? `<div class="ts-form">Recent form ${formChips(code)}</div>` : ""}
+    ${styleSection(code)}
     ${sq ? `<details class="ts-squad" open><summary><span>Squad</span><small>${sq.players.length} players${teamCoach(code) ? ` · ${esc(teamCoach(code))}` : ""}</small></summary>${rosterMarkup(sq, code)}</details>`
         : `<div class="eyebrow">Squad</div><div class="empty">${esc(t.name)}'s squad isn't published yet — check back closer to kickoff.</div>`}
     ${done.length ? `<div class="eyebrow">Results</div>${done.map((m, i) => matchCard(m, i)).join("")}` : ""}
@@ -2164,7 +2176,8 @@ function championBanner(code, predicted) {
 /* ---------------- tournament stats (team + player) ---------------- */
 function tournamentStats() {
   const fts = S.matches.filter(m => status(m) === ST.FT && res(m)?.h != null);
-  const gf = {}, ga = {}, poss = {}, possN = {}, sot = {}, sotN = {}, yel = {}, red = {}, played = {}, scorers = {}, assists = {}, pyel = {}, pred = {}, cs = {}, conf = {}, keepers = {};
+  const gf = {}, ga = {}, poss = {}, possN = {}, sot = {}, sotN = {}, yel = {}, red = {}, played = {}, scorers = {}, assists = {}, pyel = {}, pred = {}, cs = {}, conf = {}, keepers = {}, tstat = {}, statN = {};
+  const TSTAT_KEYS = ["sh", "pass", "passT", "cross", "lball", "tkl", "intc", "clr", "blk", "sv", "off", "fls"];   // richer ESPN team stats → leaderboards + style
   let goals = 0, totCards = 0;
   const rec = { bigWin: null, hiScore: null, fastG: null, lateG: null };   // superlatives
   const add = (o, k, n = 1) => { if (k) o[k] = (o[k] || 0) + n; };
@@ -2210,6 +2223,10 @@ function tournamentStats() {
     }
     if (r.stats?.poss) { add(poss, hc, r.stats.poss[0]); add(possN, hc); add(poss, ac, r.stats.poss[1]); add(possN, ac); }
     if (r.stats?.sot) { add(sot, hc, r.stats.sot[0]); add(sotN, hc); add(sot, ac, r.stats.sot[1]); add(sotN, ac); }
+    if (r.stats) {   // accumulate the richer team stats (per-match averaged later, like FotMob)
+      add(statN, hc); add(statN, ac);
+      for (const k of TSTAT_KEYS) if (Array.isArray(r.stats[k])) { (tstat[k] ||= {}); add(tstat[k], hc, r.stats[k][0]); add(tstat[k], ac, r.stats[k][1]); }
+    }
   }
   const split = k => { const i = k.indexOf("\t"); return [k.slice(0, i), k.slice(i + 1)]; };
   const scorerList = Object.entries(scorers).map(([k, g]) => { const [name, code] = split(k); return { name, code, goals: g, assists: assists[name + "\t" + code] || 0 }; })
@@ -2223,6 +2240,8 @@ function tournamentStats() {
     .sort((a, b) => b.v - a.v || b.r - a.r);
   // team metrics are per-match (like FotMob) so a team that's played fewer games isn't ranked unfairly
   const perMatch = (tot, n) => Object.keys(tot).map(c => ({ code: c, v: tot[c] / (n[c] || 1) }));
+  const pmT = fn => Object.keys(statN).map(c => ({ code: c, v: fn(c) / statN[c] })).sort((a, b) => b.v - a.v);   // per-game over teams with team-stats
+  const g = (k, c) => tstat[k]?.[c] || 0;
   return {
     pulse: { goals, matches: fts.length, perMatch: fts.length ? goals / fts.length : 0, cards: totCards },
     records: rec,
@@ -2239,6 +2258,16 @@ function tournamentStats() {
       .filter(x => x.cs > 0).sort((a, b) => b.cs - a.cs || a.ga - b.ga || b.app - a.app || a.name.localeCompare(b.name)),
     teamSot: perMatch(sot, sotN).sort((a, b) => b.v - a.v),
     possession: Object.keys(poss).map(c => ({ code: c, v: poss[c] / possN[c] })).filter(x => isFinite(x.v)).sort((a, b) => b.v - a.v),
+    teamPassAcc: Object.keys(tstat.passT || {}).filter(c => tstat.passT[c]).map(c => ({ code: c, v: g("pass", c) / tstat.passT[c] * 100 })).sort((a, b) => b.v - a.v),
+    teamDef: pmT(c => g("tkl", c) + g("intc", c)),     // tackles + interceptions per game
+    teamSaves: pmT(c => g("sv", c)),
+    teamCrosses: pmT(c => g("cross", c)),
+    // a team's playing identity, for the style fingerprint (only teams that have a stats line)
+    style: Object.keys(statN).filter(c => tstat.passT?.[c]).map(c => ({
+      code: c, poss: poss[c] / (possN[c] || 1), passAcc: g("pass", c) / tstat.passT[c] * 100,
+      directness: g("lball", c) / ((g("pass", c) + g("lball", c)) || 1) * 100,
+      pressPg: (g("tkl", c) + g("intc", c)) / statN[c], shotsPg: g("sh", c) / statN[c],
+    })),
     confeds: (() => {
       const teamCount = {}; Object.values(S.teams).forEach(t => { if (t.conf) teamCount[t.conf] = (teamCount[t.conf] || 0) + 1; });
       return Object.entries(conf).map(([k, o]) => ({ conf: k, teams: teamCount[k] || 0, ...o, ppg: o.p ? o.pts / o.p : 0, gpg: o.p ? o.gf / o.p : 0 }))
@@ -2355,6 +2384,10 @@ function renderStats() {
       ${teamLead("Clean sheets", s.cleanSheets, x => x.v)}
       ${teamLead("Possession", s.possession, x => x.v.toFixed(1) + "%")}
       ${teamLead("Shots on target", s.teamSot, perGame)}
+      ${teamLead("Pass accuracy", s.teamPassAcc, x => x.v.toFixed(0) + "%")}
+      ${teamLead("Defensive actions", s.teamDef, perGame)}
+      ${teamLead("Crosses", s.teamCrosses, perGame)}
+      ${teamLead("Saves", s.teamSaves, perGame)}
     </div>`],
     ["discipline", "Discipline", `<div class="lead-grid">
       ${suspHtml}

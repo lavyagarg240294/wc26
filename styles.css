@@ -1021,6 +1021,14 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .md-fold[open]>summary>span{color:var(--ink)}
 .md-fold:not([open]) .md-fold-body{display:none}   /* explicit collapse — author display on .md-stats overrides the UA rule */
 .md-fold .md-stats{margin-top:10px}
+/* team "playing style" fingerprint (team sheet) */
+.sty-card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:12px 15px;box-shadow:var(--shadow);margin:2px 0 10px}
+.sty-row{display:grid;grid-template-columns:82px 1fr 46px;align-items:center;gap:10px;padding:5px 0}
+.sty-lbl{font-size:12px;font-weight:600;color:var(--ink-soft)}
+.sty-bar{height:7px;border-radius:4px;background:var(--line);overflow:hidden}
+.sty-bar>i{display:block;height:100%;background:var(--acc1);border-radius:4px}
+.sty-v{font-family:var(--mono);font-size:12px;font-weight:700;text-align:right;font-variant-numeric:tabular-nums}
+.sty-hint{font-size:10.5px;color:var(--ink-soft);line-height:1.4;margin:8px 0 0}
 /* match-events timeline (home left / away right of a centre line) */
 .md-tl{position:relative;display:flex;flex-direction:column;gap:9px;margin:4px 0 14px;padding:6px 0}
 .md-tl::before{content:"";position:absolute;left:50%;top:0;bottom:0;width:2px;background:var(--line);transform:translateX(-50%)}
