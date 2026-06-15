@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "159";  // shown in footer; bump with the ?v= asset version
+const BUILD = "160";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -535,8 +535,11 @@ function matchCard(m, i, opts = {}) {
     `<div class="mcard-team ${s.ph ? "is-ph" : ""} ${lost ? "is-lost" : ""}">` +
     `<span class="fl">${s.code ? flag(s.code) : "·"}</span><span>${esc(slotText(m, key, s))}</span></div>`;
   const sv = isSaved(m.id);
-  return `<div class="mcard ${fav ? "is-fav" : ""}" role="button" tabindex="0" style="--i:${i}" data-mid="${m.id}">
-    <span class="mcard-star ${sv ? "is-on" : ""}" data-save="${m.id}" role="button" tabindex="0" aria-pressed="${sv}" aria-label="${sv ? "Remove from saved" : "Save match"}" title="${sv ? "Saved" : "Save match"}">${sv ? "★" : "☆"}</span>
+  // The card body is the primary button; the save-star is a SIBLING <button>, not nested inside it
+  // (nesting two interactive controls is invalid ARIA — screen readers announce it ambiguously). The
+  // .mcard-wrap carries the list spacing + entrance animation and is the positioning context for the star.
+  return `<div class="mcard-wrap" style="--i:${i}">
+    <div class="mcard ${fav ? "is-fav" : ""}" role="button" tabindex="0" data-mid="${m.id}">
     <div class="mcard-row">
       <div class="mcard-time">${timeStr(m.utc)}<small>${fmt(m.utc, { day: "numeric", month: "short" })}</small></div>
       <div class="mcard-teams">${teamRow(h, "home", winA)}${teamRow(a, "away", winH)}</div>
@@ -546,6 +549,8 @@ function matchCard(m, i, opts = {}) {
     </div>
     ${(() => { const s = matchStakes(m); return s && s.definitive ? `<div class="mcard-stake">${s.lines[0]}</div>` : ""; })()}
     ${opts.sub !== false ? `<div class="mcard-sub"><span class="grp">${esc(stageL)}</span><span>${esc(m.stadium)}</span><span>${esc(m.city)}</span><span class="mcard-go">Details ›</span></div>` : ""}
+    </div>
+    <button class="mcard-star ${sv ? "is-on" : ""}" data-save="${m.id}" aria-pressed="${sv}" aria-label="${sv ? "Remove from saved" : "Save match"}" title="${sv ? "Saved" : "Save match"}">${sv ? "★" : "☆"}</button>
   </div>`;
 }
 // split a starting XI into {gk, bands[]} using its formation string (fallback: coarse positions)

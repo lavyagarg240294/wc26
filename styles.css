@@ -293,13 +293,16 @@ b{font-weight:600}
 .upnext{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:0 16px;margin-top:2px}
 @media(max-width:560px){.upnext{grid-template-columns:1fr}}
 
+.mcard-wrap{
+  position:relative;margin-bottom:12px;
+  animation:rise .5s cubic-bezier(.21,.8,.35,1) both;
+  animation-delay:calc(var(--i,0)*45ms);
+}
 .mcard{
   position:relative;display:block;width:100%;text-align:left;cursor:pointer;
   background:var(--card);border:1px solid var(--line);border-radius:var(--r);
-  padding:14px 16px;margin-bottom:12px;box-shadow:var(--shadow);
+  padding:14px 16px;box-shadow:var(--shadow);
   transition:transform .18s,box-shadow .25s,border-color .25s;
-  animation:rise .5s cubic-bezier(.21,.8,.35,1) both;
-  animation-delay:calc(var(--i,0)*45ms);
 }
 @keyframes rise{from{opacity:0;transform:translateY(14px)}}
 .mcard:hover{transform:translateY(-2px);box-shadow:0 4px 6px rgba(13,27,42,.06),0 14px 34px -10px rgba(13,27,42,.16);border-color:color-mix(in srgb,var(--acc1) 40%,var(--line))}
@@ -333,6 +336,7 @@ b{font-weight:600}
 .mcard-sub .grp{font-family:var(--disp);font-weight:700;font-stretch:112%;letter-spacing:.06em;color:var(--acc-text)}
 .mcard-star{
   position:absolute;top:4px;right:6px;z-index:2;
+  background:none;border:0;cursor:pointer;font-family:inherit;
   font-size:15px;line-height:1;color:var(--ink-soft);opacity:.45;
   padding:8px 9px;border-radius:9px;transition:transform .15s,color .2s,opacity .2s;
 }
