@@ -379,6 +379,17 @@ async function fromFootballData() {
 
 /* ---------------- stats enrichment: ESPN fifa.world (possession/shots/corners) ---------------- */
 const ESPN = "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world";
+// the ESPN summary carries 28 team stats, per-team "leaders", and match facts — pull the useful slice into
+// details.json (we long shipped only 5). Compact keys; the client (STAT_ROWS) decides labels + order.
+// NB: possessionPct is 0-100 but passPct/shotPct arrive as 0-1 fractions — inconsistent, so we skip those two
+// and let the client derive pass accuracy from the accurate/total counts (pass / passT) instead.
+const ESPN_STAT_MAP = [
+  ["poss", "possessionPct"], ["sh", "totalShots"], ["sot", "shotsOnTarget"], ["blk", "blockedShots"],
+  ["sv", "saves"], ["off", "offsides"], ["cor", "wonCorners"], ["fls", "foulsCommitted"],
+  ["pass", "accuratePasses"], ["passT", "totalPasses"], ["cross", "accurateCrosses"], ["lball", "accurateLongBalls"],
+  ["tkl", "totalTackles"], ["intc", "interceptions"], ["clr", "effectiveClearance"],
+  ["yc", "yellowCards"], ["rc", "redCards"],
+];
 function parseEspnStats(sum, f, entry) {
   const teams = sum.boxscore?.teams || [];
   if (teams.length < 2) return null;
@@ -389,10 +400,22 @@ function parseEspnStats(sum, f, entry) {
   if (!H || !A) return null;
   const pair = name => { const h = num(H, name), a = num(A, name); return (h != null && a != null) ? [h, a] : null; };
   const stats = {};
-  for (const [key, espn] of [["poss", "possessionPct"], ["sh", "totalShots"], ["sot", "shotsOnTarget"], ["cor", "wonCorners"], ["fls", "foulsCommitted"]]) {
-    const v = pair(espn); if (v) stats[key] = v;
+  for (const [key, espn] of ESPN_STAT_MAP) { const v = pair(espn); if (v) stats[key] = v; }
+  // per-team leaders (top performer per category) — names are display-only, no join needed
+  const lead = [];
+  for (const t of (sum.leaders || [])) {
+    const code = toCode(t.team?.displayName); if (!code) continue;
+    for (const cat of (t.leaders || [])) {
+      const top = cat.leaders?.[0], n = top?.athlete?.displayName, v = top?.displayValue;
+      if (n && v != null) lead.push({ c: code, k: cat.name, n, v: String(v) });
+    }
   }
-  return Object.keys(stats).length ? stats : null;
+  // match facts — attendance + referee
+  const facts = {};
+  const att = sum.gameInfo?.attendance; if (Number.isFinite(att) && att > 0) facts.att = att;
+  const ref = (sum.gameInfo?.officials || []).find(o => /referee/i.test(o.position?.name || o.position?.displayName || ""))?.displayName;
+  if (ref) facts.ref = ref;
+  return { stats: Object.keys(stats).length ? stats : null, lead: lead.length ? lead : null, facts: Object.keys(facts).length ? facts : null };
 }
 async function enrichStats(matches, prev, prevReports) {
   const RECENT = 2 * 864e5;                                 // chase a finished match's (later-published) report for ~2 days
@@ -410,7 +433,11 @@ async function enrichStats(matches, prev, prevReports) {
   need.sort((a, b) => (["LIVE", "HT"].includes(matches[b.id]?.st) ? 1 : 0) - (["LIVE", "HT"].includes(matches[a.id]?.st) ? 1 : 0));
   for (const f of fixtures) {                              // carry cached stats for finished matches we won't refetch
     const e = matches[f.id];
-    if (e && e.st === "FT" && prev[f.id]?.stats && !need.includes(f)) e.stats = prev[f.id].stats;
+    if (e && e.st === "FT" && !need.includes(f)) {     // carry finished-match detail we won't refetch
+      if (prev[f.id]?.stats) e.stats = prev[f.id].stats;
+      if (prev[f.id]?.lead) e.lead = prev[f.id].lead;
+      if (prev[f.id]?.facts) e.facts = prev[f.id].facts;
+    }
   }
   if (!need.length) return;
   const dates = [...new Set(need.map(f => f.utc.slice(0, 10).replace(/-/g, "")))];
@@ -438,8 +465,13 @@ async function enrichStats(matches, prev, prevReports) {
     calls++;
     try {
       const sum = await fetch(`${ESPN}/summary?event=${eid}`, { headers: { "User-Agent": UA } }).then(r => r.json());
-      const st = parseEspnStats(sum, f, matches[f.id]);
-      if (st) { matches[f.id].stats = st; ok++; }
+      const ex = parseEspnStats(sum, f, matches[f.id]);
+      if (ex) {
+        if (ex.stats) matches[f.id].stats = ex.stats;
+        if (ex.lead) matches[f.id].lead = ex.lead;
+        if (ex.facts) matches[f.id].facts = ex.facts;
+        if (ex.stats || ex.lead || ex.facts) ok++;
+      }
       const rep = parseArticle(sum); if (rep) harvestedReports[f.num] = rep;        // credited write-up
       const com = parseCommentary(sum); if (com) harvestedCommentary[f.num] = com;   // live/full play-by-play
     } catch { /* skip */ }

@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "163";  // shown in footer; bump with the ?v= asset version
+const BUILD = "164";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -639,20 +639,43 @@ function mdTimeline(r, hc, ac) {
   }).join("");
   return `<div class="eyebrow">Match events</div><div class="md-tl">${rows}</div>`;
 }
-const STAT_ROWS = [["poss", "Possession", "%"], ["sh", "Shots"], ["sot", "On target"], ["cor", "Corners"], ["fls", "Fouls"]];
+const STAT_ROWS = [
+  ["poss", "Possession", "%"],
+  ["sh", "Shots"], ["sot", "On target"], ["blk", "Blocked"],
+  ["sv", "Saves"], ["cor", "Corners"], ["off", "Offsides"],
+  ["pass", "Passes"], ["cross", "Crosses"], ["lball", "Long balls"],
+  ["tkl", "Tackles"], ["intc", "Interceptions"], ["clr", "Clearances"],
+  ["fls", "Fouls"], ["yc", "Yellow cards"],
+];
+const statBar = ([hv, av], label, suf = "") => {
+  const tot = (hv + av) || 1, hp = Math.round(hv / tot * 100);
+  return `<div class="st-row">
+    <span class="st-v${hv >= av ? " st-hi" : ""}">${hv}${suf}</span>
+    <span class="st-label">${label}</span>
+    <span class="st-v st-v-a${av >= hv ? " st-hi" : ""}">${av}${suf}</span>
+    <span class="st-bar"><i class="st-h" style="width:${hp}%"></i><i class="st-a" style="width:${100 - hp}%"></i></span>
+  </div>`;
+};
 function mdStats(r) {
   if (!r?.stats) return "";
-  const rows = STAT_ROWS.filter(([k]) => Array.isArray(r.stats[k])).map(([k, label, suf]) => {
-    const [hv, av] = r.stats[k], tot = (hv + av) || 1, hp = Math.round(hv / tot * 100);
-    const sfx = suf || "";
-    return `<div class="st-row">
-      <span class="st-v${hv >= av ? " st-hi" : ""}">${hv}${sfx}</span>
-      <span class="st-label">${label}</span>
-      <span class="st-v st-v-a${av >= hv ? " st-hi" : ""}">${av}${sfx}</span>
-      <span class="st-bar"><i class="st-h" style="width:${hp}%"></i><i class="st-a" style="width:${100 - hp}%"></i></span>
-    </div>`;
-  }).join("");
-  return rows ? `<div class="eyebrow">Match stats</div><div class="md-stats">${rows}</div>` : "";
+  const s = r.stats, parts = [];
+  for (const [k, label, suf] of STAT_ROWS) {
+    if (!Array.isArray(s[k])) continue;
+    parts.push(statBar(s[k], label, suf));
+    // derive pass accuracy from the accurate/total counts (ESPN's passPct ships as a 0-1 fraction, so we don't store it)
+    if (k === "pass" && Array.isArray(s.passT) && s.passT[0] && s.passT[1])
+      parts.push(statBar([Math.round(s.pass[0] / s.passT[0] * 100), Math.round(s.pass[1] / s.passT[1] * 100)], "Pass accuracy", "%"));
+  }
+  return parts.length ? `<div class="eyebrow">Match stats</div><div class="md-stats">${parts.join("")}</div>` : "";
+}
+// per-team standout performers (top shooter / passer / defender / keeper) — names are display-only
+function mdLeaders(r) {
+  if (!r?.lead?.length) return "";
+  const CAT = [["totalShots", "Shots"], ["accuratePasses", "Passes"], ["defensiveInterventions", "Defensive actions"], ["saves", "Saves"]];
+  const byCat = {}; for (const L of r.lead) (byCat[L.k] ||= []).push(L);
+  const rows = CAT.filter(([k]) => byCat[k]).map(([k, label]) =>
+    `<div class="ld-row"><span class="ld-cat">${label}</span><span class="ld-ps">${byCat[k].map(L => `<span class="ld-p">${flag(L.c)} <b>${esc(L.n)}</b> <em>${esc(L.v)}</em></span>`).join("")}</span></div>`).join("");
+  return rows ? `<div class="eyebrow">Key performers</div><div class="md-leaders">${rows}</div>` : "";
 }
 const evMin = s => { const m = String(s || "").match(/(\d+)(?:'?\+(\d+))?/); return m ? +m[1] + (m[2] ? +m[2] / 100 : 0) : 0; };
 // "match flow" — the running lead (home − away) over the timeline, as a signed area
@@ -895,6 +918,7 @@ function openMatch(id) {
       <div class="md-goals-col away">${(r.ga || []).map(g => `<div class="md-goal">${esc(g)} ⚽</div>`).join("")}</div>
     </div>` : ""}
     ${mdStats(r)}
+    ${mdLeaders(r)}
     ${mdFlow(r, h, a)}
     ${mdReport(m)}
     ${mdCommentaryShell(m)}
@@ -903,6 +927,8 @@ function openMatch(id) {
       <span>${timeStr(m.utc)}</span>
       <span>${esc(m.stadium)}</span>
       <span>${esc(m.city)}</span>
+      ${r?.facts?.att ? `<span>👥 ${(+r.facts.att).toLocaleString()} in</span>` : ""}
+      ${r?.facts?.ref ? `<span>Referee · ${esc(r.facts.ref)}</span>` : ""}
     </div>
     ${liveNow ? "" : xiBlock}
     ${squadLinks ? `<div class="md-squads">${squadLinks}</div>` : ""}`;
