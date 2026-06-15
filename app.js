@@ -8,11 +8,11 @@ const S = {
   reports: { matches: {} }, commentary: {},   // credited match reports (reports.json) + lazy per-match live commentary
   tz: localStorage.getItem("wc26.tz") || "auto",
   fav: localStorage.getItem("wc26.fav") || null,
-  view: "matches",
+  view: null,   // set by boot's nav() — null until then so the pre-first-paint refreshResults() doesn't double-render
   filters: { stage: "all", team: "", saved: false },
   saved: new Set(JSON.parse(localStorage.getItem("wc26.saved") || "[]")),
   sim: JSON.parse(localStorage.getItem("wc26.sim") || "null") || { order: {}, thirds: [], ko: {} },
-  _lastResults: null, lastChecked: null,
+  _lastResults: null, _lastDetails: null, lastChecked: null,
 };
 // a committed match report (reports.json), keyed by openfootball match number; null until the Action writes one
 const report = m => (S.reports.matches || {})[m.num] || null;
@@ -57,12 +57,34 @@ document.addEventListener("toggle", e => {
   if (d.tagName === "DETAILS" && d.open && d.closest(".sheet-body")) requestAnimationFrame(() => d.scrollIntoView({ behavior: "smooth", block: "nearest" }));
 }, true);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-// Player names arrive in mixed shapes: the FIFA feed UPPERCASEs the surname ("Julian QUINONES", "MOKOENA",
-// "J. GALLARDO"); squads.json is Title Case. pName() normalises ANY of them to one Title-Case display form so the
-// site reads consistently. DISPLAY ONLY — data-player keys keep the raw name so the openPlayer/photo joins still work.
-const pName = s => (s || "").replace(/\S+/g, w => /^[A-ZÀ-Ý][A-ZÀ-Ý.'’-]*$/.test(w) ? w.charAt(0) + w.slice(1).toLowerCase() : w);
+// Player names arrive mixed: the FIFA feed UPPERCASEs the surname ("Julian QUINONES", "MOKOENA", "J. GALLARDO")
+// and often drops the accent ("QUIÑONES" → "QUINONES"); squads.json carries the proper accented Title-Case form.
+// pName() Title-Cases the feed name and RESTORES ACCENTS from a per-team accent dictionary (built from squads.json),
+// word by word. It deliberately does NOT swap in a different name, so a player known by a short form ("RODRI",
+// "Havertz") keeps it and a same-surname team-mate can't hijack it. DISPLAY ONLY — data-player keys keep the raw
+// feed name so the openPlayer/photo joins still resolve. Cached; squads load before any render.
+const _titleCase = s => (s || "").replace(/\S+/g, w => /^[A-ZÀ-Ý][A-ZÀ-Ý.'’-]*$/.test(w) ? w.charAt(0) + w.slice(1).toLowerCase() : w);
+const _deburr = w => (w || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+const _accentCache = new Map();   // team code → { deburred word: its accented spelling } (only words that carry an accent)
+const _accentDict = code => {
+  let d = _accentCache.get(code); if (d) return d;
+  d = {};
+  for (const p of (S.squads?.[code]?.players || [])) for (const w of (p.name || "").split(/\s+/)) {
+    const k = _deburr(w); if (k && k !== w.toLowerCase() && !(k in d)) d[k] = w;   // this word carries an accent → remember it
+  }
+  _accentCache.set(code, d); return d;
+};
+const _nameCache = new Map();
+const pName = (s, code) => {
+  const key = (s || "") + "|" + (code || "");
+  const hit = _nameCache.get(key); if (hit !== undefined) return hit;
+  const dict = code ? _accentDict(code) : null;
+  const out = _titleCase(s).replace(/\S+/g, w => (dict && dict[_deburr(w)]) || w);
+  _nameCache.set(key, out);
+  return out;
+};
 // the dense match timeline uses just the surname (football convention) — drop a Jr/Filho-style suffix first.
-const tlName = s => { const t = (s || "").trim().split(/\s+/).filter(w => !/^(jr|jnr|junior|filho|neto|ii|iii)\.?$/i.test(w)); return pName(t[t.length - 1] || s || ""); };
+const tlName = (s, code) => { const t = pName(s, code).trim().split(/\s+/).filter(w => !/^(jr|jnr|junior|filho|neto|ii|iii)\.?$/i.test(w)); return t[t.length - 1] || _titleCase(s); };
 
 // real SVG flags (self-hosted) — emoji regional-indicator flags don't render on Windows, where the
 // whole flag-heavy UI would degrade to "BR"/"US" letter boxes. alt falls back to the code if a file 404s.
@@ -635,7 +657,7 @@ const EV_ICON = {
   S: `<span class="tl-sub">${ICO.subs}</span>`,
 };
 function evText(e, code) {
-  const P = (n, cls) => `<span class="${cls} tl-clk" data-player="${esc(n)}|${code}" role="button" tabindex="0">${esc(tlName(n))}</span>`;
+  const P = (n, cls) => `<span class="${cls} tl-clk" data-player="${esc(n)}|${code}" role="button" tabindex="0">${esc(tlName(n, code))}</span>`;
   if (e.k === "S") return `${e.on ? P(e.on, "tl-p tl-in") : ""}${e.off ? P(e.off, "tl-off tl-out") : ""}`;
   const tag = e.k === "P" ? ` <span class="tl-x">pen</span>` : e.k === "OG" ? ` <span class="tl-x">o.g.</span>` : "";
   return `${e.p ? P(e.p, "tl-p") : ""}${tag}${e.a ? P(e.a, "tl-off") : ""}`;
@@ -894,7 +916,7 @@ function stakesBlock(m) {
   const s = matchStakes(m); if (!s) return "";
   return `<div class="eyebrow">What's at stake</div><ul class="stakes">${s.lines.map(l => `<li>${l}</li>`).join("")}</ul>`;
 }
-function openMatch(id) {
+function openMatch(id, reuse) {   // reuse: re-render the body in place (a live poll) without re-animating the dialog
   const m = S.matches.find(x => x.id === id); if (!m) return;
   const h = slotInfo(m, "home"), a = slotInfo(m, "away"), r = res(m), st = status(m);
   const live = st === ST.LIVE || st === ST.HT;
@@ -949,7 +971,7 @@ function openMatch(id) {
     </div>
     ${liveNow || !r?.xi ? "" : `<details class="md-fold"><summary><span>Starting XI</span><small>${esc([r.xi.h?.f, r.xi.a?.f].filter(Boolean).join(" v ")) || "line-ups & formations"}</small></summary><div class="md-fold-body">${xiPanel(r.xi, h, a)}</div></details>`}
     ${squadLinks ? `<div class="md-squads">${squadLinks}</div>` : ""}`;
-  const md = $("#matchDialog"); md.dataset.openMid = id; showSheet(md);   // openMid (not data-mid) so the global match-open click handler never matches the dialog itself
+  const md = $("#matchDialog"); md.dataset.openMid = id; if (!reuse) showSheet(md);   // openMid (not data-mid) so the global match-open click handler never matches the dialog itself
   // live commentary is per-match; fetch it when the section is open (it opens by default for live games)
   const comm = $("#mdComm", md);
   if (comm) {
@@ -1349,7 +1371,7 @@ function rotationSection(code) {
   const row = p => { const ph = playerPhoto(p.name, p.code);
     return `<div class="rt-row" data-player="${esc(p.name)}|${p.code}" role="button" tabindex="0">
       ${ph ? `<span class="lead-face" style="background-image:url('${ph}')"></span>` : `<span class="fl">${flag(p.code)}</span>`}
-      <span class="rt-name">${esc(pName(p.name))}<small>${p.starts} start${p.starts !== 1 ? "s" : ""}${p.subs ? ` · ${p.subs} sub` : ""}</small></span>
+      <span class="rt-name">${esc(pName(p.name, p.code))}<small>${p.starts} start${p.starts !== 1 ? "s" : ""}${p.subs ? ` · ${p.subs} sub` : ""}</small></span>
       <span class="rt-cells">${p.cells.map(c => `<span class="rt-cell s-${c.k}" title="${esc(c.t)}"></span>`).join("")}</span>
       <span class="rt-min">${p.mins}<small>min</small></span></div>`; };
   return `<details class="ts-squad rt-block"><summary><span>Minutes &amp; rotation</span><small>${R.matches} match${R.matches !== 1 ? "es" : ""}</small></summary>
@@ -1439,12 +1461,12 @@ function openPlayer(name, code) {
   }).join("");
   const box = matchPstat(name, r?.pstats);   // ESPN per-match box score for this player, if a match is open
   const boxHtml = box ? PL_BOX.filter(([k]) => box[k]).map(([k, label]) => `<span class="pl-stat"><b>${box[k]}</b>${label}</span>`).join("") : "";
-  $("#playerTitle").textContent = pName(name);   // real dialog name for screen readers (was a generic "Player")
+  $("#playerTitle").textContent = pName(name, code);   // real dialog name for screen readers (was a generic "Player")
   $("#playerBody").innerHTML = `
     <div class="pl">
       ${photo ? `<span class="pl-face" style="background-image:url('${photo}')"></span>` : `<span class="pl-face pl-flag">${code ? flag(code) : "·"}</span>`}
       <div class="pl-meta">
-        <b class="pl-name">${esc(pName(name))}</b>
+        <b class="pl-name">${esc(pName(name, code))}</b>
         <span class="pl-team">${code ? flag(code) + " " : ""}${esc(team?.name || code || "")}</span>
         ${(num != null || pos) ? `<span class="pl-pos">${num != null ? "#" + num : ""}${num != null && pos ? " · " : ""}${pos}</span>` : ""}
       </div>
@@ -1518,7 +1540,7 @@ function renderSearch(raw) {
   const byRank = key => (a, b) => rank(key(a)) - rank(key(b)) || key(a).localeCompare(key(b));
   const players = SIDX.players.filter(p => (has(p.name) || has(p.club)) && !(cmp && p.name === compareSeed.name && p.code === compareSeed.code)).sort(byRank(p => p.name)).slice(0, cmp ? 12 : 8);
   const playerRowHtml = (p, attr) => { const ph = playerPhoto(p.name, p.code);
-    return `<button class="sr-row" ${attr}>${ph ? `<span class="lead-face" style="background-image:url('${ph}')"></span>` : `<span class="fl">${flag(p.code)}</span>`}<span class="sr-name">${esc(pName(p.name))}<small>${flag(p.code)} ${tname(p.code)}${p.club ? ` · ${esc(p.club)}` : ""}</small></span></button>`; };
+    return `<button class="sr-row" ${attr}>${ph ? `<span class="lead-face" style="background-image:url('${ph}')"></span>` : `<span class="fl">${flag(p.code)}</span>`}<span class="sr-name">${esc(pName(p.name, p.code))}<small>${flag(p.code)} ${tname(p.code)}${p.club ? ` · ${esc(p.club)}` : ""}</small></span></button>`; };
   if (cmp) {   // compare mode: players only, tapping picks the second player
     res.innerHTML = players.length ? `<div class="sr-label">Compare with…</div>` + players.map(p => playerRowHtml(p, `data-compare="${esc(p.name)}|${p.code}"`)).join("") : `<div class="sr-hint">No players match “${esc(raw.trim())}”.</div>`;
     return;
@@ -1555,7 +1577,7 @@ function openCompare(a, b) {
   const POS = { GK: "Goalkeeper", DF: "Defender", MF: "Midfielder", FW: "Forward" };
   const head = (p, side) => `<div class="cmp-p">
     ${p.photo ? `<span class="pl-face" style="background-image:url('${p.photo}')"></span>` : `<span class="pl-face pl-flag">${flag(side.code)}</span>`}
-    <b>${esc(side.name)}</b><span>${flag(side.code)} ${esc(S.teams[side.code]?.name || side.code)}</span>${p.pos ? `<span class="cmp-pos">${POS[p.pos] || p.pos}</span>` : ""}</div>`;
+    <b>${esc(pName(side.name, side.code))}</b><span>${flag(side.code)} ${esc(S.teams[side.code]?.name || side.code)}</span>${p.pos ? `<span class="cmp-pos">${POS[p.pos] || p.pos}</span>` : ""}</div>`;
   const row = (label, av, bv, hi = true) => {
     const an = +av || 0, bn = +bv || 0;
     return `<div class="cmp-row"><span class="cmp-a ${hi && an > bn ? "win" : ""}">${av ?? "–"}</span><span class="cmp-lbl">${label}</span><span class="cmp-b ${hi && bn > an ? "win" : ""}">${bv ?? "–"}</span></div>`;
@@ -2347,7 +2369,7 @@ function renderStats() {
   // a player leaderboard row (photo + name + value), taps through to the player profile
   const playerRow = (p, i, val) => { const ph = playerPhoto(p.name, p.code); return `<div class="lead-row lead-player" data-player="${esc(p.name)}|${p.code}" role="button" tabindex="0">
     <span class="lead-rank">${i + 1}</span>${ph ? `<span class="lead-face" style="background-image:url('${ph}')"></span>` : `<span class="fl">${flag(p.code)}</span>`}
-    <span class="lead-name">${esc(pName(p.name))}<small>${flag(p.code)} ${tname(p.code)}</small></span>
+    <span class="lead-name">${esc(pName(p.name, p.code))}<small>${flag(p.code)} ${tname(p.code)}</small></span>
     <span class="lead-v">${val}</span></div>`; };
   const scorerRow = (p, i) => playerRow(p, i, `${p.goals}<small>${p.assists ? `${p.assists} ast` : "&nbsp;"}</small>`);
   const assistRow = (p, i) => playerRow(p, i, `${p.assists}<small>assist${p.assists > 1 ? "s" : ""}</small>`);
@@ -2356,7 +2378,7 @@ function renderStats() {
   // suspension watch — derived from the same card tallies; a red or 2nd yellow = a ban next game
   const suspRow = (p, kind) => { const ph = playerPhoto(p.name, p.code); return `<div class="lead-row lead-player" data-player="${esc(p.name)}|${p.code}" role="button" tabindex="0">
     ${ph ? `<span class="lead-face" style="background-image:url('${ph}')"></span>` : `<span class="fl">${flag(p.code)}</span>`}
-    <span class="lead-name">${esc(pName(p.name))}<small>${flag(p.code)} ${tname(p.code)}</small></span>
+    <span class="lead-name">${esc(pName(p.name, p.code))}<small>${flag(p.code)} ${tname(p.code)}</small></span>
     <span class="susp-tag ${kind === "ban" ? "is-ban" : "is-risk"}">${kind === "ban" ? (p.r > 0 ? "Sent off — banned" : "2 yellows — banned") : "On a yellow"}</span></div>`; };
   const suspended = s.booked.filter(p => p.r > 0 || p.y >= 2);
   const atRisk = s.booked.filter(p => p.r === 0 && p.y === 1);
@@ -2672,9 +2694,14 @@ async function manualRefresh() {
 }
 // heavy per-match detail (timeline/lineups/stats) lives in its own file so it isn't re-downloaded
 // every 60s — fetched only when scores change (see refreshResults). Tolerates a missing file.
-async function loadDetails() {
-  try { const d = await (await fetch("data/details.json?t=" + Date.now(), { cache: "no-store" })).json(); S.details = d && d.matches ? d : { matches: {} }; }
-  catch { S.details = { matches: {} }; }
+async function loadDetails() {   // returns true when details.json actually changed (so the caller can re-render)
+  try {
+    const txt = await (await fetch("data/details.json?t=" + Date.now(), { cache: "no-store" })).text();
+    if (txt === S._lastDetails) return false;
+    S._lastDetails = txt;
+    const d = JSON.parse(txt); S.details = d && d.matches ? d : { matches: {} };
+    return true;
+  } catch { return false; }   // keep whatever we have on a blip
 }
 // credited match reports (headline + prose) — small file, refreshed on score change like details.json. Tolerates absence.
 async function loadReports() {
@@ -2703,21 +2730,43 @@ async function refreshResults() {
     if (!r.ok) return;
     const txt = await r.text();
     S.lastChecked = Date.now();
-    if (txt === S._lastResults) { setFreshness(); return; }  // no change — just refresh the "checked" time, skip the re-render
+    const scoresChanged = txt !== S._lastResults;
+    const live = S.matches.some(m => [ST.LIVE, ST.HT].includes(status(m)));
+    if (!scoresChanged && !live) { setFreshness(); return; }   // quiet and nothing in play → just update the "checked" time
     const firstLoad = S._lastResults == null;
     const prev = S.results.matches || {};
-    S._lastResults = txt;
-    S.results = JSON.parse(txt);
-    await Promise.all([loadDetails(), loadReports()]);   // scores changed → pull detail + reports, then merge for the renderers
-    S.commentary = {};            // live commentary may have advanced — drop the per-match cache so popups re-fetch
-    rebuildMatchData();
+    if (scoresChanged) { S._lastResults = txt; S.results = JSON.parse(txt); }
+    // Refresh detail whenever scores changed OR a match is live: the free feed can omit the ticking minute, so
+    // results.json may be byte-identical while events/stats advanced. details.json is small + no-store.
+    const detailChanged = await loadDetails();
+    if (scoresChanged) await loadReports();
+    if (scoresChanged || detailChanged) {
+      S.commentary = {};            // live commentary may have advanced — drop the per-match cache so popups re-fetch
+      rebuildMatchData();
+      renderTicker();
+      // Predict is driven by the user's saved picks, not live results — re-rendering it on a poll would reset their
+      // bracket scroll for no benefit. Refresh every other view. (S.view is null pre-first-paint — boot's nav renders.)
+      if (S.view && S.view !== "sim") RENDER[S.view]();
+      refreshOpenMatch();           // keep an open match popup live — score/minute/timeline/stats, not just commentary
+      if (scoresChanged && !firstLoad) celebrateGoals(prev, S.results.matches);
+    }
     setFreshness();
-    renderTicker();
-    // Predict is driven by the user's saved picks, not live results — re-rendering it on a poll would
-    // just reset their bracket scroll / interrupt them for no benefit. Refresh every other view.
-    if (S.view && S.view !== "sim") RENDER[S.view]();   // S.view is unset on the pre-first-paint load — boot's nav() does that render
-    if (!firstLoad) celebrateGoals(prev, S.results.matches); // only after we have a baseline
   } catch { /* offline or first deploy — schedule still works */ }
+}
+// On a poll, re-render an open match popup in place so its score/minute/timeline/stats/win-prob stay current (it was
+// written once on open and otherwise freezes). Preserve what the user is doing: expanded sections, scroll, and the
+// already-loaded commentary (so it doesn't flash empty before refreshOpenCommentary refills it).
+function refreshOpenMatch() {
+  const md = $("#matchDialog"); const id = md?.open && md.dataset.openMid;
+  if (!id) return;
+  const label = d => d.querySelector("summary")?.textContent.trim() || "";
+  const openFolds = new Set([...md.querySelectorAll("details[open]")].map(label));
+  const commBody = md.querySelector("#mdCommBody")?.innerHTML || "";
+  const y = md.scrollTop;
+  openMatch(id, true);              // rebuild the body, no re-animation
+  md.querySelectorAll("details").forEach(d => { if (openFolds.has(label(d))) d.open = true; });
+  const cb = md.querySelector("#mdCommBody"); if (cb && commBody) cb.innerHTML = commBody;
+  md.scrollTop = y;
 }
 // keep an open live-match popup's commentary current — re-fetch its feed each poll (commentary advances on
 // fouls/cards too, not just goals, so this runs every tick, independent of whether the score changed)
