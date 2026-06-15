@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "164";  // shown in footer; bump with the ?v= asset version
+const BUILD = "165";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -2260,25 +2260,22 @@ const FIFA_POS = {}; FIFA_RANK.forEach((e, i) => { FIFA_POS[typeof e === "string
 // snapshot fall back to their Elo so it's still skill-based — never the alphabetical code.
 const tiebreakRank = code => FIFA_POS[code] != null ? FIFA_POS[code] : 100 - (S.teams[code]?.elo || 0) / 100;
 function fifaRankingPanel() {
-  const ranked = new Set(FIFA_RANK.map(e => typeof e === "string" ? e : e[0]));
-  const topRows = FIFA_RANK.map((e, i) => {
-    const q = typeof e === "string", code = q ? e : e[0], name = q ? (S.teams[code]?.name || code) : e[1];
-    return `<div class="rk-row${q ? "" : " rk-out"}"${q ? ` data-squad="${code}" role="button" tabindex="0"` : ""}>
-      <span class="rk-num">${i + 1}</span><span class="fl">${flag(code)}</span>
-      <span class="rk-name">${esc(name)}</span>
-      ${q ? `<span class="rk-q" title="In the World Cup">✓</span>` : `<span class="rk-no">Did not qualify</span>`}</div>`;
-  }).join("");
-  // the finalists FIFA ranks below 50 — shown without a fabricated exact position (ordered by Elo strength)
-  const out = Object.keys(S.teams).filter(c => !ranked.has(c)).sort((a, b) => (S.teams[b].elo || 0) - (S.teams[a].elo || 0));
-  const outRows = out.map(code => `<div class="rk-row" data-squad="${code}" role="button" tabindex="0">
-    <span class="rk-num">·</span><span class="fl">${flag(code)}</span>
-    <span class="rk-name">${esc(S.teams[code].name)}</span><span class="rk-q" title="In the World Cup">✓</span></div>`).join("");
-  return `<div class="rk-note">All 48 finalists are marked <b>✓</b>. The biggest names watching from home: <b>Italy</b> (12th), <b>Denmark</b> (21st), <b>Nigeria</b> (26th).</div>
-    <div class="eyebrow">FIFA World Ranking · top 50 · June 2026</div>
-    <div class="lead-card rk-list">${topRows}</div>
-    <div class="eyebrow">Also in the World Cup · ranked outside the top 50</div>
-    <div class="lead-card rk-list">${outRows}</div>
-    <p class="sim-ko-hint">Source: FIFA World Ranking, June 2026. Tap any finalist to open its team page.</p>`;
+  // The useful view on a World Cup site is the field itself, ordered by world ranking — not a top-50 cut padded
+  // with teams that didn't qualify. Real FIFA position comes from the top-50 snapshot (index+1); the ~13 finalists
+  // ranked below it order by Elo strength after them (shown "50+", never a fabricated exact number).
+  const worldRank = {}; FIFA_RANK.forEach((e, i) => { if (typeof e === "string") worldRank[e] = i + 1; });
+  const quals = Object.keys(S.teams).sort((a, b) =>
+    (worldRank[a] || 999) - (worldRank[b] || 999) || (S.teams[b].elo || 0) - (S.teams[a].elo || 0));
+  const rows = quals.map((code, n) => `<div class="rk-row" data-squad="${code}" role="button" tabindex="0">
+    <span class="rk-num">${n + 1}</span><span class="fl">${flag(code)}</span>
+    <span class="rk-name">${esc(S.teams[code]?.name || code)}</span>
+    <span class="rk-wr${worldRank[code] ? "" : " rk-wr-out"}">${worldRank[code] ? "FIFA #" + worldRank[code] : "50+"}</span></div>`).join("");
+  const missed = FIFA_RANK.map((e, i) => ({ e, i })).filter(({ e }) => typeof e !== "string")
+    .slice(0, 6).map(({ e, i }) => `${e[1]} (${ordinal(i + 1)})`).join(" · ");
+  return `<div class="eyebrow">World Cup field · by FIFA world ranking</div>
+    <div class="lead-card rk-list">${rows}</div>
+    <div class="rk-note">All 48 finalists, strongest to weakest — FIFA world rank shown where inside the top 50. Biggest names <b>watching from home</b>: ${missed}.</div>
+    <p class="sim-ko-hint">Source: FIFA World Ranking · June 2026 · tap any team for its page.</p>`;
 }
 
 function renderStats() {
@@ -2404,12 +2401,18 @@ function renderCommentary(c) {
     if (/^other decision cancelled$/i.test(d)) d = "an on-field decision was overturned after review";
     return `<b class="cm-var">VAR</b> ${esc(d)}`;
   };
-  const rows = c.items.map(it => {
+  const row = it => {
     const isVar = /^VAR Decision:/i.test(it.x || "");
     return `<div class="cm-row${it.k ? ` cm-${esc(it.k)}` : ""}${isVar ? " cm-var-row" : ""}">${it.t ? `<span class="cm-t">${esc(it.t)}</span>` : `<span class="cm-t cm-t-x"></span>`}<span class="cm-x">${isVar ? clarify(it.x) : esc(it.x || "")}</span></div>`;
-  }).join("");
+  };
+  // a raw play-by-play is mostly throw-ins and blocked shots — lead with the moments that matter; full feed one tap away
+  const KEY = it => it.k || /\bpenalt|\bVAR\b|own goal|sent off|red card|hits the (bar|post|crossbar)|Match ends|First Half ends|Second Half ends|Half begins|^Goal|kick-off/i.test(it.x || "");
+  const key = c.items.filter(KEY);
+  const lead = key.length >= 3 ? key : c.items.slice(0, 10);   // enough highlights? lead with them, else the latest 10
   const credit = c.src ? `<div class="md-credit">Commentary: ${c.url ? `<a href="${esc(c.url)}" target="_blank" rel="noopener noreferrer">${esc(c.src)} ↗</a>` : esc(c.src)}</div>` : "";
-  return rows + credit;
+  const full = lead.length < c.items.length
+    ? `<details class="cm-full"><summary>Full play-by-play · ${c.items.length} entries</summary>${c.items.map(row).join("")}</details>` : "";
+  return lead.map(row).join("") + full + credit;
 }
 
 /* ---------------- navigation ---------------- */
