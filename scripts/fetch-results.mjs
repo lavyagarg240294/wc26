@@ -46,10 +46,12 @@ function harvestPhotos(team, code) {
   }
 }
 // FIFA's per-team squad endpoint carries official headshots for EVERY player pre-tournament (no key, no waiting
-// for a team to play). Backfill a few teams per run — keyed by BOTH full and short name so roster taps (squad
-// names) and timeline taps (feed names) both resolve. `teamIdByCode` is learned in fromFifa from the calendar.
+// for a team to play). Backfill teams that still have no photos this run — keyed by BOTH full and short name so
+// roster taps (squad names) and timeline taps (feed names) both resolve. `teamIdByCode` is learned in fromFifa
+// from the calendar. Cap is a latency bound, not scarcity: `todo` already excludes any team that has photos, so
+// in practice it's only the not-yet-played teams — 24 clears them in a single run (two from a cold start).
 const teamIdByCode = {};
-const SQUAD_PHOTO_CAP = 6;
+const SQUAD_PHOTO_CAP = 24;
 async function harvestSquadPhotos(photoCodes) {
   const todo = Object.keys(teamIdByCode).filter(c => !photoCodes.has(c));
   let teams = 0;
