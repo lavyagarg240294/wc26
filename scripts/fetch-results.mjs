@@ -426,7 +426,8 @@ async function enrichStats(matches, prev, prevReports) {
     const since = Date.now() - new Date(f.utc).getTime();
     const freshlyDone = since < 5 * 36e5;   // keep refreshing stats+commentary for ~3h after FT — also regenerates a
                                             // commentary file if a rare push race + `reset --hard` discarded it
-    return freshlyDone || !prev[f.id]?.stats || (since < RECENT && !prevReports[f.num]?.rep);
+    const oldFmt = prev[f.id]?.stats && !prev[f.id].stats.pass;   // pre-"rich stats" rows (only the old 5) → backfill once to 16
+    return freshlyDone || !prev[f.id]?.stats || oldFmt || (since < RECENT && !prevReports[f.num]?.rep);
   });
   // live games first — the LIVE_FETCH_CAP is shared, and a busy day's backlog of finished matches still chasing
   // reports must not starve currently-live matches of fresh stats + commentary.
