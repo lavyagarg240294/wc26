@@ -563,6 +563,7 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 @media (prefers-reduced-motion:reduce){.boot-spin{animation-duration:1.6s}}
 /* consistent inline-SVG content icons (records, goalkeepers, day highlights) */
 .ico{width:1.05em;height:1.05em;vertical-align:-.18em;flex:0 0 auto}
+.ico-gold{color:var(--gold);display:inline-flex;align-items:center;vertical-align:-.18em}
 .rec-ic .ico{color:var(--acc-text);width:1em;height:1em}
 .eyebrow .ico{color:var(--ink-soft);vertical-align:-.16em;margin-right:1px}
 /* win-probability bar (pre-match + live estimate) */

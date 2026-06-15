@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "169";  // shown in footer; bump with the ?v= asset version
+const BUILD = "170";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -65,7 +65,7 @@ function flag(code) {
   return `<img class="flagimg" src="assets/flags/${code}.svg" alt="${esc(S.teams?.[code]?.name || "")}" loading="lazy" decoding="async">`;
 }
 // consistent inline-SVG content icons (replacing eclectic emoji in stat/record headings). The thematic
-// ⚽ / 🏆 / ★ are kept as-is. Stroke style matches the UI's SVG chrome.
+// ⚽ / ${TROPHY} / ★ are kept as-is. Stroke style matches the UI's SVG chrome.
 const _ico = p => `<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
 const ICO = {
   spark: _ico('<path d="M12 3l1.7 5.3L19 10l-5.3 1.7L12 17l-1.7-5.3L5 10l5.3-1.7z"/>'),
@@ -73,8 +73,14 @@ const ICO = {
   bolt: _ico('<path d="M13 2 5 13.5h6l-1 8.5 9-12.5h-6z"/>'),
   clock: _ico('<circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l3.5 2"/>'),
   glove: _ico('<path d="M8.5 13V8a1.5 1.5 0 0 1 3 0M11.5 12V6a1.5 1.5 0 0 1 3 0v6M14.5 11.5V8a1.5 1.5 0 0 1 3 0v6a6 6 0 0 1-6 6 5 5 0 0 1-5-5l-1-2.6a1.5 1.5 0 0 1 2.6-1.4l.9 1.5"/>'),
-  eye: _ico('<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>'),
+  ball: _ico('<circle cx="12" cy="12" r="9"/><path d="M12 9l2.85 2.07-1.09 3.36h-3.52L9.15 11.07z"/><path d="M12 9V4.5M14.85 11.07l3.7-1.3M13.76 14.43l1.8 3.1M10.24 14.43l-1.8 3.1M9.15 11.07l-3.7-1.3"/>'),
+  trophy: _ico('<path d="M7 4h10v4.5a5 5 0 0 1-10 0z"/><path d="M7 6.3H4.6A2.2 2.2 0 0 0 7 8.6M17 6.3h2.4A2.2 2.2 0 0 1 17 8.6M12 13.5v2.8M9.5 19.5h5M10 16.3h4"/>'),
+  people: _ico('<circle cx="9" cy="8.5" r="3"/><path d="M3.5 19.5a5.5 5.5 0 0 1 11 0M16 6a3 3 0 0 1 0 6M17.2 13.6a5.5 5.5 0 0 1 3.3 5.9"/>'),
+  link: _ico('<path d="M10.6 13.4a3.4 3.4 0 0 0 4.8 0l2.4-2.4a3.4 3.4 0 0 0-4.8-4.8l-1.2 1.2M13.4 10.6a3.4 3.4 0 0 0-4.8 0L6.2 13a3.4 3.4 0 0 0 4.8 4.8l1.2-1.2"/>'),
+  camera: _ico('<rect x="3" y="7" width="18" height="13" rx="2.5"/><circle cx="12" cy="13.5" r="3.3"/><path d="M8.5 7l1.2-2.2h4.6L15.5 7"/>'),
+  tap: _ico('<path d="M9 11.2V6a1.5 1.5 0 0 1 3 0v4M12 10V8a1.5 1.5 0 0 1 3 0v2.5M15 10.5v-1a1.5 1.5 0 0 1 3 0V15a5 5 0 0 1-5 5h-.7a4 4 0 0 1-2.9-1.2L7 16a1.45 1.45 0 0 1 2.1-2l.9.9"/>'),
 };
+const TROPHY = `<span class="ico-gold">${ICO.trophy}</span>`;   // gold-tinted trophy, used wherever ${TROPHY} was
 const fmt = (iso, opts) => new Intl.DateTimeFormat("en", { timeZone: tz(), ...opts }).format(new Date(iso));
 const timeStr = iso => fmt(iso, { hour: "2-digit", minute: "2-digit", hour12: false });
 // The matches LIST groups by the real, technical calendar date in the visitor's timezone — Sunday's matches under
@@ -615,7 +621,7 @@ function xiPanel(xi, h, a) {
 }
 // goals/cards/subs timeline for the match modal (from results `ev`)
 const EV_ICON = {
-  G: "⚽", P: "⚽", OG: "⚽",
+  G: ICO.ball, P: ICO.ball, OG: ICO.ball,
   Y: `<span class="tl-card y" aria-hidden="true"></span>`,
   R: `<span class="tl-card r" aria-hidden="true"></span>`,
   S: `<span class="tl-sub" aria-hidden="true">⇄</span>`,
@@ -894,7 +900,7 @@ function openMatch(id) {
   const side = (s, key) => `<div class="md-team ${s.code === S.fav ? "is-fav" : ""}">
       <span class="md-flag">${s.code ? flag(s.code) : "·"}</span>
       <span class="md-name ${s.ph ? "is-ph" : ""}">${esc(slotText(m, key, s))}</span>
-      ${s.code ? `<span class="md-teaminfo">${esc(S.teams[s.code].conf || "")}${S.teams[s.code].titles ? ` · 🏆 ${S.teams[s.code].titles}` : ""}</span>` : ""}
+      ${s.code ? `<span class="md-teaminfo">${esc(S.teams[s.code].conf || "")}${S.teams[s.code].titles ? ` · ${TROPHY} ${S.teams[s.code].titles}` : ""}</span>` : ""}
       ${s.code && formChips(s.code) ? `<span class="md-form">${formChips(s.code)}</span>` : ""}</div>`;
   const squadLinks = [h, a].filter(s => s.code)
     .map(s => `<button class="md-squad-link" data-squad="${s.code}"><span class="fl">${flag(s.code)}</span> ${esc(s.name)} ›</button>`).join("");
@@ -918,8 +924,8 @@ function openMatch(id) {
     ${winProbBlock(m)}
     ${liveNow ? xiBlock : ""}
     ${r?.ev?.length ? mdTimeline(r, h.code, a.code) : (r?.gh?.length || r?.ga?.length) ? `<div class="md-goals">
-      <div class="md-goals-col">${(r.gh || []).map(g => `<div class="md-goal">⚽ ${esc(g)}</div>`).join("")}</div>
-      <div class="md-goals-col away">${(r.ga || []).map(g => `<div class="md-goal">${esc(g)} ⚽</div>`).join("")}</div>
+      <div class="md-goals-col">${(r.gh || []).map(g => `<div class="md-goal">${ICO.ball} ${esc(g)}</div>`).join("")}</div>
+      <div class="md-goals-col away">${(r.ga || []).map(g => `<div class="md-goal">${esc(g)} ${ICO.ball}</div>`).join("")}</div>
     </div>` : ""}
     ${mdStats(r)}
     ${mdFlow(r, h, a)}
@@ -930,10 +936,10 @@ function openMatch(id) {
       <span>${timeStr(m.utc)}</span>
       <span>${esc(m.stadium)}</span>
       <span>${esc(m.city)}</span>
-      ${r?.facts?.att ? `<span>👥 ${(+r.facts.att).toLocaleString()} in</span>` : ""}
+      ${r?.facts?.att ? `<span>${ICO.people} ${(+r.facts.att).toLocaleString()} in</span>` : ""}
       ${r?.facts?.ref ? `<span>Referee · ${esc(r.facts.ref)}</span>` : ""}
     </div>
-    ${liveNow ? "" : xiBlock}
+    ${liveNow || !r?.xi ? "" : `<details class="md-fold"><summary><span>Starting XI</span><small>${esc([r.xi.h?.f, r.xi.a?.f].filter(Boolean).join(" v ")) || "line-ups & formations"}</small></summary><div class="md-fold-body">${xiPanel(r.xi, h, a)}</div></details>`}
     ${squadLinks ? `<div class="md-squads">${squadLinks}</div>` : ""}`;
   const md = $("#matchDialog"); md.dataset.openMid = id; showSheet(md);   // openMid (not data-mid) so the global match-open click handler never matches the dialog itself
   // live commentary is per-match; fetch it when the section is open (it opens by default for live games)
@@ -1205,7 +1211,7 @@ function myTeamBlock() {
   return `
     <div class="team-hero"><span class="fl">${flag(S.fav)}</span>
       <div><h2>${esc(t.name)}</h2>
-      <p>${t.conf ? esc(t.conf) + " · " : ""}Group ${group || "—"}${t.titles ? ` · <b style="color:var(--gold)">🏆 ${t.titles}</b>` : ""}${played ? ` · currently <b>${ordinal(pos)}</b> after ${played} match${played > 1 ? "es" : ""}` : ""}</p>
+      <p>${t.conf ? esc(t.conf) + " · " : ""}Group ${group || "—"}${t.titles ? ` · <b style="color:var(--gold)">${TROPHY} ${t.titles}</b>` : ""}${played ? ` · currently <b>${ordinal(pos)}</b> after ${played} match${played > 1 ? "es" : ""}` : ""}</p>
       ${formChips(S.fav) ? `<div class="th-form">Recent form ${formChips(S.fav)}</div>` : ""}</div>
       <button class="btn ghost team-change" id="ctaChange">Change</button></div>
     ${mine.length ? `<div class="team-actions"><button class="btn ghost ics-btn" id="icsTeam">${CAL_SVG} Add ${esc(t.name)}'s matches to calendar</button></div>` : ""}
@@ -1228,7 +1234,7 @@ function renderTeams() {
   const grid = Object.keys(S.teams)
     .sort((a, b) => S.teams[a].name.localeCompare(S.teams[b].name))
     .map(c => `<button class="teamcard ${c === S.fav ? "is-fav" : ""}" data-squad="${c}" title="${esc(S.teams[c].name)}${S.teams[c].titles ? ` — ${S.teams[c].titles}× World Cup champion` : ""}">
-      <span class="fl">${flag(c)}</span><span class="tc-name">${esc(S.teams[c].name)}</span>${S.teams[c].titles ? `<span class="tc-cup" aria-label="${S.teams[c].titles} World Cup titles">🏆 ${S.teams[c].titles}</span>` : ""}<span class="tc-grp">${groupOf(c) || ""}</span></button>`).join("");
+      <span class="fl">${flag(c)}</span><span class="tc-name">${esc(S.teams[c].name)}</span>${S.teams[c].titles ? `<span class="tc-cup" aria-label="${S.teams[c].titles} World Cup titles">${TROPHY} ${S.teams[c].titles}</span>` : ""}<span class="tc-grp">${groupOf(c) || ""}</span></button>`).join("");
   el.innerHTML = head + `<div class="eyebrow">All teams <span style="color:var(--ink-soft);font-weight:600">— tap for detail</span></div><div class="teamsgrid">${grid}</div>`;
   const cta = $("#ctaPick", el); if (cta) cta.onclick = () => $("#teamDialog").showModal();
   const chg = $("#ctaChange", el); if (chg) chg.onclick = () => $("#teamDialog").showModal();
@@ -1417,7 +1423,7 @@ function openPlayer(name, code) {
   const isDF = pos === "Defender" || bio?.pos === "DF";     // defenders: clean sheets + goals (assists are rarely their story)
   const acts = (r?.ev || []).filter(e => [e.p, e.a, e.on, e.off].includes(name)).map(e => {
     const mn = esc(e.t || "");
-    if (["G", "P", "OG"].includes(e.k)) return `<span class="pl-act">⚽ ${mn}${e.k === "P" ? " pen" : e.k === "OG" ? " o.g." : ""}${e.a === name && e.p !== name ? " · assist" : ""}</span>`;
+    if (["G", "P", "OG"].includes(e.k)) return `<span class="pl-act">${ICO.ball} ${mn}${e.k === "P" ? " pen" : e.k === "OG" ? " o.g." : ""}${e.a === name && e.p !== name ? " · assist" : ""}</span>`;
     if (e.k === "Y") return `<span class="pl-act"><i class="tl-card y"></i> ${mn}</span>`;
     if (e.k === "R") return `<span class="pl-act"><i class="tl-card r"></i> ${mn}</span>`;
     if (e.k === "S") return `<span class="pl-act">${e.on === name ? "▲ on" : "▼ off"} ${mn}</span>`;
@@ -1693,7 +1699,7 @@ function roadSection(code) {
         <span class="road-meta">${fmt(m.utc, { day: "numeric", month: "short" })} · ${esc((m.city || "").split(",")[0])}</span>
       </span></button>`;
   }).join("");
-  return `<div class="eyebrow">Road to the final${road.reachesFinal ? " 🏆" : ""}</div>
+  return `<div class="eyebrow">Road to the final${road.reachesFinal ? " ${TROPHY}" : ""}</div>
     <div class="road">${rows}</div>
     <p class="sim-ko-hint">Projected from live standings — assumes ${esc(t.name)} keep winning; opponents are the stronger projected team in each tie.</p>`;
 }
@@ -2066,7 +2072,7 @@ function renderSim() {
   const koMatches = S.matches.filter(m => m.stage !== "group");
   const koPicked = koMatches.filter(m => S.sim.ko[m.num] != null).length;
   const champTeaser = `<button class="sim-goal ${champ ? "is-set" : ""}" id="simGoal" type="button">
-    <span class="sg-cup">🏆</span>
+    <span class="sg-cup">${TROPHY}</span>
     ${champ
       ? `<span class="sg-fl">${flag(champ)}</span><span class="sg-tx"><b>${esc(S.teams[champ].name)}</b><small>Your predicted world champions · tap to edit the bracket</small></span>`
       : `<span class="sg-tx"><b>Crown your champion</b><small>Tap a winner in each knockout tie, all the way to the final →</small></span>`}
@@ -2077,14 +2083,14 @@ function renderSim() {
   // "Your call vs reality" scorecard removed from the UI for now (unclear to users); simScore() kept.
   el.innerHTML = `
     <div class="sim-intro">
-      <h2>Call the whole tournament 🔮</h2>
+      <h2>Call the whole tournament ${ICO.spark}</h2>
       <p>Order each group, pick the best third-placed teams, then tap winners all the way to the final — and crown your champion. Saves on this device.</p>
       <div class="sim-actions">
         <button class="btn ghost" id="simStandings"><span class="b-lg">Use live standings</span><span class="b-sm">Standings</span></button>
         <button class="btn ghost" id="simShuffle"><span class="b-lg">Shuffle it all</span><span class="b-sm">Shuffle</span></button>
         <button class="btn ghost" id="simReset"><span class="b-lg">Start over</span><span class="b-sm">Reset</span></button>
-        <button class="btn" id="simShare">🔗 Share prediction</button>
-        ${champ ? `<button class="btn" id="simShareImg">📷 Champion card</button>` : ""}
+        <button class="btn" id="simShare">${ICO.link} Share prediction</button>
+        ${champ ? `<button class="btn" id="simShareImg">${ICO.camera} Champion card</button>` : ""}
       </div>
     </div>
     ${champTeaser}
@@ -2092,8 +2098,8 @@ function renderSim() {
     <div class="gwrap">${GROUPS.map(groupCard).join("")}</div>
     <div class="eyebrow"><span class="step-n">2</span> Best third-placed teams <span class="tcount">${S.sim.thirds.length}/8</span></div>
     <div class="thirds">${thirdChips}</div>
-    <div class="eyebrow" id="simKoHead"><span class="step-n">3</span> Tap winners through to crown your champion 🏆</div>
-    ${thirdsDone && alloc !== "impossible" ? `<p class="sim-ko-hint">👆 Tap a team in any tie to send them through — winners flow left → right to the final.</p>` : ""}
+    <div class="eyebrow" id="simKoHead"><span class="step-n">3</span> Tap winners through to crown your champion ${TROPHY}</div>
+    ${thirdsDone && alloc !== "impossible" ? `<p class="sim-ko-hint">${ICO.tap} Tap a team in any tie to send them through — winners flow left → right to the final.</p>` : ""}
     ${simBracket}
     ${champ ? championBanner(champ, true) : ""}`;
 
@@ -2170,7 +2176,7 @@ function simMatch(m, i, alloc) {
     if (!code) return `<div class="bm-row"><span class="fl">·</span><span class="nm ph">awaiting pick</span></div>`;
     const isPick = pick === code, isOut = pick && pick !== code;
     return `<div class="bm-row pickable ${isPick ? "is-pick" : ""} ${isOut ? "is-out" : ""}" data-pick="${m.num}|${code}" role="button" tabindex="0">
-      <span class="fl">${flag(code)}</span><span class="nm">${esc(S.teams[code].name)}${isPick && m.stage === "final" ? " 🏆" : ""}</span></div>`;
+      <span class="fl">${flag(code)}</span><span class="nm">${esc(S.teams[code].name)}${isPick && m.stage === "final" ? " ${TROPHY}" : ""}</span></div>`;
   };
   return `<div class="bm ${m.stage === "final" ? "is-final" : ""} ${m.stage === "third" ? "is-third" : ""}" style="--i:${i}" data-num="${m.num}">
     ${m.stage === "third" ? `<div class="bm-tag">3rd place</div>` : ""}
@@ -2180,7 +2186,7 @@ function simMatch(m, i, alloc) {
 function championBanner(code, predicted) {
   const t = S.teams[code];
   return `<div class="champ">
-    <span class="cup">🏆</span><span class="cfl">${flag(code)}</span>
+    <span class="cup">${TROPHY}</span><span class="cfl">${flag(code)}</span>
     <h3>${esc(t.name)}</h3><p>${predicted ? "Your predicted champions" : "Champions of the world"} · July 19 · MetLife</p></div>`;
 }
 
@@ -2385,7 +2391,7 @@ function renderStats() {
   // sections behind a segmented sub-nav so the tab grows down (not into one endless scroll)
   const sections = [
     ["players", "Players", `
-      ${s.scorers.length ? `<div class="eyebrow">⚽ Golden Boot</div><div class="lead-card lead-scorers">${s.scorers.slice(0, 12).map(scorerRow).join("")}</div>` : ""}
+      ${s.scorers.length ? `<div class="eyebrow">${ICO.ball} Golden Boot</div><div class="lead-card lead-scorers">${s.scorers.slice(0, 12).map(scorerRow).join("")}</div>` : ""}
       ${s.assisters.length ? `<div class="eyebrow">Playmakers · assists</div><div class="lead-card lead-scorers">${s.assisters.slice(0, 8).map(assistRow).join("")}</div>` : ""}
       ${s.keepers.length ? `<div class="eyebrow">${ICO.glove} Goalkeepers · clean sheets</div><div class="lead-card lead-scorers">${s.keepers.slice(0, 8).map(keeperRow).join("")}</div>` : ""}
       ${!s.scorers.length && !s.assisters.length ? `<div class="empty">No goals yet — the Golden Boot race starts with the first goal.</div>` : ""}`],
