@@ -638,10 +638,10 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .welcome h3{font-family:var(--disp);font-weight:800;font-stretch:108%;font-size:22px;letter-spacing:-.015em;margin:0 0 6px;line-height:1.1}
 .welcome-lead{font-size:14px;color:var(--ink-soft);line-height:1.5;margin:0 auto 18px;max-width:36ch}
 .welcome-pts{display:flex;flex-direction:column;gap:9px;text-align:left;margin:0 0 18px}
-.wp{background:color-mix(in srgb,var(--ink) 3%,var(--card));border:1px solid var(--line);border-radius:14px;padding:11px 14px}
-.wp>b{display:block;font-size:14px;font-weight:700;margin-bottom:2px}
-.wp small{font-size:12.5px;color:var(--ink-soft);line-height:1.45}
-.wp small b{color:var(--ink);font-weight:700}
+.welcome-pt{background:color-mix(in srgb,var(--ink) 3%,var(--card));border:1px solid var(--line);border-radius:14px;padding:11px 14px}
+.welcome-pt>b{display:block;font-size:14px;font-weight:700;margin-bottom:2px}
+.welcome-pt small{font-size:12.5px;color:var(--ink-soft);line-height:1.45}
+.welcome-pt small b{color:var(--ink);font-weight:700}
 .welcome-actions{display:flex;flex-direction:column;gap:9px}
 .welcome-actions .btn{width:100%;justify-content:center}
 .foot-about{font:inherit;color:var(--ink-soft);text-decoration:underline;text-decoration-color:color-mix(in srgb,var(--acc1) 45%,transparent);text-underline-offset:2px;cursor:pointer}

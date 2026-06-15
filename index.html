@@ -33,7 +33,7 @@
 <meta name="apple-mobile-web-app-title" content="World Cup 26">
 <meta name="application-name" content="World Cup 26">
 <link rel="stylesheet" href="assets/fonts.css?v=112">
-<link rel="stylesheet" href="styles.css?v=155">
+<link rel="stylesheet" href="styles.css?v=156">
 <link rel="icon" href="assets/mark.svg">
 <link rel="icon" type="image/png" href="assets/icon-32.png" sizes="32x32">
 </head>
@@ -41,7 +41,7 @@
 
 <div id="bg" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
 <div id="themeSweep" aria-hidden="true"></div>
-<div id="liveAnnounce" class="vh" role="status" aria-live="assertive" aria-atomic="true"></div>
+<div id="liveAnnounce" class="vh" role="status" aria-live="polite" aria-atomic="true"></div>
 
 <header class="topbar">
   <a class="wordmark" href="#matches" data-nav="matches" aria-label="FIFA World Cup 2026">
@@ -270,10 +270,10 @@
     <h3 id="welcomeTitle">Your World Cup, in one page</h3>
     <p class="welcome-lead">All 104 matches of the 2026 World Cup — live, free, no sign-up.</p>
     <div class="welcome-pts">
-      <div class="wp"><b>🕑 Every kickoff in your timezone</b><small>Auto-detected — <b id="welcomeTz">your local time</b>. Change it in Settings.</small></div>
-      <div class="wp"><b>★ Pick your team</b><small>The whole app dresses in their colours and pulls up their fixtures.</small></div>
-      <div class="wp"><b>🔮 Call the bracket</b><small>In <b>Predict</b>, tap winners from the groups all the way to the champion.</small></div>
-      <div class="wp"><b>⚽ Live as it happens</b><small>Scores, line-ups, stats, match reports &amp; commentary. Tap anything to dive in.</small></div>
+      <div class="welcome-pt"><b>🕑 Every kickoff in your timezone</b><small>Auto-detected — <b id="welcomeTz">your local time</b>. Change it in Settings.</small></div>
+      <div class="welcome-pt"><b>★ Pick your team</b><small>The whole app dresses in their colours and pulls up their fixtures.</small></div>
+      <div class="welcome-pt"><b>🔮 Call the bracket</b><small>In <b>Predict</b>, tap winners from the groups all the way to the champion.</small></div>
+      <div class="welcome-pt"><b>⚽ Live as it happens</b><small>Scores, line-ups, stats, match reports &amp; commentary. Tap anything to dive in.</small></div>
     </div>
     <div class="welcome-actions">
       <button class="btn" id="welcomePick">★ Pick my team</button>
@@ -285,6 +285,6 @@
 <canvas id="confetti" aria-hidden="true"></canvas>
 <audio id="bgm" preload="none"></audio>
 
-<script src="app.js?v=155"></script>
+<script src="app.js?v=156"></script>
 </body>
 </html>

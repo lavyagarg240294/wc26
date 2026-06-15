@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "155";  // shown in footer; bump with the ?v= asset version
+const BUILD = "156";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -170,6 +170,7 @@ function winnerFeed(s) {
   if (!fm) return null;
   const r = res(fm);
   if (!r || r.st !== ST.FT) return null;
+  if (r.h === r.a && r.hp == null && r.ap == null) return null;   // FT level but penalties not in the feed yet — leave unresolved, don't guess (and propagate) a winner
   const hWin = r.h > r.a || (r.h === r.a && (r.hp ?? -1) > (r.ap ?? -1));
   const h = slotInfo(fm, "home").code, a = slotInfo(fm, "away").code;
   if (!h || !a) return null;
@@ -793,15 +794,17 @@ function matchStakes(m) {
   const playedIn = code => S.matches.some(x => x.group === g && (x.home.team === code || x.away.team === code) && counted(x));
   const pH = playedIn(H), pA = playedIn(A);
   if (!pH && !pA) return { lines: [`Both sides open their Group ${g} campaign.`], definitive: false };
-  // If the two sides are dead level (same points, GD and goals), their "position" is decided only by the
-  // alphabetical code tiebreak — showing "2nd / 3rd" then reads as a real standing (the "Ecuador 3rd at 0–0"
-  // bug). Say they're level instead.
+  // A team's "position" is only real if it isn't dead-level with ANY other group member: when teams tie on
+  // points/GD/goals the order is decided purely by the alphabetical code tiebreak, which misreads as a real
+  // standing (the "Ecuador 3rd at 0–0" bug — and it also bites when a side is level with a THIRD team, not just
+  // its opponent, e.g. a group that opens with four draws). In that case say "level", never an ordinal.
   const R = _provRows(g);
+  const levelWithAny = c => Object.values(R).some(o => o.code !== c && o.pts === R[c].pts && o.gd === R[c].gd && o.gf === R[c].gf);
   if (pH && pA && R[H] && R[A] && R[H].pts === R[A].pts && R[H].gd === R[A].gd && R[H].gf === R[A].gf)
     return { lines: [`${nm(H)} and ${nm(A)} are level in Group ${g} so far.`], definitive: false };
   const p = _provPos(g), parts = [];
-  if (pH) parts.push(`${nm(H)} are ${ordinal(p[H])}`);
-  if (pA) parts.push(`${nm(A)} are ${ordinal(p[A])}`);
+  if (pH) parts.push(levelWithAny(H) ? `${nm(H)} are level on points` : `${nm(H)} are ${ordinal(p[H])}`);
+  if (pA) parts.push(levelWithAny(A) ? `${nm(A)} are level on points` : `${nm(A)} are ${ordinal(p[A])}`);
   return { lines: [`As it stands, ${parts.join(" and ")} in Group ${g}.`], definitive: false };
 }
 function stakesBlock(m) {
@@ -2448,15 +2451,18 @@ async function loadStatic() {
   if (!LITE()) { try { S.photos = await (await fetch("data/photos.json?t=" + Date.now(), { cache: "no-store" })).json() || {}; } catch { S.photos = {}; } }
 }
 const LITE = () => localStorage.getItem("wc26.lite") === "on";   // data-saver: suppress hot-linked photos, fall back to flags
-const playerPhoto = (name, code) => (!LITE() && S.photos && S.photos[name + "|" + code]) || "";
+// Only ever surface an https image URL with no CSS/HTML-breaking characters: these are inserted into
+// `url('…')` background-images, where esc() wouldn't even cover the quote/paren — so sanitise at the source.
+const safePhoto = u => /^https:\/\/[^\s'"()<>]+$/.test(u || "") ? u : "";
+const playerPhoto = (name, code) => safePhoto((!LITE() && S.photos && S.photos[name + "|" + code]) || "");
 // like playerPhoto, but also matches a full squad name against the FIFA short-name keys (case/accent-insensitive)
 const normName = s => (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z]/gi, "").toLowerCase();
 function bestPhoto(name, code) {
   if (LITE()) return "";
   const direct = playerPhoto(name, code); if (direct) return direct;
   const suf = "|" + code, ns = normName(name);
-  if (S.photos) for (const k in S.photos) if (k.endsWith(suf) && normName(k.slice(0, -suf.length)) === ns) return S.photos[k];
-  return squadBio(name, code)?.photo || "";   // fall back to the API-Football headshot committed in squads.json
+  if (S.photos) for (const k in S.photos) if (k.endsWith(suf) && normName(k.slice(0, -suf.length)) === ns) return safePhoto(S.photos[k]);
+  return safePhoto(squadBio(name, code)?.photo || "");   // fall back to the API-Football headshot committed in squads.json
 }
 // manual "refresh scores" controls (footer + hero) — re-fetch the published results.json now
 async function manualRefresh() {
