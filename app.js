@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "149";  // shown in footer; bump with the ?v= asset version
+const BUILD = "150";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -2528,6 +2528,17 @@ async function checkVersion() {
     if (m && m[1] !== BUILD) { const p = $("#updatePill"); if (p) p.hidden = false; }
   } catch { /* offline — try again next tick */ }
 }
+// Thorough refresh for the update pill: wipe every cache + unregister the worker so the reload is guaranteed to
+// come from the network (the latest build) — even on a device stuck behind an old worker. The page re-registers
+// a fresh worker on next load, so offline support is restored immediately after.
+async function hardRefresh() {
+  const p = $("#updatePill"); if (p) p.disabled = true;
+  try {
+    if (window.caches) await Promise.all((await caches.keys()).map(k => caches.delete(k)));
+    if ("serviceWorker" in navigator) await Promise.all((await navigator.serviceWorker.getRegistrations()).map(r => r.unregister()));
+  } catch { /* best effort — reload regardless */ }
+  location.reload();
+}
 
 /* ---------------- boot ---------------- */
 async function boot() {
@@ -2682,7 +2693,7 @@ async function boot() {
   setInterval(() => { refreshResults(); refreshOpenCommentary(); }, 60 * 1000); // fresh scores + live commentary every 60s
   checkKickoffAlert();
   setInterval(checkKickoffAlert, 60 * 1000); // fire a kickoff reminder for the favourite team (opt-in)
-  $("#updatePill").onclick = () => location.reload();
+  $("#updatePill").onclick = hardRefresh;
   setInterval(checkVersion, 120 * 1000);  // nudge open pages to refresh when a new build ships
   // offline support — network-first SW (registered after first render so it never blocks paint).
   // The shell stays network-first so an online visitor always gets the latest build; the version
