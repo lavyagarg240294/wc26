@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "156";  // shown in footer; bump with the ?v= asset version
+const BUILD = "157";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -99,6 +99,8 @@ const tzOffsetLabel = zone => {
     return p.find(x => x.type === "timeZoneName").value.replace(/^GMT$/, "GMT+0");   // GMT everywhere (matches tzShort), incl. GMT+0 for London
   } catch { return ""; }
 };
+// numeric GMT offset in minutes (handles DST + half-hour zones) — used to order the picker west→east
+const tzMinutes = zone => { try { const v = new Intl.DateTimeFormat("en", { timeZone: zone === "auto" ? AUTO_TZ : zone, timeZoneName: "shortOffset" }).formatToParts(new Date()).find(p => p.type === "timeZoneName").value; const mm = v.match(/GMT([+-])(\d{1,2})(?::(\d{2}))?/); return mm ? (mm[1] === "-" ? -1 : 1) * (+mm[2] * 60 + (+mm[3] || 0)) : 0; } catch { return 0; } };
 // friendly CITY name for the active zone — from the ZONES list if listed, else the IANA city. Always a city
 // (never a country/region) so every place the timezone is shown reads the same way.
 const tzCity = () => (ZONES.find(z => z[0] === tz())?.[1]) || tz().split("/").pop().replace(/_/g, " ");
@@ -143,7 +145,13 @@ function status(m) {
   // The FIFA feed is authoritative for status — trust it. (We used to promote a "started by our clock but
   // still SCHED" match to LIVE to mask feed lag, but openfootball's static kickoff times don't always match
   // the real schedule, so that faked a live 0–0 on the wrong match. The feed says which game is actually live.)
-  if (r?.st) return r.st;
+  if (r?.st) {
+    // A feed stuck on LIVE/HT long past any real match length is stale (the score loop lagged or stopped) — treat it
+    // as finished so the hero stops showing it "live" and it drops into Earlier results. Group ≈ 90+HT+stoppage
+    // (~125′); knockouts allow extra time + penalties (~160′).
+    if ((r.st === ST.LIVE || r.st === ST.HT) && Date.now() - +new Date(m.utc) > (m.stage === "group" ? 125 : 160) * 60000) return ST.FT;
+    return r.st;
+  }
   // no feed row yet (only before the very first Action run): best-effort from the scheduled time
   return new Date(m.utc) <= new Date() && new Date() - new Date(m.utc) < 3 * 3600e3 ? ST.LIVE : ST.SCHED;
 }
@@ -2337,7 +2345,7 @@ function moveInk() {
 
 /* ---------------- pickers ---------------- */
 function buildPickers() {
-  $("#tzList").innerHTML = ZONES.map(([z, l]) =>
+  $("#tzList").innerHTML = ZONES.slice().sort((a, b) => a[0] === "auto" ? -1 : b[0] === "auto" ? 1 : tzMinutes(a[0]) - tzMinutes(b[0])).map(([z, l]) =>
     `<button class="tz-opt ${S.tz === z ? "is-on" : ""}" data-z="${z}"><span>${l}</span><span class="off">${tzOffsetLabel(z)}</span></button>`).join("");
   $$("#tzList .tz-opt").forEach(b => b.onclick = () => {
     S.tz = b.dataset.z; localStorage.setItem("wc26.tz", S.tz);
