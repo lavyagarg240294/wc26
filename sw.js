@@ -7,7 +7,7 @@
  * Cache keys strip ?t= / ?v= so the every-60s polled files and versioned assets don't pile up.
  * Bump CACHE per deploy; activate() purges old caches and claims clients.
  */
-const CACHE = "wc26-151";
+const CACHE = "wc26-152";
 const keyFor = req => new Request(new URL(req.url).origin + new URL(req.url).pathname); // drop the query
 
 self.addEventListener("install", () => self.skipWaiting());
@@ -16,9 +16,14 @@ self.addEventListener("activate", e => e.waitUntil((async () => {
   const old = (await caches.keys()).filter(k => k !== CACHE);
   for (const k of old) await caches.delete(k);
   await self.clients.claim();
-  // A real update (not first install): the old caches are purged, so the next load is fresh. Tell open pages
-  // so they surface the one-tap "New version" pill — never an auto-reload (that yanks the user to the top).
-  if (old.length) for (const c of await self.clients.matchAll({ type: "window" })) c.postMessage({ type: "wc26-updated" });
+  // A real update (not first install): old caches are purged. Force every open page to reload onto the fresh
+  // build. This lives in the WORKER, which the browser always replaces — so it rescues even a tab still running
+  // an older app.js (whose in-page pill can't). Loop-safe: only fires when an older cache was just purged, so a
+  // later activation is a no-op. Message first as a fallback for browsers where navigate() is blocked.
+  if (old.length) for (const c of await self.clients.matchAll({ type: "window" })) {
+    c.postMessage({ type: "wc26-updated" });
+    try { await c.navigate(c.url); } catch { /* navigate not permitted — pill fallback handles it */ }
+  }
 })()));
 
 self.addEventListener("fetch", e => {
