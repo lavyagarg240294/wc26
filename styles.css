@@ -1010,6 +1010,17 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .ld-ps{display:flex;flex-wrap:wrap;gap:3px 14px;min-width:0;font-size:12.5px}
 .ld-p{white-space:nowrap}
 .ld-p em{font-style:normal;font-weight:700;color:var(--acc-text);margin-left:3px}
+/* collapsible "summarize-then-expand" section inside the match popup (keeps the heavy stats one tap deep) */
+.md-fold{margin:6px 0}
+.md-fold>summary{cursor:pointer;list-style:none;display:flex;align-items:baseline;gap:9px;padding:10px 2px;border-top:1px dashed var(--line)}
+.md-fold>summary::-webkit-details-marker{display:none}
+.md-fold>summary>span{font-family:var(--disp);font-weight:700;font-stretch:108%;letter-spacing:.06em;text-transform:uppercase;font-size:11px;color:var(--acc-text);flex:0 0 auto}
+.md-fold>summary>small{font-size:11.5px;color:var(--ink-soft);font-variant-numeric:tabular-nums;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.md-fold>summary::after{content:"›";font-size:17px;line-height:1;color:var(--ink-soft);transition:transform .2s;flex:0 0 auto}
+.md-fold[open]>summary::after{transform:rotate(90deg)}
+.md-fold[open]>summary>span{color:var(--ink)}
+.md-fold:not([open]) .md-fold-body{display:none}   /* explicit collapse — author display on .md-stats overrides the UA rule */
+.md-fold .md-stats{margin-top:10px}
 /* match-events timeline (home left / away right of a centre line) */
 .md-tl{position:relative;display:flex;flex-direction:column;gap:9px;margin:4px 0 14px;padding:6px 0}
 .md-tl::before{content:"";position:absolute;left:50%;top:0;bottom:0;width:2px;background:var(--line);transform:translateX(-50%)}

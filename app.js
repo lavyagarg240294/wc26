@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "166";  // shown in footer; bump with the ?v= asset version
+const BUILD = "167";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -666,7 +666,11 @@ function mdStats(r) {
     if (k === "pass" && Array.isArray(s.passT) && s.passT[0] && s.passT[1])
       parts.push(statBar([Math.round(s.pass[0] / s.passT[0] * 100), Math.round(s.pass[1] / s.passT[1] * 100)], "Pass accuracy", "%"));
   }
-  return parts.length ? `<div class="eyebrow">Match stats</div><div class="md-stats">${parts.join("")}</div>` : "";
+  if (!parts.length) return "";
+  // summarize-then-expand: lead the popup with a one-line headline; the full 16-stat panel + performers are one tap deep
+  const head = Array.isArray(s.poss) ? `${s.poss[0]}%–${s.poss[1]}% possession · ${parts.length} stats` : `${parts.length} stats`;
+  return `<details class="md-fold"><summary><span>Match stats</span><small>${head}</small></summary>
+    <div class="md-fold-body"><div class="md-stats">${parts.join("")}</div>${mdLeaders(r)}</div></details>`;
 }
 // per-team standout performers (top shooter / passer / defender / keeper) — names are display-only
 function mdLeaders(r) {
@@ -918,7 +922,6 @@ function openMatch(id) {
       <div class="md-goals-col away">${(r.ga || []).map(g => `<div class="md-goal">${esc(g)} ⚽</div>`).join("")}</div>
     </div>` : ""}
     ${mdStats(r)}
-    ${mdLeaders(r)}
     ${mdFlow(r, h, a)}
     ${mdReport(m)}
     ${mdCommentaryShell(m)}
