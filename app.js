@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "168";  // shown in footer; bump with the ?v= asset version
+const BUILD = "169";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1389,6 +1389,15 @@ function squadBio(name, code) {
 }
 // tap a player name anywhere (timeline, lineup, Golden Boot, squad) → a compact profile.
 // Uses live-match context (XI position + what they did) only when a match modal is actually open.
+// join a player to their ESPN per-match box score (pstats keys are raw ESPN names) — exact, then unique surname
+function matchPstat(name, ps) {
+  if (!ps) return null;
+  const nn = normName(name);
+  for (const k in ps) if (normName(k) === nn) return ps[k];
+  const sur = surnameOf(name), bySur = Object.keys(ps).filter(k => surnameOf(k) === sur);
+  return bySur.length === 1 ? ps[bySur[0]] : null;   // don't guess when a surname is shared
+}
+const PL_BOX = [["sh", "Shots"], ["sot", "On target"], ["g", "Goals"], ["a", "Assists"], ["sv", "Saves"], ["ga", "Conceded"], ["fa", "Fouls won"], ["fc", "Fouls"], ["of", "Offside"]];
 function openPlayer(name, code) {
   const team = S.teams[code];
   const md = $("#matchDialog");
@@ -1414,6 +1423,8 @@ function openPlayer(name, code) {
     if (e.k === "S") return `<span class="pl-act">${e.on === name ? "▲ on" : "▼ off"} ${mn}</span>`;
     return "";
   }).join("");
+  const box = matchPstat(name, r?.pstats);   // ESPN per-match box score for this player, if a match is open
+  const boxHtml = box ? PL_BOX.filter(([k]) => box[k]).map(([k, label]) => `<span class="pl-stat"><b>${box[k]}</b>${label}</span>`).join("") : "";
   $("#playerTitle").textContent = name;   // real dialog name for screen readers (was a generic "Player")
   $("#playerBody").innerHTML = `
     <div class="pl">
@@ -1441,7 +1452,7 @@ function openPlayer(name, code) {
       <div class="pw"><b>${wc.a}</b><span>Assist${wc.a !== 1 ? "s" : ""}</span></div>`}
       <div class="pw"><b>${wc.y}${wc.rc ? `<span class="pw-rc">${wc.rc}</span>` : ""}</b><span>${wc.rc ? "Yel · Red" : "Yellow" + (wc.y !== 1 ? "s" : "")}</span></div>
     </div>` : ""}
-    ${acts ? `<div class="eyebrow">In this match</div><div class="pl-acts">${acts}</div>` : ""}
+    ${(boxHtml || acts) ? `<div class="eyebrow">In this match</div>${boxHtml ? `<div class="pl-box">${boxHtml}</div>` : ""}${acts ? `<div class="pl-acts">${acts}</div>` : ""}` : ""}
     <button class="pl-compare" data-compare-seed="${esc(name)}|${code}">⇄ Compare with another player</button>`;
   const cmpBtn = $("#playerBody [data-compare-seed]");
   if (cmpBtn) cmpBtn.onclick = () => { const [n, c] = cmpBtn.dataset.compareSeed.split("|"); $("#playerDialog").close(); openCompareSearch({ name: n, code: c }); };
