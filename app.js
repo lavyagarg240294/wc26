@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "157";  // shown in footer; bump with the ?v= asset version
+const BUILD = "158";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -127,15 +127,11 @@ function applyKickoffs() {
     if (m._utc0 === undefined) m._utc0 = m.utc;
     const md = S.matchData[m.id];
     let ko = md?.ko;
-    // Belt-and-suspenders: before the Action has written a corrected `ko`, a live match whose static time is
-    // stale would still show the wrong slot. Its real kickoff is ~now minus the minute the feed reports — so
-    // derive it, keeping the live hero/day-grouping honest until the authoritative `ko` lands next poll.
-    if (!ko && (md?.st === ST.LIVE || md?.st === ST.HT)) {
-      // derive ONCE and cache — re-deriving every poll drifts the synthesized kickoff (now advances but a stale
-      // `min` doesn't), wobbling day-grouping for that match until the authoritative `ko` lands.
-      if (m._koDerived) ko = m._koDerived;
-      else { const min = md.st === ST.HT ? 45 : (Number.isFinite(md.min) ? md.min : null); if (min != null) ko = m._koDerived = new Date(now - min * 60000).toISOString(); }
-    } else if (ko) m._koDerived = undefined;   // authoritative ko arrived → drop the estimate
+    // Use the feed's corrected kickoff (`ko`) when it drifted from openfootball's static time; otherwise the
+    // static time. We deliberately do NOT synthesize a kickoff from `now − feed_minute` for a live match — the
+    // free feed's minute is unreliable and that estimate drifted the displayed kickoff (e.g. showing 03:51 for
+    // a match that kicked off at 03:00). The authoritative `ko` lands within a poll or two and fixes any wrong
+    // static time on its own.
     m.utc = ko || m._utc0;
   }
 }
@@ -242,6 +238,34 @@ function downloadICS(matches, name) {
 }
 
 /* ---------------- standings ---------------- */
+// rank a group's rows by FIFA regulations art.13: points → head-to-head (points/GD/goals among the teams level
+// on points) → overall GD → overall goals → FIFA World Ranking. (Reg step 2f, conduct/cards, isn't reliably in
+// the free feed, so it's omitted — the ranking step decides the rest. Never alphabetical.)
+function fifaSort(rows, gm, statuses) {
+  const sts = statuses || [ST.FT];
+  const gd = r => r.gf - r.ga;
+  const byPts = {}; rows.forEach(r => (byPts[r.pts] || (byPts[r.pts] = [])).push(r));
+  const out = [];
+  for (const pts of Object.keys(byPts).map(Number).sort((a, b) => b - a)) {
+    const cohort = byPts[pts];
+    if (cohort.length > 1) {
+      const set = new Set(cohort.map(r => r.code)), h = {};
+      cohort.forEach(r => h[r.code] = { pts: 0, gd: 0, gf: 0 });
+      for (const m of gm) {
+        const r = res(m); if (!r || r.h == null || !sts.includes(r.st)) continue;
+        const H = m.home.team, A = m.away.team; if (!set.has(H) || !set.has(A)) continue;     // matches AMONG the tied cohort only
+        h[H].gf += r.h; h[H].gd += r.h - r.a; h[A].gf += r.a; h[A].gd += r.a - r.h;
+        if (r.h > r.a) h[H].pts += 3; else if (r.h < r.a) h[A].pts += 3; else { h[H].pts++; h[A].pts++; }
+      }
+      cohort.sort((x, y) =>
+        h[y.code].pts - h[x.code].pts || h[y.code].gd - h[x.code].gd || h[y.code].gf - h[x.code].gf ||   // step 1: head-to-head
+        gd(y) - gd(x) || y.gf - x.gf ||                                                                  // step 2: overall GD, goals
+        tiebreakRank(x.code) - tiebreakRank(y.code));                                                    // step 3: FIFA World Ranking
+    }
+    out.push(...cohort);
+  }
+  return out;
+}
 function standings(group) {
   const rows = {};
   const gm = S.matches.filter(m => m.group === group);
@@ -258,8 +282,7 @@ function standings(group) {
     else if (r.h < r.a) { A.w++; H.l++; A.pts += 3; }
     else { H.d++; A.d++; H.pts++; A.pts++; }
   });
-  return Object.values(rows).sort((a, b) =>
-    b.pts - a.pts || (b.gf - b.ga) - (a.gf - a.ga) || b.gf - a.gf || a.code.localeCompare(b.code));
+  return fifaSort(Object.values(rows), gm);
 }
 
 // "what each team needs" — enumerate every remaining-result combo in a group.
@@ -1492,7 +1515,7 @@ function groupTable(g, i) {
 function thirdPlaceRace() {
   const rows = [];
   for (const g of GROUPS) { const t = standings(g)[2]; if (t) rows.push({ group: g, code: t.code, pts: t.pts, gd: t.gf - t.ga, gf: t.gf }); }
-  return rows.sort((a, b) => b.pts - a.pts || b.gd - a.gd || b.gf - a.gf || a.code.localeCompare(b.code));
+  return rows.sort((a, b) => b.pts - a.pts || b.gd - a.gd || b.gf - a.gf || tiebreakRank(a.code) - tiebreakRank(b.code));
 }
 function thirdRaceHTML() {
   const anyPlayed = S.matches.some(m => m.group && status(m) === ST.FT && res(m)?.h != null);
@@ -1547,7 +1570,7 @@ function teamStrength(code) {
 // (ties → the "home"/upper slot). Returns { W: matchNum→winnerCode }.
 function projectBracket() {
   const W = {};
-  const str = c => (c ? teamStrength(c) : -1);
+  const str = c => (c ? (S.teams[c]?.elo || 0) : -1);   // project knockout winners by Elo (matches-played-agnostic), not the partial group table
   const pick = (h, a) => (h && a) ? (str(h) >= str(a) ? h : a) : (h || a || null);
   for (const { m, h, a } of projectedR32()) W[m.num] = pick(h, a);
   S.matches.filter(m => ["r16", "qf", "sf", "final"].includes(m.stage)).sort((x, y) => x.num - y.num)
@@ -2180,6 +2203,10 @@ const FIFA_RANK = [
   ["RU", "Russia"], ["PL", "Poland"], ["GB-WLS", "Wales"], "SE", ["HU", "Hungary"], "CZ", "PY", "GB-SCT",
   ["RS", "Serbia"], ["CM", "Cameroon"], "TN", "CD", ["SK", "Slovakia"], ["GR", "Greece"], ["VE", "Venezuela"], "UZ",
 ];
+const FIFA_POS = {}; FIFA_RANK.forEach((e, i) => { FIFA_POS[typeof e === "string" ? e : e[0]] = i; });
+// final group-stage tiebreak per FIFA regulations art.13 step 3 (FIFA World Ranking). Teams outside the top-50
+// snapshot fall back to their Elo so it's still skill-based — never the alphabetical code.
+const tiebreakRank = code => FIFA_POS[code] != null ? FIFA_POS[code] : 100 - (S.teams[code]?.elo || 0) / 100;
 function fifaRankingPanel() {
   const ranked = new Set(FIFA_RANK.map(e => typeof e === "string" ? e : e[0]));
   const topRows = FIFA_RANK.map((e, i) => {
