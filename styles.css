@@ -14,6 +14,7 @@
   --live:#FF3B30;
   --gold:#E8B931;
   --acc1:var(--pitch);
+  --focus:var(--acc1);
   /* AA-contrast text variants for use as small/normal-weight TEXT on the light field (the vivid --acc1/--gold
      stay for fills, large display, icons & dark mode where they already pass). */
   --acc-text:#0A7D45;
@@ -34,6 +35,7 @@
   --line:#293743;
   --acc2:#0B1722;
   --acc-text:var(--acc1);   /* on the dark field the vivid brand colours already pass AA — no darkening needed */
+  --focus:color-mix(in srgb,var(--acc1) 55%,#dff0e6);   /* lighten the team accent so the focus ring stays visible on the dark field */
   --gold-text:var(--gold);
   --shadow:0 1px 2px rgba(0,0,0,.45),0 8px 28px -10px rgba(0,0,0,.6);
 }
@@ -45,7 +47,7 @@
 *{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
 /* lock the page behind any open modal so the background can't scroll */
-html:has(dialog[open]){overflow:hidden}
+html:has(dialog[open]),html.modal-open{overflow:hidden}
 body{
   font-family:var(--body);color:var(--ink);
   -webkit-font-smoothing:antialiased;
@@ -68,7 +70,7 @@ a,summary,label,[role="button"],[tabindex]{-webkit-tap-highlight-color:transpare
 b{font-weight:600}
 /* a11y: a visible keyboard-focus ring on every interactive element (zero-specificity :where so
    component-specific focus styles still win). Mouse clicks don't trigger :focus-visible. */
-:where(a,button,summary,input,select,textarea,[role="button"],[tabindex]):focus-visible{outline:2px solid var(--acc1);outline-offset:2px}
+:where(a,button,summary,input,select,textarea,[role="button"],[tabindex]):focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 /* a11y: visually-hidden (for screen-reader-only live regions) */
 .vh{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 /* a11y: honour reduced-motion globally (covers every animation/transition, present and future) */
@@ -666,7 +668,7 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .srow.is-q{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .srow.is-q .pos{color:var(--acc-text)}
 .srow.is-t .pos{color:var(--gold-text)}
-.up{display:grid;place-items:center;width:34px;height:34px;border-radius:10px;border:1px solid var(--line);background:var(--paper);color:var(--ink-soft);font-size:13px;transition:all .15s;flex:0 0 34px}
+.up{display:grid;place-items:center;width:40px;height:40px;border-radius:10px;border:1px solid var(--line);background:var(--paper);color:var(--ink-soft);font-size:13px;transition:all .15s;flex:0 0 40px}
 .up:hover{border-color:var(--acc-text);color:var(--acc-text);transform:translateY(-1px)}
 .up:active{transform:scale(.92)}
 .up:disabled{opacity:.3;pointer-events:none}
@@ -841,7 +843,7 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .md-tag.ft{background:var(--ink);color:var(--paper)}
 .md-tag.soon{background:color-mix(in srgb,var(--acc1) 12%,var(--card));color:var(--acc-text);border:1px solid color-mix(in srgb,var(--acc1) 30%,transparent)}
 .md-actions{display:flex;align-items:center;gap:8px}
-.md-save,.md-cal{display:inline-flex;align-items:center;justify-content:center;width:33px;height:30px;font-size:15px;line-height:1;color:var(--ink-soft);border-radius:9px;border:1px solid var(--line)}
+.md-save,.md-cal{display:inline-flex;align-items:center;justify-content:center;width:40px;height:38px;font-size:15px;line-height:1;color:var(--ink-soft);border-radius:9px;border:1px solid var(--line)}
 .md-save:hover{border-color:var(--gold);color:var(--gold)}
 .md-cal:hover{border-color:var(--acc-text);color:var(--acc-text)}
 .md-save.is-on{color:var(--gold);border-color:color-mix(in srgb,var(--gold) 55%,var(--line));background:color-mix(in srgb,var(--gold) 10%,transparent)}
@@ -1082,7 +1084,7 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 @keyframes sheetIn{from{opacity:0;transform:translateY(20px) scale(.97)}}
 .sheet-head{display:flex;justify-content:space-between;align-items:center;padding:18px 20px 12px}
 .sheet-head h3{font-family:var(--disp);font-weight:800;font-stretch:112%;font-size:17px}
-.sheet-x{color:var(--ink-soft);font-size:15px;padding:4px 8px;border-radius:8px}
+.sheet-x{color:var(--ink-soft);font-size:15px;min-width:44px;min-height:44px;display:inline-grid;place-items:center;border-radius:8px}
 .sheet-x:hover{background:var(--paper)}
 .sheet-body{overflow-y:auto;padding:6px 12px 16px;max-height:480px}
 .tz-opt{display:flex;justify-content:space-between;width:100%;text-align:left;padding:12px;border-radius:10px;font-size:14px;font-weight:500}
@@ -1114,7 +1116,7 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .foot{display:flex;flex-wrap:wrap;align-items:center;gap:6px;justify-content:center;padding:18px 18px calc(18px + env(safe-area-inset-bottom));font-size:11.5px;color:var(--ink-soft);border-top:1px solid var(--line)}
 .foot-dot{opacity:.5}
 .foot-build{font-family:var(--mono);font-size:10.5px;opacity:.6}
-.foot-refresh{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;color:var(--ink-soft);border:1px solid var(--line);border-radius:50%;background:var(--card);line-height:0;transition:color .2s,background .2s,border-color .2s}
+.foot-refresh{display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;color:var(--ink-soft);border:1px solid var(--line);border-radius:50%;background:var(--card);line-height:0;transition:color .2s,background .2s,border-color .2s}
 .foot-refresh:hover{color:var(--acc-text);border-color:var(--acc-text);background:color-mix(in srgb,var(--acc1) 10%,transparent)}
 .foot-refresh:active{transform:scale(.92)}
 .foot-refresh.spinning{color:var(--acc-text);border-color:var(--acc-text)}

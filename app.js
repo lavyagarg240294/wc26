@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "158";  // shown in footer; bump with the ?v= asset version
+const BUILD = "159";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -2750,6 +2750,9 @@ async function boot() {
   // offline support — network-first SW (registered after first render so it never blocks paint).
   // The shell stays network-first so an online visitor always gets the latest build; the version
   // nudge still handles prompting a reload when a new app.js ships.
+  // background-scroll lock behind modals — primary is the CSS `:has()` rule; this is a fallback for older webviews
+  const _lockObs = new MutationObserver(() => document.documentElement.classList.toggle("modal-open", !!document.querySelector("dialog[open]")));
+  $$("dialog").forEach(d => _lockObs.observe(d, { attributes: true, attributeFilter: ["open"] }));
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("sw.js").then(reg => {
       const poke = () => reg.update().catch(() => {});           // re-check for a new worker promptly (don't wait on the browser's lazy ~24h schedule)
