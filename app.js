@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "153";  // shown in footer; bump with the ?v= asset version
+const BUILD = "154";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -752,7 +752,7 @@ function _qualScan(g, X, fixId, fixOut) {
   rec(0, _basePts(g));
   return { clinched: allTop2, out: allOut };
 }
-function _provPos(g) {                                    // FT + in-play provisional positions ("as it stands")
+function _provRows(g) {                                    // FT + in-play points/GD/GF per team in a group
   const rows = {}; groupTeams(g).forEach(c => rows[c] = { code: c, pts: 0, gd: 0, gf: 0 });
   for (const m of S.matches) if (m.group === g) {
     const r = res(m); if (!r || r.h == null || ![ST.FT, ST.LIVE, ST.HT].includes(r.st)) continue;
@@ -760,8 +760,13 @@ function _provPos(g) {                                    // FT + in-play provis
     H.gf += r.h; A.gf += r.a; H.gd += r.h - r.a; A.gd += r.a - r.h;
     if (r.h > r.a) H.pts += 3; else if (r.h < r.a) A.pts += 3; else { H.pts++; A.pts++; }
   }
+  return rows;
+}
+// "as it stands" positions. The final tiebreak is the alphabetical code, so a single team's position is only
+// meaningful when it isn't dead-level with a neighbour — callers (matchStakes) must guard for that.
+function _provPos(g) {                                    // FT + in-play provisional positions ("as it stands")
   const pos = {};
-  Object.values(rows).sort((x, y) => y.pts - x.pts || y.gd - x.gd || y.gf - x.gf || x.code.localeCompare(y.code))
+  Object.values(_provRows(g)).sort((x, y) => y.pts - x.pts || y.gd - x.gd || y.gf - x.gf || x.code.localeCompare(y.code))
     .forEach((r, i) => pos[r.code] = i + 1);
   return pos;
 }
@@ -788,6 +793,12 @@ function matchStakes(m) {
   const playedIn = code => S.matches.some(x => x.group === g && (x.home.team === code || x.away.team === code) && counted(x));
   const pH = playedIn(H), pA = playedIn(A);
   if (!pH && !pA) return { lines: [`Both sides open their Group ${g} campaign.`], definitive: false };
+  // If the two sides are dead level (same points, GD and goals), their "position" is decided only by the
+  // alphabetical code tiebreak — showing "2nd / 3rd" then reads as a real standing (the "Ecuador 3rd at 0–0"
+  // bug). Say they're level instead.
+  const R = _provRows(g);
+  if (pH && pA && R[H] && R[A] && R[H].pts === R[A].pts && R[H].gd === R[A].gd && R[H].gf === R[A].gf)
+    return { lines: [`${nm(H)} and ${nm(A)} are level in Group ${g} so far.`], definitive: false };
   const p = _provPos(g), parts = [];
   if (pH) parts.push(`${nm(H)} are ${ordinal(p[H])}`);
   if (pA) parts.push(`${nm(A)} are ${ordinal(p[A])}`);
