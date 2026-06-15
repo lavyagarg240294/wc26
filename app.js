@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "172";  // shown in footer; bump with the ?v= asset version
+const BUILD = "173";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -57,6 +57,12 @@ document.addEventListener("toggle", e => {
   if (d.tagName === "DETAILS" && d.open && d.closest(".sheet-body")) requestAnimationFrame(() => d.scrollIntoView({ behavior: "smooth", block: "nearest" }));
 }, true);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+// Player names arrive in mixed shapes: the FIFA feed UPPERCASEs the surname ("Julian QUINONES", "MOKOENA",
+// "J. GALLARDO"); squads.json is Title Case. pName() normalises ANY of them to one Title-Case display form so the
+// site reads consistently. DISPLAY ONLY — data-player keys keep the raw name so the openPlayer/photo joins still work.
+const pName = s => (s || "").replace(/\S+/g, w => /^[A-ZÀ-Ý][A-ZÀ-Ý.'’-]*$/.test(w) ? w.charAt(0) + w.slice(1).toLowerCase() : w);
+// the dense match timeline uses just the surname (football convention) — drop a Jr/Filho-style suffix first.
+const tlName = s => { const t = (s || "").trim().split(/\s+/).filter(w => !/^(jr|jnr|junior|filho|neto|ii|iii)\.?$/i.test(w)); return pName(t[t.length - 1] || s || ""); };
 
 // real SVG flags (self-hosted) — emoji regional-indicator flags don't render on Windows, where the
 // whole flag-heavy UI would degrade to "BR"/"US" letter boxes. alt falls back to the code if a file 404s.
@@ -629,7 +635,7 @@ const EV_ICON = {
   S: `<span class="tl-sub">${ICO.subs}</span>`,
 };
 function evText(e, code) {
-  const P = (n, cls) => `<span class="${cls} tl-clk" data-player="${esc(n)}|${code}" role="button" tabindex="0">${esc(n)}</span>`;
+  const P = (n, cls) => `<span class="${cls} tl-clk" data-player="${esc(n)}|${code}" role="button" tabindex="0">${esc(tlName(n))}</span>`;
   if (e.k === "S") return `${e.on ? P(e.on, "tl-p tl-in") : ""}${e.off ? P(e.off, "tl-off tl-out") : ""}`;
   const tag = e.k === "P" ? ` <span class="tl-x">pen</span>` : e.k === "OG" ? ` <span class="tl-x">o.g.</span>` : "";
   return `${e.p ? P(e.p, "tl-p") : ""}${tag}${e.a ? P(e.a, "tl-off") : ""}`;
@@ -1343,7 +1349,7 @@ function rotationSection(code) {
   const row = p => { const ph = playerPhoto(p.name, p.code);
     return `<div class="rt-row" data-player="${esc(p.name)}|${p.code}" role="button" tabindex="0">
       ${ph ? `<span class="lead-face" style="background-image:url('${ph}')"></span>` : `<span class="fl">${flag(p.code)}</span>`}
-      <span class="rt-name">${esc(p.name)}<small>${p.starts} start${p.starts !== 1 ? "s" : ""}${p.subs ? ` · ${p.subs} sub` : ""}</small></span>
+      <span class="rt-name">${esc(pName(p.name))}<small>${p.starts} start${p.starts !== 1 ? "s" : ""}${p.subs ? ` · ${p.subs} sub` : ""}</small></span>
       <span class="rt-cells">${p.cells.map(c => `<span class="rt-cell s-${c.k}" title="${esc(c.t)}"></span>`).join("")}</span>
       <span class="rt-min">${p.mins}<small>min</small></span></div>`; };
   return `<details class="ts-squad rt-block"><summary><span>Minutes &amp; rotation</span><small>${R.matches} match${R.matches !== 1 ? "es" : ""}</small></summary>
@@ -1433,12 +1439,12 @@ function openPlayer(name, code) {
   }).join("");
   const box = matchPstat(name, r?.pstats);   // ESPN per-match box score for this player, if a match is open
   const boxHtml = box ? PL_BOX.filter(([k]) => box[k]).map(([k, label]) => `<span class="pl-stat"><b>${box[k]}</b>${label}</span>`).join("") : "";
-  $("#playerTitle").textContent = name;   // real dialog name for screen readers (was a generic "Player")
+  $("#playerTitle").textContent = pName(name);   // real dialog name for screen readers (was a generic "Player")
   $("#playerBody").innerHTML = `
     <div class="pl">
       ${photo ? `<span class="pl-face" style="background-image:url('${photo}')"></span>` : `<span class="pl-face pl-flag">${code ? flag(code) : "·"}</span>`}
       <div class="pl-meta">
-        <b class="pl-name">${esc(name)}</b>
+        <b class="pl-name">${esc(pName(name))}</b>
         <span class="pl-team">${code ? flag(code) + " " : ""}${esc(team?.name || code || "")}</span>
         ${(num != null || pos) ? `<span class="pl-pos">${num != null ? "#" + num : ""}${num != null && pos ? " · " : ""}${pos}</span>` : ""}
       </div>
@@ -1512,7 +1518,7 @@ function renderSearch(raw) {
   const byRank = key => (a, b) => rank(key(a)) - rank(key(b)) || key(a).localeCompare(key(b));
   const players = SIDX.players.filter(p => (has(p.name) || has(p.club)) && !(cmp && p.name === compareSeed.name && p.code === compareSeed.code)).sort(byRank(p => p.name)).slice(0, cmp ? 12 : 8);
   const playerRowHtml = (p, attr) => { const ph = playerPhoto(p.name, p.code);
-    return `<button class="sr-row" ${attr}>${ph ? `<span class="lead-face" style="background-image:url('${ph}')"></span>` : `<span class="fl">${flag(p.code)}</span>`}<span class="sr-name">${esc(p.name)}<small>${flag(p.code)} ${tname(p.code)}${p.club ? ` · ${esc(p.club)}` : ""}</small></span></button>`; };
+    return `<button class="sr-row" ${attr}>${ph ? `<span class="lead-face" style="background-image:url('${ph}')"></span>` : `<span class="fl">${flag(p.code)}</span>`}<span class="sr-name">${esc(pName(p.name))}<small>${flag(p.code)} ${tname(p.code)}${p.club ? ` · ${esc(p.club)}` : ""}</small></span></button>`; };
   if (cmp) {   // compare mode: players only, tapping picks the second player
     res.innerHTML = players.length ? `<div class="sr-label">Compare with…</div>` + players.map(p => playerRowHtml(p, `data-compare="${esc(p.name)}|${p.code}"`)).join("") : `<div class="sr-hint">No players match “${esc(raw.trim())}”.</div>`;
     return;
@@ -2341,7 +2347,7 @@ function renderStats() {
   // a player leaderboard row (photo + name + value), taps through to the player profile
   const playerRow = (p, i, val) => { const ph = playerPhoto(p.name, p.code); return `<div class="lead-row lead-player" data-player="${esc(p.name)}|${p.code}" role="button" tabindex="0">
     <span class="lead-rank">${i + 1}</span>${ph ? `<span class="lead-face" style="background-image:url('${ph}')"></span>` : `<span class="fl">${flag(p.code)}</span>`}
-    <span class="lead-name">${esc(p.name)}<small>${flag(p.code)} ${tname(p.code)}</small></span>
+    <span class="lead-name">${esc(pName(p.name))}<small>${flag(p.code)} ${tname(p.code)}</small></span>
     <span class="lead-v">${val}</span></div>`; };
   const scorerRow = (p, i) => playerRow(p, i, `${p.goals}<small>${p.assists ? `${p.assists} ast` : "&nbsp;"}</small>`);
   const assistRow = (p, i) => playerRow(p, i, `${p.assists}<small>assist${p.assists > 1 ? "s" : ""}</small>`);
@@ -2350,7 +2356,7 @@ function renderStats() {
   // suspension watch — derived from the same card tallies; a red or 2nd yellow = a ban next game
   const suspRow = (p, kind) => { const ph = playerPhoto(p.name, p.code); return `<div class="lead-row lead-player" data-player="${esc(p.name)}|${p.code}" role="button" tabindex="0">
     ${ph ? `<span class="lead-face" style="background-image:url('${ph}')"></span>` : `<span class="fl">${flag(p.code)}</span>`}
-    <span class="lead-name">${esc(p.name)}<small>${flag(p.code)} ${tname(p.code)}</small></span>
+    <span class="lead-name">${esc(pName(p.name))}<small>${flag(p.code)} ${tname(p.code)}</small></span>
     <span class="susp-tag ${kind === "ban" ? "is-ban" : "is-risk"}">${kind === "ban" ? (p.r > 0 ? "Sent off — banned" : "2 yellows — banned") : "On a yellow"}</span></div>`; };
   const suspended = s.booked.filter(p => p.r > 0 || p.y >= 2);
   const atRisk = s.booked.filter(p => p.r === 0 && p.y === 1);
