@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "161";  // shown in footer; bump with the ?v= asset version
+const BUILD = "162";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -340,7 +340,7 @@ function groupOutlook(g) {
       else if (winB <= 2) need = `beat ${on}, then hope other results help`;
       else need = `a win over ${on} keeps best-eight hopes alive`;
     }
-    return { code: c, status, k, need, pts: base[c] };
+    return { code: c, status, k, need };
   }).sort((a, b) => standings(g).findIndex(r => r.code === a.code) - standings(g).findIndex(r => r.code === b.code));
 }
 function groupOutlookHTML(g) {
@@ -350,7 +350,7 @@ function groupOutlookHTML(g) {
   return `<details class="outlook"${open}><summary><span class="ear-tri">▸</span> What each team needs</summary>
     <div class="outlook-body">${o.map(t => `<div class="ol-row ol-${t.k} ${t.code === S.fav ? "is-fav" : ""}">
       <span class="fl">${flag(t.code)}</span><span class="ol-name">${esc(S.teams[t.code]?.name || t.code)}</span>
-      <span class="ol-status"><span class="ol-pts">${t.pts} pt${t.pts !== 1 ? "s" : ""}</span> · ${t.status}${t.need ? ` · <b>${t.need}</b>` : ""}</span></div>`).join("")}</div></details>`;
+      <span class="ol-status">${t.status}${t.need ? ` · <b>${t.need}</b>` : ""}</span></div>`).join("")}</div></details>`;
 }
 
 /* ---------------- theming ---------------- */
@@ -1248,7 +1248,7 @@ function teamOverview(code) {
 }
 // a player's record at THIS World Cup — counted from the team's played matches (tolerant name match vs feed names)
 function playerWC(name, code) {
-  let g = 0, a = 0, y = 0, rc = 0, apps = 0, gkStarts = 0, cs = 0, ga = 0;
+  let g = 0, a = 0, y = 0, rc = 0, apps = 0, starts = 0, cs = 0, ga = 0;
   for (const m of S.matches) {
     if (!matchHasTeam(m, code) || status(m) === ST.SCHED) continue;
     const r = res(m); if (!r) continue;
@@ -1258,9 +1258,10 @@ function playerWC(name, code) {
     const inXI = xi.some(p => sameName(p[1], name));
     const onBench = (r.ev || []).some(e => e.tm === side && e.k === "S" && e.on && sameName(e.on, name));
     if (inXI || onBench) apps++;
-    // goalkeeper line: if this player started in goal (lineup slot 0), credit the shutout / goals conceded
-    if (r.h != null && xi.some(p => p[2] === 0 && sameName(p[1], name))) {
-      gkStarts++; const conceded = side === "h" ? r.a : r.h; ga += conceded; if (conceded === 0) cs++;
+    // clean sheets / goals conceded while the player STARTED — shared by the keeper and the back line,
+    // approximated to the match's final score (the same simplification the keeper leaderboard uses)
+    if (inXI && r.h != null) {
+      starts++; const conceded = side === "h" ? r.a : r.h; ga += conceded; if (conceded === 0) cs++;
     }
     for (const e of (r.ev || [])) {
       if (e.tm !== side) continue;
@@ -1270,7 +1271,7 @@ function playerWC(name, code) {
       if (e.k === "R" && e.p && sameName(e.p, name)) rc++;
     }
   }
-  return { g, a, y, rc, apps, gkStarts, cs, ga };
+  return { g, a, y, rc, apps, starts, cs, ga };
 }
 // Team detail sheet — overview, recent form, every fixture (results + upcoming), the group
 // standing + qualification outlook, and the full squad (collapsible). Tapping a team anywhere
@@ -1362,7 +1363,8 @@ function openPlayer(name, code) {
   }
   if (bio) { if (num == null && bio.n != null) num = bio.n; if (!pos && bio.pos) pos = { GK: "Goalkeeper", DF: "Defender", MF: "Midfielder", FW: "Forward" }[bio.pos] || ""; }
   const wc = playerWC(name, code);   // this-tournament record, counted from the team's played matches
-  const isGK = pos === "Goalkeeper" || bio?.pos === "GK";   // keepers get clean sheets / conceded, not goals / assists
+  const isGK = pos === "Goalkeeper" || bio?.pos === "GK";   // keepers: clean sheets / conceded, not goals / assists
+  const isDF = pos === "Defender" || bio?.pos === "DF";     // defenders: clean sheets + goals (assists are rarely their story)
   const acts = (r?.ev || []).filter(e => [e.p, e.a, e.on, e.off].includes(name)).map(e => {
     const mn = esc(e.t || "");
     if (["G", "P", "OG"].includes(e.k)) return `<span class="pl-act">⚽ ${mn}${e.k === "P" ? " pen" : e.k === "OG" ? " o.g." : ""}${e.a === name && e.p !== name ? " · assist" : ""}</span>`;
@@ -1391,6 +1393,9 @@ function openPlayer(name, code) {
       ${isGK
         ? `<div class="pw"><b>${wc.cs}</b><span>Clean sheet${wc.cs !== 1 ? "s" : ""}</span></div>
       <div class="pw"><b>${wc.ga}</b><span>Conceded</span></div>`
+        : isDF
+        ? `<div class="pw"><b>${wc.cs}</b><span>Clean sheet${wc.cs !== 1 ? "s" : ""}</span></div>
+      <div class="pw"><b>${wc.g}</b><span>Goal${wc.g !== 1 ? "s" : ""}</span></div>`
         : `<div class="pw"><b>${wc.g}</b><span>Goal${wc.g !== 1 ? "s" : ""}</span></div>
       <div class="pw"><b>${wc.a}</b><span>Assist${wc.a !== 1 ? "s" : ""}</span></div>`}
       <div class="pw"><b>${wc.y}${wc.rc ? `<span class="pw-rc">${wc.rc}</span>` : ""}</b><span>${wc.rc ? "Yel · Red" : "Yellow" + (wc.y !== 1 ? "s" : "")}</span></div>

@@ -527,7 +527,6 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .ol-name{font-weight:700;flex:0 0 auto;min-width:84px}
 .ol-status{color:var(--ink-soft);font-size:11.5px}
 .ol-status b{color:var(--ink);font-weight:700}
-.ol-pts{font-family:var(--mono);font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
 .ol-row.is-fav{background:color-mix(in srgb,var(--acc1) 7%,transparent)}
 .ol-q{border-left-color:var(--pitch)}
 .ol-q .ol-status b{color:var(--pitch)}
