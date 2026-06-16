@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "175";  // shown in footer; bump with the ?v= asset version
+const BUILD = "176";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -57,13 +57,52 @@ document.addEventListener("toggle", e => {
   if (d.tagName === "DETAILS" && d.open && d.closest(".sheet-body")) requestAnimationFrame(() => d.scrollIntoView({ behavior: "smooth", block: "nearest" }));
 }, true);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+// ---------- flicker-free view updates ----------
+// Replacing a view's innerHTML on every poll tears down and rebuilds every node, so flags/photos re-decode and the
+// layout jumps — on a live match that's a visible flash every minute, and it would wipe a focused filter input or a
+// section the user just expanded. paint() instead diffs the new HTML against what's on screen and mutates only what
+// actually changed. Fast-path: byte-identical HTML → do nothing. It deliberately never touches the `open` attribute
+// (so an expanded <details> stays open) nor anything under a [data-keep] node (so loaded commentary survives). Safe
+// because every view interaction is delegated to one document-level listener — morphing nodes never drops a handler.
+function paint(el, html) {
+  if (!el) return;
+  if (el.__sig === html) return;          // nothing changed since last paint → no work, no repaint
+  el.__sig = html;
+  const tpl = document.createElement("template"); tpl.innerHTML = html;
+  morphKids(el, tpl.content);
+}
+function morphKids(from, to) {
+  let f = from.firstChild, t = to.firstChild;
+  while (t) {
+    const tNext = t.nextSibling;
+    if (!f) { from.appendChild(document.importNode(t, true)); t = tNext; continue; }
+    const fNext = f.nextSibling;
+    if (f.nodeType !== t.nodeType || (f.nodeType === 1 && f.nodeName !== t.nodeName)) {
+      from.replaceChild(document.importNode(t, true), f);              // shape diverged → swap this node wholesale
+    } else if (f.nodeType === 3 || f.nodeType === 8) {                 // text / comment
+      if (f.nodeValue !== t.nodeValue) f.nodeValue = t.nodeValue;
+    } else if (f.nodeType === 1 && !f.hasAttribute("data-keep")) {     // element (skip keep-subtrees entirely)
+      morphAttrs(f, t);
+      morphKids(f, t);
+    }
+    f = fNext; t = tNext;
+  }
+  while (f) { const fNext = f.nextSibling; from.removeChild(f); f = fNext; }   // drop any trailing leftovers
+}
+function morphAttrs(f, t) {
+  for (let i = f.attributes.length - 1; i >= 0; i--) { const n = f.attributes[i].name; if (n !== "open" && !t.hasAttribute(n)) f.removeAttribute(n); }
+  for (let i = 0; i < t.attributes.length; i++) { const a = t.attributes[i]; if (a.name !== "open" && f.getAttribute(a.name) !== a.value) f.setAttribute(a.name, a.value); }
+}
 // Player names arrive mixed: the FIFA feed UPPERCASEs the surname ("Julian QUINONES", "MOKOENA", "J. GALLARDO")
 // and often drops the accent ("QUIÑONES" → "QUINONES"); squads.json carries the proper accented Title-Case form.
 // pName() Title-Cases the feed name and RESTORES ACCENTS from a per-team accent dictionary (built from squads.json),
 // word by word. It deliberately does NOT swap in a different name, so a player known by a short form ("RODRI",
 // "Havertz") keeps it and a same-surname team-mate can't hijack it. DISPLAY ONLY — data-player keys keep the raw
 // feed name so the openPlayer/photo joins still resolve. Cached; squads load before any render.
-const _titleCase = s => (s || "").replace(/\S+/g, w => /^[A-ZÀ-Ý][A-ZÀ-Ý.'’-]*$/.test(w) ? w.charAt(0) + w.slice(1).toLowerCase() : w);
+// The feed sometimes glues an initial to the surname with no space ("E.ASHOUR", "J.GALLARDO"); split it so the
+// surname title-cases properly ("E. Ashour", not "E.ashour"). Then title-case every all-caps token.
+const _splitInitials = s => (s || "").replace(/([A-ZÀ-Ý])\.(?=[A-ZÀ-Ý])/g, "$1. ");
+const _titleCase = s => _splitInitials(s).replace(/\S+/g, w => /^[A-ZÀ-Ý][A-ZÀ-Ý.'’-]*$/.test(w) ? w.charAt(0) + w.slice(1).toLowerCase() : w);
 const _deburr = w => (w || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const _accentCache = new Map();   // team code → { deburred word: its accented spelling } (only words that carry an accent)
 const _accentDict = code => {
@@ -941,7 +980,7 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
   // lineups on the formation pitch — promoted above the timeline while a match is live (the XI is the headline then)
   const xiBlock = r?.xi ? `<div class="eyebrow">${liveNow ? "Line-ups" : "Starting XI"}</div>${xiPanel(r.xi, h, a)}` : "";
   $("#matchTitle").innerHTML = `<span class="md-stage">${esc(stageL)}</span>`;
-  $("#matchBody").innerHTML = `
+  const _body = `
     <div class="md-tagrow">${statusTag}
       <div class="md-actions">
         <button class="md-cal" data-cal="${id}" aria-label="Add to calendar" title="Add this match to your calendar">${CAL_SVG}</button>
@@ -971,10 +1010,14 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
     </div>
     ${liveNow || !r?.xi ? "" : `<details class="md-fold"><summary><span>Starting XI</span><small>${esc([r.xi.h?.f, r.xi.a?.f].filter(Boolean).join(" v ")) || "line-ups & formations"}</small></summary><div class="md-fold-body">${xiPanel(r.xi, h, a)}</div></details>`}
     ${squadLinks ? `<div class="md-squads">${squadLinks}</div>` : ""}`;
+  const mb = $("#matchBody");
+  if (reuse) paint(mb, _body);                       // live poll: morph the body in place — score/minute/timeline/stats update while expanded folds, scroll & loaded commentary survive
+  else { mb.__sig = _body; mb.innerHTML = _body; }   // fresh open: one clean render (seed the signature so the first refresh morphs against it)
   const md = $("#matchDialog"); md.dataset.openMid = id; if (!reuse) showSheet(md);   // openMid (not data-mid) so the global match-open click handler never matches the dialog itself
   // live commentary is per-match; fetch it when the section is open (it opens by default for live games)
   const comm = $("#mdComm", md);
-  if (comm) {
+  if (comm && !comm.__wired) {     // __wired is a JS property (survives morph) so a live refresh never stacks a 2nd toggle listener
+    comm.__wired = true;
     const loadComm = async () => {
       if (!comm.open || comm.dataset.loaded) return;
       comm.dataset.loaded = "1";
@@ -1087,7 +1130,7 @@ function renderMatches() {
   const ahead = list.filter(m => status(m) !== ST.FT);
 
   const motd = matchOfDay();   // skip if it's already a hero card (live/next) — no point showing it twice
-  el.innerHTML =
+  paint(el,
     heroStack(liveMatches, nextM) +
     (motd && !heroIds.has(motd.id) ? motdBanner(motd) : "") +
     `<div class="filters">
@@ -1108,7 +1151,7 @@ function renderMatches() {
     </div>` +
     (f.saved && S.saved.size ? `<button class="saved-cal" data-cal-saved>${CAL_SVG} Add ${S.saved.size} saved match${S.saved.size > 1 ? "es" : ""} to calendar</button>` : "") +
     (past.length ? `<details class="earlier"><summary><span class="ear-tri">▸</span> Earlier results <b>${past.length}</b><span class="ear-hint">view</span></summary><div class="ear-body">${dayGroups(past)}</div></details>` : "") +
-    (ahead.length ? dayGroups(ahead) : (past.length ? "" : `<div class="empty">No matches for this filter.</div>`));
+    (ahead.length ? dayGroups(ahead) : (past.length ? "" : `<div class="empty">No matches for this filter.</div>`)));
 
   startCountdown();
   const ss = $("#stageSel", el); if (ss) ss.onchange = () => { f.stage = ss.value; renderMatches(); };
@@ -1265,7 +1308,7 @@ function renderTeams() {
     .sort((a, b) => S.teams[a].name.localeCompare(S.teams[b].name))
     .map(c => `<button class="teamcard ${c === S.fav ? "is-fav" : ""}" data-squad="${c}" title="${esc(S.teams[c].name)}${S.teams[c].titles ? ` — ${S.teams[c].titles}× World Cup champion` : ""}">
       <span class="fl">${flag(c)}</span><span class="tc-name">${esc(S.teams[c].name)}</span>${S.teams[c].titles ? `<span class="tc-cup" aria-label="${S.teams[c].titles} World Cup titles">${TROPHY} ${S.teams[c].titles}</span>` : ""}<span class="tc-grp">${groupOf(c) || ""}</span></button>`).join("");
-  el.innerHTML = head + `<div class="eyebrow">All teams <span style="color:var(--ink-soft);font-weight:600">— tap for detail</span></div><div class="teamsgrid">${grid}</div>`;
+  paint(el, head + `<div class="eyebrow">All teams <span style="color:var(--ink-soft);font-weight:600">— tap for detail</span></div><div class="teamsgrid">${grid}</div>`);
   const cta = $("#ctaPick", el); if (cta) cta.onclick = () => $("#teamDialog").showModal();
   const chg = $("#ctaChange", el); if (chg) chg.onclick = () => $("#teamDialog").showModal();
   const ics = $("#icsTeam", el);
@@ -1735,14 +1778,17 @@ function roadSection(code) {
 }
 function renderGroups() {
   const el = $("#view-groups");
-  const prev = {};                                          // capture row positions for a FLIP when standings reorder
-  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
-  if (!reduce) el.querySelectorAll("tr[data-code]").forEach(tr => prev[tr.dataset.g + tr.dataset.code] = tr.getBoundingClientRect().top);
-  el.innerHTML =
+  const html =
     `<div class="gwrap">${GROUPS.map((g, i) => `<div class="gcol">${groupTable(g, i)}${groupOutlookHTML(g)}</div>`).join("")}</div>
      <div class="legend"><span class="l1"><i></i>Top 2 advance to the Round of 32</span><span class="l3"><i></i>3rd place — eight best advance</span><button class="legend-about" data-about>ⓘ How the format works</button></div>
      ${thirdRaceHTML()}
      ${projR32HTML()}`;
+  if (el.__sig === html) return;                           // groups unchanged (e.g. a minute tick elsewhere) — no flicker
+  el.__sig = html;
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const prev = {};                                          // capture row positions for a FLIP when standings reorder
+  if (!reduce) el.querySelectorAll("tr[data-code]").forEach(tr => prev[tr.dataset.g + tr.dataset.code] = tr.getBoundingClientRect().top);
+  el.innerHTML = html;
   if (!reduce && Object.keys(prev).length) el.querySelectorAll("tr[data-code]").forEach(tr => {
     const old = prev[tr.dataset.g + tr.dataset.code]; if (old == null) return;
     const dy = old - tr.getBoundingClientRect().top;
@@ -2363,7 +2409,7 @@ function fifaRankingPanel() {
 
 function renderStats() {
   const el = $("#view-stats"), s = tournamentStats();
-  if (!s.pulse.matches) { el.innerHTML = `<div class="rk-pre">Tournament stats — scorers, records, team form — fill in as matches kick off. Until then, here's the field by world ranking.</div>${fifaRankingPanel()}`; return; }
+  if (!s.pulse.matches) { paint(el, `<div class="rk-pre">Tournament stats — scorers, records, team form — fill in as matches kick off. Until then, here's the field by world ranking.</div>${fifaRankingPanel()}`); return; }
   const tile = (label, val) => `<div class="stat-tile"><span class="stat-val">${val}</span><span class="stat-lbl">${label}</span></div>`;
   const tname = c => esc(S.teams[c]?.name || c);
   // a player leaderboard row (photo + name + value), taps through to the player profile
@@ -2456,7 +2502,7 @@ function renderStats() {
   // Stats markup is byte-identical, keep the existing DOM — otherwise a tap mid-poll lands on a freshly-swapped row.
   if (out === _statsHTML && el.firstChild) return;
   _statsHTML = out;
-  el.innerHTML = out;
+  paint(el, out);
   $$(".substat", el).forEach(b => b.onclick = () => {
     statsTab = b.dataset.stat;
     $$(".substat", el).forEach(x => x.classList.toggle("is-on", x.dataset.stat === statsTab));
@@ -2481,7 +2527,7 @@ function mdReport(m) {
 // live commentary — only while a match is in play; finished matches get the report above instead
 function mdCommentaryShell(m) {
   if (![ST.LIVE, ST.HT].includes(status(m))) return "";
-  return `<details class="md-comm" id="mdComm" open><summary><span>Live commentary</span><small class="md-comm-hint">● updating</small></summary><div class="md-comm-body" id="mdCommBody"></div></details>`;
+  return `<details class="md-comm" id="mdComm" data-keep open><summary><span>Live commentary</span><small class="md-comm-hint">● updating</small></summary><div class="md-comm-body" id="mdCommBody"></div></details>`;
 }
 function renderCommentary(c) {
   if (!c || !c.items?.length) return `<div class="empty">No commentary published for this match.</div>`;
@@ -2757,16 +2803,11 @@ async function refreshResults() {
 // written once on open and otherwise freezes). Preserve what the user is doing: expanded sections, scroll, and the
 // already-loaded commentary (so it doesn't flash empty before refreshOpenCommentary refills it).
 function refreshOpenMatch() {
-  const md = $("#matchDialog"); const id = md?.open && md.dataset.openMid;
-  if (!id) return;
-  const label = d => d.querySelector("summary")?.textContent.trim() || "";
-  const openFolds = new Set([...md.querySelectorAll("details[open]")].map(label));
-  const commBody = md.querySelector("#mdCommBody")?.innerHTML || "";
+  const md = $("#matchDialog");
+  if (!(md?.open && md.dataset.openMid)) return;
   const y = md.scrollTop;
-  openMatch(id, true);              // rebuild the body, no re-animation
-  md.querySelectorAll("details").forEach(d => { if (openFolds.has(label(d))) d.open = true; });
-  const cb = md.querySelector("#mdCommBody"); if (cb && commBody) cb.innerHTML = commBody;
-  md.scrollTop = y;
+  openMatch(md.dataset.openMid, true);        // paint() morphs the body: expanded folds (open is never synced) & loaded commentary ([data-keep]) survive on their own
+  if (md.scrollTop !== y) md.scrollTop = y;    // belt-and-braces — a morph shouldn't move the scroll, but pin it if a node above changed height
 }
 // keep an open live-match popup's commentary current — re-fetch its feed each poll (commentary advances on
 // fouls/cards too, not just goals, so this runs every tick, independent of whether the score changed)
