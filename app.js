@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "182";  // shown in footer; bump with the ?v= asset version
+const BUILD = "183";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -121,7 +121,23 @@ const pName = (s, code) => {
   const key = (s || "") + "|" + (code || "");
   const hit = _nameCache.get(key); if (hit !== undefined) return hit;
   const dict = code ? _accentDict(code) : null;
-  const out = _titleCase(s).replace(/\S+/g, w => (dict && dict[_deburr(w)]) || w);
+  let out = _titleCase(s).replace(/\S+/g, w => (dict && dict[_deburr(w)]) || w);
+  // The feed often gives only a surname ("HAVERTZ", "GUNN"). Expand it to the full squad name when exactly one
+  // player on that team carries that surname (its last name token). Matching the LAST token only means a same-named
+  // team-mate can never be swapped in (Alexander Isak's "Isak" won't grab "Isak Hien", whose surname is Hien). A
+  // mononym with no surname match is left untouched.
+  if (code && out) {
+    const toks = out.split(/\s+/), L = toks.length, initial = /^[A-ZÀ-Ý]\.?$/;
+    // a "partial" feed name is a surname on its own ("Havertz") or an initial + surname ("E. Ashour"); expand it to
+    // the full squad name. Match the LAST token (alpha-only, also trying the last two so "Alamri" finds "Al Amri")
+    // so a same-named team-mate can't be swapped in; if several share the surname, the given initial breaks the tie.
+    if (L === 1 || toks.slice(0, -1).every(t => initial.test(t))) {
+      const norm = w => _deburr(w).replace(/[^a-z]/g, ""), k = norm(toks[L - 1]), fi = L > 1 ? _deburr(toks[0][0]) : null;
+      let m = (S.squads?.[code]?.players || []).filter(p => { const t = p.name.split(/\s+/), n = t.length; return norm(t[n - 1]) === k || (n > 1 && norm(t[n - 2] + t[n - 1]) === k); });
+      if (m.length > 1 && fi) m = m.filter(p => _deburr(p.name[0]) === fi);
+      if (m.length === 1) out = m[0].name;
+    }
+  }
   _nameCache.set(key, out);
   return out;
 };
@@ -1299,7 +1315,7 @@ function myTeamBlock() {
     <div class="team-hero"><span class="fl">${flag(S.fav)}</span>
       <div><h2>${esc(t.name)}</h2>
       <p>${t.conf ? esc(t.conf) + " · " : ""}Group ${group || "–"}${t.titles ? ` · <b style="color:var(--gold)">${TROPHY} ${t.titles}</b>` : ""}${played ? ` · currently <b>${ordinal(pos)}</b> after ${played} match${played > 1 ? "es" : ""}` : ""}</p>
-      ${formChips(S.fav) ? `<div class="th-form">Recent form ${formChips(S.fav)}</div>` : ""}</div>
+      </div>
       <button class="btn ghost team-change" id="ctaChange">Change</button></div>
     ${mine.length ? `<div class="team-actions"><button class="btn ghost ics-btn" id="icsTeam">${CAL_SVG} Add ${esc(t.name)}'s matches to calendar</button></div>` : ""}
     ${squadSection(S.fav)}
@@ -1460,7 +1476,6 @@ function openTeam(code) {
     ${isFav
       ? `<div class="ts-fav-tag">★ Your team</div>`
       : `<button class="ts-setfav" data-follow="${code}">★ Make ${esc(t.name)} my team</button>`}
-    ${formChips(code) ? `<div class="ts-form">Recent form ${formChips(code)}</div>` : ""}
     ${styleSection(code)}
     ${sq ? `<details class="ts-squad" open><summary><span>Squad</span><small>${sq.players.length} players${teamCoach(code) ? ` · ${esc(teamCoach(code))}` : ""}</small></summary>${rosterMarkup(sq, code)}</details>`
         : `<div class="eyebrow">Squad</div><div class="empty">${esc(t.name)}'s squad isn't published yet. Check back closer to kickoff.</div>`}
