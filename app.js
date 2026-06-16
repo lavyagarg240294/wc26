@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "208";  // shown in footer; bump with the ?v= asset version
+const BUILD = "209";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -607,9 +607,18 @@ function renderTicker() {
   // scroll as a seamless marquee whenever the content is wider than the strip (any number of matches);
   // only centre it static when it genuinely fits — so nothing ever gets clipped. (reading scrollWidth forces layout)
   if (track.scrollWidth > wrap.clientWidth + 4) {
-    track.innerHTML = built + sep + built;   // duplicate → the -50% translate loops seamlessly
+    track.innerHTML = built + sep + built;   // duplicate so the scroll wraps with no gap
+    // translate by the EXACT width of one copy (to the 2nd copy's first item) so the loop is seamless. A plain
+    // -50% lands half a separator off — the flex gap plus the single middle separator make the two halves
+    // unequal — which shows as a flick at every repeat. Measuring the real offset removes it.
+    const items = track.querySelectorAll(".ticker-item");
+    const dist = Math.round(items[todays.length]?.offsetLeft || track.scrollWidth / 2);
+    track.style.setProperty("--tick-x", -dist + "px");
+    track.style.animationDuration = Math.max(18, Math.round(dist / 46)) + "s";   // constant pace, any match count
   } else {
     track.classList.add("is-static");
+    track.style.removeProperty("--tick-x");
+    track.style.removeProperty("animation-duration");
   }
 }
 const shortName = code => {
@@ -805,8 +814,9 @@ function mdLeaders(r) {
   if (!r?.lead?.length) return "";
   const CAT = [["totalShots", "Shots"], ["accuratePasses", "Passes"], ["defensiveInterventions", "Defensive actions"], ["saves", "Saves"]];
   const byCat = {}; for (const L of r.lead) (byCat[L.k] ||= []).push(L);
-  const rows = CAT.filter(([k]) => byCat[k]).map(([k, label]) =>
-    `<div class="ld-row"><span class="ld-cat">${label}</span><span class="ld-ps">${byCat[k].map(L => `<span class="ld-p">${flag(L.c)} <b>${esc(L.n)}</b> <em>${esc(L.v)}</em></span>`).join("")}</span></div>`).join("");
+  // one performer per row; the category label heads its first row, blank on any runner-up beneath it
+  const rows = CAT.filter(([k]) => byCat[k]).flatMap(([k, label]) =>
+    byCat[k].map((L, i) => `<div class="ld-row"><span class="ld-cat">${i === 0 ? label : ""}</span><span class="ld-p">${flag(L.c)} <span class="ld-n">${esc(L.n)}</span> <em>${esc(L.v)}</em></span></div>`)).join("");
   return rows ? `<div class="eyebrow">Key performers</div><div class="md-leaders">${rows}</div>` : "";
 }
 const evMin = s => { const m = String(s || "").match(/(\d+)(?:'?\+(\d+))?/); return m ? +m[1] + (m[2] ? +m[2] / 100 : 0) : 0; };
