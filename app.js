@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "200";  // shown in footer; bump with the ?v= asset version
+const BUILD = "201";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -2861,9 +2861,13 @@ function resolvePlayer(name, code, num, pos) {
     const toks = _splitInitials(name).split(/\s+/).filter(Boolean), L = toks.length, full = toks.map(nrm).join("");   // "E.ASHOUR" -> "E. ASHOUR"
     hit = sq.find(p => p.name.split(/\s+/).map(nrm).join("") === full);           // whole-name match (also fixes accents)
     if (!hit && L) {
-      const sur = nrm(toks[L - 1]);
-      let cand = sq.filter(p => { const t = p.name.split(/\s+/), n = t.length; return nrm(t[n - 1]) === sur || (n > 1 && nrm(t[n - 2] + t[n - 1]) === sur); });
-      if (cand.length > 1 && L > 1) { const g = nrm(toks.slice(0, -1).join("")); const byG = cand.filter(p => { const f = nrm(p.name.split(/\s+/)[0]); return f === g || f[0] === g[0]; }); if (byG.length) cand = byG; }
+      // a name suffix (Jr / Júnior / Filho…) is NOT a surname, and the feed may abbreviate it differently from the
+      // squad ("Vinicius Jr" vs "Vinicius Júnior"). Drop suffixes on BOTH sides so a player is keyed by their real
+      // distinguishing name — otherwise "Vinicius Jr" keys on "jr" and wrongly resolves to a "Neymar Jr" team-mate.
+      const sigA = a => { const f = a.filter(w => !PH_SUFFIX.has(nrm(w))); return f.length ? f : a; };
+      const fT = sigA(toks), sur = nrm(fT[fT.length - 1]);
+      let cand = sq.filter(p => { const t = sigA(p.name.split(/\s+/)), n = t.length; return nrm(t[n - 1]) === sur || (n > 1 && nrm(t[n - 2] + t[n - 1]) === sur); });
+      if (cand.length > 1 && fT.length > 1) { const g = nrm(fT.slice(0, -1).join("")); const byG = cand.filter(p => { const f = nrm(p.name.split(/\s+/)[0]); return f === g || f[0] === g[0]; }); if (byG.length) cand = byG; }
       if (cand.length > 1 && pos) { const byPos = pos === "out" ? cand.filter(p => p.pos !== "GK") : cand.filter(p => p.pos === pos); if (byPos.length) cand = byPos; }   // "out" = outfielder (a scorer is never the same-surname keeper)
       if (cand.length === 1) hit = cand[0];
       else if (!cand.length && L === 1) { const bf = sq.filter(p => nrm(p.name.split(/\s+/)[0]) === nrm(toks[0])); if (bf.length === 1) hit = bf[0]; }
