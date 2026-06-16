@@ -174,9 +174,23 @@ async function fetchBluesky(recent, token) {
 }
 
 /* ---------------- Mastodon (fan reactions, no auth) ---------------- */
-// mastodon.social's hashtag timelines are public. We pull a few WC tags once, then attribute each post to a
-// recent match it clearly refers to (names BOTH teams, in the window). Federated + lower-volume, so a supplement.
+// FIFA tricodes, so we can decode the #FediFC match hashtags (#FRASEN, #FRAvsSEN, or a #FRA + #SEN pair) that
+// most football posts use instead of spelling out both team names. This roughly doubles what we can attribute.
+const TRI = { MX: "MEX", ZA: "RSA", KR: "KOR", CZ: "CZE", CA: "CAN", BA: "BIH", QA: "QAT", CH: "SUI", BR: "BRA",
+  MA: "MAR", HT: "HAI", "GB-SCT": "SCO", US: "USA", PY: "PAR", AU: "AUS", TR: "TUR", DE: "GER", CW: "CUW",
+  CI: "CIV", EC: "ECU", NL: "NED", JP: "JPN", TN: "TUN", NZ: "NZL", BE: "BEL", EG: "EGY", IR: "IRN", UZ: "UZB",
+  ES: "ESP", CV: "CPV", SA: "KSA", UY: "URU", FR: "FRA", SN: "SEN", IQ: "IRQ", NO: "NOR", AR: "ARG", DZ: "ALG",
+  AT: "AUT", JO: "JOR", PT: "POR", CD: "COD", CO: "COL", SE: "SWE", "GB-ENG": "ENG", HR: "CRO", GH: "GHA", PA: "PAN" };
+// the set of hashtags (lowercased) that unambiguously denote a given match
+const matchHashtags = m => {
+  const h = (TRI[m.home.team] || "").toLowerCase(), a = (TRI[m.away.team] || "").toLowerCase();
+  return h && a ? [h + a, a + h, h + "vs" + a, a + "vs" + h, h + "v" + a, a + "v" + h] : [];
+};
+// mastodon.social's hashtag timelines are public. We pull a few WC tags once, then attribute each post to a recent
+// match it refers to — by naming both teams (prose or team-name tags) OR by a match hashtag. Federated + lower-volume.
 async function fetchMastodon(recent) {
+  const tagged = recent.map(m => ({ m, ko: +new Date(m.utc), tags: new Set(matchHashtags(m)),
+    htri: (TRI[m.home.team] || "").toLowerCase(), atri: (TRI[m.away.team] || "").toLowerCase() }));
   const out = {}, statuses = [], seen = new Set();
   for (const tag of ["worldcup", "fifaworldcup", "worldcup2026"]) {
     try {
@@ -192,13 +206,17 @@ async function fetchMastodon(recent) {
     // fresh posts usually have 0 favourites, so gate on civility/length, not score; rank by score later
     if (!st.url || !okSocial(text, score, 0)) continue;
     const k = text.toLowerCase().slice(0, 60); if (seen.has(k)) continue;
-    const hay = text + " " + (st.tags || []).map(t => t.name).join(" ");   // team-name hashtags count as a mention
-    const codes = codesIn(hay); if (codes.length < 2) continue;
+    const tagNames = (st.tags || []).map(t => String(t.name || "").toLowerCase()), tagSet = new Set(tagNames);
+    const codes = codesIn(text + " " + tagNames.join(" "));   // team-name hashtags count as a mention too
     const created = +new Date(st.created_at || 0);
-    const m = recent.find(f => codes.includes(f.home.team) && codes.includes(f.away.team) && Math.abs(created - +new Date(f.utc)) < 36 * 3600e3);
-    if (!m) continue;
+    const hit = tagged.find(t => Math.abs(created - t.ko) < 36 * 3600e3 && (
+      (codes.includes(t.m.home.team) && codes.includes(t.m.away.team))   // both teams named (prose or name-tag)
+      || tagNames.some(n => t.tags.has(n))                                // a #FRASEN-style match hashtag
+      || (t.htri && t.atri && tagSet.has(t.htri) && tagSet.has(t.atri))   // a #FRA + #SEN tricode pair
+    ));
+    if (!hit) continue;
     seen.add(k);
-    (out[m.id] ||= { reactions: [] }).reactions.push({ text, score, src: "Mastodon", url: st.url });
+    (out[hit.m.id] ||= { reactions: [] }).reactions.push({ text, score, src: "Mastodon", url: st.url });
   }
   for (const id of Object.keys(out)) {
     out[id].reactions = out[id].reactions.sort((a, b) => b.score - a.score).slice(0, 4);
