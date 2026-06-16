@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "203";  // shown in footer; bump with the ?v= asset version
+const BUILD = "204";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1022,7 +1022,7 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
   const side = (s, key) => `<div class="md-team ${s.code === S.fav ? "is-fav" : ""}">
       <span class="md-flag">${s.code ? flag(s.code) : TBD_FLAG}</span>
       <span class="md-name ${s.ph ? "is-ph" : ""}">${esc(slotText(m, key, s))}</span>
-      ${s.code ? `<span class="md-teaminfo">${esc(S.teams[s.code].conf || "")}${S.teams[s.code].titles ? ` · ${TROPHY} ${S.teams[s.code].titles}` : ""}</span>` : ""}</div>`;
+      ${s.code ? `<span class="md-teaminfo">${esc(S.teams[s.code].conf || "")}${fifaRankOf(s.code) ? ` · <span class="md-rank" title="FIFA World Ranking">#${fifaRankOf(s.code)}</span>` : ""}${S.teams[s.code].titles ? ` · ${TROPHY} ${S.teams[s.code].titles}` : ""}</span>` : ""}</div>`;
   const squadLinks = [h, a].filter(s => s.code)
     .map(s => `<button class="md-squad-link" data-squad="${s.code}"><span class="fl">${flag(s.code)}</span> ${esc(s.name)} ›</button>`).join("");
   const mid = (score || live)
@@ -2497,6 +2497,13 @@ const FIFA_POS = {}; FIFA_RANK.forEach((e, i) => { FIFA_POS[typeof e === "string
 // snapshot fall back to their Elo so it's still skill-based — never the alphabetical code.
 const tiebreakRank = code => FIFA_POS[code] != null ? FIFA_POS[code] : 100 - (S.teams[code]?.elo || 0) / 100;
 const CONF_FULL = { UEFA: "Europe", CONMEBOL: "South America", CONCACAF: "N. & C. America", AFC: "Asia", CAF: "Africa", OFC: "Oceania" };
+// a team's FIFA world-ranking position from the frozen 211-team snapshot, by code. Built once (the snapshot
+// doesn't change during the tournament); returns null until the ranking file has loaded.
+let _rankByCode = null;
+function fifaRankOf(code) {
+  if (!_rankByCode && S.fifaRanking?.length) { _rankByCode = {}; for (const t of S.fifaRanking) if (t.q) _rankByCode[t.q] = t.r; }
+  return _rankByCode?.[code] || null;
+}
 function fifaRankingPanel() {
   const rk = S.fifaRanking;
   if (!rk?.length) {   // ranking file not loaded (stale cache / offline) — minimal fallback from teams.json

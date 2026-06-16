@@ -1323,6 +1323,7 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 /* champions badge + team info */
 .tc-cup{font-family:var(--mono);font-size:10.5px;font-weight:700;color:var(--gold-text);flex:0 0 auto;white-space:nowrap}
 .md-teaminfo{font-family:var(--mono);font-size:10.5px;color:var(--ink-soft);letter-spacing:.02em;margin-top:-2px}
+.md-rank{color:var(--ink);font-weight:700;font-variant-numeric:tabular-nums}
 /* flag wiggle on card hover */
 .mcard:hover .mcard-team .fl,.teamcard:hover .fl,.bm:hover .fl{animation:flagWave .6s ease}
 @keyframes flagWave{0%,100%{transform:rotate(0)}25%{transform:rotate(-9deg)}60%{transform:rotate(7deg)}}
