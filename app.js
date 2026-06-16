@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "214";  // shown in footer; bump with the ?v= asset version
+const BUILD = "215";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -289,6 +289,7 @@ function formChips(code) {
 
 /* ---------------- calendar (.ics) export — client-side, kickoffs in UTC ---------------- */
 const CAL_SVG = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>`;
+const REFRESH_SVG = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>`;
 // webcal:// URL to a committed static calendar (data/ics/…) for an auto-updating subscription.
 // Derived from the current page so it works wherever the site is hosted.
 const webcalURL = file => "webcal://" + location.origin.replace(/^https?:\/\//, "") + location.pathname.replace(/[^/]*$/, "") + "data/ics/" + file;
@@ -661,6 +662,7 @@ function matchCard(m, i, opts = {}) {
     ${opts.sub !== false ? `<div class="mcard-sub"><span class="grp">${esc(stageL)}</span><span>${esc(m.stadium)}</span><span>${esc(m.city)}</span><span class="mcard-go">Details ›</span></div>` : ""}
     </div>
     <button class="mcard-star ${sv ? "is-on" : ""}" data-save="${m.id}" aria-pressed="${sv}" aria-label="${sv ? "Remove from saved" : "Save match"}" title="${sv ? "Saved" : "Save match"}">${sv ? "★" : "☆"}</button>
+    ${live ? `<button class="mcard-refresh" data-refresh aria-label="Refresh score now" title="Refresh score now">${REFRESH_SVG}</button>` : ""}
   </div>`;
 }
 // split a starting XI into {gk, bands[]} using its formation string (fallback: coarse positions)
@@ -3369,7 +3371,13 @@ async function boot() {
     history.replaceState(null, "", location.pathname);
     setTimeout(() => openMatch(mq), 350);
   }
-  setInterval(() => { refreshResults(); refreshOpenCommentary(); loadBuzz(); }, 60 * 1000); // fresh scores + live commentary + buzz every 60s (initial load already done pre-paint)
+  setInterval(refreshResults, 30 * 1000);   // scores: poll every 30s so the page catches each new commit sooner
+  setInterval(() => { refreshOpenCommentary(); loadBuzz(); }, 60 * 1000);   // commentary + buzz change slower — 60s is plenty
+  // returning to a backgrounded tab is the classic "stale score" moment (the goal happened while you were away):
+  // pull the latest immediately instead of waiting for the next poll. Throttled so quick tab-flicks don't spam.
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && Date.now() - (S.lastChecked || 0) > 8000) refreshResults();
+  });
   setInterval(loadEfi, 5 * 60 * 1000);   // EFI is post-match — refresh every 5 min is plenty
   checkKickoffAlert();
   setInterval(checkKickoffAlert, 60 * 1000); // fire a kickoff reminder for the favourite team (opt-in)
