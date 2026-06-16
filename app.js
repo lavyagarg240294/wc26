@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "215";  // shown in footer; bump with the ?v= asset version
+const BUILD = "216";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -50,11 +50,15 @@ const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 // open a <dialog> modally — closing first if it's already open (re-entering the same sheet from a
 // stacked context would otherwise throw InvalidStateError on Safari/Firefox, or silently update the
 // hidden dialog underneath on Chromium). Brings the sheet to the front with its fresh content.
-const showSheet = d => { if (!d) return; if (d.open) d.close(); d.showModal(); d.querySelectorAll(".sheet-body").forEach(b => b.scrollTop = 0); };
-// A collapsible section inside a sheet that opens off-screen feels like nothing happened — scroll it into view.
+let _sheetOpenAt = 0;
+const showSheet = d => { if (!d) return; if (d.open) d.close(); d.showModal(); d.querySelectorAll(".sheet-body").forEach(b => b.scrollTop = 0); _sheetOpenAt = Date.now(); };
+// A collapsible section the USER opens off-screen feels like nothing happened — scroll it into view. But a
+// <details open> fires `toggle` on initial render in current Chromium, which would yank a freshly-opened sheet
+// down to it (e.g. the live-commentary fold). Suppress the scroll briefly after a sheet opens so only genuine taps move it.
 document.addEventListener("toggle", e => {
   const d = e.target;
-  if (d.tagName === "DETAILS" && d.open && d.closest(".sheet-body")) requestAnimationFrame(() => d.scrollIntoView({ behavior: "smooth", block: "nearest" }));
+  if (d.tagName === "DETAILS" && d.open && d.closest(".sheet-body") && Date.now() - _sheetOpenAt > 500)
+    requestAnimationFrame(() => d.scrollIntoView({ behavior: "smooth", block: "nearest" }));
 }, true);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 // ---------- flicker-free view updates ----------
@@ -1068,7 +1072,7 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
       <div class="md-goals-col">${(r.gh || []).map(g => `<div class="md-goal">${ICO.ball} ${esc(g)}</div>`).join("")}</div>
       <div class="md-goals-col away">${(r.ga || []).map(g => `<div class="md-goal">${esc(g)} ${ICO.ball}</div>`).join("")}</div>
     </div>` : "";
-  const pKeyStats = mdKeyStats(r, m), pStats = mdStats(r), pEfi = mdEfi(m), pFlow = mdFlow(r, h, a);
+  const pKeyStats = mdKeyStats(r, m), pStats = mdStats(r), pEfi = mdEfi(m);
   const pReport = mdReport(m), pComm = mdCommentaryShell(m), pWinProb = winProbBlock(m), pStakes = stakesBlock(m);
   const pXiInline = r?.xi ? `<div class="eyebrow">${liveNow ? "Line-ups" : "Starting XI"}</div>${xiPanel(r.xi, h, a)}` : "";
   const pXiFold = r?.xi ? `<details class="md-fold"><summary><span>Starting XI</span><small>${esc([r.xi.h?.f, r.xi.a?.f].filter(Boolean).join(" v ")) || "line-ups & formations"}</small></summary><div class="md-fold-body">${xiPanel(r.xi, h, a)}</div></details>` : "";
@@ -1085,9 +1089,9 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
   // order by state so each opens with what you came for. Folded items (full stats, EFI, finished XI) keep an
   // informative summary, so nothing valuable is ever fully hidden — the worst case is a one-line headline.
   const middle = liveNow
-    ? [pTimeline, pXiInline, pComm, pKeyStats, pStats, pFlow, pEfi, pWinProb, pStakes]
+    ? [pTimeline, pXiInline, pComm, pKeyStats, pStats, pEfi, pWinProb, pStakes]
     : isFT
-    ? [pTimeline, pKeyStats, pStats, pFlow, pXiFold, pReport, pEfi, pWinProb, pStakes]
+    ? [pTimeline, pKeyStats, pStats, pXiFold, pReport, pEfi, pWinProb, pStakes]
     : [pStakes, pWinProb, pXiInline, pXiNote];   // upcoming: stakes + odds + (announced) line-ups
   const _body = pTop + middle.join("") + pMeta + pSquads;
   const mb = $("#matchBody");
