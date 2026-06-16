@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "207";  // shown in footer; bump with the ?v= asset version
+const BUILD = "208";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -2488,7 +2488,7 @@ function tournamentStats() {
     })(),
   };
 }
-let statsTab = "players";   // active Stats sub-section (persists across re-renders)
+let statsTab = "overview";   // active Stats sub-section (persists across re-renders)
 let _statsHTML = "";        // last rendered Stats markup — re-rendered only when it actually changes (see renderStats)
 // FIFA World Ranking — June-2026 snapshot (top 50). A bare string = a qualified WC26 team (name/flag from
 // teams.json); a [code,name] pair = a top-50 nation that did NOT make the field (its flag is self-hosted too).
@@ -2640,13 +2640,24 @@ function renderStats() {
     <p class="sim-ko-hint">Combined record of each confederation's teams, ranked by points per game.</p>` : "";
 
   // sections behind a segmented sub-nav so the tab grows down (not into one endless scroll)
+  // discipline is split by subject: player bookings/suspensions go under Players, team cards/fair-play under Teams
+  const bookedCard = s.booked.length ? `<div class="lead-card"><h4>Booked players</h4>${ranked(s.booked.slice(0, 8), bookedRow, p => p.r + "," + p.y)}</div>` : "";
+  const playerDisc = (suspHtml || bookedCard) ? `<div class="eyebrow">Discipline</div><div class="lead-grid">${suspHtml}${bookedCard}</div>` : "";
+  const teamDisc = (cardLead || fairLead) ? `<div class="eyebrow">Discipline</div><div class="lead-grid">${cardLead}${fairLead}</div>${s.fairPlay.length ? `<p class="sim-ko-hint">Fair play points (−1 a yellow, −3 a red) are a real group tiebreaker; fewer is cleaner. A red or second yellow also means a one-match ban (single yellows clear after the quarter-finals).</p>` : ""}` : "";
   const sections = [
+    ["overview", "Overview", `<div class="eyebrow">Tournament so far</div><div class="stat-tiles">
+      ${tile("Goals", s.pulse.goals)}${tile("Matches", s.pulse.matches)}
+      ${tile("Goals / match", s.pulse.perMatch.toFixed(2))}${tile("Cards", s.pulse.cards)}
+    </div>
+      <div class="eyebrow">Records</div>${recordsHtml}
+      ${confHtml}`],
     ["players", "Players", `
       ${s.scorers.length ? `<div class="eyebrow">${ICO.ball} Golden Boot</div><div class="lead-card lead-scorers">${ranked(s.scorers.slice(0, 12), scorerRow, p => p.goals)}</div>` : ""}
       ${s.assisters.length ? `<div class="eyebrow">Playmakers · assists</div><div class="lead-card lead-scorers">${ranked(s.assisters.slice(0, 8), assistRow, p => p.assists)}</div>` : ""}
       ${s.keepers.length ? `<div class="eyebrow">${ICO.glove} Goalkeepers · clean sheets</div><div class="lead-card lead-scorers">${ranked(s.keepers.slice(0, 8), keeperRow, p => p.cs)}</div>` : ""}
+      ${playerDisc}
       ${!s.scorers.length && !s.assisters.length ? `<div class="empty">No goals yet. The Golden Boot race starts with the first goal.</div>` : ""}`],
-    ["teams", "Teams", `<div class="lead-grid">
+    ["teams", "Teams", `<div class="eyebrow">Team leaderboards</div><div class="lead-grid">
       ${teamLead("Attack", s.teamScored, perGame)}
       ${teamLead("Defence", s.teamConceded, perGame)}
       ${teamLead("Clean sheets", s.cleanSheets, x => x.v)}
@@ -2656,21 +2667,10 @@ function renderStats() {
       ${teamLead("Defensive actions", s.teamDef, perGame)}
       ${teamLead("Crosses", s.teamCrosses, perGame)}
       ${teamLead("Saves", s.teamSaves, perGame)}
-    </div>`],
-    ["discipline", "Discipline", `<div class="lead-grid">
-      ${suspHtml}
-      ${cardLead}
-      ${fairLead}
-      ${s.booked.length ? `<div class="lead-card"><h4>Booked players</h4>${ranked(s.booked.slice(0, 8), bookedRow, p => p.r + "," + p.y)}</div>` : ""}
-    </div>${s.fairPlay.length ? `<p class="sim-ko-hint">Fair play points (−1 a yellow, −3 a red) are a real group tiebreaker; fewer is cleaner. A red or second yellow also means a one-match ban (single yellows clear after the quarter-finals).</p>` : ""}`],
-    ["records", "Records", recordsHtml],
-    ["tournament", "Tournament", `<div class="stat-tiles">
-      ${tile("Goals", s.pulse.goals)}${tile("Matches", s.pulse.matches)}
-      ${tile("Goals / match", s.pulse.perMatch.toFixed(2))}${tile("Cards", s.pulse.cards)}
-    </div>${confHtml}`],
+    </div>${teamDisc}`],
     ["rankings", "Rankings", statsTab === "rankings" ? fifaRankingPanel() : ""],   // lazy: the 211-row panel is built only when its tab is shown (or on first click, below)
   ];
-  if (!sections.some(([k]) => k === statsTab)) statsTab = "players";
+  if (!sections.some(([k]) => k === statsTab)) statsTab = "overview";
   const out = `<div class="substat-nav">${sections.map(([k, label]) => `<button class="substat ${k === statsTab ? "is-on" : ""}" data-stat="${k}">${label}</button>`).join("")}</div>`
     + sections.map(([k, , html]) => `<div class="substat-panel" data-panel="${k}"${k === statsTab ? "" : " hidden"}>${html}</div>`).join("");
   // a live match rewrites results.json every poll (the minute ticks), which re-renders the active view. If the
