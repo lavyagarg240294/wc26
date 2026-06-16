@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "176";  // shown in footer; bump with the ?v= asset version
+const BUILD = "177";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -294,7 +294,7 @@ function matchVEVENT(m) {
   return [
     "BEGIN:VEVENT", `UID:wc26-m${m.num}@wc26.site`, `DTSTAMP:${icsStamp(new Date().toISOString())}`,
     `DTSTART:${start}`, `DTEND:${end}`,
-    icsFold(`SUMMARY:${icsEsc(title + " — " + stage)}`),
+    icsFold(`SUMMARY:${icsEsc(title + " - " + stage)}`),
     icsFold(`LOCATION:${icsEsc(m.stadium + ", " + m.city)}`),
     icsFold(`DESCRIPTION:${icsEsc("FIFA World Cup 2026 · " + stage + " · Match " + m.num)}`),
     "BEGIN:VALARM", "ACTION:DISPLAY", "TRIGGER:-PT60M", icsFold(`DESCRIPTION:${icsEsc(title + " kicks off in 1 hour")}`), "END:VALARM",
@@ -395,10 +395,10 @@ function groupOutlook(g) {
   return codes.map(c => {
     const { B, W } = range[c];
     let status, k;
-    if (W <= 1) { status = "Group winners — confirmed"; k = "q"; }
+    if (W <= 1) { status = "Group winners, confirmed"; k = "q"; }
     else if (W <= 2) { status = "Through to the last 32"; k = "q"; }
     else if (B <= 2) { status = "Still in the top-two race"; k = "live"; }
-    else if (B === 3) { status = "3rd place — chasing a best-eight spot"; k = "third"; }
+    else if (B === 3) { status = "3rd place: chasing a best-eight spot"; k = "third"; }
     else { status = "Eliminated"; k = "out"; }
     // concrete "what they need" — resolvable once a team has a single group game left to play, naming the
     // opponent and the exact result. winW/drawW = worst finish if they win/draw; winB = best finish if they win.
@@ -409,7 +409,7 @@ function groupOutlook(g) {
       const winW = ranksFor({ [c]: base[c] + 3, [opp]: base[opp] }, others)[c].W;
       const drawW = ranksFor({ [c]: base[c] + 1, [opp]: base[opp] + 1 }, others)[c].W;
       const winB = ranksFor({ [c]: base[c] + 3, [opp]: base[opp] }, others)[c].B;
-      if (W <= 2) need = `already through — ${on} decides top spot`;
+      if (W <= 2) need = `already through, ${on} decides top spot`;
       else if (drawW <= 2) need = `a draw with ${on} is enough for the top 2`;
       else if (winW <= 2) need = `beat ${on} to be sure of the top 2`;
       else if (winB <= 2) need = `beat ${on}, then hope other results help`;
@@ -538,7 +538,7 @@ function notify(title, body) {
 function maybeNotifyGoal(m, r, scorerCode) {
   if (!isFavMatch(m)) return;
   const nm = s => s.code ? (S.teams[s.code]?.name || s.code) : (s.name || "TBD");
-  notify(scorerCode === S.fav ? "⚽ GOAL — your team!" : "Goal conceded", `${nm(slotInfo(m, "home"))} ${r.h}–${r.a} ${nm(slotInfo(m, "away"))}`);
+  notify(scorerCode === S.fav ? "⚽ GOAL: your team!" : "Goal conceded", `${nm(slotInfo(m, "home"))} ${r.h}–${r.a} ${nm(slotInfo(m, "away"))}`);
 }
 const _koAlerted = new Set();
 function checkKickoffAlert() {
@@ -858,7 +858,7 @@ function winProbBlock(m) {
       <div class="wp-bar" role="img" aria-label="${esc(h.name)} ${ph}%, draw ${pd}%, ${esc(a.name)} ${pa}%">
         <span class="wp-h" style="width:${ph}%"></span><span class="wp-d" style="width:${pd}%"></span><span class="wp-a" style="width:${pa}%"></span></div>
       <div class="wp-legend"><span class="wp-lh"><b>${ph}%</b> ${flag(h.code)} ${esc(h.name)}</span><span class="wp-ld">Draw <b>${pd}%</b></span><span class="wp-la">${esc(a.name)} ${flag(a.code)} <b>${pa}%</b></span></div>
-      <p class="wp-note">A Poisson model from each team's <b>strength rating</b> (World Football Elo) and <b>current-tournament form</b>${wp.live ? ", updated by the live score and minutes left" : ""} — not a betting line.</p>
+      <p class="wp-note">A Poisson model from each team's <b>strength rating</b> (World Football Elo) and <b>current-tournament form</b>${wp.live ? ", updated by the live score and minutes left" : ""}, not a betting line.</p>
     </div>`;
 }
 /* ---------------- stakes explainer ----------------
@@ -1046,7 +1046,7 @@ function heroBlock(heroM, isLive) {
   return `<div class="hero" data-mid="${heroM.id}" role="button" tabindex="0" aria-label="Match details">
     <div class="hero-tag ${isLive ? "is-live" : ""}">
       ${isLive ? `${ballSVG("live-ball")} Live now` : `${isFavMatch(heroM) ? "Your team · " : ""}Next kickoff`}
-      <span style="color:var(--ink-soft);font-weight:600">— ${esc(heroM.group ? "Group " + heroM.group : heroM.round)}</span>
+      <span style="color:var(--ink-soft);font-weight:600">, ${esc(heroM.group ? "Group " + heroM.group : heroM.round)}</span>
       <span class="hero-actions">
         <span class="hero-go">Details ›</span>
       </span>
@@ -1097,7 +1097,7 @@ function matchOfDay() {
 function motdBanner(m) {
   const h = slotInfo(m, "home"), a = slotInfo(m, "away");
   const nm = (s, side) => s.code ? esc(s.name) : esc(slotText(m, side, s));
-  return `<button class="motd" data-mid="${m.id}" aria-label="Match of the day — details">
+  return `<button class="motd" data-mid="${m.id}" aria-label="Match of the day, details">
     <span class="motd-tag">★ Match of the day</span>
     <span class="motd-fix"><span class="fl">${h.code ? flag(h.code) : "·"}</span>${nm(h, "home")}<i>v</i>${nm(a, "away")}<span class="fl">${a.code ? flag(a.code) : "·"}</span></span>
     <span class="motd-meta"><b>${timeStr(m.utc)}</b> · ${esc(m.group ? "Group " + m.group : m.round)} · ${esc((m.city || "").split(",")[0])}</span>
@@ -1284,15 +1284,15 @@ function myTeamBlock() {
   return `
     <div class="team-hero"><span class="fl">${flag(S.fav)}</span>
       <div><h2>${esc(t.name)}</h2>
-      <p>${t.conf ? esc(t.conf) + " · " : ""}Group ${group || "—"}${t.titles ? ` · <b style="color:var(--gold)">${TROPHY} ${t.titles}</b>` : ""}${played ? ` · currently <b>${ordinal(pos)}</b> after ${played} match${played > 1 ? "es" : ""}` : ""}</p>
+      <p>${t.conf ? esc(t.conf) + " · " : ""}Group ${group || "–"}${t.titles ? ` · <b style="color:var(--gold)">${TROPHY} ${t.titles}</b>` : ""}${played ? ` · currently <b>${ordinal(pos)}</b> after ${played} match${played > 1 ? "es" : ""}` : ""}</p>
       ${formChips(S.fav) ? `<div class="th-form">Recent form ${formChips(S.fav)}</div>` : ""}</div>
       <button class="btn ghost team-change" id="ctaChange">Change</button></div>
     ${mine.length ? `<div class="team-actions"><button class="btn ghost ics-btn" id="icsTeam">${CAL_SVG} Add ${esc(t.name)}'s matches to calendar</button></div>` : ""}
     ${done.length ? `<div class="eyebrow">Played</div>` + done.map((m, i) => matchCard(m, i)).join("") : ""}
     <div class="eyebrow">Fixtures</div>
-    ${upcoming.length ? upcoming.map((m, i) => matchCard(m, i)).join("") : `<div class="empty">No scheduled fixtures — check the bracket for their knockout path.</div>`}
+    ${upcoming.length ? upcoming.map((m, i) => matchCard(m, i)).join("") : `<div class="empty">No scheduled fixtures. Check the bracket for their knockout path.</div>`}
     ${group ? `<div class="eyebrow">Group ${group}</div><div class="gwrap">${groupTable(group, 0)}</div>${groupOutlookHTML(group)}
-      <div class="legend"><span class="l1"><i></i>Top 2 advance</span><span class="l3"><i></i>3rd — possible best-8 spot</span></div>` : ""}
+      <div class="legend"><span class="l1"><i></i>Top 2 advance</span><span class="l3"><i></i>3rd: possible best-8 spot</span></div>` : ""}
     ${squadSection(S.fav)}`;
 }
 function renderTeams() {
@@ -1302,13 +1302,13 @@ function renderTeams() {
     : `<div class="pick-cta">
         <span style="font-size:42px;color:var(--pitch);display:inline-flex">${ICO.ball}</span>
         <span class="big">Who are you backing?</span>
-        <span style="color:var(--ink-soft);font-size:13.5px;max-width:300px">Pick a team — the site takes their colors, pins their matches and tracks their road to the final.</span>
+        <span style="color:var(--ink-soft);font-size:13.5px;max-width:300px">Pick a team: the site takes their colors, pins their matches and tracks their road to the final.</span>
         <button class="btn" id="ctaPick">Choose your team</button></div>`;
   const grid = Object.keys(S.teams)
     .sort((a, b) => S.teams[a].name.localeCompare(S.teams[b].name))
-    .map(c => `<button class="teamcard ${c === S.fav ? "is-fav" : ""}" data-squad="${c}" title="${esc(S.teams[c].name)}${S.teams[c].titles ? ` — ${S.teams[c].titles}× World Cup champion` : ""}">
+    .map(c => `<button class="teamcard ${c === S.fav ? "is-fav" : ""}" data-squad="${c}" title="${esc(S.teams[c].name)}${S.teams[c].titles ? `, ${S.teams[c].titles}× World Cup champion` : ""}">
       <span class="fl">${flag(c)}</span><span class="tc-name">${esc(S.teams[c].name)}</span>${S.teams[c].titles ? `<span class="tc-cup" aria-label="${S.teams[c].titles} World Cup titles">${TROPHY} ${S.teams[c].titles}</span>` : ""}<span class="tc-grp">${groupOf(c) || ""}</span></button>`).join("");
-  paint(el, head + `<div class="eyebrow">All teams <span style="color:var(--ink-soft);font-weight:600">— tap for detail</span></div><div class="teamsgrid">${grid}</div>`);
+  paint(el, head + `<div class="eyebrow">All teams <span style="color:var(--ink-soft);font-weight:600">, tap for detail</span></div><div class="teamsgrid">${grid}</div>`);
   const cta = $("#ctaPick", el); if (cta) cta.onclick = () => $("#teamDialog").showModal();
   const chg = $("#ctaChange", el); if (chg) chg.onclick = () => $("#teamDialog").showModal();
   const ics = $("#icsTeam", el);
@@ -1336,8 +1336,8 @@ function rosterMarkup(sq, code) {
 }
 function squadSection(code) {
   const sq = S.squads?.[code], coach = teamCoach(code);
-  if (!sq) return `<div class="eyebrow">Squad</div><div class="empty">Squad not published yet — check back closer to kickoff.</div>`;
-  return `<div class="eyebrow">Squad — ${sq.players.length} players${coach ? ` · Coach <b style="color:var(--ink)">&nbsp;${esc(coach)}</b>` : ""}</div>
+  if (!sq) return `<div class="eyebrow">Squad</div><div class="empty">Squad not published yet. Check back closer to kickoff.</div>`;
+  return `<div class="eyebrow">Squad: ${sq.players.length} players${coach ? ` · Coach <b style="color:var(--ink)">&nbsp;${esc(coach)}</b>` : ""}</div>
     ${rosterMarkup(sq, code)}`;
 }
 // World Cup pedigree (titles · best finish · appearances) + the head coach — the "what this team is about" header
@@ -1430,7 +1430,7 @@ function styleSection(code) {
     ["directness", "Direct play", v => v.toFixed(0) + "%"], ["pressPg", "Pressing", v => v.toFixed(0) + "/g"], ["shotsPg", "Attacking", v => v.toFixed(1) + "/g"]];
   const pct = key => { const vs = me.map(x => x[key]), lo = Math.min(...vs), hi = Math.max(...vs); return hi > lo ? Math.round((mine[key] - lo) / (hi - lo) * 100) : 50; };
   const rows = AXES.map(([key, label, fmt]) => `<div class="sty-row"><span class="sty-lbl">${label}</span><span class="sty-bar"><i style="width:${pct(key)}%"></i></span><span class="sty-v">${fmt(mine[key])}</span></div>`).join("");
-  return `<div class="eyebrow">Playing style</div><div class="sty-card">${rows}<p class="sty-hint">Where ${esc(S.teams[code].name)} ranks among teams with match stats — a fuller bar means more than its rivals, not "better".</p></div>`;
+  return `<div class="eyebrow">Playing style</div><div class="sty-card">${rows}<p class="sty-hint">Where ${esc(S.teams[code].name)} ranks among teams with match stats. A fuller bar means more than its rivals, not "better".</p></div>`;
 }
 function openTeam(code) {
   const t = S.teams[code]; if (!t) return;
@@ -1449,11 +1449,11 @@ function openTeam(code) {
     ${formChips(code) ? `<div class="ts-form">Recent form ${formChips(code)}</div>` : ""}
     ${styleSection(code)}
     ${sq ? `<details class="ts-squad" open><summary><span>Squad</span><small>${sq.players.length} players${teamCoach(code) ? ` · ${esc(teamCoach(code))}` : ""}</small></summary>${rosterMarkup(sq, code)}</details>`
-        : `<div class="eyebrow">Squad</div><div class="empty">${esc(t.name)}'s squad isn't published yet — check back closer to kickoff.</div>`}
+        : `<div class="eyebrow">Squad</div><div class="empty">${esc(t.name)}'s squad isn't published yet. Check back closer to kickoff.</div>`}
     ${done.length ? `<div class="eyebrow">Results</div>${done.map((m, i) => matchCard(m, i)).join("")}` : ""}
     ${upcoming.length ? `<div class="eyebrow">Fixtures</div>${upcoming.map((m, i) => matchCard(m, i)).join("")}` : (done.length ? "" : `<div class="empty">Fixtures to be confirmed.</div>`)}
     ${group ? `<div class="eyebrow">Group ${group}</div><div class="gwrap">${groupTable(group, 0)}</div>${groupOutlookHTML(group)}
-      <div class="legend"><span class="l1"><i></i>Top 2 advance</span><span class="l3"><i></i>3rd — possible best-8 spot</span></div>` : ""}
+      <div class="legend"><span class="l1"><i></i>Top 2 advance</span><span class="l3"><i></i>3rd: possible best-8 spot</span></div>` : ""}
     ${roadSection(code)}
     ${rotationSection(code)}`;
   showSheet($("#teamSheet"));
@@ -1683,7 +1683,7 @@ function thirdRaceHTML() {
       <span class="tr-rank">${i + 1}</span><span class="fl">${flag(r.code)}</span>
       <span class="tr-name">${esc(S.teams[r.code]?.name || r.code)}<small>Group ${r.group}</small></span>
       <span class="tr-gd">${sign(r.gd)}</span><span class="tr-pts">${r.pts}<small>pts</small></span></div>${i === 7 && rows.length > 8 ? `<div class="tr-cut"><span>Top 8 advance</span></div>` : ""}`).join("")}</div>
-    <p class="sim-ko-hint">Ranked by points, then goal difference, then goals scored — the eight best of twelve reach the Round of 32.</p>`;
+    <p class="sim-ko-hint">Ranked by points, then goal difference, then goals scored: the eight best of twelve reach the Round of 32.</p>`;
 }
 // read-only "if the groups ended today" Round-of-32 — resolved purely from live standings (group
 // winners/runners-up + the best-8 thirds routed through FIFA's slot constraints). Never touches the
@@ -1758,10 +1758,10 @@ function roadSection(code) {
   const teamPlayed = S.matches.some(m => matchHasTeam(m, code) && status(m) === ST.FT && res(m)?.h != null);
   if (!teamPlayed) {
     const next = S.matches.filter(m => matchHasTeam(m, code) && status(m) === ST.SCHED).sort((a, b) => a.utc.localeCompare(b.utc))[0];
-    return `<div class="eyebrow">Road to the final</div><div class="empty">${esc(S.teams[code]?.name || code)}'s projected route opens once they kick off${next ? ` — first up ${fmt(next.utc, { weekday: "short", day: "numeric", month: "short" })}` : ""}.</div>`;
+    return `<div class="eyebrow">Road to the final</div><div class="empty">${esc(S.teams[code]?.name || code)}'s projected route opens once they kick off${next ? `, first up ${fmt(next.utc, { weekday: "short", day: "numeric", month: "short" })}` : ""}.</div>`;
   }
   const road = roadToFinal(code);
-  if (!road) return `<div class="eyebrow">Road to the final</div><div class="empty">As it stands, ${esc(S.teams[code]?.name || code)} are projected to miss the Round of 32 — a couple of group wins flips that.</div>`;
+  if (!road) return `<div class="eyebrow">Road to the final</div><div class="empty">As it stands, ${esc(S.teams[code]?.name || code)} are projected to miss the Round of 32. A couple of group wins flips that.</div>`;
   const t = S.teams[code];
   const rows = road.path.map(({ m, opp }) => {
     const oc = opp && S.teams[opp];
@@ -1774,13 +1774,13 @@ function roadSection(code) {
   }).join("");
   return `<div class="eyebrow">Road to the final${road.reachesFinal ? " ${TROPHY}" : ""}</div>
     <div class="road">${rows}</div>
-    <p class="sim-ko-hint">Projected from live standings — assumes ${esc(t.name)} keep winning; opponents are the stronger projected team in each tie.</p>`;
+    <p class="sim-ko-hint">Projected from live standings: assumes ${esc(t.name)} keep winning; opponents are the stronger projected team in each tie.</p>`;
 }
 function renderGroups() {
   const el = $("#view-groups");
   const html =
     `<div class="gwrap">${GROUPS.map((g, i) => `<div class="gcol">${groupTable(g, i)}${groupOutlookHTML(g)}</div>`).join("")}</div>
-     <div class="legend"><span class="l1"><i></i>Top 2 advance to the Round of 32</span><span class="l3"><i></i>3rd place — eight best advance</span><button class="legend-about" data-about>ⓘ How the format works</button></div>
+     <div class="legend"><span class="l1"><i></i>Top 2 advance to the Round of 32</span><span class="l3"><i></i>3rd place: eight best advance</span><button class="legend-about" data-about>ⓘ How the format works</button></div>
      ${thirdRaceHTML()}
      ${projR32HTML()}`;
   if (el.__sig === html) return;                           // groups unchanged (e.g. a minute tick elsewhere) — no flicker
@@ -2134,8 +2134,8 @@ function renderSim() {
   const cols = [["r32", "Round of 32"], ["r16", "Round of 16"], ["qf", "Quarter-finals"], ["sf", "Semi-finals"], ["final", "Final"]];
   const third = S.matches.find(m => m.stage === "third");
   const need = 8 - S.sim.thirds.length;
-  const simBracket = !thirdsDone ? `<div class="empty">Pick ${need} more third-placed team${need === 1 ? "" : "s"} above and your knockout bracket appears here — then tap your way to a champion.</div>`
-    : alloc === "impossible" ? `<div class="empty">That combination of thirds can't fill the slots — swap one and try again.</div>`
+  const simBracket = !thirdsDone ? `<div class="empty">Pick ${need} more third-placed team${need === 1 ? "" : "s"} above and your knockout bracket appears here, then tap your way to a champion.</div>`
+    : alloc === "impossible" ? `<div class="empty">That combination of thirds can't fill the slots. Swap one and try again.</div>`
     : `<div class="bracket-scroll"><div class="bracket"><svg class="bracket-lines" aria-hidden="true"></svg>
         ${cols.map(([st, title]) => {
           const inner = S.matches.filter(m => m.stage === st).sort((a, b) => a.num - b.num).map((m, i) => simMatch(m, i, alloc)).join("")
@@ -2160,7 +2160,7 @@ function renderSim() {
   el.innerHTML = `
     <div class="sim-intro">
       <h2>Call the whole tournament ${ICO.spark}</h2>
-      <p>Order each group, pick the best third-placed teams, then tap winners all the way to the final — and crown your champion. Saves on this device.</p>
+      <p>Order each group, pick the best third-placed teams, then tap winners all the way to the final, and crown your champion. Saves on this device.</p>
       <div class="sim-actions">
         <button class="btn ghost" id="simStandings"><span class="b-lg">Use live standings</span><span class="b-sm">Standings</span></button>
         <button class="btn ghost" id="simShuffle"><span class="b-lg">Shuffle it all</span><span class="b-sm">Shuffle</span></button>
@@ -2170,12 +2170,12 @@ function renderSim() {
       </div>
     </div>
     ${champTeaser}
-    <div class="eyebrow"><span class="step-n">1</span> Order the groups — top two go through</div>
+    <div class="eyebrow"><span class="step-n">1</span> Order the groups: top two go through</div>
     <div class="gwrap">${GROUPS.map(groupCard).join("")}</div>
     <div class="eyebrow"><span class="step-n">2</span> Best third-placed teams <span class="tcount">${S.sim.thirds.length}/8</span></div>
     <div class="thirds">${thirdChips}</div>
     <div class="eyebrow" id="simKoHead"><span class="step-n">3</span> Tap winners through to crown your champion ${TROPHY}</div>
-    ${thirdsDone && alloc !== "impossible" ? `<p class="sim-ko-hint">${ICO.tap} Tap a team in any tie to send them through — winners flow left → right to the final.</p>` : ""}
+    ${thirdsDone && alloc !== "impossible" ? `<p class="sim-ko-hint">${ICO.tap} Tap a team in any tie to send them through. Winners flow left → right to the final.</p>` : ""}
     ${simBracket}
     ${champ ? championBanner(champ, true) : ""}`;
 
@@ -2239,7 +2239,7 @@ function renderSim() {
   $("#simReset").onclick = () => { S.sim = { order: {}, thirds: [], ko: {} }; seedSimThirds(); saveSim(); renderSim(); };
   $("#simShare").onclick = async () => {
     const url = location.origin + location.pathname + "#p=" + packSim();
-    try { await navigator.clipboard.writeText(url); flashToast("Prediction link copied — share it!"); }
+    try { await navigator.clipboard.writeText(url); flashToast("Prediction link copied. Share it!"); }
     catch { prompt("Copy your prediction link:", url); }
   };
   $("#simShareImg")?.addEventListener("click", () => shareChampionImage(S.sim.ko[104]));
@@ -2393,7 +2393,7 @@ function fifaRankingPanel() {
   }
   const qCount = rk.filter(t => t.q).length;
   const row = t => `<div class="rk-row${t.q ? "" : " rk-nq"}"${t.q ? ` data-squad="${t.q}" role="button" tabindex="0"` : ""}>
-    <span class="rk-num">${t.r ?? "—"}</span>
+    <span class="rk-num">${t.r ?? "–"}</span>
     <img class="rk-flag" loading="lazy" src="${esc(t.flag || "")}" alt="" width="26" height="17">
     <span class="rk-name">${esc(t.name)}</span>
     <span class="rk-conf" title="${CONF_FULL[t.conf] || ""}">${esc(t.conf || "")}</span>
@@ -2409,7 +2409,7 @@ function fifaRankingPanel() {
 
 function renderStats() {
   const el = $("#view-stats"), s = tournamentStats();
-  if (!s.pulse.matches) { paint(el, `<div class="rk-pre">Tournament stats — scorers, records, team form — fill in as matches kick off. Until then, here's the field by world ranking.</div>${fifaRankingPanel()}`); return; }
+  if (!s.pulse.matches) { paint(el, `<div class="rk-pre">Tournament stats (scorers, records, team form) fill in as matches kick off. Until then, here's the field by world ranking.</div>${fifaRankingPanel()}`); return; }
   const tile = (label, val) => `<div class="stat-tile"><span class="stat-val">${val}</span><span class="stat-lbl">${label}</span></div>`;
   const tname = c => esc(S.teams[c]?.name || c);
   // a player leaderboard row (photo + name + value), taps through to the player profile
@@ -2425,7 +2425,7 @@ function renderStats() {
   const suspRow = (p, kind) => { const ph = playerPhoto(p.name, p.code); return `<div class="lead-row lead-player" data-player="${esc(p.name)}|${p.code}" role="button" tabindex="0">
     ${ph ? `<span class="lead-face" style="background-image:url('${ph}')"></span>` : `<span class="fl">${flag(p.code)}</span>`}
     <span class="lead-name">${esc(pName(p.name, p.code))}<small>${flag(p.code)} ${tname(p.code)}</small></span>
-    <span class="susp-tag ${kind === "ban" ? "is-ban" : "is-risk"}">${kind === "ban" ? (p.r > 0 ? "Sent off — banned" : "2 yellows — banned") : "On a yellow"}</span></div>`; };
+    <span class="susp-tag ${kind === "ban" ? "is-ban" : "is-risk"}">${kind === "ban" ? (p.r > 0 ? "Sent off: banned" : "2 yellows: banned") : "On a yellow"}</span></div>`; };
   const suspended = s.booked.filter(p => p.r > 0 || p.y >= 2);
   const atRisk = s.booked.filter(p => p.r === 0 && p.y === 1);
   const suspHtml = (suspended.length || atRisk.length)
@@ -2470,7 +2470,7 @@ function renderStats() {
       ${s.scorers.length ? `<div class="eyebrow">${ICO.ball} Golden Boot</div><div class="lead-card lead-scorers">${s.scorers.slice(0, 12).map(scorerRow).join("")}</div>` : ""}
       ${s.assisters.length ? `<div class="eyebrow">Playmakers · assists</div><div class="lead-card lead-scorers">${s.assisters.slice(0, 8).map(assistRow).join("")}</div>` : ""}
       ${s.keepers.length ? `<div class="eyebrow">${ICO.glove} Goalkeepers · clean sheets</div><div class="lead-card lead-scorers">${s.keepers.slice(0, 8).map(keeperRow).join("")}</div>` : ""}
-      ${!s.scorers.length && !s.assisters.length ? `<div class="empty">No goals yet — the Golden Boot race starts with the first goal.</div>` : ""}`],
+      ${!s.scorers.length && !s.assisters.length ? `<div class="empty">No goals yet. The Golden Boot race starts with the first goal.</div>` : ""}`],
     ["teams", "Teams", `<div class="lead-grid">
       ${teamLead("Attack", s.teamScored, perGame)}
       ${teamLead("Defence", s.teamConceded, perGame)}
@@ -2487,7 +2487,7 @@ function renderStats() {
       ${cardLead}
       ${fairLead}
       ${s.booked.length ? `<div class="lead-card"><h4>Booked players</h4>${s.booked.slice(0, 8).map(bookedRow).join("")}</div>` : ""}
-    </div>${s.fairPlay.length ? `<p class="sim-ko-hint">Fair play points — −1 a yellow, −3 a red — are a real group tiebreaker; fewer is cleaner. A red or second yellow also means a one-match ban (single yellows clear after the quarter-finals).</p>` : ""}`],
+    </div>${s.fairPlay.length ? `<p class="sim-ko-hint">Fair play points (−1 a yellow, −3 a red) are a real group tiebreaker; fewer is cleaner. A red or second yellow also means a one-match ban (single yellows clear after the quarter-finals).</p>` : ""}`],
     ["records", "Records", recordsHtml],
     ["tournament", "Tournament", `<div class="stat-tiles">
       ${tile("Goals", s.pulse.goals)}${tile("Matches", s.pulse.matches)}
@@ -2850,7 +2850,7 @@ async function boot() {
   try {
     await loadStatic();
   } catch (e) {
-    $("#main").innerHTML = `<div class="empty" style="margin:32px 16px">Couldn't load the schedule data. If you opened this file directly, run it through a static server (see README) — <code>file://</code> can't fetch <code>data/*.json</code>. Otherwise check your connection and reload.</div>`;
+    $("#main").innerHTML = `<div class="empty" style="margin:32px 16px">Couldn't load the schedule data. If you opened this file directly, run it through a static server (see README): <code>file://</code> can't fetch <code>data/*.json</code>. Otherwise check your connection and reload.</div>`;
     return;
   }
   if (!S.matches.length) {
@@ -2914,7 +2914,7 @@ async function boot() {
     if (perm === "default") { try { perm = await Notification.requestPermission(); } catch { /* dismissed */ } }
     if (perm !== "granted") { flashToast(perm === "denied" ? "Notifications are blocked in your browser" : "Allow notifications to enable alerts"); notifyUI(); return; }
     localStorage.setItem("wc26.notify", "on"); notifyUI();
-    try { new Notification("World Cup 26", { body: "Match alerts on — goals & kickoffs for your team.", icon: "assets/icon-192.png", tag: "wc26" }); } catch { /* */ }
+    try { new Notification("World Cup 26", { body: "Match alerts on: goals & kickoffs for your team.", icon: "assets/icon-192.png", tag: "wc26" }); } catch { /* */ }
   };
   const liteUI = () => { const on = LITE(); $("#liteState").textContent = on ? "On" : "Off"; $("#liteToggle").setAttribute("aria-pressed", String(on)); };
   liteUI();
@@ -2924,7 +2924,7 @@ async function boot() {
     if (!on && (!S.photos || !Object.keys(S.photos).length)) {   // turning off → fetch the photos we skipped
       try { S.photos = await (await fetch("data/photos.json?t=" + Date.now(), { cache: "no-store" })).json() || {}; } catch { /* keep flags */ }
     }
-    flashToast(on ? "Data saver on — photos hidden" : "Data saver off");
+    flashToast(on ? "Data saver on: photos hidden" : "Data saver off");
     RENDER[S.view]();   // re-render so photos↔flags swap immediately
   };
   $("#jumpNow").onclick = scrollToNow;
