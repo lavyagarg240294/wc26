@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "181";  // shown in footer; bump with the ?v= asset version
+const BUILD = "182";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -366,6 +366,9 @@ function standings(group) {
 // "what each team needs" — enumerate every remaining-result combo in a group.
 // Ranks use points only, with ties resolved pessimistically (worst) for guarantees and
 // optimistically (best) for elimination, so claims hold regardless of goal difference.
+// NOTE: the "What each team needs" outlook is currently not rendered (removed for now);
+// groupOutlook/groupOutlookHTML are kept intact — re-add ${groupOutlookHTML(g)} to renderGroups
+// (and the team blocks) to bring it back.
 function groupOutlook(g) {
   const gm = S.matches.filter(m => m.group === g);
   const codes = [...new Set(gm.flatMap(m => [m.home.team, m.away.team]).filter(Boolean))];
@@ -1303,7 +1306,7 @@ function myTeamBlock() {
     ${done.length ? `<div class="eyebrow">Played</div>` + done.map((m, i) => matchCard(m, i)).join("") : ""}
     <div class="eyebrow">Fixtures</div>
     ${upcoming.length ? upcoming.map((m, i) => matchCard(m, i)).join("") : `<div class="empty">No scheduled fixtures. Check the bracket for their knockout path.</div>`}
-    ${group ? `<div class="eyebrow">Group ${group}</div><div class="gwrap">${groupTable(group, 0)}</div>${groupOutlookHTML(group)}
+    ${group ? `<div class="eyebrow">Group ${group}</div><div class="gwrap">${groupTable(group, 0)}</div>
       <div class="legend"><span class="l1"><i></i>Top 2 advance</span><span class="l3"><i></i>3rd: possible best-8 spot</span></div>` : ""}`;
 }
 function renderTeams() {
@@ -1463,7 +1466,7 @@ function openTeam(code) {
         : `<div class="eyebrow">Squad</div><div class="empty">${esc(t.name)}'s squad isn't published yet. Check back closer to kickoff.</div>`}
     ${done.length ? `<div class="eyebrow">Results</div>${done.map((m, i) => matchCard(m, i)).join("")}` : ""}
     ${upcoming.length ? `<div class="eyebrow">Fixtures</div>${upcoming.map((m, i) => matchCard(m, i)).join("")}` : (done.length ? "" : `<div class="empty">Fixtures to be confirmed.</div>`)}
-    ${group ? `<div class="eyebrow">Group ${group}</div><div class="gwrap">${groupTable(group, 0)}</div>${groupOutlookHTML(group)}
+    ${group ? `<div class="eyebrow">Group ${group}</div><div class="gwrap">${groupTable(group, 0)}</div>
       <div class="legend"><span class="l1"><i></i>Top 2 advance</span><span class="l3"><i></i>3rd: possible best-8 spot</span></div>` : ""}
     ${roadSection(code)}
     ${rotationSection(code)}`;
@@ -1795,7 +1798,7 @@ function roadSection(code) {
 function renderGroups() {
   const el = $("#view-groups");
   const html =
-    `<div class="gwrap">${GROUPS.map((g, i) => `<div class="gcol">${groupTable(g, i)}${groupOutlookHTML(g)}</div>`).join("")}</div>
+    `<div class="gwrap">${GROUPS.map((g, i) => `<div class="gcol">${groupTable(g, i)}</div>`).join("")}</div>
      <div class="legend"><span class="l1"><i></i>Top 2 advance to the Round of 32</span><span class="l3"><i></i>3rd place: eight best advance</span><button class="legend-about" data-about>ⓘ How the format works</button></div>
      ${thirdRaceHTML()}
      ${projR32HTML()}`;
