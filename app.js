@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "186";  // shown in footer; bump with the ?v= asset version
+const BUILD = "187";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1064,8 +1064,7 @@ function heroBlock(heroM, isLive) {
   const h = slotInfo(heroM, "home"), a = slotInfo(heroM, "away"), r = res(heroM);
   return `<div class="hero" data-mid="${heroM.id}" role="button" tabindex="0" aria-label="Match details">
     <div class="hero-tag ${isLive ? "is-live" : ""}">
-      ${isLive ? `${ballSVG("live-ball")} Live now` : `${isFavMatch(heroM) ? "Your team · " : ""}Next kickoff`}
-      <span style="color:var(--ink-soft);font-weight:600">, ${esc(heroM.group ? "Group " + heroM.group : heroM.round)}</span>
+      ${isLive ? `${ballSVG("live-ball")} Live now` : `${isFavMatch(heroM) ? "Your team · " : ""}Next kickoff`}<span style="color:var(--ink-soft);font-weight:600">, ${esc(heroM.group ? "Group " + heroM.group : heroM.round)}</span>
       <span class="hero-actions">
         <span class="hero-go">Details ›</span>
       </span>
@@ -2453,7 +2452,7 @@ function renderStats() {
     <span class="susp-tag is-ban">${p.r > 0 ? "Sent off: banned" : "2 yellows: banned"}</span></div>`; };
   const suspended = s.booked.filter(p => p.r > 0 || p.y >= 2);
   const suspHtml = suspended.length
-    ? `<div class="lead-card"><h4>Suspension watch</h4>${suspended.map(suspRow).join("")}</div>` : "";
+    ? `<div class="lead-card"><h4>Suspension watch <small>out of their next match</small></h4>${suspended.map(suspRow).join("")}</div>` : "";
   const teamLead = (title, rows, fmt) => rows.length ? `<div class="lead-card"><h4>${title}</h4>${ranked(rows.slice(0, 5), (x, rank) => `<div class="lead-row" data-squad="${x.code}" role="button" tabindex="0">
     <span class="lead-rank">${rank}</span><span class="fl">${flag(x.code)}</span><span class="lead-name">${tname(x.code)}</span>
     <span class="lead-v">${fmt(x)}</span></div>`, fmt)}</div>` : "";

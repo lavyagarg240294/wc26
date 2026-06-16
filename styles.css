@@ -623,7 +623,7 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 /* first-launch welcome / onboarding */
 .welcome-sheet::backdrop{background:color-mix(in srgb,var(--ink) 40%,transparent);backdrop-filter:blur(3px)}
 .welcome{text-align:center;padding:8px 4px 4px}
-.welcome-mark{display:block;margin:0 auto 13px;border-radius:14px;box-shadow:var(--shadow)}
+.welcome-mark{display:block;margin:20px auto 13px;border-radius:14px;box-shadow:var(--shadow)}
 .welcome-mark .wm-circle{stroke-dasharray:151;stroke-dashoffset:151}
 .welcome-mark .wm-line{stroke-dasharray:84;stroke-dashoffset:84}
 .welcome-mark .wm-spot{opacity:0;transform-box:fill-box;transform-origin:center}
