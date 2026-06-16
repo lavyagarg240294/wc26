@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "195";  // shown in footer; bump with the ?v= asset version
+const BUILD = "196";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -728,7 +728,7 @@ function mdTimeline(r, hc, ac) {
     // the OTHER team — so link the player to their real side, else the tap opens the wrong team and the photo misses.
     const scorerCode = e.k === "OG" ? (e.tm === "h" ? ac : hc) : (e.tm === "h" ? hc : ac);
     return `<div class="tl ${e.tm === "h" ? "is-h" : "is-a"}${["G", "P", "OG"].includes(e.k) ? " is-goal" : ""}">
-    <div class="tl-min">${esc(e.t || "")}</div>
+    <div class="tl-min">${esc(e.t || "–")}</div>
     <span class="tl-ev"><span class="tl-tx">${evText(e, scorerCode)}</span>${EV_ICON[e.k] ? `<span class="tl-ic">${EV_ICON[e.k]}</span>` : ""}</span>
   </div>`;
   }).join("");
@@ -1153,10 +1153,17 @@ function renderMatches() {
     heroStack(liveMatches, nextM) +
     (motd && !heroIds.has(motd.id) ? motdBanner(motd) : "") +
     `<div class="filters">
-      <select class="fsel ${f.stage !== "all" ? "is-on" : ""}" id="stageSel" aria-label="Filter by stage">
-        ${[["all", "All 104 matches"], ["group", "Group stage"], ["ko", "Knockouts"]].map(([k, l]) =>
-          `<option value="${k}" ${f.stage === k ? "selected" : ""}>${l}</option>`).join("")}
-      </select>
+      <div class="tsel ${f.stage !== "all" ? "is-on" : ""}" id="stageSelWrap">
+        <button type="button" class="fsel tsel-btn" id="stageSelBtn" aria-haspopup="listbox" aria-expanded="false" aria-label="Filter by stage">
+          <span class="tsel-cur">${({ all: "All 104 matches", group: "Group stage", ko: "Knockouts" })[f.stage] || "All 104 matches"}</span>
+        </button>
+        <div class="tsel-pop" id="stageSelPop" hidden>
+          <div class="tsel-list" role="listbox" aria-label="Stage">
+            ${[["all", "All 104 matches"], ["group", "Group stage"], ["ko", "Knockouts"]].map(([k, l]) =>
+              `<button type="button" class="tsel-opt${f.stage === k ? " is-sel" : ""}" role="option" aria-selected="${f.stage === k}" data-stage="${k}"><span class="tsel-opt-name">${l}</span>${f.stage === k ? `<span class="tsel-tick" aria-hidden="true">✓</span>` : ""}</button>`).join("")}
+          </div>
+        </div>
+      </div>
       <div class="tsel ${f.team ? "is-on" : ""}" id="teamSelWrap">
         <button type="button" class="fsel tsel-btn" id="teamSelBtn" aria-haspopup="listbox" aria-expanded="false" aria-label="Filter by team">
           ${f.team ? `<span class="fl">${flag(f.team)}</span><span class="tsel-cur">${esc(S.teams[f.team].name)}</span>` : `<span class="tsel-cur">All teams</span>`}
@@ -1173,7 +1180,11 @@ function renderMatches() {
     (ahead.length ? dayGroups(ahead) : (past.length ? "" : `<div class="empty">No matches for this filter.</div>`)));
 
   startCountdown();
-  const ss = $("#stageSel", el); if (ss) ss.onchange = () => { f.stage = ss.value; renderMatches(); };
+  const sbtn = $("#stageSelBtn", el);
+  if (sbtn) {
+    sbtn.onclick = () => { $("#stageSelPop").hidden ? openStagePop() : closeStagePop(); };
+    $$("#stageSelPop .tsel-opt", el).forEach(b => b.onclick = () => { f.stage = b.dataset.stage; renderMatches(); });
+  }
   const tb = $("#teamSelBtn", el);
   if (tb) {
     tb.onclick = () => { $("#teamSelPop").hidden ? openTeamSel() : closeTeamSel(); };
@@ -1230,6 +1241,20 @@ function closeTeamSel() {
   pop.hidden = true;
   $("#teamSelBtn")?.setAttribute("aria-expanded", "false");
   $("#teamSelWrap")?.classList.remove("open");
+}
+// stage filter — a custom dropdown (matches the team one) instead of a native <select>, whose Android
+// picker is a jarring edge-to-edge OS sheet that breaks the look of the rest of the page
+function openStagePop() {
+  const pop = $("#stageSelPop"); if (!pop) return;
+  pop.hidden = false;
+  $("#stageSelBtn")?.setAttribute("aria-expanded", "true");
+  $("#stageSelWrap")?.classList.add("open");
+}
+function closeStagePop() {
+  const pop = $("#stageSelPop"); if (!pop || pop.hidden) return;
+  pop.hidden = true;
+  $("#stageSelBtn")?.setAttribute("aria-expanded", "false");
+  $("#stageSelWrap")?.classList.remove("open");
 }
 // floating "jump to today/live" control.
 // We target the first *match card* of the live/today group, not the day header:
@@ -1811,7 +1836,7 @@ function roadSection(code) {
         <span class="road-meta">${fmt(m.utc, { day: "numeric", month: "short" })} · ${esc((m.city || "").split(",")[0])}</span>
       </span></button>`;
   }).join("");
-  return `<div class="eyebrow">Road to the final${road.reachesFinal ? " ${TROPHY}" : ""}</div>
+  return `<div class="eyebrow">Road to the final${road.reachesFinal ? ` ${TROPHY}` : ""}</div>
     <div class="road">${rows}</div>
     <p class="sim-ko-hint">Projected from live standings: assumes ${esc(t.name)} keep winning; opponents are the stronger projected team in each tie.</p>`;
 }
@@ -2298,7 +2323,7 @@ function simMatch(m, i, alloc) {
     if (!code) return `<div class="bm-row"><span class="fl">·</span><span class="nm ph">awaiting pick</span></div>`;
     const isPick = pick === code, isOut = pick && pick !== code;
     return `<div class="bm-row pickable ${isPick ? "is-pick" : ""} ${isOut ? "is-out" : ""}" data-pick="${m.num}|${code}" role="button" tabindex="0">
-      <span class="fl">${flag(code)}</span><span class="nm">${esc(S.teams[code].name)}${isPick && m.stage === "final" ? " ${TROPHY}" : ""}</span></div>`;
+      <span class="fl">${flag(code)}</span><span class="nm">${esc(S.teams[code].name)}${isPick && m.stage === "final" ? ` ${TROPHY}` : ""}</span></div>`;
   };
   return `<div class="bm ${m.stage === "final" ? "is-final" : ""} ${m.stage === "third" ? "is-third" : ""}" style="--i:${i}" data-num="${m.num}">
     ${m.stage === "third" ? `<div class="bm-tag">3rd place</div>` : ""}
@@ -3000,8 +3025,15 @@ async function boot() {
   $$("[data-nav]").forEach(b => b.onclick = e => { e.preventDefault(); nav(b.dataset.nav); });
   $("#settingsChip").onclick = () => $("#settingsDialog").showModal();
   $("#tzRow").onclick = () => { $("#settingsDialog").close(); $("#tzDialog").showModal(); };
-  // keep the sheet open — webcal opens the Calendar app (mobile); if nothing handles it, Download is right there
-  $("#calSubscribe").onclick = () => { location.href = webcalURL("all.ics"); };
+  // Subscribe to the auto-updating feed. iOS/macOS hand webcal:// straight to Calendar; Android/desktop usually
+  // have no webcal handler (it silently does nothing), so there we copy the URL and open Google Calendar's add-by-URL.
+  $("#calSubscribe").onclick = () => {
+    const webcal = webcalURL("all.ics"), https = webcal.replace(/^webcal:\/\//, "https://");
+    if (/iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent)) { location.href = webcal; return; }
+    try { navigator.clipboard?.writeText(https); } catch { /* clipboard blocked — the Google tab still opens */ }
+    window.open("https://calendar.google.com/calendar/u/0/r?cid=" + encodeURIComponent(https), "_blank", "noopener");
+    flashToast("Calendar URL copied — paste it into your calendar app if it doesn't open");
+  };
   $("#calDownload").onclick = () => downloadICS(S.matches.slice().sort((a, b) => a.utc.localeCompare(b.utc)), "FIFA World Cup 2026");
   $("#aboutBtn").onclick = () => showSheet($("#aboutDialog"));
   $("#aboutSiteBtn").onclick = () => showSheet($("#aboutSiteDialog"));
@@ -3069,11 +3101,21 @@ async function boot() {
   $("#jumpNow").onclick = scrollToNow;
   addEventListener("scroll", () => { if (S.view === "matches") requestAnimationFrame(updateJumpNow); }, { passive: true });
   addEventListener("click", e => { if (!e.target.closest("#teamSelWrap")) closeTeamSel(); });   // close team dropdown on outside click
+  addEventListener("click", e => { if (!e.target.closest("#stageSelWrap")) closeStagePop(); });  // …and the stage dropdown
   addEventListener("keydown", e => { if (e.key === "Escape") closeTeamSel(); });
   initMusic();
   $$("[data-close]").forEach(b => b.onclick = () => b.closest("dialog").close());
   $$("dialog").forEach(d => d.onclick = e => { if (e.target === d) d.close(); });
   $("#searchDialog").addEventListener("close", () => { compareSeed = null; stopSearchRoll(); });   // never leave compare mode armed (or a timer running) after the overlay closes
+  // Closing a modal restores focus to whatever opened it (e.g. the tapped match card). On a pointer close the
+  // browser paints a :focus-visible ring on that card, which reads as a flicker. Track input modality and drop
+  // the ring on pointer closes only — keyboard closes keep focus so keyboard users don't lose their place.
+  let _kbdNav = false;
+  addEventListener("keydown", () => { _kbdNav = true; }, true);
+  addEventListener("pointerdown", () => { _kbdNav = false; }, true);
+  ["#matchDialog", "#playerDialog", "#teamSheet"].forEach(sel => $(sel)?.addEventListener("close", () => {
+    if (!_kbdNav && document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
+  }));
   addEventListener("resize", () => {
     moveInk(); setChromeVars();
     if (S.view === "sim") layoutBracket($("#view-sim"));
