@@ -623,6 +623,8 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 /* first-launch welcome / onboarding */
 .welcome-sheet::backdrop{background:color-mix(in srgb,var(--ink) 40%,transparent);backdrop-filter:blur(3px)}
 .welcome{text-align:center;padding:8px 4px 4px}
+#welcomeDialog{max-height:94svh}
+.sheet-body.welcome{max-height:90svh}   /* the onboarding is content-sized, not the generic 480px sheet cap, so the CTAs are never below the fold */
 .welcome-mark{display:block;margin:20px auto 13px;border-radius:14px;box-shadow:var(--shadow)}
 .welcome-mark .wm-circle{stroke-dasharray:151;stroke-dashoffset:151}
 .welcome-mark .wm-line{stroke-dasharray:84;stroke-dashoffset:84}
@@ -631,6 +633,16 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
   #welcomeDialog[open] .wm-circle{animation:wmDraw .8s .15s cubic-bezier(.6,0,.2,1) forwards}
   #welcomeDialog[open] .wm-line{animation:wmDraw .55s .62s cubic-bezier(.6,0,.2,1) forwards}
   #welcomeDialog[open] .wm-spot{animation:wmPop .42s .95s both}
+  /* the headline, lead, each feature row, buttons and footer rise in, staggered, for a premium first impression */
+  #welcomeDialog[open] h3,#welcomeDialog[open] .welcome-lead,#welcomeDialog[open] .welcome-pt,#welcomeDialog[open] .welcome-actions,#welcomeDialog[open] .welcome-foot{animation:welcomeRise .5s both;animation-timing-function:cubic-bezier(.2,.7,.2,1)}
+  #welcomeDialog[open] h3{animation-delay:.1s}
+  #welcomeDialog[open] .welcome-lead{animation-delay:.18s}
+  #welcomeDialog[open] .welcome-pt:nth-child(1){animation-delay:.26s}
+  #welcomeDialog[open] .welcome-pt:nth-child(2){animation-delay:.32s}
+  #welcomeDialog[open] .welcome-pt:nth-child(3){animation-delay:.38s}
+  #welcomeDialog[open] .welcome-pt:nth-child(4){animation-delay:.44s}
+  #welcomeDialog[open] .welcome-actions{animation-delay:.54s}
+  #welcomeDialog[open] .welcome-foot{animation-delay:.6s}
   /* first-paint cascade: header -> tabs -> ticker rise in once on initial load */
   html.booting .topbar{animation:bootRise .5s .02s both}
   html.booting .tabs{animation:bootRise .5s .12s both}
@@ -642,14 +654,18 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 }
 @keyframes wmDraw{to{stroke-dashoffset:0}}
 @keyframes wmPop{from{opacity:0;transform:scale(.2)}to{opacity:1;transform:scale(1)}}
+@keyframes welcomeRise{from{opacity:0;transform:translateY(9px)}to{opacity:1;transform:none}}
 @keyframes bootRise{from{opacity:0;transform:translateY(9px)}to{opacity:1;transform:none}}
 .welcome h3{font-family:var(--disp);font-weight:800;font-stretch:108%;font-size:22px;letter-spacing:-.015em;margin:0 0 6px;line-height:1.1}
 .welcome-lead{font-size:14px;color:var(--ink-soft);line-height:1.5;margin:0 auto 18px;max-width:36ch}
-.welcome-pts{display:flex;flex-direction:column;gap:9px;text-align:left;margin:0 0 18px}
-.welcome-pt{background:color-mix(in srgb,var(--ink) 3%,var(--card));border:1px solid var(--line);border-radius:14px;padding:11px 14px}
-.welcome-pt>b{display:block;font-size:14px;font-weight:700;margin-bottom:2px}
-.welcome-pt small{font-size:12.5px;color:var(--ink-soft);line-height:1.45}
-.welcome-pt small b{color:var(--ink);font-weight:700}
+.welcome-pts{display:flex;flex-direction:column;gap:7px;text-align:left;margin:0 0 14px}
+.welcome-pt{display:flex;align-items:center;gap:12px;background:color-mix(in srgb,var(--ink) 3%,var(--card));border:1px solid var(--line);border-radius:14px;padding:9px 12px}
+.welcome-ic{flex:0 0 auto;width:38px;height:38px;border-radius:11px;display:grid;place-items:center;background:color-mix(in srgb,var(--gold) 15%,var(--card));border:1px solid color-mix(in srgb,var(--gold) 28%,transparent);color:var(--gold-text)}
+.welcome-ic svg{width:20px;height:20px}
+.welcome-pt-tx>b{display:block;font-size:13.5px;font-weight:700;margin-bottom:1px;line-height:1.2}
+.welcome-pt-tx small{font-size:12px;color:var(--ink-soft);line-height:1.4}
+.welcome-pt-tx small b{color:var(--ink);font-weight:700}
+.welcome-foot{margin:9px 0 2px;font-size:11px;color:var(--ink-soft);opacity:.72;letter-spacing:.02em}
 .welcome-actions{display:flex;flex-direction:column;gap:9px}
 .welcome-actions .btn{width:100%;justify-content:center}
 .foot-about{font:inherit;color:var(--ink-soft);text-decoration:underline;text-decoration-color:color-mix(in srgb,var(--acc1) 45%,transparent);text-underline-offset:2px;cursor:pointer}

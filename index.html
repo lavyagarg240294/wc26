@@ -33,7 +33,7 @@
 <meta name="apple-mobile-web-app-title" content="World Cup 26">
 <meta name="application-name" content="World Cup 26">
 <link rel="stylesheet" href="assets/fonts.css?v=112">
-<link rel="stylesheet" href="styles.css?v=187">
+<link rel="stylesheet" href="styles.css?v=188">
 <link rel="icon" href="assets/mark.svg">
 <link rel="icon" type="image/png" href="assets/icon-32.png" sizes="32x32">
 </head>
@@ -269,23 +269,36 @@
       <circle class="wm-spot" cx="50" cy="50" r="5.6" fill="url(#wmgold)"/>
     </svg>
     <h3 id="welcomeTitle">Your World Cup, in one page</h3>
-    <p class="welcome-lead">All 104 matches of the 2026 World Cup, live, free, no sign-up.</p>
+    <p class="welcome-lead">All 104 matches of the 2026 World Cup. Live, free, no sign-up.</p>
     <div class="welcome-pts">
-      <div class="welcome-pt"><b>🕑 Every kickoff in your timezone</b><small>Auto-detected: <b id="welcomeTz">your local time</b>. Change it in Settings.</small></div>
-      <div class="welcome-pt"><b>★ Pick your team</b><small>The whole app dresses in their colours and pulls up their fixtures.</small></div>
-      <div class="welcome-pt"><b>🏆 Call the bracket</b><small>In <b>Predict</b>, tap winners from the groups all the way to the champion.</small></div>
-      <div class="welcome-pt"><b>⚽ Live as it happens</b><small>Scores, line-ups, stats, match reports &amp; commentary. Tap anything to dive in.</small></div>
+      <div class="welcome-pt">
+        <span class="welcome-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l3.5 2"/></svg></span>
+        <div class="welcome-pt-tx"><b>In your timezone</b><small>Every kick-off on your local clock, auto-detected as <b id="welcomeTz">your local time</b>.</small></div>
+      </div>
+      <div class="welcome-pt">
+        <span class="welcome-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2.6 14.7 8.3 21 9.2 16.5 13.6 17.6 19.8 12 16.9 6.4 19.8 7.5 13.6 3 9.2 9.3 8.3"/></svg></span>
+        <div class="welcome-pt-tx"><b>Make it your team</b><small>Pick a side and the whole app takes on their colours and fixtures.</small></div>
+      </div>
+      <div class="welcome-pt">
+        <span class="welcome-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 4h10v4.5a5 5 0 0 1-10 0z"/><path d="M7 6.3H4.6A2.2 2.2 0 0 0 7 8.6M17 6.3h2.4A2.2 2.2 0 0 1 17 8.6M12 13.5v2.8M9.5 19.5h5M10 16.3h4"/></svg></span>
+        <div class="welcome-pt-tx"><b>Call the bracket</b><small>In <b>Predict</b>, pick winners from the groups all the way to the champion.</small></div>
+      </div>
+      <div class="welcome-pt">
+        <span class="welcome-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 9l2.85 2.07-1.09 3.36h-3.52L9.15 11.07z"/><path d="M12 9V4.5M14.85 11.07l3.7-1.3M13.76 14.43l1.8 3.1M10.24 14.43l-1.8 3.1M9.15 11.07l-3.7-1.3"/></svg></span>
+        <div class="welcome-pt-tx"><b>Live as it happens</b><small>Scores, line-ups, stats and commentary, the second they land.</small></div>
+      </div>
     </div>
     <div class="welcome-actions">
       <button class="btn" id="welcomePick">★ Pick my team</button>
       <button class="btn ghost" id="welcomeGo">Explore the site</button>
     </div>
+    <p class="welcome-foot">No ads · no tracking · open-source</p>
   </div>
 </dialog>
 
 <canvas id="confetti" aria-hidden="true"></canvas>
 <audio id="bgm" preload="none"></audio>
 
-<script src="app.js?v=187"></script>
+<script src="app.js?v=188"></script>
 </body>
 </html>
