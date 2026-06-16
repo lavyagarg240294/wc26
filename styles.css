@@ -103,8 +103,9 @@ b{font-weight:600}
   position:sticky;top:0;z-index:40;
   display:flex;align-items:center;justify-content:space-between;
   padding:14px clamp(16px,4vw,32px);
-  background:color-mix(in srgb,var(--paper) 82%,transparent);
-  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  /* opaque, solid --paper so the installed-app status bar (theme-color = --paper) matches the header
+     exactly in both themes. (A translucent bar would pick up the body's colour gradient and never match.) */
+  background:var(--paper);
   border-bottom:1px solid var(--line);
 }
 .wordmark{display:flex;align-items:center;gap:9px;text-decoration:none;color:var(--ink)}
@@ -328,6 +329,11 @@ b{font-weight:600}
    crisp hairline ring (not a lift shadow) separates white/light flags from the paper; big hero/dialog contexts
    add their own drop-shadow via a filter on the wrapper. Size scales with the wrapper's font-size. */
 .flagimg{display:inline-block;width:1.5em;height:1em;object-fit:cover;object-position:center;vertical-align:-.15em;border-radius:.12em;box-shadow:0 0 0 .5px rgba(13,27,42,.28);background:color-mix(in srgb,var(--ink) 5%,var(--card))}
+/* placeholder for a fixture whose team isn't decided yet (knockout slots / TBD) — a tidy flag-shaped
+   chip with a faint "?", sized like a flag so the row stays aligned instead of showing a stray dot */
+.flag-tbd{display:inline-grid;place-items:center;width:1.5em;height:1em;vertical-align:-.15em;border-radius:.12em;background:color-mix(in srgb,var(--ink) 6%,var(--card));box-shadow:inset 0 0 0 .5px color-mix(in srgb,var(--ink) 18%,transparent)}
+.flag-tbd::before{content:"?";font-size:.6em;font-weight:700;line-height:1;color:var(--ink-soft);opacity:.6}
+.sr-vs .flag-tbd{width:24px;height:16px}
 .mcard-team .fl{font-size:17px;width:26px;text-align:center;flex:0 0 26px}
 .mcard-team.is-ph{color:var(--ink-soft);font-weight:500;font-style:italic}
 .mcard-team.is-lost{opacity:.5}

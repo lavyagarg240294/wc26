@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "193";  // shown in footer; bump with the ?v= asset version
+const BUILD = "194";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -139,6 +139,7 @@ function flag(code) {
   if (!code) return "";
   return `<img class="flagimg" src="assets/flags/${code}.svg" alt="${esc(S.teams?.[code]?.name || "")}" loading="lazy" decoding="async">`;
 }
+const TBD_FLAG = '<span class="flag-tbd" aria-hidden="true"></span>';   // placeholder flag for a fixture whose team isn't decided yet
 // consistent inline-SVG content icons (replacing eclectic emoji in stat/record headings). The thematic
 // ⚽ / ${TROPHY} / ★ are kept as-is. Stroke style matches the UI's SVG chrome.
 const _ico = p => `<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
@@ -633,7 +634,7 @@ function matchCard(m, i, opts = {}) {
     : "";   // scheduled: kickoff time already shows on the left — don't repeat it on the right
   const teamRow = (s, key, lost) =>
     `<div class="mcard-team ${s.ph ? "is-ph" : ""} ${lost ? "is-lost" : ""}">` +
-    `<span class="fl">${s.code ? flag(s.code) : "·"}</span><span>${esc(slotText(m, key, s))}</span></div>`;
+    `<span class="fl">${s.code ? flag(s.code) : TBD_FLAG}</span><span>${esc(slotText(m, key, s))}</span></div>`;
   const sv = isSaved(m.id);
   // The card body is the primary button; the save-star is a SIBLING <button>, not nested inside it
   // (nesting two interactive controls is invalid ARIA — screen readers announce it ambiguously). The
@@ -821,7 +822,7 @@ function koPath(m) {
   S.matches.forEach(x => { byNum[x.num] = x; if (x.stage !== "group") [x.home, x.away].forEach(s => { if (s.feeds) tgt[s.feeds] = x.num; }); });
   const chain = []; for (let n = m.num; n != null && byNum[n] && !chain.includes(byNum[n]); n = tgt[n]) chain.push(byNum[n]);
   if (chain.length < 2) return "";
-  const steps = chain.slice(1).map(x => `${STAGE_NAME[x.stage] || x.stage}<small>M${x.num}</small>`);
+  const steps = chain.slice(1).map(x => STAGE_NAME[x.stage] || x.stage);   // rounds ahead, no global match numbers (we don't number matches)
   return `<div class="md-kopath"><span class="kp-label">Winner's road →</span> ${steps.join(`<span class="kp-arr">›</span>`)}</div>`;
 }
 // win-probability — a bivariate-Poisson goals model. Team strength is each side's World Football Elo rating
@@ -986,7 +987,7 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
     : st === ST.FT ? `<span class="md-tag ft">Full time</span>`
     : `<span class="md-tag soon">Upcoming</span>`;   // time/date live in the meta row below — no need to repeat it
   const side = (s, key) => `<div class="md-team ${s.code === S.fav ? "is-fav" : ""}">
-      <span class="md-flag">${s.code ? flag(s.code) : "·"}</span>
+      <span class="md-flag">${s.code ? flag(s.code) : TBD_FLAG}</span>
       <span class="md-name ${s.ph ? "is-ph" : ""}">${esc(slotText(m, key, s))}</span>
       ${s.code ? `<span class="md-teaminfo">${esc(S.teams[s.code].conf || "")}${S.teams[s.code].titles ? ` · ${TROPHY} ${S.teams[s.code].titles}` : ""}</span>` : ""}
       ${s.code && formChips(s.code) ? `<span class="md-form">${formChips(s.code)}</span>` : ""}</div>`;
@@ -1070,11 +1071,11 @@ function heroBlock(heroM, isLive) {
       </span>
     </div>
     <div class="hero-teams">
-      <div class="hero-side"><span class="hero-flag">${h.code ? flag(h.code) : "·"}</span><span class="hero-name">${esc(h.name)}</span></div>
+      <div class="hero-side"><span class="hero-flag">${h.code ? flag(h.code) : TBD_FLAG}</span><span class="hero-name">${esc(h.name)}</span></div>
       <div class="hero-mid">${isLive
         ? `<span class="hero-score">${r?.h ?? 0}–${r?.a ?? 0}</span><span class="hero-livechip">${r?.st === ST.HT ? "Half-time" : (clockStr(heroM, r) || "Live")}</span>`
         : `<span class="hero-vs">VS</span>`}</div>
-      <div class="hero-side"><span class="hero-flag">${a.code ? flag(a.code) : "·"}</span><span class="hero-name">${esc(a.name)}</span></div>
+      <div class="hero-side"><span class="hero-flag">${a.code ? flag(a.code) : TBD_FLAG}</span><span class="hero-name">${esc(a.name)}</span></div>
     </div>
     ${(() => { const s = matchStakes(heroM); return s ? `<div class="hero-stakes">${s.lines[0]}</div>` : ""; })()}
     ${!isLive ? `<div class="countdown" id="cd" data-utc="${heroM.utc}">
@@ -1117,7 +1118,7 @@ function motdBanner(m) {
   const nm = (s, side) => s.code ? esc(s.name) : esc(slotText(m, side, s));
   return `<button class="motd" data-mid="${m.id}" aria-label="Match of the day, details">
     <span class="motd-tag">★ Match of the day</span>
-    <span class="motd-fix"><span class="fl">${h.code ? flag(h.code) : "·"}</span>${nm(h, "home")}<i>v</i>${nm(a, "away")}<span class="fl">${a.code ? flag(a.code) : "·"}</span></span>
+    <span class="motd-fix"><span class="fl">${h.code ? flag(h.code) : TBD_FLAG}</span>${nm(h, "home")}<i>v</i>${nm(a, "away")}<span class="fl">${a.code ? flag(a.code) : TBD_FLAG}</span></span>
     <span class="motd-meta"><b>${timeStr(m.utc)}</b> · ${esc(m.group ? "Group " + m.group : m.round)} · ${esc((m.city || "").split(",")[0])}</span>
   </button>`;
 }
@@ -1627,7 +1628,7 @@ function renderSearch(raw) {
     `<button class="sr-row" data-squad="${t.code}"><span class="fl">${flag(t.code)}</span><span class="sr-name">${esc(t.name)}<small>${esc(t.conf)}</small></span></button>`).join("") : "";
   const playerHtml = players.length ? `<div class="sr-label">Players</div>` + players.map(p => playerRowHtml(p, `data-player="${esc(p.name)}|${p.code}"`)).join("") : "";
   const matchHtml = matches.length ? `<div class="sr-label">Matches</div>` + matches.map(m =>
-    `<button class="sr-row" data-mid="${m.id}"><span class="sr-vs">${m.hc ? flag(m.hc) : "•"}${m.ac ? flag(m.ac) : "•"}</span><span class="sr-name"><span class="sr-mt">${esc(m.hn)} <i>v</i> ${esc(m.an)}</span><small>${esc(m.stage)}${m.city ? ` · ${esc(m.city)}` : ""}</small></span></button>`).join("") : "";
+    `<button class="sr-row" data-mid="${m.id}"><span class="sr-vs">${m.hc ? flag(m.hc) : TBD_FLAG}${m.ac ? flag(m.ac) : TBD_FLAG}</span><span class="sr-name"><span class="sr-mt">${esc(m.hn)} <i>v</i> ${esc(m.an)}</span><small>${esc(m.stage)}${m.city ? ` · ${esc(m.city)}` : ""}</small></span></button>`).join("") : "";
   res.innerHTML = (teamHtml + playerHtml + matchHtml) || `<div class="sr-hint">No teams, players or matches match “${esc(raw.trim())}”.</div>`;
 }
 // feed scorer names (e.g. "Cyle LARIN") and squad names (e.g. "Cyle Larin") differ in case and
@@ -1845,6 +1846,13 @@ function feedLabel(num, loser) {
   const idx = peers.indexOf(m) + 1;
   const sh = STAGE_SHORT[m.stage] || m.stage.toUpperCase();
   return (loser ? "Loser " : "Winner ") + sh + "-" + idx;
+}
+// human label for a knockout match — users never see global match numbers, so "M104" becomes "Final", "SF 1"…
+function matchTag(m) {
+  if (m.stage === "final") return "Final";
+  if (m.stage === "third") return "3rd place";
+  const peers = S.matches.filter(x => x.stage === m.stage).sort((a, b) => a.num - b.num);
+  return (STAGE_SHORT[m.stage] || (m.round || m.stage)) + " " + (peers.indexOf(m) + 1);
 }
 function slotText(m, side, si) {
   if (!si.ph) return si.name;                         // a real team is known
@@ -2295,7 +2303,7 @@ function simMatch(m, i, alloc) {
   return `<div class="bm ${m.stage === "final" ? "is-final" : ""} ${m.stage === "third" ? "is-third" : ""}" style="--i:${i}" data-num="${m.num}">
     ${m.stage === "third" ? `<div class="bm-tag">3rd place</div>` : ""}
     ${row(h, a)}${row(a, h)}
-    <div class="bm-label">M${m.num} · ${fmt(m.utc, { day: "numeric", month: "short" })} · ${esc(m.city.split(",")[0])}</div></div>`;
+    <div class="bm-label">${matchTag(m)} · ${fmt(m.utc, { day: "numeric", month: "short" })} · ${esc(m.city.split(",")[0])}</div></div>`;
 }
 function championBanner(code, predicted) {
   const t = S.teams[code];
