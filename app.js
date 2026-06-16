@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "202";  // shown in footer; bump with the ?v= asset version
+const BUILD = "203";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -763,7 +763,8 @@ function mdStats(r) {
   }
   if (!parts.length) return "";
   // summarize-then-expand: lead the popup with a one-line headline; the full 16-stat panel + performers are one tap deep
-  const head = Array.isArray(s.poss) ? `${s.poss[0]}%–${s.poss[1]}% possession · ${parts.length} stats` : `${parts.length} stats`;
+  const p0 = Array.isArray(s.poss) ? Math.round(s.poss[0]) : null;   // preview shows whole-number possession; derive the away share so the pair always sums to 100
+  const head = p0 != null ? `${p0}%–${100 - p0}% possession · ${parts.length} stats` : `${parts.length} stats`;
   return `<details class="md-fold"><summary><span>Match stats</span><small>${head}</small></summary>
     <div class="md-fold-body"><div class="md-stats">${parts.join("")}</div>${mdLeaders(r)}</div></details>`;
 }
@@ -1021,8 +1022,7 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
   const side = (s, key) => `<div class="md-team ${s.code === S.fav ? "is-fav" : ""}">
       <span class="md-flag">${s.code ? flag(s.code) : TBD_FLAG}</span>
       <span class="md-name ${s.ph ? "is-ph" : ""}">${esc(slotText(m, key, s))}</span>
-      ${s.code ? `<span class="md-teaminfo">${esc(S.teams[s.code].conf || "")}${S.teams[s.code].titles ? ` · ${TROPHY} ${S.teams[s.code].titles}` : ""}</span>` : ""}
-      ${s.code && formChips(s.code) ? `<span class="md-form">${formChips(s.code)}</span>` : ""}</div>`;
+      ${s.code ? `<span class="md-teaminfo">${esc(S.teams[s.code].conf || "")}${S.teams[s.code].titles ? ` · ${TROPHY} ${S.teams[s.code].titles}` : ""}</span>` : ""}</div>`;
   const squadLinks = [h, a].filter(s => s.code)
     .map(s => `<button class="md-squad-link" data-squad="${s.code}"><span class="fl">${flag(s.code)}</span> ${esc(s.name)} ›</button>`).join("");
   const mid = (score || live)
@@ -2504,16 +2504,21 @@ function fifaRankingPanel() {
     return `<div class="eyebrow">World Cup field</div><div class="lead-card rk-list">${quals.map((c, n) => `<div class="rk-row" data-squad="${c}" role="button" tabindex="0"><span class="rk-num">${n + 1}</span><span class="fl">${flag(c)}</span><span class="rk-name">${esc(S.teams[c].name)}</span></div>`).join("")}</div>`;
   }
   const qCount = rk.filter(t => t.q).length;
-  const row = t => `<div class="rk-row${t.q ? "" : " rk-nq"}"${t.q ? ` data-squad="${t.q}" role="button" tabindex="0"` : ""}>
+  const row = t => `<div class="rk-row${t.q ? "" : " rk-nq"}" data-conf="${esc(t.conf || "")}" data-q="${t.q ? 1 : 0}"${t.q ? ` data-squad="${t.q}" role="button" tabindex="0"` : ""}>
     <span class="rk-num">${t.r ?? "–"}</span>
     <img class="rk-flag" loading="lazy" src="${esc(t.flag || "")}" alt="" width="26" height="17">
     <span class="rk-name">${esc(t.name)}</span>
     <span class="rk-conf" title="${CONF_FULL[t.conf] || ""}">${esc(t.conf || "")}</span>
     ${t.q ? `<span class="rk-q" title="Qualified for the 2026 World Cup">WC</span>` : ""}</div>`;
+  // a pill per confederation that actually appears in the ranking, in the order the game tends to list them
+  const confPills = ["UEFA", "CONMEBOL", "CONCACAF", "CAF", "AFC", "OFC"]
+    .filter(c => rk.some(t => t.conf === c))
+    .map(c => `<button class="rk-fbtn" data-rkf="${c}" title="${CONF_FULL[c] || ""}">${c}</button>`).join("");
   return `<div class="eyebrow">FIFA World Ranking · all ${rk.length} teams</div>
     <div class="rk-filter">
       <button class="rk-fbtn is-on" data-rkf="all">All teams · ${rk.length}</button>
       <button class="rk-fbtn" data-rkf="q">World Cup · ${qCount}</button>
+      ${confPills}
     </div>
     <input class="team-search rk-search" id="rkSearch" type="search" placeholder="Search teams…" autocomplete="off" autocapitalize="off" spellcheck="false">
     <div class="lead-card rk-list" id="rkList">${rk.map(row).join("")}</div>
@@ -2522,15 +2527,23 @@ function fifaRankingPanel() {
 // wire the ranking panel's filter pills + search — called both on render AND after the lazy first-click build,
 // so the World-Cup pill and the search work whichever way the panel came into the DOM
 function wireRankings(scope) {
-  $$(".rk-fbtn", scope).forEach(b => b.onclick = () => {
-    $("#rkList", scope)?.classList.toggle("q-only", b.dataset.rkf === "q");
-    $$(".rk-fbtn", scope).forEach(x => x.classList.toggle("is-on", x === b));
-  });
-  const s = $("#rkSearch", scope);
-  if (s) s.oninput = () => {
-    const q = s.value.trim().toLowerCase();
-    $$("#rkList .rk-row", scope).forEach(r => r.classList.toggle("rk-hide", !!q && !(r.querySelector(".rk-name")?.textContent || "").toLowerCase().includes(q)));
+  const list = $("#rkList", scope), search = $("#rkSearch", scope);
+  if (!list) return;
+  let mode = "all";   // "all" | "q" (World Cup field) | a confederation code
+  const apply = () => {
+    const q = (search?.value || "").trim().toLowerCase();
+    $$(".rk-row", list).forEach(r => {
+      const okMode = mode === "all" || (mode === "q" ? r.dataset.q === "1" : r.dataset.conf === mode);
+      const okSearch = !q || (r.querySelector(".rk-name")?.textContent || "").toLowerCase().includes(q);
+      r.classList.toggle("rk-hide", !(okMode && okSearch));
+    });
   };
+  $$(".rk-fbtn", scope).forEach(b => b.onclick = () => {
+    mode = b.dataset.rkf;
+    $$(".rk-fbtn", scope).forEach(x => x.classList.toggle("is-on", x === b));
+    apply();
+  });
+  if (search) search.oninput = apply;
 }
 
 function renderStats() {
