@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "189";  // shown in footer; bump with the ?v= asset version
+const BUILD = "190";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1589,7 +1589,7 @@ function openSearchOverlay() {
 function renderSearch(raw) {
   const q = raw.trim().toLowerCase(), res = $("#searchResults"), cmp = !!compareSeed;
   const tname = c => esc(S.teams[c]?.name || c);
-  if (!q) { res.innerHTML = `<div class="sr-hint">${cmp ? `Pick a player to compare with <b>${esc(pName(compareSeed.name, compareSeed.code))}</b>.` : "Jump to any team, player or match."}</div>`; return; }
+  if (!q) { res.innerHTML = `<div class="sr-hint">${cmp ? `Pick a player to compare with <b>${esc(pName(compareSeed.name, compareSeed.code))}</b>.` : "Try “Brazil”, “Mbappé”, or “Miami”."}</div>`; return; }
   const has = s => (s || "").toLowerCase().includes(q);
   // relevance: a word that *starts* with the query beats a mid-word hit (so "mess" → Messi, not a club coincidence)
   const rank = s => { const n = (s || "").toLowerCase(); return n.startsWith(q) ? 0 : n.split(/\s+/).some(w => w.startsWith(q)) ? 1 : 2; };
@@ -1607,7 +1607,7 @@ function renderSearch(raw) {
     `<button class="sr-row" data-squad="${t.code}"><span class="fl">${flag(t.code)}</span><span class="sr-name">${esc(t.name)}<small>${esc(t.conf)}</small></span></button>`).join("") : "";
   const playerHtml = players.length ? `<div class="sr-label">Players</div>` + players.map(p => playerRowHtml(p, `data-player="${esc(p.name)}|${p.code}"`)).join("") : "";
   const matchHtml = matches.length ? `<div class="sr-label">Matches</div>` + matches.map(m =>
-    `<button class="sr-row" data-mid="${m.id}"><span class="sr-vs">${m.hc ? flag(m.hc) : "•"}${m.ac ? flag(m.ac) : "•"}</span><span class="sr-name">${esc(m.hn)} <i>v</i> ${esc(m.an)}<small>${esc(m.stage)}${m.city ? ` · ${esc(m.city)}` : ""}</small></span></button>`).join("") : "";
+    `<button class="sr-row" data-mid="${m.id}"><span class="sr-vs">${m.hc ? flag(m.hc) : "•"}${m.ac ? flag(m.ac) : "•"}</span><span class="sr-name"><span class="sr-mt">${esc(m.hn)} <i>v</i> ${esc(m.an)}</span><small>${esc(m.stage)}${m.city ? ` · ${esc(m.city)}` : ""}</small></span></button>`).join("") : "";
   res.innerHTML = (teamHtml + playerHtml + matchHtml) || `<div class="sr-hint">No teams, players or matches match “${esc(raw.trim())}”.</div>`;
 }
 // feed scorer names (e.g. "Cyle LARIN") and squad names (e.g. "Cyle Larin") differ in case and
