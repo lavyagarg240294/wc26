@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "211";  // shown in footer; bump with the ?v= asset version
+const BUILD = "212";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1476,6 +1476,47 @@ function playerWC(name, code) {
   }
   return { g, a, y, rc, apps, starts, cs, ga };
 }
+// a player's tournament match-by-match: opponent, result and what they did — tappable through to the match
+function playerMatchLog(name, code) {
+  const rows = [];
+  for (const m of S.matches) {
+    if (!matchHasTeam(m, code) || status(m) === ST.SCHED) continue;
+    const r = res(m); if (!r || r.h == null) continue;
+    const side = slotInfo(m, "home").code === code ? "h" : slotInfo(m, "away").code === code ? "a" : null;
+    if (!side) continue;
+    const inXI = (r.xi?.[side]?.xi || []).some(p => sameName(p[1], name));
+    const subOn = (r.ev || []).some(e => e.tm === side && e.k === "S" && e.on && sameName(e.on, name));
+    if (!inXI && !subOn) continue;
+    const gf = side === "h" ? r.h : r.a, ga = side === "h" ? r.a : r.h;
+    let g = 0, a = 0, yc = 0, rc = 0;
+    for (const e of (r.ev || [])) {
+      if (e.tm !== side) continue;
+      if (["G", "P"].includes(e.k) && e.p && sameName(e.p, name)) g++;
+      if (e.a && sameName(e.a, name)) a++;
+      if (e.k === "Y" && e.p && sameName(e.p, name)) yc++;
+      if (e.k === "R" && e.p && sameName(e.p, name)) rc++;
+    }
+    rows.push({ mid: m.id, utc: m.utc, opp: side === "h" ? slotInfo(m, "away").code : slotInfo(m, "home").code,
+      wdl: gf > ga ? "W" : gf < ga ? "L" : "D", gf, ga, started: inXI, g, a, yc, rc });
+  }
+  return rows.sort((x, y) => x.utc.localeCompare(y.utc));
+}
+// a team's match-by-match key stats (possession, shots, on target) — tappable through to the match
+function teamMatchStats(code) {
+  const rows = [];
+  for (const m of S.matches) {
+    if (!matchHasTeam(m, code) || status(m) === ST.SCHED) continue;
+    const r = res(m); if (!r || r.h == null) continue;
+    const i = slotInfo(m, "home").code === code ? 0 : slotInfo(m, "away").code === code ? 1 : null;
+    if (i == null) continue;
+    const s = r.stats || {}, gf = i === 0 ? r.h : r.a, ga = i === 0 ? r.a : r.h;
+    rows.push({ mid: m.id, utc: m.utc, opp: i === 0 ? slotInfo(m, "away").code : slotInfo(m, "home").code,
+      wdl: gf > ga ? "W" : gf < ga ? "L" : "D", gf, ga,
+      poss: Array.isArray(s.poss) ? Math.round(s.poss[i]) : null,
+      sh: Array.isArray(s.sh) ? s.sh[i] : null, sot: Array.isArray(s.sot) ? s.sot[i] : null });
+  }
+  return rows.sort((x, y) => x.utc.localeCompare(y.utc));
+}
 // Team detail sheet — overview, recent form, every fixture (results + upcoming), the group
 // standing + qualification outlook, and the full squad (collapsible). Tapping a team anywhere
 // (grid, group table, leaderboards, match modal) opens this; match cards inside drill deeper.
@@ -1534,6 +1575,8 @@ function openTeam(code) {
   const pos = tbl.findIndex(r => r.code === code) + 1, played = tbl.find(r => r.code === code)?.p || 0;
   const done = all.filter(m => status(m) !== ST.SCHED), upcoming = all.filter(m => status(m) === ST.SCHED);
   const sq = S.squads?.[code], isFav = code === S.fav;
+  const tms = teamMatchStats(code);
+  const tmsHtml = tms.length ? `<div class="eyebrow">Match stats</div><div class="tms"><div class="tms-head"><span class="tms-opp">Opponent</span><span>Result</span><span>Poss</span><span>Shots</span><span>SoT</span></div>${tms.map(row => `<div class="tms-row" data-mid="${row.mid}" role="button" tabindex="0"><span class="tms-opp"><span class="fl">${flag(row.opp)}</span> ${esc(S.teams[row.opp]?.name || "TBD")}</span><span class="rchip rchip-${row.wdl}">${row.wdl} ${row.gf}–${row.ga}</span><span class="tms-v">${row.poss != null ? row.poss + "%" : "–"}</span><span class="tms-v">${row.sh ?? "–"}</span><span class="tms-v">${row.sot ?? "–"}</span></div>`).join("")}</div>` : "";
   $("#teamSheetTitle").innerHTML = `<span class="fl">${flag(code)}</span> ${esc(t.name)}`;
   $("#teamSheetBody").innerHTML = `
     <div class="ts-meta">${t.conf ? esc(t.conf) : ""}${group ? ` · Group ${group}` : ""}${played ? ` · <b>${ordinal(pos)}</b> after ${played} match${played > 1 ? "es" : ""}` : ""}</div>
@@ -1542,6 +1585,7 @@ function openTeam(code) {
       ? `<div class="ts-fav-tag">★ Your team</div>`
       : `<button class="ts-setfav" data-follow="${code}">★ Make ${esc(t.name)} my team</button>`}
     ${styleSection(code)}
+    ${tmsHtml}
     ${sq ? `<details class="ts-squad" open><summary><span>Squad</span><small>${sq.players.length} players${teamCoach(code) ? ` · ${esc(teamCoach(code))}` : ""}</small></summary>${rosterMarkup(sq, code)}</details>`
         : `<div class="eyebrow">Squad</div><div class="empty">${esc(t.name)}'s squad isn't published yet. Check back closer to kickoff.</div>`}
     ${done.length ? `<div class="eyebrow">Results</div>${done.map((m, i) => matchCard(m, i)).join("")}` : ""}
@@ -1592,6 +1636,16 @@ function openPlayer(name, code) {
     if (e.k === "S") return `<span class="pl-act">${e.on === name ? "▲ on" : "▼ off"} ${mn}</span>`;
     return "";
   }).join("");
+  const log = playerMatchLog(name, code);    // every match they featured in, this tournament
+  const logHtml = log.length ? `<div class="eyebrow">Match log</div><div class="plog">${log.map(row => {
+    const tags = [];
+    if (row.g) tags.push(`<span class="plog-tag">${ICO.ball}${row.g > 1 ? " " + row.g : ""}</span>`);
+    if (row.a) tags.push(`<span class="plog-tag">${row.a}<i>A</i></span>`);
+    if (row.yc) tags.push(`<i class="tl-card y"></i>`);
+    if (row.rc) tags.push(`<i class="tl-card r"></i>`);
+    const did = tags.length ? `<span class="plog-did">${tags.join("")}</span>` : `<span class="plog-app">${row.started ? "Started" : "Sub"}</span>`;
+    return `<div class="plog-row" data-mid="${row.mid}" role="button" tabindex="0"><span class="plog-opp"><span class="fl">${flag(row.opp)}</span> ${esc(S.teams[row.opp]?.name || "TBD")}</span><span class="rchip rchip-${row.wdl}">${row.wdl} ${row.gf}–${row.ga}</span>${did}</div>`;
+  }).join("")}</div>` : "";
   const box = matchPstat(name, r?.pstats);   // ESPN per-match box score for this player, if a match is open
   const boxHtml = box ? PL_BOX.filter(([k]) => box[k]).map(([k, label]) => `<span class="pl-stat"><b>${box[k]}</b>${label}</span>`).join("") : "";
   $("#playerTitle").textContent = pName(name, code);   // real dialog name for screen readers (was a generic "Player")
@@ -1621,6 +1675,7 @@ function openPlayer(name, code) {
       <div class="pw"><b>${wc.a}</b><span>Assist${wc.a !== 1 ? "s" : ""}</span></div>`}
       <div class="pw"><b class="pw-cards">${wc.y || wc.rc ? `${wc.y ? `<span class="cc cc-y">${wc.y}</span>` : ""}${wc.rc ? `<span class="cc cc-r">${wc.rc}</span>` : ""}` : "0"}</b><span>Cards</span></div>
     </div>` : ""}
+    ${logHtml}
     ${(boxHtml || acts) ? `<div class="eyebrow">In this match</div>${boxHtml ? `<div class="pl-box">${boxHtml}</div>` : ""}${acts ? `<div class="pl-acts">${acts}</div>` : ""}` : ""}
     <button class="pl-compare" data-compare-seed="${esc(name)}|${code}">${ICO.compare} Compare with another player</button>`;
   const cmpBtn = $("#playerBody [data-compare-seed]");
