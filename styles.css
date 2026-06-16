@@ -131,10 +131,13 @@ b{font-weight:600}
 }
 .chip:hover{border-color:var(--acc-text);transform:translateY(-1px);box-shadow:var(--shadow)}
 .chip:active{transform:translateY(0)}
-.chip-team{border-color:color-mix(in srgb,var(--acc1) 45%,var(--line))}
-#teamChipFlag{font-size:14px;line-height:1}
+.chip-team{border-color:color-mix(in srgb,var(--acc1) 45%,var(--line));min-width:0}
+#teamChipFlag{font-size:14px;line-height:1;flex-shrink:0}
+/* the team name is the one topbar element that yields first: it truncates so the brand + icons keep
+   their size and the bar never overflows, even when the OS scales text up */
+#teamChipName{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 /* music toggle */
-.chip-icon{padding:9px 12px;gap:5px;min-height:38px;justify-content:center}   /* comfortable tap target */
+.chip-icon{padding:9px 12px;gap:5px;min-height:38px;justify-content:center;flex-shrink:0}   /* comfortable tap target, never squished */
 .chip-icon .ic-music{display:block;color:var(--ink-soft);transition:color .2s}
 .chip-icon:hover .ic-music{color:var(--ink)}
 .chip-icon.is-on{border-color:color-mix(in srgb,var(--acc1) 50%,var(--line));background:color-mix(in srgb,var(--acc1) 10%,var(--card))}
@@ -1267,8 +1270,8 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
   .wm-text{font-size:15px}
   .wm-mark{width:25px;height:25px;border-radius:7px}
   .wordmark{gap:7px}
-  #teamChipName{max-width:92px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .topbar-right{gap:6px;flex:0 0 auto}
+  #teamChipName{max-width:92px}
+  .topbar-right{gap:6px;flex:0 1 auto}   /* may give up width so the team name truncates before the bar overflows */
   .cd-cell{min-width:34px}
   .dayhead{top:95px}
   .mcard{padding:12px 13px}
@@ -1312,6 +1315,21 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
   .lead-row{padding:8px 12px;font-size:12.5px}
   .lead-card h4{font-size:11px}
   .roster-row{font-size:12.5px}
+}
+/* small phones (~360/375 — the most common mobile widths) and below: the wordmark and the three
+   topbar chips can't both fit, so drop the supporting "FIFA" — the mark plus "World Cup 26" still
+   reads as the brand and the link keeps its full aria-label. Tighten the cluster further under 340. */
+@media (max-width:384px){
+  .wm-fifa{display:none}
+  .topbar-right{gap:6px}
+  #teamChipName{max-width:84px}
+}
+@media (max-width:340px){
+  .topbar{padding:10px 9px}
+  .wm-text{font-size:14px}
+  .chip{padding:6px 9px}
+  .topbar-right{gap:5px}
+  #teamChipName{max-width:54px}
 }
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation:none!important;transition:none!important}
