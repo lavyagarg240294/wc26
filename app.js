@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "177";  // shown in footer; bump with the ?v= asset version
+const BUILD = "178";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -93,6 +93,9 @@ function morphAttrs(f, t) {
   for (let i = f.attributes.length - 1; i >= 0; i--) { const n = f.attributes[i].name; if (n !== "open" && !t.hasAttribute(n)) f.removeAttribute(n); }
   for (let i = 0; i < t.attributes.length; i++) { const a = t.attributes[i]; if (a.name !== "open" && f.getAttribute(a.name) !== a.value) f.setAttribute(a.name, a.value); }
 }
+// Standard competition ranking ("1224"): rows showing the same value share a rank, the next distinct value skips ahead
+// by the size of the tie group. keyOf returns the value to compare (use the DISPLAYED value so equal-looking rows tie).
+const compRanks = (rows, keyOf) => { const r = []; for (let i = 0; i < rows.length; i++) r[i] = (i && keyOf(rows[i]) === keyOf(rows[i - 1])) ? r[i - 1] : i + 1; return r; };
 // Player names arrive mixed: the FIFA feed UPPERCASEs the surname ("Julian QUINONES", "MOKOENA", "J. GALLARDO")
 // and often drops the accent ("QUIÑONES" → "QUINONES"); squads.json carries the proper accented Title-Case form.
 // pName() Title-Cases the feed name and RESTORES ACCENTS from a per-team accent dictionary (built from squads.json),
@@ -2412,34 +2415,36 @@ function renderStats() {
   if (!s.pulse.matches) { paint(el, `<div class="rk-pre">Tournament stats (scorers, records, team form) fill in as matches kick off. Until then, here's the field by world ranking.</div>${fifaRankingPanel()}`); return; }
   const tile = (label, val) => `<div class="stat-tile"><span class="stat-val">${val}</span><span class="stat-lbl">${label}</span></div>`;
   const tname = c => esc(S.teams[c]?.name || c);
-  // a player leaderboard row (photo + name + value), taps through to the player profile
-  const playerRow = (p, i, val) => { const ph = playerPhoto(p.name, p.code); return `<div class="lead-row lead-player" data-player="${esc(p.name)}|${p.code}" role="button" tabindex="0">
-    <span class="lead-rank">${i + 1}</span>${ph ? `<span class="lead-face" style="background-image:url('${ph}')"></span>` : `<span class="fl">${flag(p.code)}</span>`}
+  // a player leaderboard row (photo + name + value). 2nd arg is the competition rank (tied rows share it), not the index.
+  const playerRow = (p, rank, val) => { const ph = playerPhoto(p.name, p.code); return `<div class="lead-row lead-player" data-player="${esc(p.name)}|${p.code}" role="button" tabindex="0">
+    <span class="lead-rank">${rank}</span>${ph ? `<span class="lead-face" style="background-image:url('${ph}')"></span>` : `<span class="fl">${flag(p.code)}</span>`}
     <span class="lead-name">${esc(pName(p.name, p.code))}<small>${flag(p.code)} ${tname(p.code)}</small></span>
     <span class="lead-v">${val}</span></div>`; };
-  const scorerRow = (p, i) => playerRow(p, i, `${p.goals}<small>${p.assists ? `${p.assists} ast` : "&nbsp;"}</small>`);
-  const assistRow = (p, i) => playerRow(p, i, `${p.assists}<small>assist${p.assists > 1 ? "s" : ""}</small>`);
-  const keeperRow = (p, i) => playerRow(p, i, `${p.cs}<small>clean sheet${p.cs !== 1 ? "s" : ""}</small>`);
-  const bookedRow = (p, i) => playerRow(p, i, `<span class="card-tally">${p.y ? `<span class="ct ct-y">${p.y}</span>` : ""}${p.r ? `<span class="ct ct-r">${p.r}</span>` : ""}</span>`);
-  // suspension watch — derived from the same card tallies; a red or 2nd yellow = a ban next game
-  const suspRow = (p, kind) => { const ph = playerPhoto(p.name, p.code); return `<div class="lead-row lead-player" data-player="${esc(p.name)}|${p.code}" role="button" tabindex="0">
+  const scorerRow = (p, rank) => playerRow(p, rank, `${p.goals}<small>${p.assists ? `${p.assists} ast` : "&nbsp;"}</small>`);
+  const assistRow = (p, rank) => playerRow(p, rank, `${p.assists}<small>assist${p.assists > 1 ? "s" : ""}</small>`);
+  const keeperRow = (p, rank) => playerRow(p, rank, `${p.cs}<small>clean sheet${p.cs !== 1 ? "s" : ""}</small>`);
+  const bookedRow = (p, rank) => playerRow(p, rank, `<span class="card-tally">${p.y ? `<span class="ct ct-y">${p.y}</span>` : ""}${p.r ? `<span class="ct ct-r">${p.r}</span>` : ""}</span>`);
+  // map a leaderboard to HTML with competition ranks. rowFn(item, rank, index); rows with an equal keyOf share a rank.
+  const ranked = (rows, rowFn, keyOf) => { const rk = compRanks(rows, keyOf); return rows.map((x, i) => rowFn(x, rk[i], i)).join(""); };
+  // suspension watch: a red card or an accumulated 2nd yellow = a one-match ban. We list only players who will
+  // actually miss their next game — a lone yellow is far too common to flag (and the count is arbitrary).
+  const suspRow = p => { const ph = playerPhoto(p.name, p.code); return `<div class="lead-row lead-player" data-player="${esc(p.name)}|${p.code}" role="button" tabindex="0">
     ${ph ? `<span class="lead-face" style="background-image:url('${ph}')"></span>` : `<span class="fl">${flag(p.code)}</span>`}
     <span class="lead-name">${esc(pName(p.name, p.code))}<small>${flag(p.code)} ${tname(p.code)}</small></span>
-    <span class="susp-tag ${kind === "ban" ? "is-ban" : "is-risk"}">${kind === "ban" ? (p.r > 0 ? "Sent off: banned" : "2 yellows: banned") : "On a yellow"}</span></div>`; };
+    <span class="susp-tag is-ban">${p.r > 0 ? "Sent off: banned" : "2 yellows: banned"}</span></div>`; };
   const suspended = s.booked.filter(p => p.r > 0 || p.y >= 2);
-  const atRisk = s.booked.filter(p => p.r === 0 && p.y === 1);
-  const suspHtml = (suspended.length || atRisk.length)
-    ? `<div class="lead-card"><h4>Suspension watch</h4>${suspended.map(p => suspRow(p, "ban")).join("")}${atRisk.slice(0, 8).map(p => suspRow(p, "risk")).join("")}</div>` : "";
-  const teamLead = (title, rows, fmt) => rows.length ? `<div class="lead-card"><h4>${title}</h4>${rows.slice(0, 5).map((x, i) => `<div class="lead-row" data-squad="${x.code}" role="button" tabindex="0">
-    <span class="lead-rank">${i + 1}</span><span class="fl">${flag(x.code)}</span><span class="lead-name">${tname(x.code)}</span>
-    <span class="lead-v">${fmt(x)}</span></div>`).join("")}</div>` : "";
+  const suspHtml = suspended.length
+    ? `<div class="lead-card"><h4>Suspension watch</h4>${suspended.map(suspRow).join("")}</div>` : "";
+  const teamLead = (title, rows, fmt) => rows.length ? `<div class="lead-card"><h4>${title}</h4>${ranked(rows.slice(0, 5), (x, rank) => `<div class="lead-row" data-squad="${x.code}" role="button" tabindex="0">
+    <span class="lead-rank">${rank}</span><span class="fl">${flag(x.code)}</span><span class="lead-name">${tname(x.code)}</span>
+    <span class="lead-v">${fmt(x)}</span></div>`, fmt)}</div>` : "";
   const perGame = x => `${x.v.toFixed(1)}<small>/ match</small>`;
-  const fairLead = s.fairPlay.length ? `<div class="lead-card"><h4>Fair play</h4>${s.fairPlay.slice(0, 5).map((x, i) => `<div class="lead-row ${i === 0 ? "lead-fair-top" : ""}" data-squad="${x.code}" role="button" tabindex="0">
-    <span class="lead-rank">${i + 1}</span><span class="fl">${flag(x.code)}</span><span class="lead-name">${tname(x.code)}</span>
-    <span class="lead-v">${x.pts}<small>pts</small></span></div>`).join("")}</div>` : "";
-  const cardLead = s.teamCards.length ? `<div class="lead-card"><h4>Team cards</h4>${s.teamCards.slice(0, 5).map((x, i) => `<div class="lead-row" data-squad="${x.code}" role="button" tabindex="0">
-    <span class="lead-rank">${i + 1}</span><span class="fl">${flag(x.code)}</span><span class="lead-name">${tname(x.code)}</span>
-    <span class="lead-v card-tally"><span class="ct ct-y" title="${x.y} yellow">${x.y}</span><span class="ct ct-r" title="${x.r} red">${x.r}</span></span></div>`).join("")}</div>` : "";
+  const fairLead = s.fairPlay.length ? `<div class="lead-card"><h4>Fair play</h4>${ranked(s.fairPlay.slice(0, 5), (x, rank, i) => `<div class="lead-row ${i === 0 ? "lead-fair-top" : ""}" data-squad="${x.code}" role="button" tabindex="0">
+    <span class="lead-rank">${rank}</span><span class="fl">${flag(x.code)}</span><span class="lead-name">${tname(x.code)}</span>
+    <span class="lead-v">${x.pts}<small>pts</small></span></div>`, x => x.pts)}</div>` : "";
+  const cardLead = s.teamCards.length ? `<div class="lead-card"><h4>Team cards</h4>${ranked(s.teamCards.slice(0, 5), (x, rank) => `<div class="lead-row" data-squad="${x.code}" role="button" tabindex="0">
+    <span class="lead-rank">${rank}</span><span class="fl">${flag(x.code)}</span><span class="lead-name">${tname(x.code)}</span>
+    <span class="lead-v card-tally"><span class="ct ct-y" title="${x.y} yellow">${x.y}</span><span class="ct ct-r" title="${x.r} red">${x.r}</span></span></div>`, x => x.v)}</div>` : "";
 
   // records / superlatives — each row taps through to its match or the player who scored
   const rc = s.records;
@@ -2457,19 +2462,19 @@ function renderStats() {
   // confederation breakdown — each confederation's collective record, ranked by points per game
   const CONF_LABEL = { UEFA: "Europe", CONMEBOL: "South America", CONCACAF: "N. & C. America", AFC: "Asia", CAF: "Africa", OFC: "Oceania" };
   const confHtml = s.confeds.length ? `<div class="eyebrow">By confederation</div>
-    <div class="lead-card conf-card">${s.confeds.map((c, i) => `<div class="conf-row">
-      <span class="conf-rank">${i + 1}</span>
+    <div class="lead-card conf-card">${ranked(s.confeds, (c, rank) => `<div class="conf-row">
+      <span class="conf-rank">${rank}</span>
       <span class="conf-name">${CONF_LABEL[c.conf] || c.conf}<small>${c.conf} · ${c.teams} team${c.teams > 1 ? "s" : ""}</small></span>
       <span class="conf-rec">${c.w}<i>W</i> ${c.d}<i>D</i> ${c.l}<i>L</i></span>
-      <span class="conf-ppg">${c.ppg.toFixed(2)}<small>pts/gm</small></span></div>`).join("")}</div>
+      <span class="conf-ppg">${c.ppg.toFixed(2)}<small>pts/gm</small></span></div>`, c => c.ppg.toFixed(2))}</div>
     <p class="sim-ko-hint">Combined record of each confederation's teams, ranked by points per game.</p>` : "";
 
   // sections behind a segmented sub-nav so the tab grows down (not into one endless scroll)
   const sections = [
     ["players", "Players", `
-      ${s.scorers.length ? `<div class="eyebrow">${ICO.ball} Golden Boot</div><div class="lead-card lead-scorers">${s.scorers.slice(0, 12).map(scorerRow).join("")}</div>` : ""}
-      ${s.assisters.length ? `<div class="eyebrow">Playmakers · assists</div><div class="lead-card lead-scorers">${s.assisters.slice(0, 8).map(assistRow).join("")}</div>` : ""}
-      ${s.keepers.length ? `<div class="eyebrow">${ICO.glove} Goalkeepers · clean sheets</div><div class="lead-card lead-scorers">${s.keepers.slice(0, 8).map(keeperRow).join("")}</div>` : ""}
+      ${s.scorers.length ? `<div class="eyebrow">${ICO.ball} Golden Boot</div><div class="lead-card lead-scorers">${ranked(s.scorers.slice(0, 12), scorerRow, p => p.goals)}</div>` : ""}
+      ${s.assisters.length ? `<div class="eyebrow">Playmakers · assists</div><div class="lead-card lead-scorers">${ranked(s.assisters.slice(0, 8), assistRow, p => p.assists)}</div>` : ""}
+      ${s.keepers.length ? `<div class="eyebrow">${ICO.glove} Goalkeepers · clean sheets</div><div class="lead-card lead-scorers">${ranked(s.keepers.slice(0, 8), keeperRow, p => p.cs)}</div>` : ""}
       ${!s.scorers.length && !s.assisters.length ? `<div class="empty">No goals yet. The Golden Boot race starts with the first goal.</div>` : ""}`],
     ["teams", "Teams", `<div class="lead-grid">
       ${teamLead("Attack", s.teamScored, perGame)}
@@ -2486,14 +2491,14 @@ function renderStats() {
       ${suspHtml}
       ${cardLead}
       ${fairLead}
-      ${s.booked.length ? `<div class="lead-card"><h4>Booked players</h4>${s.booked.slice(0, 8).map(bookedRow).join("")}</div>` : ""}
+      ${s.booked.length ? `<div class="lead-card"><h4>Booked players</h4>${ranked(s.booked.slice(0, 8), bookedRow, p => p.r + "," + p.y)}</div>` : ""}
     </div>${s.fairPlay.length ? `<p class="sim-ko-hint">Fair play points (−1 a yellow, −3 a red) are a real group tiebreaker; fewer is cleaner. A red or second yellow also means a one-match ban (single yellows clear after the quarter-finals).</p>` : ""}`],
     ["records", "Records", recordsHtml],
     ["tournament", "Tournament", `<div class="stat-tiles">
       ${tile("Goals", s.pulse.goals)}${tile("Matches", s.pulse.matches)}
       ${tile("Goals / match", s.pulse.perMatch.toFixed(2))}${tile("Cards", s.pulse.cards)}
     </div>${confHtml}`],
-    ["rankings", "Rankings", fifaRankingPanel()],
+    ["rankings", "Rankings", statsTab === "rankings" ? fifaRankingPanel() : ""],   // lazy: the 211-row panel is built only when its tab is shown (or on first click, below)
   ];
   if (!sections.some(([k]) => k === statsTab)) statsTab = "players";
   const out = `<div class="substat-nav">${sections.map(([k, label]) => `<button class="substat ${k === statsTab ? "is-on" : ""}" data-stat="${k}">${label}</button>`).join("")}</div>`
@@ -2504,9 +2509,11 @@ function renderStats() {
   _statsHTML = out;
   paint(el, out);
   $$(".substat", el).forEach(b => b.onclick = () => {
-    statsTab = b.dataset.stat;
-    $$(".substat", el).forEach(x => x.classList.toggle("is-on", x.dataset.stat === statsTab));
-    $$(".substat-panel", el).forEach(p => p.hidden = p.dataset.panel !== statsTab);
+    const k = statsTab = b.dataset.stat;
+    $$(".substat", el).forEach(x => x.classList.toggle("is-on", x.dataset.stat === k));
+    const panel = $(`.substat-panel[data-panel="${k}"]`, el);
+    if (k === "rankings" && panel && !panel.firstChild) panel.innerHTML = fifaRankingPanel();   // the 211-row panel is built only on first view
+    $$(".substat-panel", el).forEach(p => p.hidden = p.dataset.panel !== k);
   });
   // FIFA-ranking filter (All / World Cup) — a CSS class toggle, no re-render
   $$(".rk-fbtn", el).forEach(b => b.onclick = () => {
