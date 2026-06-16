@@ -3,10 +3,13 @@
  * Runs in GitHub Actions, Node 20+, no deps. The browser NEVER calls these APIs — it only reads the baked JSON,
  * so no keys are exposed and there's nothing to track.
  *
- * Reddit: unauthenticated reddit.com/*.json by default. Reddit increasingly returns 403 to datacenter IPs
- * (including GitHub Actions); if that happens, reactions are simply skipped and the tab runs on headlines alone.
- * Set REDDIT_CLIENT_ID + REDDIT_CLIENT_SECRET (a free Reddit "script" app, no user login) to use the reliable
- * OAuth path instead — the only change needed to make reactions dependable.
+ * Fan reactions come from three sources, merged per match (round-robined so each is represented):
+ *   - Reddit r/soccer match threads. Unauthenticated reddit.com/*.json by default; Reddit increasingly returns
+ *     403 to datacenter IPs (incl. GitHub Actions). Set REDDIT_CLIENT_ID + REDDIT_CLIENT_SECRET (a free Reddit
+ *     "script" app, no user login) to use the reliable OAuth path instead.
+ *   - Bluesky, via the public AppView searchPosts (no auth, no key) — queried per match by team-pair.
+ *   - Mastodon, via mastodon.social's public hashtag timelines (no auth, no key) — mapped to matches by team-pair.
+ * Bluesky/Mastodon need no credentials at all, so the tab keeps showing reactions even when Reddit is unset/blocked.
  *
  * Headlines: WC-specific RSS (Guardian + BBC) + ESPN soccer, filtered to World-Cup / participating-team content.
  *
@@ -48,6 +51,9 @@ const clean = s => String(s || "")
   .replace(/<[^>]+>/g, "")                     // any stray tags
   .replace(/[*_~`>#]/g, "")                    // markdown emphasis / quote / heading marks
   .replace(/https?:\/\/\S+/g, "")              // raw URLs
+  .replace(/\bRT\s+@[^\s:]+:?/gi, "")          // boosted-post prefix
+  .replace(/@[A-Za-z0-9][\w.-]*/g, "")         // @handles — never show a username in a reaction
+  .replace(/:[a-z][a-z0-9_]+:/gi, "")          // Mastodon custom-emoji shortcodes (:wc26:)
   .replace(/\s+/g, " ").trim();
 // a comment is shown only if it's substantial, civil and self-contained
 function okComment(text, score) {
@@ -56,6 +62,14 @@ function okComment(text, score) {
   if (BLOCK.test(text)) return false;
   if (/^(http|www\.|\/?r\/|\/?u\/|edit:|deleted|removed|\[)/i.test(text)) return false;
   if ((text.match(/[A-Z]/g) || []).length > text.length * 0.5) return false;   // SHOUTY / mostly-caps
+  return true;
+}
+// social posts (Bluesky/Mastodon) engage at a lower scale than Reddit upvotes, so a gentler bar
+function okSocial(text, score, minScore = 4) {
+  if (!text || score < minScore) return false;
+  if (text.length < 15 || text.length > 280) return false;
+  if (BLOCK.test(text)) return false;
+  if ((text.match(/[A-Z]/g) || []).length > text.length * 0.5) return false;
   return true;
 }
 
@@ -104,7 +118,111 @@ async function fetchReactions() {
       .sort((a, b) => b.score - a.score)
       .slice(0, 4)
       .map(c => ({ text: c.text, score: c.score, src: "r/soccer", url: "https://www.reddit.com" + post.permalink }));
-    if (reactions.length) out[m.id] = { heat: Math.min(100, Math.round(18 + Math.log2(1 + post.num_comments) * 9)), reactions };
+    if (reactions.length) out[m.id] = { heatHint: post.num_comments, reactions };   // heat is computed uniformly in mergeSources
+  }
+  return out;
+}
+
+/* ---------------- Bluesky (fan reactions) ---------------- */
+// Bluesky's keyword search (searchPosts) requires a session — the public AppView 403s it unauthenticated, even
+// though profile/feed reads are open. A free app password (Settings → App Passwords, no approval) is enough; we
+// trade it for a short-lived token. No creds → search is skipped and the tab runs on the other sources.
+async function bskyToken() {
+  const id = process.env.BLUESKY_IDENTIFIER, pw = process.env.BLUESKY_APP_PASSWORD;
+  if (!id || !pw) return null;
+  try {
+    const r = await fetch("https://bsky.social/xrpc/com.atproto.server.createSession", {
+      method: "POST", headers: { "Content-Type": "application/json", "User-Agent": UA },
+      body: JSON.stringify({ identifier: id, password: pw }),
+    });
+    return r.ok ? ((await r.json()).accessJwt || null) : null;
+  } catch { return null; }
+}
+// query each recent match by its team pair, keep only posts that name BOTH teams in the kickoff window so a
+// post can't be misattributed (one team name is ambiguous across a side's several matches).
+async function fetchBluesky(recent, token) {
+  if (!token) { console.log("bluesky: no app password (set BLUESKY_IDENTIFIER + BLUESKY_APP_PASSWORD) — skipping search"); return {}; }
+  const out = {};
+  let calls = 0;
+  for (const m of recent) {
+    if (calls >= 14) break;
+    const hc = m.home.team, ac = m.away.team, ko = +new Date(m.utc);
+    const q = `${teams[hc].name} ${teams[ac].name}`;
+    let posts;
+    try {
+      const r = await fetch(`https://bsky.social/xrpc/app.bsky.feed.searchPosts?q=${encodeURIComponent(q)}&sort=top&lang=en&limit=25`, { headers: { "User-Agent": UA, Accept: "application/json", Authorization: "Bearer " + token } });
+      calls++;
+      if (!r.ok) { if (calls === 1) console.log("bluesky HTTP " + r.status); continue; }
+      posts = (await r.json()).posts || [];
+    } catch (e) { console.log("bluesky skipped:", e.message); continue; }
+    const reactions = posts.map(p => {
+      const text = clean(p.record?.text || "");
+      const rkey = (p.uri || "").split("/").pop(), handle = p.author?.handle;
+      return {
+        text, codes: codesIn(text),
+        score: (p.likeCount || 0) + (p.repostCount || 0) * 2,
+        created: +new Date(p.record?.createdAt || p.indexedAt || 0),
+        url: handle && rkey ? `https://bsky.app/profile/${handle}/post/${rkey}` : null,
+      };
+    })
+      .filter(p => p.url && p.codes.includes(hc) && p.codes.includes(ac) && Math.abs(p.created - ko) < 36 * 3600e3 && okSocial(p.text, p.score, 2))
+      .sort((a, b) => b.score - a.score).slice(0, 4)
+      .map(p => ({ text: p.text, score: p.score, src: "Bluesky", url: p.url }));
+    if (reactions.length) out[m.id] = { heatHint: reactions.reduce((s, r) => s + r.score, 0), reactions };
+  }
+  return out;
+}
+
+/* ---------------- Mastodon (fan reactions, no auth) ---------------- */
+// mastodon.social's hashtag timelines are public. We pull a few WC tags once, then attribute each post to a
+// recent match it clearly refers to (names BOTH teams, in the window). Federated + lower-volume, so a supplement.
+async function fetchMastodon(recent) {
+  const out = {}, statuses = [], seen = new Set();
+  for (const tag of ["worldcup", "fifaworldcup", "worldcup2026"]) {
+    try {
+      const r = await fetch(`https://mastodon.social/api/v1/timelines/tag/${tag}?limit=40`, { headers: { "User-Agent": UA, Accept: "application/json" } });
+      if (!r.ok) { console.log("mastodon HTTP " + r.status, tag); continue; }
+      statuses.push(...(await r.json()));
+    } catch (e) { console.log("mastodon skipped:", tag, e.message); }
+  }
+  for (const st of statuses) {
+    if (st.language && st.language !== "en") continue;
+    // drop the hashtag-link anchors before cleaning so the shown text is prose, not a trailing tag-soup
+    const text = clean(String(st.content || "").replace(/<a[^>]*hashtag[^>]*>[\s\S]*?<\/a>/gi, "")), score = (st.favourites_count || 0) + (st.reblogs_count || 0) * 2;
+    // fresh posts usually have 0 favourites, so gate on civility/length, not score; rank by score later
+    if (!st.url || !okSocial(text, score, 0)) continue;
+    const k = text.toLowerCase().slice(0, 60); if (seen.has(k)) continue;
+    const hay = text + " " + (st.tags || []).map(t => t.name).join(" ");   // team-name hashtags count as a mention
+    const codes = codesIn(hay); if (codes.length < 2) continue;
+    const created = +new Date(st.created_at || 0);
+    const m = recent.find(f => codes.includes(f.home.team) && codes.includes(f.away.team) && Math.abs(created - +new Date(f.utc)) < 36 * 3600e3);
+    if (!m) continue;
+    seen.add(k);
+    (out[m.id] ||= { reactions: [] }).reactions.push({ text, score, src: "Mastodon", url: st.url });
+  }
+  for (const id of Object.keys(out)) {
+    out[id].reactions = out[id].reactions.sort((a, b) => b.score - a.score).slice(0, 4);
+    out[id].heatHint = out[id].reactions.reduce((s, r) => s + r.score, 0);
+  }
+  return out;
+}
+
+// merge the per-match reaction maps from every source. Round-robin (top from each, then seconds, …) so each
+// source is represented rather than swamped by whichever scores highest, dedup near-identical text, cap at 5.
+function mergeSources(...maps) {
+  const out = {}, ids = new Set(maps.flatMap(m => Object.keys(m)));
+  for (const id of ids) {
+    const present = maps.filter(m => m[id]);
+    const lists = present.map(m => [...m[id].reactions].sort((a, b) => b.score - a.score));
+    const heatHint = Math.max(0, ...present.map(m => m[id].heatHint || 0));
+    const reactions = [], seen = new Set();
+    for (let i = 0; i < 6 && reactions.length < 5; i++) for (const list of lists) {
+      const r = list[i]; if (!r) continue;
+      const key = r.text.toLowerCase().replace(/\s+/g, " ").slice(0, 70); if (seen.has(key)) continue;
+      seen.add(key); reactions.push(r);
+      if (reactions.length >= 5) break;
+    }
+    if (reactions.length) out[id] = { heat: Math.min(100, Math.round(18 + Math.log2(1 + heatHint) * 9)), reactions };
   }
   return out;
 }
@@ -177,7 +295,19 @@ async function fetchStorylines(headlines, matches) {
 }
 
 /* ---------------- main ---------------- */
-const matches = await fetchReactions().catch(e => { console.log("reactions skipped:", e.message); return {}; });
+// the shared window every reaction source maps into: last 4 days … next 3h, both teams known
+const recent = fixtures.filter(m => {
+  const hc = m.home?.team, ac = m.away?.team; if (!hc || !ac) return false;
+  const ko = +new Date(m.utc); return ko <= now + 3 * 3600e3 && ko >= now - 4 * 86400e3;
+});
+const bskytok = await bskyToken();
+const [reddit, bsky, masto] = await Promise.all([
+  fetchReactions().catch(e => { console.log("reddit skipped:", e.message); return {}; }),
+  fetchBluesky(recent, bskytok).catch(e => { console.log("bluesky skipped:", e.message); return {}; }),
+  fetchMastodon(recent).catch(e => { console.log("mastodon skipped:", e.message); return {}; }),
+]);
+const matches = mergeSources(reddit, bsky, masto);
+console.log(`reactions: reddit ${Object.keys(reddit).length}, bluesky ${Object.keys(bsky).length}, mastodon ${Object.keys(masto).length} → ${Object.keys(matches).length} merged`);
 const headlines = await fetchHeadlines().catch(e => { console.log("headlines skipped:", e.message); return []; });
 const trending = computeTrending(headlines, matches);
 const storylines = await fetchStorylines(headlines, matches);

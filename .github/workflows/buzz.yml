@@ -4,9 +4,13 @@ name: Update buzz
 # data/buzz.json by scripts/fetch-buzz.mjs. Buzz changes far slower than live scores, so a periodic cron
 # (every ~20 min; GitHub may throttle scheduled runs to ~hourly) is plenty.
 #
-# Reddit is unauthenticated by default and may 403 from GitHub's datacenter IPs — in which case reactions are
-# skipped and the tab still publishes press headlines (RSS, reliable). To make reactions dependable, add a free
-# Reddit "script" app's REDDIT_CLIENT_ID + REDDIT_CLIENT_SECRET as repo secrets; the script uses OAuth when present.
+# Fan reactions come from three sources, all optional/graceful:
+#  - Reddit (unauthenticated by default; may 403 from GitHub's datacenter IPs). Add a free Reddit "script" app's
+#    REDDIT_CLIENT_ID + REDDIT_CLIENT_SECRET to make it dependable via OAuth.
+#  - Mastodon: public hashtag timelines, no credentials needed — always runs.
+#  - Bluesky: keyword search needs a session, so add a free app password as BLUESKY_IDENTIFIER (your handle) +
+#    BLUESKY_APP_PASSWORD (Settings → App Passwords, no approval). Skipped when unset.
+# With none of the secrets set, the tab still runs on Mastodon reactions + press headlines (RSS, reliable).
 on:
   schedule:
     - cron: "*/20 * * * *"
@@ -30,6 +34,9 @@ jobs:
         env:
           REDDIT_CLIENT_ID: ${{ secrets.REDDIT_CLIENT_ID }}
           REDDIT_CLIENT_SECRET: ${{ secrets.REDDIT_CLIENT_SECRET }}
+          BLUESKY_IDENTIFIER: ${{ secrets.BLUESKY_IDENTIFIER }}
+          BLUESKY_APP_PASSWORD: ${{ secrets.BLUESKY_APP_PASSWORD }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           git config user.name "wc26-bot"
           git config user.email "actions@users.noreply.github.com"
