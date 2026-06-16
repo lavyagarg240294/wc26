@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "178";  // shown in footer; bump with the ?v= asset version
+const BUILD = "179";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1291,12 +1291,12 @@ function myTeamBlock() {
       ${formChips(S.fav) ? `<div class="th-form">Recent form ${formChips(S.fav)}</div>` : ""}</div>
       <button class="btn ghost team-change" id="ctaChange">Change</button></div>
     ${mine.length ? `<div class="team-actions"><button class="btn ghost ics-btn" id="icsTeam">${CAL_SVG} Add ${esc(t.name)}'s matches to calendar</button></div>` : ""}
+    ${squadSection(S.fav)}
     ${done.length ? `<div class="eyebrow">Played</div>` + done.map((m, i) => matchCard(m, i)).join("") : ""}
     <div class="eyebrow">Fixtures</div>
     ${upcoming.length ? upcoming.map((m, i) => matchCard(m, i)).join("") : `<div class="empty">No scheduled fixtures. Check the bracket for their knockout path.</div>`}
     ${group ? `<div class="eyebrow">Group ${group}</div><div class="gwrap">${groupTable(group, 0)}</div>${groupOutlookHTML(group)}
-      <div class="legend"><span class="l1"><i></i>Top 2 advance</span><span class="l3"><i></i>3rd: possible best-8 spot</span></div>` : ""}
-    ${squadSection(S.fav)}`;
+      <div class="legend"><span class="l1"><i></i>Top 2 advance</span><span class="l3"><i></i>3rd: possible best-8 spot</span></div>` : ""}`;
 }
 function renderTeams() {
   const el = $("#view-teams");
@@ -1566,7 +1566,7 @@ function openCompareSearch(seed) { compareSeed = seed; openSearchOverlay(); }
 function openSearchOverlay() {
   SIDX = buildSearchIndex();
   const inp = $("#searchInput");
-  inp.value = ""; inp.placeholder = compareSeed ? `Compare ${compareSeed.name} with…` : "Teams, players, matches…";
+  inp.value = ""; inp.placeholder = compareSeed ? `Compare ${pName(compareSeed.name, compareSeed.code)} with…` : "Teams, players, matches…";
   renderSearch("");
   showSheet($("#searchDialog"));
   $("#searchResults").onclick = e => {              // close, then let the doc handler open the target…
@@ -1579,7 +1579,7 @@ function openSearchOverlay() {
 function renderSearch(raw) {
   const q = raw.trim().toLowerCase(), res = $("#searchResults"), cmp = !!compareSeed;
   const tname = c => esc(S.teams[c]?.name || c);
-  if (!q) { res.innerHTML = `<div class="sr-hint">${cmp ? `Pick a player to compare with <b>${esc(compareSeed.name)}</b>.` : "Jump to any team, player or match."}</div>`; return; }
+  if (!q) { res.innerHTML = `<div class="sr-hint">${cmp ? `Pick a player to compare with <b>${esc(pName(compareSeed.name, compareSeed.code))}</b>.` : "Jump to any team, player or match."}</div>`; return; }
   const has = s => (s || "").toLowerCase().includes(q);
   // relevance: a word that *starts* with the query beats a mid-word hit (so "mess" → Messi, not a club coincidence)
   const rank = s => { const n = (s || "").toLowerCase(); return n.startsWith(q) ? 0 : n.split(/\s+/).some(w => w.startsWith(q)) ? 1 : 2; };
@@ -1681,12 +1681,17 @@ function thirdRaceHTML() {
   const rows = thirdPlaceRace();
   if (!anyPlayed || rows.length < 3) return "";
   const sign = n => (n > 0 ? "+" : "") + n;
+  const ranks = compRanks(rows, r => r.pts + "|" + r.gd + "|" + r.gf);   // genuine 3rd-place criteria; teams level on all three share a rank
+  const cut = i => {                                                      // honest cut — a tie group straddling the 8th spot is undecided, not arbitrarily split
+    const first = ranks.indexOf(ranks[i]), last = ranks.lastIndexOf(ranks[i]);
+    return last < 8 ? "tr-in" : first >= 8 ? "tr-out" : "tr-bubble";
+  };
   return `<div class="eyebrow">Race for the best third places</div>
-    <div class="third-race">${rows.map((r, i) => `<div class="tr-row ${i < 8 ? "tr-in" : "tr-out"} ${r.code === S.fav ? "is-fav" : ""}" data-squad="${r.code}" role="button" tabindex="0">
-      <span class="tr-rank">${i + 1}</span><span class="fl">${flag(r.code)}</span>
+    <div class="third-race">${rows.map((r, i) => `<div class="tr-row ${cut(i)} ${r.code === S.fav ? "is-fav" : ""}" data-squad="${r.code}" role="button" tabindex="0">
+      <span class="tr-rank">${ranks[i]}</span><span class="fl">${flag(r.code)}</span>
       <span class="tr-name">${esc(S.teams[r.code]?.name || r.code)}<small>Group ${r.group}</small></span>
-      <span class="tr-gd">${sign(r.gd)}</span><span class="tr-pts">${r.pts}<small>pts</small></span></div>${i === 7 && rows.length > 8 ? `<div class="tr-cut"><span>Top 8 advance</span></div>` : ""}`).join("")}</div>
-    <p class="sim-ko-hint">Ranked by points, then goal difference, then goals scored: the eight best of twelve reach the Round of 32.</p>`;
+      <span class="tr-gd">${sign(r.gd)}</span><span class="tr-pts">${r.pts}<small>pts</small></span></div>${i === 7 && rows.length > 8 && ranks[7] !== ranks[8] ? `<div class="tr-cut"><span>Top 8 advance</span></div>` : ""}`).join("")}</div>
+    <p class="sim-ko-hint">Ranked by points, then goal difference, then goals scored: the eight best of twelve reach the Round of 32. Teams level on all three share a rank; FIFA then separates them on fair play, and finally a drawing of lots.</p>`;
 }
 // read-only "if the groups ended today" Round-of-32 — resolved purely from live standings (group
 // winners/runners-up + the best-8 thirds routed through FIFA's slot constraints). Never touches the
@@ -2705,7 +2710,10 @@ async function loadStatic() {
 const LITE = () => localStorage.getItem("wc26.lite") === "on";   // data-saver: suppress hot-linked photos, fall back to flags
 // Only ever surface an https image URL with no CSS/HTML-breaking characters: these are inserted into
 // `url('…')` background-images, where esc() wouldn't even cover the quote/paren — so sanitise at the source.
-const safePhoto = u => /^https:\/\/[^\s'"()<>]+$/.test(u || "") ? u : "";
+// FIFA's portrait PNGs are ~900KB each, so a squad list or pitch pulled 10-20MB and stalled. Their image service
+// resizes via ?io=transform: request a small width and let the existing CSS (background cover, top-anchored) crop to
+// the face. ~900KB -> ~14KB per avatar, no visual change. Only FIFA URLs support it; everything else passes through.
+const safePhoto = u => !/^https:\/\/[^\s'"()<>]+$/.test(u || "") ? "" : (/\/\/digitalhub\.fifa\.com\//.test(u) && !u.includes("?") ? u + "?io=transform:fit,width:256" : u);
 const playerPhoto = (name, code) => safePhoto((!LITE() && S.photos && S.photos[name + "|" + code]) || "");
 // like playerPhoto, but tolerantly matches a full squad name ("Mathew Ryan") against the terser FIFA
 // short-name photo keys ("M. RYAN", "RYAN", "Mathew RYAN") — accent-insensitive and surname-anchored, so a

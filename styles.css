@@ -402,6 +402,7 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .third-race .tr-row:first-child{border-top:none}
 .tr-row:hover{background:color-mix(in srgb,var(--acc1) 7%,transparent)}
 .tr-in{border-left-color:var(--gold-text)}
+.tr-bubble{border-left-color:color-mix(in srgb,var(--gold-text) 45%,transparent)}   /* on the bubble: tied across the qualifying cut */
 .tr-out{opacity:.6}
 .tr-row.is-fav{background:color-mix(in srgb,var(--acc1) 10%,transparent)}
 .tr-rank{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--ink-soft);width:16px;text-align:center;flex:0 0 16px}
