@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "212";  // shown in footer; bump with the ?v= asset version
+const BUILD = "213";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -774,8 +774,20 @@ function mdStats(r) {
   // summarize-then-expand: lead the popup with a one-line headline; the full 16-stat panel + performers are one tap deep
   const p0 = Array.isArray(s.poss) ? Math.round(s.poss[0]) : null;   // preview shows whole-number possession; derive the away share so the pair always sums to 100
   const head = p0 != null ? `${p0}%–${100 - p0}% possession · ${parts.length} stats` : `${parts.length} stats`;
-  return `<details class="md-fold"><summary><span>Match stats</span><small>${head}</small></summary>
+  return `<details class="md-fold"><summary><span>All match stats</span><small>${head}</small></summary>
     <div class="md-fold-body"><div class="md-stats">${parts.join("")}</div>${mdLeaders(r)}</div></details>`;
+}
+// the headline stats shown inline above the full fold — possession, xG (post-match), shots, on target — so the
+// numbers people came for are visible without a tap, while the full 16-stat table stays one tap deep.
+function mdKeyStats(r, m) {
+  if (!r?.stats) return "";
+  const s = r.stats, bars = [];
+  if (Array.isArray(s.poss)) bars.push(statBar([Math.round(s.poss[0]), Math.round(s.poss[1])], "Possession", "%"));
+  const e = S.efi?.[m.num];
+  if (e?.xg) bars.push(statBar(e.xg, "Expected goals (xG)"));
+  if (Array.isArray(s.sh)) bars.push(statBar(s.sh, "Shots"));
+  if (Array.isArray(s.sot)) bars.push(statBar(s.sot, "On target"));
+  return bars.length ? `<div class="eyebrow">Key stats</div><div class="md-stats">${bars.join("")}</div>` : "";
 }
 // "Deep analysis": FIFA Enhanced Football Intelligence (post-match) — official xG, line breaks, ball progressions,
 // pressures, phases of play, and the headline: per-player distance covered. Only shown when data/efi.json has it.
@@ -1039,40 +1051,43 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
     ? `<div class="md-score">${r?.h ?? 0}<span>–</span>${r?.a ?? 0}</div>${r?.hp != null ? `<div class="md-pens">${r.hp}–${r.ap} on penalties</div>` : ""}`
     : `<div class="md-vs">VS</div>`;
   const liveNow = st === ST.LIVE || st === ST.HT;
-  // lineups on the formation pitch — promoted above the timeline while a match is live (the XI is the headline then)
-  const xiBlock = r?.xi ? `<div class="eyebrow">${liveNow ? "Line-ups" : "Starting XI"}</div>${xiPanel(r.xi, h, a)}` : "";
   $("#matchTitle").innerHTML = `<span class="md-stage">${esc(stageL)}</span>`;
-  const _body = `
-    <div class="md-tagrow">${statusTag}
+  const isFT = st === ST.FT;
+  // every section as its own piece (each returns "" when it doesn't apply), then ordered per match state below
+  const pTop = `<div class="md-tagrow">${statusTag}
       <div class="md-actions">
         <button class="md-cal" data-cal="${id}" aria-label="Add to calendar" title="Add this match to your calendar">${CAL_SVG}</button>
         <button class="md-save ${sv ? "is-on" : ""}" data-save="${id}" aria-pressed="${sv}" aria-label="${sv ? "Remove from saved" : "Save match"}" title="${sv ? "Saved" : "Save match"}">${sv ? "★" : "☆"}</button>
       </div>
     </div>
     <div class="md-teams">${side(h, "home")}<div class="md-mid">${mid}</div>${side(a, "away")}</div>
-    ${koPath(m)}
-    ${stakesBlock(m)}
-    ${winProbBlock(m)}
-    ${liveNow ? xiBlock : ""}
-    ${r?.ev?.length ? mdTimeline(r, h.code, a.code) : (r?.gh?.length || r?.ga?.length) ? `<div class="md-goals">
+    ${koPath(m)}`;
+  const pTimeline = r?.ev?.length ? mdTimeline(r, h.code, a.code) : (r?.gh?.length || r?.ga?.length) ? `<div class="md-goals">
       <div class="md-goals-col">${(r.gh || []).map(g => `<div class="md-goal">${ICO.ball} ${esc(g)}</div>`).join("")}</div>
       <div class="md-goals-col away">${(r.ga || []).map(g => `<div class="md-goal">${esc(g)} ${ICO.ball}</div>`).join("")}</div>
-    </div>` : ""}
-    ${mdStats(r)}
-    ${mdEfi(m)}
-    ${mdFlow(r, h, a)}
-    ${mdReport(m)}
-    ${mdCommentaryShell(m)}
-    <div class="md-meta">
+    </div>` : "";
+  const pKeyStats = mdKeyStats(r, m), pStats = mdStats(r), pEfi = mdEfi(m), pFlow = mdFlow(r, h, a);
+  const pReport = mdReport(m), pComm = mdCommentaryShell(m), pWinProb = winProbBlock(m), pStakes = stakesBlock(m);
+  const pXiInline = r?.xi ? `<div class="eyebrow">${liveNow ? "Line-ups" : "Starting XI"}</div>${xiPanel(r.xi, h, a)}` : "";
+  const pXiFold = r?.xi ? `<details class="md-fold"><summary><span>Starting XI</span><small>${esc([r.xi.h?.f, r.xi.a?.f].filter(Boolean).join(" v ")) || "line-ups & formations"}</small></summary><div class="md-fold-body">${xiPanel(r.xi, h, a)}</div></details>` : "";
+  const pXiNote = (!r?.xi && st === ST.SCHED) ? `<p class="md-xi-note">Confirmed line-ups appear about an hour before kickoff.</p>` : "";
+  const pMeta = `<div class="md-meta">
       <span>${fmt(m.utc, { weekday: "long", day: "numeric", month: "long" })}</span>
       <span>${timeStr(m.utc)}</span>
       <span>${esc(m.stadium)}</span>
       <span>${esc(m.city)}</span>
       ${r?.facts?.att ? `<span>${ICO.people} ${(+r.facts.att).toLocaleString()} in</span>` : ""}
       ${r?.facts?.ref ? `<span>Referee · ${esc(r.facts.ref)}</span>` : ""}
-    </div>
-    ${liveNow || !r?.xi ? "" : `<details class="md-fold"><summary><span>Starting XI</span><small>${esc([r.xi.h?.f, r.xi.a?.f].filter(Boolean).join(" v ")) || "line-ups & formations"}</small></summary><div class="md-fold-body">${xiPanel(r.xi, h, a)}</div></details>`}
-    ${squadLinks ? `<div class="md-squads">${squadLinks}</div>` : ""}`;
+    </div>`;
+  const pSquads = squadLinks ? `<div class="md-squads">${squadLinks}</div>` : "";
+  // order by state so each opens with what you came for. Folded items (full stats, EFI, finished XI) keep an
+  // informative summary, so nothing valuable is ever fully hidden — the worst case is a one-line headline.
+  const middle = liveNow
+    ? [pTimeline, pXiInline, pComm, pKeyStats, pStats, pFlow, pEfi, pWinProb, pStakes]
+    : isFT
+    ? [pTimeline, pKeyStats, pStats, pFlow, pXiFold, pReport, pEfi, pWinProb, pStakes]
+    : [pStakes, pWinProb, pXiInline, pXiNote];   // upcoming: stakes + odds + (announced) line-ups
+  const _body = pTop + middle.join("") + pMeta + pSquads;
   const mb = $("#matchBody");
   if (reuse) paint(mb, _body);                       // live poll: morph the body in place — score/minute/timeline/stats update while expanded folds, scroll & loaded commentary survive
   else { mb.__sig = _body; mb.innerHTML = _body; }   // fresh open: one clean render (seed the signature so the first refresh morphs against it)
