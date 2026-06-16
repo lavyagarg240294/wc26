@@ -116,10 +116,13 @@ function parseCommentary(sum) {
 // Build the goals/cards/subs timeline (+ basic lineups) from a FIFA live-match object.
 function buildEvents(lv) {
   const sides = [["h", lv.HomeTeam], ["a", lv.AwayTeam]];
-  const nameById = {};
-  for (const [, t] of sides) for (const p of (t?.Players || []))
+  const nameById = {}, numById = {};
+  for (const [, t] of sides) for (const p of (t?.Players || [])) {
     nameById[p.IdPlayer] = loc(p.ShortName) || loc(p.PlayerName);
+    if (p.ShirtNumber != null) numById[p.IdPlayer] = p.ShirtNumber;   // jersey → exact client-side match (disambiguates same-surname team-mates)
+  }
   const name = id => nameById[id] || "";
+  const num = id => numById[id];
 
   const ev = [];
   for (const [side, t] of sides) {
@@ -127,11 +130,12 @@ function buildEvents(lv) {
     for (const g of (t.Goals || [])) {
       const k = g.Type === 3 ? "OG" : g.Type === 1 ? "P" : "G";   // best-effort: 3=own goal, 1=penalty
       const e = { _k: minKey(g.Minute), t: g.Minute, k, tm: side, p: name(g.IdPlayer) };
-      if (g.IdAssistPlayer) e.a = name(g.IdAssistPlayer);
+      if (num(g.IdPlayer) != null) e.n = num(g.IdPlayer);
+      if (g.IdAssistPlayer) { e.a = name(g.IdAssistPlayer); if (num(g.IdAssistPlayer) != null) e.an = num(g.IdAssistPlayer); }
       ev.push(e);
     }
     for (const b of (t.Bookings || []))
-      ev.push({ _k: minKey(b.Minute), t: b.Minute, k: b.Card === 2 ? "R" : "Y", tm: side, p: name(b.IdPlayer) });
+      ev.push({ _k: minKey(b.Minute), t: b.Minute, k: b.Card === 2 ? "R" : "Y", tm: side, p: name(b.IdPlayer), ...(num(b.IdPlayer) != null ? { n: num(b.IdPlayer) } : {}) });
     for (const s of (t.Substitutions || []))
       ev.push({ _k: minKey(s.Minute), t: s.Minute, k: "S", tm: side, on: loc(s.PlayerOnName) || name(s.IdPlayerOn), off: loc(s.PlayerOffName) || name(s.IdPlayerOff) });
   }

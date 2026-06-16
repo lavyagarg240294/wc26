@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "184";  // shown in footer; bump with the ?v= asset version
+const BUILD = "185";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -2305,9 +2305,10 @@ function tournamentStats() {
     add(gf, hc, r.h); add(ga, hc, r.a); add(gf, ac, r.a); add(ga, ac, r.h);
     if (r.a === 0) add(cs, hc); if (r.h === 0) add(cs, ac);   // clean sheets (shutouts)
     // per-keeper: credit the starting GK (pos 0 in the lineup) with the shutout / goals conceded
-    const gkOf = side => { const row = (r.xi?.[side]?.xi || []).find(p => p[2] === 0); return row ? row[1] : null; };
+    const gkOf = side => (r.xi?.[side]?.xi || []).find(p => p[2] === 0) || null;   // the lineup row [num, name, pos]
     [["h", hc, r.a], ["a", ac, r.h]].forEach(([side, code, conceded]) => {
-      const gk = gkOf(side); if (!gk || !code) return;
+      const row = gkOf(side); if (!row || !code) return;
+      const gk = resolvePlayer(row[1], code, row[0])?.name || row[1];   // resolve by jersey → the exact keeper (distinguishes same-surname GKs)
       const k = gk + "\t" + code, o = keepers[k] || (keepers[k] = { app: 0, ga: 0, cs: 0 });
       o.app++; o.ga += conceded; if (conceded === 0) o.cs++;
     });
@@ -2323,15 +2324,17 @@ function tournamentStats() {
     for (const e of (r.ev || [])) {
       const tc = e.tm === "h" ? hc : ac;
       if ((e.k === "G" || e.k === "P") && e.p) {
-        add(scorers, e.p + "\t" + tc); if (e.a) add(assists, e.a + "\t" + tc);   // own goals excluded from the Boot
+        // resolve to the full squad name using the API jersey (e.n) when present, else "out" = an outfielder (never the same-surname keeper)
+        const sc = resolvePlayer(e.p, tc, e.n, "out")?.name || e.p;
+        add(scorers, sc + "\t" + tc); if (e.a) add(assists, (resolvePlayer(e.a, tc, e.an, "out")?.name || e.a) + "\t" + tc);   // own goals excluded from the Boot
         const mn = evMin(e.t);   // fastest / latest goal of the tournament (by the player who scored it)
         if (mn >= 1) {
-          if (!rec.fastG || mn < rec.fastG.mn) rec.fastG = { name: e.p, code: tc, t: e.t, mn, mid: m.id };
-          if (!rec.lateG || mn > rec.lateG.mn) rec.lateG = { name: e.p, code: tc, t: e.t, mn, mid: m.id };
+          if (!rec.fastG || mn < rec.fastG.mn) rec.fastG = { name: sc, code: tc, t: e.t, mn, mid: m.id };
+          if (!rec.lateG || mn > rec.lateG.mn) rec.lateG = { name: sc, code: tc, t: e.t, mn, mid: m.id };
         }
       }
-      if (e.k === "Y") { add(yel, tc); totCards++; if (e.p) add(pyel, e.p + "\t" + tc); }
-      else if (e.k === "R") { add(red, tc); totCards++; if (e.p) add(pred, e.p + "\t" + tc); }
+      if (e.k === "Y") { add(yel, tc); totCards++; if (e.p) add(pyel, (resolvePlayer(e.p, tc, e.n)?.name || e.p) + "\t" + tc); }
+      else if (e.k === "R") { add(red, tc); totCards++; if (e.p) add(pred, (resolvePlayer(e.p, tc, e.n)?.name || e.p) + "\t" + tc); }
     }
     if (r.stats?.poss) { add(poss, hc, r.stats.poss[0]); add(possN, hc); add(poss, ac, r.stats.poss[1]); add(possN, ac); }
     if (r.stats?.sot) { add(sot, hc, r.stats.sot[0]); add(sotN, hc); add(sot, ac, r.stats.sot[1]); add(sotN, ac); }
@@ -2755,7 +2758,7 @@ function resolvePlayer(name, code, num, pos) {
       const sur = nrm(toks[L - 1]);
       let cand = sq.filter(p => { const t = p.name.split(/\s+/), n = t.length; return nrm(t[n - 1]) === sur || (n > 1 && nrm(t[n - 2] + t[n - 1]) === sur); });
       if (cand.length > 1 && L > 1) { const g = nrm(toks.slice(0, -1).join("")); const byG = cand.filter(p => { const f = nrm(p.name.split(/\s+/)[0]); return f === g || f[0] === g[0]; }); if (byG.length) cand = byG; }
-      if (cand.length > 1 && pos) { const byPos = cand.filter(p => p.pos === pos); if (byPos.length) cand = byPos; }
+      if (cand.length > 1 && pos) { const byPos = pos === "out" ? cand.filter(p => p.pos !== "GK") : cand.filter(p => p.pos === pos); if (byPos.length) cand = byPos; }   // "out" = outfielder (a scorer is never the same-surname keeper)
       if (cand.length === 1) hit = cand[0];
       else if (!cand.length && L === 1) { const bf = sq.filter(p => nrm(p.name.split(/\s+/)[0]) === nrm(toks[0])); if (bf.length === 1) hit = bf[0]; }
       if (!hit && L > 1) {   // same set of name tokens, any order — handles reversed "SURNAME-First" photo filenames
