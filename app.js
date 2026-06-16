@@ -5,7 +5,7 @@
 /* ---------------- state ---------------- */
 const S = {
   matches: [], teams: {}, results: { matches: {} }, details: { matches: {} }, matchData: {},
-  reports: { matches: {} }, commentary: {}, buzz: null,   // reports.json, lazy per-match commentary, and buzz.json (fan reactions + headlines)
+  reports: { matches: {} }, commentary: {}, buzz: null, efi: {},   // reports.json, lazy commentary, buzz.json, and efi.json (FIFA EFI deep analysis)
   tz: localStorage.getItem("wc26.tz") || "auto",
   fav: localStorage.getItem("wc26.fav") || null,
   view: null,   // set by boot's nav() — null until then so the pre-first-paint refreshResults() doesn't double-render
@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "201";  // shown in footer; bump with the ?v= asset version
+const BUILD = "202";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -131,7 +131,7 @@ const pName = (s, code) => {
   return out;
 };
 // the dense match timeline uses just the surname (football convention) — drop a Jr/Filho-style suffix first.
-const tlName = (s, code) => { const t = pName(s, code).trim().split(/\s+/).filter(w => !/^(jr|jnr|junior|filho|neto|ii|iii)\.?$/i.test(w)); return t[t.length - 1] || _titleCase(s); };
+const tlName = (s, code) => { const t = pName(s, code).trim().split(/\s+/).filter(w => !/^(jr|jnr|junior|filho|neto|ii|iii)\.?$/i.test(_deburr(w))); return t[t.length - 1] || _titleCase(s); };
 
 // real SVG flags (self-hosted) — emoji regional-indicator flags don't render on Windows, where the
 // whole flag-heavy UI would degrade to "BR"/"US" letter boxes. alt falls back to the code if a file 404s.
@@ -767,6 +767,38 @@ function mdStats(r) {
   return `<details class="md-fold"><summary><span>Match stats</span><small>${head}</small></summary>
     <div class="md-fold-body"><div class="md-stats">${parts.join("")}</div>${mdLeaders(r)}</div></details>`;
 }
+// "Deep analysis": FIFA Enhanced Football Intelligence (post-match) — official xG, line breaks, ball progressions,
+// pressures, phases of play, and the headline: per-player distance covered. Only shown when data/efi.json has it.
+function mdEfi(m) {
+  const e = S.efi?.[m.num]; if (!e) return "";
+  const h = slotInfo(m, "home"), a = slotInfo(m, "away");
+  const hc = (h.code && S.teams[h.code]?.c1) || "#0BA360", ac = (a.code && S.teams[a.code]?.c1) || "#5B6B7A";
+  const sb = [];
+  if (e.xg) sb.push(statBar(e.xg, "Expected goals (xG)"));
+  if (e.shots) sb.push(statBar([e.shots[0], e.shots[2]], "Attempts at goal"));
+  if (e.poss && e.possContest != null) sb.push(statBar(e.poss, "Possession", "%"));
+  if (e.lineBreaks) sb.push(statBar(e.lineBreaks, "Completed line breaks"));
+  if (e.ballProg) sb.push(statBar(e.ballProg, "Ball progressions"));
+  if (e.pressures) sb.push(statBar(e.pressures, "Defensive pressures"));
+  const phaseKeys = ["Build Up Unopposed", "Progression", "Final Third", "Attacking Transition"];
+  const phaseBars = phaseKeys.filter(k => e.phasesIn?.[k]).map(k => statBar(e.phasesIn[k], k, "%")).join("");
+  const players = [...(e.players?.home || []).map(p => ({ ...p, c: hc, code: h.code })), ...(e.players?.away || []).map(p => ({ ...p, c: ac, code: a.code }))]
+    .filter(p => p.km).sort((x, y) => y.km - x.km);
+  const maxKm = players[0]?.km || 12;
+  const dist = players.length ? `<div class="efi-sub">Distance covered <small>km, both teams</small></div>
+    <div class="efi-dist">${players.slice(0, 14).map(p => `<div class="efi-prow">
+      <span class="efi-pn">${esc(tlName(p.name, p.code))}</span>
+      <span class="efi-pbar"><i style="width:${Math.max(5, Math.round(p.km / maxKm * 100))}%;background:${p.c}"></i></span>
+      <span class="efi-pv">${p.km.toFixed(1)}</span></div>`).join("")}</div>` : "";
+  if (!sb.length && !dist) return "";
+  return `<details class="md-fold"><summary><span>Deep analysis</span><small>FIFA EFI · post-match</small></summary>
+    <div class="md-fold-body">
+      ${sb.length ? `<div class="md-stats">${sb.join("")}</div>` : ""}
+      ${phaseBars ? `<div class="efi-sub">Phases of play <small>in possession</small></div><div class="md-stats">${phaseBars}</div>` : ""}
+      ${dist}
+      <p class="efi-credit">Source: FIFA Enhanced Football Intelligence, published after the match.</p>
+    </div></details>`;
+}
 // per-team standout performers (top shooter / passer / defender / keeper) — names are display-only
 function mdLeaders(r) {
   if (!r?.lead?.length) return "";
@@ -1017,6 +1049,7 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
       <div class="md-goals-col away">${(r.ga || []).map(g => `<div class="md-goal">${esc(g)} ${ICO.ball}</div>`).join("")}</div>
     </div>` : ""}
     ${mdStats(r)}
+    ${mdEfi(m)}
     ${mdFlow(r, h, a)}
     ${mdReport(m)}
     ${mdCommentaryShell(m)}
@@ -2482,8 +2515,22 @@ function fifaRankingPanel() {
       <button class="rk-fbtn is-on" data-rkf="all">All teams · ${rk.length}</button>
       <button class="rk-fbtn" data-rkf="q">World Cup · ${qCount}</button>
     </div>
+    <input class="team-search rk-search" id="rkSearch" type="search" placeholder="Search teams…" autocomplete="off" autocapitalize="off" spellcheck="false">
     <div class="lead-card rk-list" id="rkList">${rk.map(row).join("")}</div>
     <p class="sim-ko-hint">Source: FIFA / Coca-Cola Men's World Ranking · the <b>WC</b> badge marks the 48 finalists · tap one for its page.</p>`;
+}
+// wire the ranking panel's filter pills + search — called both on render AND after the lazy first-click build,
+// so the World-Cup pill and the search work whichever way the panel came into the DOM
+function wireRankings(scope) {
+  $$(".rk-fbtn", scope).forEach(b => b.onclick = () => {
+    $("#rkList", scope)?.classList.toggle("q-only", b.dataset.rkf === "q");
+    $$(".rk-fbtn", scope).forEach(x => x.classList.toggle("is-on", x === b));
+  });
+  const s = $("#rkSearch", scope);
+  if (s) s.oninput = () => {
+    const q = s.value.trim().toLowerCase();
+    $$("#rkList .rk-row", scope).forEach(r => r.classList.toggle("rk-hide", !!q && !(r.querySelector(".rk-name")?.textContent || "").toLowerCase().includes(q)));
+  };
 }
 
 function renderStats() {
@@ -2588,14 +2635,10 @@ function renderStats() {
     const k = statsTab = b.dataset.stat;
     $$(".substat", el).forEach(x => x.classList.toggle("is-on", x.dataset.stat === k));
     const panel = $(`.substat-panel[data-panel="${k}"]`, el);
-    if (k === "rankings" && panel && !panel.firstChild) panel.innerHTML = fifaRankingPanel();   // the 211-row panel is built only on first view
+    if (k === "rankings" && panel && !panel.firstChild) { panel.innerHTML = fifaRankingPanel(); wireRankings(panel); }   // built lazily on first view → wire its pills + search now
     $$(".substat-panel", el).forEach(p => p.hidden = p.dataset.panel !== k);
   });
-  // FIFA-ranking filter (All / World Cup) — a CSS class toggle, no re-render
-  $$(".rk-fbtn", el).forEach(b => b.onclick = () => {
-    $("#rkList", el)?.classList.toggle("q-only", b.dataset.rkf === "q");
-    $$(".rk-fbtn", el).forEach(x => x.classList.toggle("is-on", x === b));
-  });
+  wireRankings(el);   // also wire it when Rankings is the active tab on (re-)render
 }
 
 /* ---------------- match report + live commentary (rendered inside the match popup) ---------------- */
@@ -2668,14 +2711,11 @@ function renderPulse() {
         <span class="pl-head-t">${esc(hd.title)}</span><span class="pl-head-s">${esc(hd.src || "")} ↗</span></a>`).join("")}</div>` : "";
   const stories = (b && b.storylines) || [];
   const storyHTML = stories.length ? `<div class="pl-stories">${ICO.spark}<div class="pl-stories-in"><div class="eyebrow">The storylines</div><ul>${stories.map(s => `<li>${esc(s)}</li>`).join("")}</ul></div></div>` : "";
-  const trend = ((b && b.trending) || []).filter(t => S.teams[t.code]);
-  const trendHTML = trend.length ? `<div class="pl-trend"><div class="eyebrow">Trending</div><div class="pl-chips">${trend.map(t =>
-    `<button class="pl-chip" data-squad="${t.code}"><span class="fl">${flag(t.code)}</span>${esc(S.teams[t.code].name)}</button>`).join("")}</div></div>` : "";
-  if (!blocks && !headHTML && !storyHTML && !trendHTML) {
+  if (!blocks && !headHTML && !storyHTML) {
     paint(el, intro + `<div class="pulse-empty">${ICO.spark}<p>Fan reactions and the day's headlines gather here as matches play. Check back once the action starts.</p></div>`);
     return;
   }
-  paint(el, intro + storyHTML + trendHTML +
+  paint(el, intro + storyHTML +
     (blocks ? `<div class="eyebrow">Loudest right now</div>${blocks}` : "") +
     headHTML +
     `<p class="pulse-foot">Gathered automatically from public match threads and headlines, each linking out to its source. Fans' and reporters' views, not ours.</p>`);
@@ -2683,6 +2723,11 @@ function renderPulse() {
 async function loadBuzz() {
   try { S.buzz = await (await fetch("data/buzz.json?t=" + Date.now(), { cache: "no-store" })).json(); } catch { /* not published yet — keep what we have */ }
   if (S.view === "pulse") renderPulse();
+}
+// FIFA EFI deep-analysis data (post-match). If the currently-open match popup just gained EFI, re-render it.
+async function loadEfi() {
+  try { S.efi = (await (await fetch("data/efi.json?t=" + Date.now(), { cache: "no-store" })).json()).matches || {}; } catch { /* not published yet */ }
+  const md = $("#matchDialog"); if (md?.open && md.dataset.openMid) openMatch(md.dataset.openMid, true);
 }
 
 /* ---------------- navigation ---------------- */
@@ -3187,6 +3232,7 @@ async function boot() {
   await Promise.race([refreshResults(), new Promise(r => setTimeout(r, 3500))]);
   nav(initView);
   loadBuzz();   // fan reactions + headlines (data/buzz.json); refreshed on the poll below
+  loadEfi();    // FIFA EFI deep-analysis (data/efi.json), post-match
   addEventListener("hashchange", () => { const v = HASH_VIEW[location.hash.slice(1)]; if (v && v !== S.view) nav(v); });  // a shared #tab link opened in-session / back-forward
   const bl = $("#bootLoading"); if (bl) { bl.classList.add("gone"); setTimeout(() => bl.remove(), 320); }   // first view rendered → reveal
   // a shared match link (?match=<id>, e.g. from a share-card stub) opens that match
@@ -3196,6 +3242,7 @@ async function boot() {
     setTimeout(() => openMatch(mq), 350);
   }
   setInterval(() => { refreshResults(); refreshOpenCommentary(); loadBuzz(); }, 60 * 1000); // fresh scores + live commentary + buzz every 60s (initial load already done pre-paint)
+  setInterval(loadEfi, 5 * 60 * 1000);   // EFI is post-match — refresh every 5 min is plenty
   checkKickoffAlert();
   setInterval(checkKickoffAlert, 60 * 1000); // fire a kickoff reminder for the favourite team (opt-in)
   $("#updatePill").onclick = hardRefresh;
