@@ -33,7 +33,7 @@
 <meta name="apple-mobile-web-app-title" content="World Cup 26">
 <meta name="application-name" content="World Cup 26">
 <link rel="stylesheet" href="assets/fonts.css?v=112">
-<link rel="stylesheet" href="styles.css?v=190">
+<link rel="stylesheet" href="styles.css?v=191">
 <link rel="icon" href="assets/mark.svg">
 <link rel="icon" type="image/png" href="assets/icon-32.png" sizes="32x32">
 </head>
@@ -170,7 +170,10 @@
 <!-- Global search -->
 <dialog id="searchDialog" class="sheet" aria-label="Search">
   <div class="sheet-head"><h3>Search</h3><button class="sheet-x" data-close aria-label="Close">✕</button></div>
-  <input class="team-search" id="searchInput" type="search" placeholder="Teams, players, matches…" autocomplete="off" autocapitalize="off" spellcheck="false">
+  <div class="search-field">
+    <input class="team-search" id="searchInput" type="search" placeholder="Teams, players, matches…" aria-label="Search teams, players and matches" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <span class="search-roll" id="searchRoll" aria-hidden="true">Try <b>Brazil</b></span>
+  </div>
   <div class="sheet-body" id="searchResults"></div>
 </dialog>
 
@@ -299,6 +302,6 @@
 <canvas id="confetti" aria-hidden="true"></canvas>
 <audio id="bgm" preload="none"></audio>
 
-<script src="app.js?v=190"></script>
+<script src="app.js?v=191"></script>
 </body>
 </html>

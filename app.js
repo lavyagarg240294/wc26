@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "190";  // shown in footer; bump with the ?v= asset version
+const BUILD = "191";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1573,10 +1573,30 @@ function buildSearchIndex() {
 let compareSeed = null;   // when set, the search overlay is in "pick a player to compare" mode
 function openSearch() { compareSeed = null; openSearchOverlay(); }
 function openCompareSearch(seed) { compareSeed = seed; openSearchOverlay(); }
+// a gentle roll of example queries that stands in for a static placeholder on the main search
+const SEARCH_ROLL = ["Brazil", "Mbappé", "Miami", "Argentina", "Mexico", "Spain", "Senegal", "Boston"];
+let _rollTimer = null, _rollIdx = 0;
+function stopSearchRoll() { if (_rollTimer) { clearInterval(_rollTimer); _rollTimer = null; } }
+function startSearchRoll() {
+  const el = $("#searchRoll"); if (!el) return;
+  stopSearchRoll(); _rollIdx = 0;
+  const b = el.querySelector("b"); if (b) b.textContent = SEARCH_ROLL[0];
+  el.classList.remove("is-hidden", "swap");
+  if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;   // one static suggestion, no cycling
+  _rollTimer = setInterval(() => {
+    if ($("#searchInput")?.value) return;          // hold while there's a query in the box
+    el.classList.add("swap");                       // fade + lift the current term out…
+    setTimeout(() => { _rollIdx = (_rollIdx + 1) % SEARCH_ROLL.length;
+      const t = el.querySelector("b"); if (t) t.textContent = SEARCH_ROLL[_rollIdx];
+      el.classList.remove("swap"); }, 280);          // …then settle the next one in
+  }, 2600);
+}
 function openSearchOverlay() {
   SIDX = buildSearchIndex();
-  const inp = $("#searchInput");
-  inp.value = ""; inp.placeholder = compareSeed ? `Compare ${pName(compareSeed.name, compareSeed.code)} with…` : "Teams, players, matches…";
+  const inp = $("#searchInput"), roll = $("#searchRoll");
+  inp.value = "";
+  if (compareSeed) { inp.placeholder = `Compare ${pName(compareSeed.name, compareSeed.code)} with…`; stopSearchRoll(); if (roll) roll.classList.add("is-hidden"); }
+  else { inp.placeholder = ""; startSearchRoll(); }
   renderSearch("");
   showSheet($("#searchDialog"));
   $("#searchResults").onclick = e => {              // close, then let the doc handler open the target…
@@ -1589,7 +1609,7 @@ function openSearchOverlay() {
 function renderSearch(raw) {
   const q = raw.trim().toLowerCase(), res = $("#searchResults"), cmp = !!compareSeed;
   const tname = c => esc(S.teams[c]?.name || c);
-  if (!q) { res.innerHTML = `<div class="sr-hint">${cmp ? `Pick a player to compare with <b>${esc(pName(compareSeed.name, compareSeed.code))}</b>.` : "Try “Brazil”, “Mbappé”, or “Miami”."}</div>`; return; }
+  if (!q) { res.innerHTML = ""; return; }   // empty state: the placeholder (rolling suggestions, or "Compare X with…") says it all
   const has = s => (s || "").toLowerCase().includes(q);
   // relevance: a word that *starts* with the query beats a mid-word hit (so "mess" → Messi, not a club coincidence)
   const rank = s => { const n = (s || "").toLowerCase(); return n.startsWith(q) ? 0 : n.split(/\s+/).some(w => w.startsWith(q)) ? 1 : 2; };
@@ -2947,7 +2967,7 @@ async function boot() {
     }
   }
   $("#searchChip").onclick = openSearch;
-  $("#searchInput").oninput = e => renderSearch(e.target.value);
+  $("#searchInput").oninput = e => { renderSearch(e.target.value); const r = $("#searchRoll"); if (r && !compareSeed) r.classList.toggle("is-hidden", !!e.target.value); };
   addEventListener("keydown", e => {   // ⌘K / Ctrl-K anywhere, or "/" when not already typing
     if ((e.key === "k" || e.key === "K") && (e.metaKey || e.ctrlKey)) { e.preventDefault(); openSearch(); }
     else if (e.key === "/" && !$("#searchDialog").open && !/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || "")) { e.preventDefault(); openSearch(); }
@@ -3001,7 +3021,7 @@ async function boot() {
   initMusic();
   $$("[data-close]").forEach(b => b.onclick = () => b.closest("dialog").close());
   $$("dialog").forEach(d => d.onclick = e => { if (e.target === d) d.close(); });
-  $("#searchDialog").addEventListener("close", () => { compareSeed = null; });   // never leave compare mode armed after the overlay closes
+  $("#searchDialog").addEventListener("close", () => { compareSeed = null; stopSearchRoll(); });   // never leave compare mode armed (or a timer running) after the overlay closes
   addEventListener("resize", () => {
     moveInk(); setChromeVars();
     if (S.view === "sim") layoutBracket($("#view-sim"));

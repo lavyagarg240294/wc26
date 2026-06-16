@@ -1168,6 +1168,13 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .team-search{width:calc(100% - 40px);margin:0 20px 10px;padding:11px 14px;border:1px solid var(--line);border-radius:12px;font:inherit;font-size:14px;background:var(--paper);color:var(--ink);-webkit-text-fill-color:var(--ink);caret-color:var(--acc-text);outline:none}
 .team-search::placeholder{color:var(--ink-soft);-webkit-text-fill-color:var(--ink-soft);opacity:1}
 .team-search:focus{border-color:var(--acc-text)}
+/* search field with a rolling suggestion that doubles as the placeholder */
+.search-field{position:relative;margin:0 20px 10px}
+.search-field .team-search{width:100%;margin:0}
+.search-roll{position:absolute;left:15px;top:50%;transform:translateY(-50%);font-size:14px;line-height:1;color:var(--ink-soft);pointer-events:none;white-space:nowrap;max-width:calc(100% - 46px);overflow:hidden;transition:opacity .25s}
+.search-roll b{font-weight:600;color:var(--ink);display:inline-block;transition:opacity .28s ease,transform .28s ease}
+.search-roll.swap b{opacity:0;transform:translateY(-7px)}
+.search-roll.is-hidden{opacity:0}
 /* global search results */
 .sr-hint{color:var(--ink-soft);font-size:13px;text-align:center;padding:24px 16px}
 .sr-label{font-family:var(--disp);font-weight:800;font-stretch:110%;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);padding:11px 8px 3px}
@@ -1178,7 +1185,8 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .sr-name{display:flex;flex-direction:column;gap:1px;min-width:0;line-height:1.25;font-weight:600;font-size:14px}
 .sr-name small{font-weight:500;font-size:11px;color:var(--ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sr-name i{color:var(--ink-soft);font-style:normal;font-weight:500;margin:0 3px}
-.sr-vs{display:inline-flex;font-size:15px;flex:0 0 auto;letter-spacing:-4px;width:34px;justify-content:center}
+.sr-vs{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;flex:0 0 30px}
+.sr-vs .flagimg{width:24px;height:16px}
 .team-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px}
 .team-opt{display:flex;align-items:center;gap:9px;padding:11px 10px;border-radius:12px;font-size:13.5px;font-weight:600;text-align:left}
 .team-opt:hover{background:var(--paper)}
