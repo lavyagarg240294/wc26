@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "205";  // shown in footer; bump with the ?v= asset version
+const BUILD = "206";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1236,14 +1236,13 @@ function renderMatches() {
   }
   const sb = $("[data-saved]", el); if (sb) sb.onclick = () => { f.saved = !f.saved; renderMatches(); };
   const scb = $("[data-cal-saved]", el); if (scb) scb.onclick = () => downloadICS(S.matches.filter(m => isSaved(m.id)).sort((a, b) => a.utc.localeCompare(b.utc)), "My World Cup 2026 matches");
-  // "Earlier results" expands UPWARD (CSS column-reverse): the body renders above the row, so opening it would
-  // shove the row — and the viewport — down by the body's height. Compensate so the row stays put and the older
-  // matches reveal above it (the latest is right against the row; scroll up for more). Undo on collapse.
+  // "Earlier results" lists oldest→newest, so on open jump to the most recent finished match (the last card,
+  // just above the upcoming fixtures): the latest result is what you want first, and you scroll up for older.
   const ear = $("details.earlier", el);
   if (ear) ear.ontoggle = () => {
-    const h = $(".ear-body", ear)?.offsetHeight || 0;
-    if (ear.open) { ear._anchorH = h; scrollBy(0, h); }
-    else { scrollBy(0, -(ear._anchorH || 0)); ear._anchorH = 0; }
+    if (!ear.open) return;
+    const cards = $$(".ear-body .mcard-wrap", ear);
+    cards[cards.length - 1]?.scrollIntoView({ block: "end", behavior: "smooth" });
   };
   requestAnimationFrame(updateJumpNow);
 }
