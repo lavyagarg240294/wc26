@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "188";  // shown in footer; bump with the ?v= asset version
+const BUILD = "189";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1064,7 +1064,7 @@ function heroBlock(heroM, isLive) {
   const h = slotInfo(heroM, "home"), a = slotInfo(heroM, "away"), r = res(heroM);
   return `<div class="hero" data-mid="${heroM.id}" role="button" tabindex="0" aria-label="Match details">
     <div class="hero-tag ${isLive ? "is-live" : ""}">
-      ${isLive ? `${ballSVG("live-ball")} Live now` : `${isFavMatch(heroM) ? "Your team · " : ""}Next kickoff`}<span style="color:var(--ink-soft);font-weight:600">, ${esc(heroM.group ? "Group " + heroM.group : heroM.round)}</span>
+      ${isLive ? `${ballSVG("live-ball")} Live now` : `${isFavMatch(heroM) ? "Your team · " : ""}Next kickoff`}<span style="color:var(--ink-soft);font-weight:600"> · ${esc(heroM.group ? "Group " + heroM.group : heroM.round)}</span>
       <span class="hero-actions">
         <span class="hero-go">Details ›</span>
       </span>

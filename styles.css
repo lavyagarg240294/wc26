@@ -227,7 +227,12 @@ b{font-weight:600}
   transition:transform .18s,box-shadow .25s,border-color .2s;
 }
 .hero:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--acc1) 40%,var(--line));box-shadow:0 10px 30px -12px rgba(13,27,42,.25)}
+.hero:active{transform:scale(.992);transition-duration:.08s}
 .hero:focus-visible{outline:2px solid var(--acc1);outline-offset:2px}
+/* a slow, subtle sheen sweeps the hero card every few seconds — premium gloss, not a flash */
+.hero::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:1;background:linear-gradient(100deg,transparent 41%,color-mix(in srgb,#fff 22%,transparent) 50%,transparent 59%);transform:translateX(-140%)}
+@media (prefers-reduced-motion:no-preference){.hero::after{animation:heroSheen 8s 1.6s ease-in-out infinite}}
+@keyframes heroSheen{0%,87%{transform:translateX(-140%)}97%,100%{transform:translateX(140%)}}
 .hero-actions{margin-left:auto;display:inline-flex;align-items:center;gap:6px;flex-shrink:0}
 .hero-go{z-index:2;white-space:nowrap;
   font-family:var(--disp);font-weight:700;font-size:11px;letter-spacing:.08em;text-transform:uppercase;
@@ -306,6 +311,7 @@ b{font-weight:600}
 }
 @keyframes rise{from{opacity:0;transform:translateY(14px)}}
 .mcard:hover{transform:translateY(-2px);box-shadow:0 4px 6px rgba(13,27,42,.06),0 14px 34px -10px rgba(13,27,42,.16);border-color:color-mix(in srgb,var(--acc1) 40%,var(--line))}
+.mcard:active{transform:scale(.99);transition-duration:.08s}
 .mcard.is-fav{border-left:5px solid var(--acc1);
   background:linear-gradient(90deg,color-mix(in srgb,var(--acc1) 5%,var(--card)),var(--card) 40%)}
 .mcard-row{display:grid;grid-template-columns:64px 1fr auto;gap:14px;align-items:center}
@@ -359,6 +365,7 @@ b{font-weight:600}
 .pick-cta .big{font-family:var(--disp);font-weight:800;font-stretch:110%;font-size:20px}
 .btn{font-family:var(--disp);font-weight:700;font-stretch:108%;letter-spacing:.04em;font-size:13.5px;text-transform:uppercase;background:var(--acc1);color:#fff;padding:11px 22px;border-radius:99px;transition:transform .15s,box-shadow .2s,background .5s}
 .btn:hover{transform:translateY(-1px);box-shadow:0 8px 20px -6px color-mix(in srgb,var(--acc1) 60%,transparent)}
+.btn:active{transform:scale(.96);transition-duration:.08s}
 .btn.ghost{background:transparent;color:var(--ink);border:1.5px solid var(--line)}
 .btn.ghost:hover{border-color:var(--acc-text);box-shadow:none}
 .b-sm{display:none}   /* short button labels: shown only on phones (see mobile block) */
