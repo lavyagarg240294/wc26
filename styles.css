@@ -968,11 +968,12 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .rk-out .rk-name{font-weight:500}
 .rk-flag{flex:0 0 auto;width:26px;height:17px;object-fit:cover;border-radius:2px;box-shadow:0 0 0 1px color-mix(in srgb,var(--line) 70%,transparent);background:var(--line)}
 .rk-conf{flex:0 0 auto;font-family:var(--mono);font-size:9.5px;font-weight:700;letter-spacing:.02em;color:var(--ink-soft);background:color-mix(in srgb,var(--line) 55%,transparent);border-radius:5px;padding:2px 5px}
-.rk-filter{display:flex;flex-wrap:wrap;gap:8px;margin:0 2px 11px}
+.rk-filter{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 11px}
 .rk-fbtn{font-family:inherit;font-size:12px;font-weight:700;padding:7px 14px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--ink-soft);cursor:pointer;transition:background .15s,color .15s}
 .rk-fbtn.is-on{background:var(--acc1);color:#fff;border-color:transparent}
 .rk-list.q-only .rk-nq{display:none}
-.rk-search{width:100%;margin:0 0 11px}
+/* override .team-search's centring margins (defined later in the sheet) so the box spans the full width from the left edge */
+.team-search.rk-search{width:100%;margin:0 0 11px}
 .rk-list .rk-row.rk-hide{display:none}
 /* ---- match-popup report + commentary ---- */
 .md-report{background:color-mix(in srgb,var(--ink) 3%,var(--card));border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin:0 0 6px}

@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "206";  // shown in footer; bump with the ?v= asset version
+const BUILD = "207";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -2525,15 +2525,18 @@ function fifaRankingPanel() {
     <span class="rk-name">${esc(t.name)}</span>
     <span class="rk-conf" title="${CONF_FULL[t.conf] || ""}">${esc(t.conf || "")}</span>
     ${t.q ? `<span class="rk-q" title="Qualified for the 2026 World Cup">WC</span>` : ""}</div>`;
-  // a pill per confederation that actually appears in the ranking, in the order the game tends to list them
-  const confPills = ["UEFA", "CONMEBOL", "CONCACAF", "CAF", "AFC", "OFC"]
+  // confederations present in the ranking, folded into one dropdown pill (rather than a row of six)
+  const confOpts = ["UEFA", "CONMEBOL", "CONCACAF", "CAF", "AFC", "OFC"]
     .filter(c => rk.some(t => t.conf === c))
-    .map(c => `<button class="rk-fbtn" data-rkf="${c}" title="${CONF_FULL[c] || ""}">${c}</button>`).join("");
+    .map(c => `<button type="button" class="tsel-opt" role="option" aria-selected="false" data-rkf="${c}"><span class="tsel-opt-name">${c} · ${esc(CONF_FULL[c] || "")}</span></button>`).join("");
   return `<div class="eyebrow">FIFA World Ranking · all ${rk.length} teams</div>
     <div class="rk-filter">
       <button class="rk-fbtn is-on" data-rkf="all">All teams · ${rk.length}</button>
       <button class="rk-fbtn" data-rkf="q">World Cup · ${qCount}</button>
-      ${confPills}
+      <div class="tsel" id="rkConfWrap">
+        <button type="button" class="fsel tsel-btn" id="rkConfBtn" aria-haspopup="listbox" aria-expanded="false" aria-label="Filter by confederation"><span class="tsel-cur">Confederation</span></button>
+        <div class="tsel-pop" id="rkConfPop" hidden><div class="tsel-list" role="listbox" aria-label="Confederation">${confOpts}</div></div>
+      </div>
     </div>
     <input class="team-search rk-search" id="rkSearch" type="search" placeholder="Search teams…" autocomplete="off" autocapitalize="off" spellcheck="false">
     <div class="lead-card rk-list" id="rkList">${rk.map(row).join("")}</div>
@@ -2553,12 +2556,28 @@ function wireRankings(scope) {
       r.classList.toggle("rk-hide", !(okMode && okSearch));
     });
   };
+  const confWrap = $("#rkConfWrap", scope), confBtn = $("#rkConfBtn", scope), confCur = $(".tsel-cur", confWrap);
+  const setConf = (label, on) => { if (confCur) confCur.textContent = label; confWrap?.classList.toggle("is-on", on); };
+  // All / World Cup pills — picking one clears any confederation selection
   $$(".rk-fbtn", scope).forEach(b => b.onclick = () => {
     mode = b.dataset.rkf;
     $$(".rk-fbtn", scope).forEach(x => x.classList.toggle("is-on", x === b));
-    apply();
+    $$("#rkConfPop .tsel-opt", scope).forEach(x => { x.classList.remove("is-sel"); x.setAttribute("aria-selected", "false"); });
+    setConf("Confederation", false); closeRkConfPop(); apply();
+  });
+  // confederation dropdown: open/close + pick
+  if (confBtn) confBtn.onclick = () => { const p = $("#rkConfPop", scope); if (!p) return; if (p.hidden) { p.hidden = false; confBtn.setAttribute("aria-expanded", "true"); } else closeRkConfPop(); };
+  $$("#rkConfPop .tsel-opt", scope).forEach(o => o.onclick = () => {
+    mode = o.dataset.rkf;
+    $$(".rk-fbtn", scope).forEach(x => x.classList.remove("is-on"));   // clear All / World Cup
+    $$("#rkConfPop .tsel-opt", scope).forEach(x => { x.classList.toggle("is-sel", x === o); x.setAttribute("aria-selected", String(x === o)); });
+    setConf(o.dataset.rkf, true); closeRkConfPop(); apply();
   });
   if (search) search.oninput = apply;
+}
+function closeRkConfPop() {
+  const p = $("#rkConfPop"); if (!p || p.hidden) return;
+  p.hidden = true; $("#rkConfBtn")?.setAttribute("aria-expanded", "false");
 }
 
 function renderStats() {
@@ -3191,7 +3210,8 @@ async function boot() {
   addEventListener("scroll", () => { if (S.view === "matches") requestAnimationFrame(updateJumpNow); }, { passive: true });
   addEventListener("click", e => { if (!e.target.closest("#teamSelWrap")) closeTeamSel(); });   // close team dropdown on outside click
   addEventListener("click", e => { if (!e.target.closest("#stageSelWrap")) closeStagePop(); });  // …and the stage dropdown
-  addEventListener("keydown", e => { if (e.key === "Escape") closeTeamSel(); });
+  addEventListener("click", e => { if (!e.target.closest("#rkConfWrap")) closeRkConfPop(); });   // …and the rankings confederation dropdown
+  addEventListener("keydown", e => { if (e.key === "Escape") { closeTeamSel(); closeRkConfPop(); } });
   initMusic();
   $$("[data-close]").forEach(b => b.onclick = () => b.closest("dialog").close());
   $$("dialog").forEach(d => d.onclick = e => { if (e.target === d) d.close(); });
