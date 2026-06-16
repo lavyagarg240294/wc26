@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "199";  // shown in footer; bump with the ?v= asset version
+const BUILD = "200";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -2180,6 +2180,7 @@ function renderSim() {
   // preserve scroll + which step sections are expanded so a re-render (a pick, photos loading, a poll) never
   // bounces the user back to the top or collapses what they were working on
   const openSteps = new Set([...el.querySelectorAll(".sim-step[open]")].map(d => d.id));
+  const firstRender = !el.querySelector(".sim-step");   // first paint → open step 3 (the bracket) so it's seen, not buried
   const keepY = window.scrollY, keepBX = el.querySelector(".bracket-scroll")?.scrollLeft || 0;
   // seed a valid default set of thirds so the knockout bracket is visible & tappable from the first visit
   // (done here, not at boot, so live standings are already loaded — order reflects real results)
@@ -2232,25 +2233,27 @@ function renderSim() {
 
   // how the prediction is tracking against real results (only once something has been played)
   // "Your call vs reality" scorecard removed from the UI for now (unclear to users); simScore() kept.
-  // each step is a collapsible section, collapsed by default, so a user landing here sees all three steps at a
-  // glance (and the bracket isn't buried at the bottom). Open state is preserved across re-renders (see top).
-  const step = (id, head, body) => `<details class="sim-step" id="${id}"${openSteps.has(id) ? " open" : ""}><summary class="eyebrow">${head}<span class="sim-chev" aria-hidden="true">▾</span></summary><div class="sim-step-body">${body}</div></details>`;
+  // each step is a collapsible section. On first paint step 3 (the bracket — the fun part) is open so it's seen
+  // straight away; steps 1 & 2 stay collapsed. After that the user's own open/closed state is preserved across
+  // re-renders. The intro + actions sit at the BOTTOM so the steps and bracket get the top of the page.
+  const stepOpen = id => firstRender ? id === "simStep3" : openSteps.has(id);
+  const step = (id, head, body) => `<details class="sim-step" id="${id}"${stepOpen(id) ? " open" : ""}><summary class="eyebrow">${head}<span class="sim-chev" aria-hidden="true">▾</span></summary><div class="sim-step-body">${body}</div></details>`;
   el.innerHTML = `
-    <div class="sim-intro">
+    ${champTeaser}
+    ${step("simStep1", `<span class="step-n">1</span> Order the groups: top two go through`, `<div class="gwrap">${GROUPS.map(groupCard).join("")}</div>`)}
+    ${step("simStep2", `<span class="step-n">2</span> Best third-placed teams <span class="tcount">${S.sim.thirds.length}/8</span>`, `<div class="thirds">${thirdChips}</div>`)}
+    ${step("simStep3", `<span class="step-n">3</span> Tap winners to crown your champion ${TROPHY}`, `${thirdsDone && alloc !== "impossible" ? `<p class="sim-ko-hint">${ICO.tap} Tap a team in any tie to send them through. Winners flow left → right to the final.</p>` : ""}${simBracket}`)}
+    ${champ ? championBanner(champ, true) : ""}
+    <div class="sim-intro sim-intro-foot">
       <h2>Call the whole tournament ${ICO.spark}</h2>
-      <p>Work through the three steps below: order each group, pick the best third-placed teams, then tap winners to the final. Saved on this device.</p>
+      <p>Order each group, pick the best third-placed teams, then tap winners to the final. Saved on this device.</p>
       <div class="sim-actions">
         <button class="btn ghost" id="simShuffle"><span class="b-lg">Shuffle it all</span><span class="b-sm">Shuffle</span></button>
         <button class="btn ghost" id="simReset"><span class="b-lg">Start over</span><span class="b-sm">Reset</span></button>
         <button class="btn" id="simShare">${ICO.link} Share prediction</button>
         ${champ ? `<button class="btn" id="simShareImg">${ICO.camera} Champion card</button>` : ""}
       </div>
-    </div>
-    ${champTeaser}
-    ${step("simStep1", `<span class="step-n">1</span> Order the groups: top two go through`, `<div class="gwrap">${GROUPS.map(groupCard).join("")}</div>`)}
-    ${step("simStep2", `<span class="step-n">2</span> Best third-placed teams <span class="tcount">${S.sim.thirds.length}/8</span>`, `<div class="thirds">${thirdChips}</div>`)}
-    ${step("simStep3", `<span class="step-n">3</span> Tap winners to crown your champion ${TROPHY}`, `${thirdsDone && alloc !== "impossible" ? `<p class="sim-ko-hint">${ICO.tap} Tap a team in any tie to send them through. Winners flow left → right to the final.</p>` : ""}${simBracket}`)}
-    ${champ ? championBanner(champ, true) : ""}`;
+    </div>`;
 
   const goal = $("#simGoal", el);
   if (goal) goal.onclick = () => { const s3 = $("#simStep3", el); if (s3) { s3.open = true; s3.scrollIntoView({ behavior: "smooth", block: "start" }); } };
@@ -2935,10 +2938,12 @@ async function loadCommentary(num) {
 // (results.json's `updated`), so a quiet hour never reads as a stale/broken site.
 function setFreshness() {
   const el = $("#updatedLabel"); if (!el) return;
+  if (!S.lastChecked) { el.textContent = S.results.updated ? "Up to date" : "Schedule loaded"; return; }
   const fmtT = ms => new Intl.DateTimeFormat("en", { timeZone: tz(), hour: "2-digit", minute: "2-digit" }).format(new Date(ms));
-  const from = S.results.updated ? `Scores from ${fmtT(S.results.updated)}` : "Schedule loaded";
-  const checked = S.lastChecked ? ` · checked ${Date.now() - S.lastChecked < 90000 ? "just now" : fmtT(S.lastChecked)}` : "";
-  el.textContent = from + checked;
+  // lead with how recently we checked, not the data's age — a quiet stretch with no matches isn't staleness
+  if (Date.now() - S.lastChecked > 5 * 60000) { el.textContent = `Last checked ${fmtT(S.lastChecked)}`; return; }
+  const live = S.matches.some(m => [ST.LIVE, ST.HT].includes(status(m)));
+  el.textContent = `${live ? "Live" : "Up to date"} · checked just now`;
 }
 async function refreshResults() {
   try {
