@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "197";  // shown in footer; bump with the ?v= asset version
+const BUILD = "198";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -2661,11 +2661,16 @@ function renderPulse() {
     <div class="pl-heads">${heads.slice().sort((x, y) => (y.team === S.fav) - (x.team === S.fav)).slice(0, 12).map(hd =>
       `<a class="pl-head" href="${esc(hd.url || "#")}" target="_blank" rel="noopener noreferrer">
         <span class="pl-head-t">${esc(hd.title)}</span><span class="pl-head-s">${esc(hd.src || "")} ↗</span></a>`).join("")}</div>` : "";
-  if (!blocks && !headHTML) {
+  const stories = (b && b.storylines) || [];
+  const storyHTML = stories.length ? `<div class="pl-stories">${ICO.spark}<div class="pl-stories-in"><div class="eyebrow">The storylines</div><ul>${stories.map(s => `<li>${esc(s)}</li>`).join("")}</ul></div></div>` : "";
+  const trend = ((b && b.trending) || []).filter(t => S.teams[t.code]);
+  const trendHTML = trend.length ? `<div class="pl-trend"><div class="eyebrow">Trending</div><div class="pl-chips">${trend.map(t =>
+    `<button class="pl-chip" data-squad="${t.code}"><span class="fl">${flag(t.code)}</span>${esc(S.teams[t.code].name)}</button>`).join("")}</div></div>` : "";
+  if (!blocks && !headHTML && !storyHTML && !trendHTML) {
     paint(el, intro + `<div class="pulse-empty">${ICO.spark}<p>Fan reactions and the day's headlines gather here as matches play. Check back once the action starts.</p></div>`);
     return;
   }
-  paint(el, intro +
+  paint(el, intro + storyHTML + trendHTML +
     (blocks ? `<div class="eyebrow">Loudest right now</div>${blocks}` : "") +
     headHTML +
     `<p class="pulse-foot">Gathered automatically from public match threads and headlines, each linking out to its source. Fans' and reporters' views, not ours.</p>`);

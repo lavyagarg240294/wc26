@@ -331,8 +331,10 @@ b{font-weight:600}
 .flagimg{display:inline-block;width:1.5em;height:1em;object-fit:cover;object-position:center;vertical-align:-.15em;border-radius:.12em;box-shadow:0 0 0 .5px rgba(13,27,42,.28);background:color-mix(in srgb,var(--ink) 5%,var(--card))}
 /* placeholder for a fixture whose team isn't decided yet (knockout slots / TBD) — a tidy flag-shaped
    chip with a faint "?", sized like a flag so the row stays aligned instead of showing a stray dot */
-.flag-tbd{display:inline-grid;place-items:center;width:1.5em;height:1em;vertical-align:-.15em;border-radius:.12em;background:linear-gradient(155deg,color-mix(in srgb,var(--ink) 4%,var(--card)),color-mix(in srgb,var(--ink) 12%,var(--card)));box-shadow:inset 0 0 0 .5px color-mix(in srgb,var(--ink) 22%,transparent)}
-.flag-tbd::before{content:"?";font-family:var(--disp);font-size:.7em;font-weight:800;line-height:1;color:var(--ink-soft);opacity:.8}
+/* inline-block + vertical-align matched to .flagimg so the box sits on the same baseline as real flags (and
+   the 'vs'); the '?' is absolutely centred inside so it doesn't affect that baseline */
+.flag-tbd{position:relative;display:inline-block;width:1.5em;height:1em;vertical-align:-.15em;border-radius:.12em;background:linear-gradient(155deg,color-mix(in srgb,var(--ink) 4%,var(--card)),color-mix(in srgb,var(--ink) 12%,var(--card)));box-shadow:inset 0 0 0 .5px color-mix(in srgb,var(--ink) 22%,transparent)}
+.flag-tbd::before{content:"?";position:absolute;inset:0;display:grid;place-items:center;font-family:var(--disp);font-size:.7em;font-weight:800;line-height:1;color:var(--ink-soft);opacity:.8}
 .sr-vs .flag-tbd{width:24px;height:16px}
 .mcard-team .fl{font-size:17px;width:26px;text-align:center;flex:0 0 26px}
 .mcard-team.is-ph{color:var(--ink-soft);font-weight:500;font-style:italic}
@@ -1208,6 +1210,18 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .pl-head-t{font-size:13px;font-weight:600;line-height:1.4;color:var(--ink)}
 .pl-head-s{flex:0 0 auto;font-size:10.5px;color:var(--ink-soft);white-space:nowrap}
 .pulse-foot{margin:16px 2px 4px;font-size:11px;color:var(--ink-soft);opacity:.8;line-height:1.5}
+/* Phase 3: synthesised storylines + trending teams */
+.pl-stories{display:flex;gap:12px;background:linear-gradient(150deg,color-mix(in srgb,var(--gold) 13%,var(--card)),var(--card) 72%);border:1px solid color-mix(in srgb,var(--gold) 32%,var(--line));border-radius:16px;padding:14px 16px;margin-bottom:14px;box-shadow:var(--shadow);animation:rise .5s both}
+.pl-stories .ico{flex:0 0 auto;width:22px;height:22px;color:var(--gold-text);margin-top:2px}
+.pl-stories-in{min-width:0}
+.pl-stories ul{list-style:none;display:flex;flex-direction:column;gap:7px;margin:5px 0 0;padding:0}
+.pl-stories li{position:relative;padding-left:15px;font-size:13.5px;line-height:1.45;color:var(--ink)}
+.pl-stories li::before{content:"";position:absolute;left:0;top:.55em;width:5px;height:5px;border-radius:50%;background:var(--gold)}
+.pl-trend{margin-bottom:16px}
+.pl-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+.pl-chip{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:99px;border:1px solid var(--line);background:var(--card);font-size:12.5px;font-weight:600;color:var(--ink);transition:border-color .2s,background .15s}
+.pl-chip:hover{border-color:color-mix(in srgb,var(--acc1) 45%,var(--line));background:color-mix(in srgb,var(--acc1) 6%,transparent)}
+.pl-chip .fl{font-size:15px}
 /* global search results */
 .sr-hint{color:var(--ink-soft);font-size:13px;text-align:center;padding:24px 16px}
 .sr-label{font-family:var(--disp);font-weight:800;font-stretch:110%;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);padding:11px 8px 3px}

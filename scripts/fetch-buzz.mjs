@@ -20,6 +20,7 @@ import { readFileSync, writeFileSync, existsSync } from "node:fs";
 
 const DRY = process.argv.includes("--dry-run");
 const fixtures = JSON.parse(readFileSync("data/matches.json", "utf8")).matches;
+const byId = Object.fromEntries(fixtures.map(f => [f.id, f]));
 const teams = JSON.parse(readFileSync("data/teams.json", "utf8"));
 const UA = "Mozilla/5.0 (compatible; wc26-bot/1.0; +https://github.com/lavyagarg240294/wc26)";
 const now = Date.now();
@@ -139,10 +140,48 @@ async function fetchHeadlines() {
   return out.slice(0, 15);
 }
 
+/* ---------------- Phase 3: derived signals ---------------- */
+// trending teams: which sides are most mentioned right now (headline titles + the teams of buzzing matches)
+function computeTrending(headlines, matches) {
+  const count = {};
+  const bump = (c, n) => { if (c && teams[c]) count[c] = (count[c] || 0) + n; };
+  for (const h of headlines) for (const c of codesIn(h.title)) bump(c, 1);
+  for (const [id, d] of Object.entries(matches)) {
+    const m = byId[id]; if (!m) continue;
+    bump(m.home?.team, 1 + Math.round((d.heat || 0) / 35));
+    bump(m.away?.team, 1 + Math.round((d.heat || 0) / 35));
+  }
+  return Object.entries(count).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([code, n]) => ({ code, n }));
+}
+// storylines: a tiny LLM pass that synthesises the headlines (+ any reactions) into a few talking points.
+// Gated on ANTHROPIC_API_KEY — skipped (and the tab is fine without it) when the secret isn't set.
+async function fetchStorylines(headlines, matches) {
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key || !headlines.length) return [];
+  const reactions = Object.values(matches).flatMap(d => d.reactions.map(r => r.text)).slice(0, 15);
+  const material = "Headlines:\n" + headlines.map(h => "- " + h.title).join("\n")
+    + (reactions.length ? "\n\nFan comments:\n" + reactions.map(r => "- " + r).join("\n") : "");
+  try {
+    const r = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-haiku-4-5-20251001", max_tokens: 350,
+        messages: [{ role: "user", content: `These are today's FIFA World Cup 2026 headlines${reactions.length ? " and fan comments" : ""}. Write the 3 biggest storylines as punchy, neutral, one-sentence talking points a fan would care about. One per line, no numbering, no preamble, no markdown.\n\n${material}` }],
+      }),
+    });
+    if (!r.ok) { console.log("storylines: anthropic HTTP " + r.status); return []; }
+    const txt = (await r.json()).content?.[0]?.text || "";
+    return txt.split("\n").map(l => l.replace(/^[-•\d.)\s]+/, "").trim()).filter(l => l.length > 12).slice(0, 3);
+  } catch (e) { console.log("storylines skipped:", e.message); return []; }
+}
+
 /* ---------------- main ---------------- */
 const matches = await fetchReactions().catch(e => { console.log("reactions skipped:", e.message); return {}; });
 const headlines = await fetchHeadlines().catch(e => { console.log("headlines skipped:", e.message); return []; });
-const buzz = { updated: new Date().toISOString(), matches, headlines };
-console.log(`buzz: ${Object.keys(matches).length} match(es) with reactions, ${headlines.length} headline(s)`);
-if (DRY) console.log(JSON.stringify(buzz, null, 2).slice(0, 2000));
+const trending = computeTrending(headlines, matches);
+const storylines = await fetchStorylines(headlines, matches);
+const buzz = { updated: new Date().toISOString(), storylines, trending, matches, headlines };
+console.log(`buzz: ${Object.keys(matches).length} match(es) w/reactions, ${headlines.length} headline(s), ${trending.length} trending, ${storylines.length} storyline(s)`);
+if (DRY) console.log(JSON.stringify(buzz, null, 2).slice(0, 2200));
 else { writeFileSync("data/buzz.json", JSON.stringify(buzz)); console.log("wrote data/buzz.json"); }
