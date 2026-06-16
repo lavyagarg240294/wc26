@@ -557,6 +557,16 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .sim-intro p{color:var(--ink-soft);font-size:13.5px;margin-top:5px;max-width:520px}
 .sim-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
 .step-n{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--acc1);color:#fff;font-family:var(--mono);font-size:11.5px;font-weight:700;flex:0 0 22px}
+/* collapsible Predict steps — each step is its own tappable section, collapsed by default so the whole flow
+   (and the bracket) is visible at a glance instead of buried below a long scroll */
+.sim-step{border:1px solid var(--line);border-radius:14px;background:color-mix(in srgb,var(--ink) 2%,var(--card));margin-bottom:10px}
+.sim-step>summary{display:flex;align-items:center;gap:9px;cursor:pointer;padding:14px 16px;list-style:none;border-radius:14px}
+.sim-step>summary::-webkit-details-marker{display:none}
+.sim-step>summary:hover{background:color-mix(in srgb,var(--acc1) 5%,transparent)}
+.sim-step>summary:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
+.sim-chev{margin-left:auto;flex:0 0 auto;color:var(--ink-soft);font-size:11px;transition:transform .2s}
+.sim-step[open]>summary .sim-chev{transform:rotate(180deg)}
+.sim-step-body{padding:2px 13px 14px}
 /* champion "north star" — prominent, tappable goal that jumps to the knockout bracket */
 .sim-goal{display:flex;align-items:center;gap:14px;width:100%;text-align:left;margin-top:14px;padding:15px 18px;border-radius:18px;
   border:1.5px solid color-mix(in srgb,var(--gold) 45%,var(--line));

@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "198";  // shown in footer; bump with the ?v= asset version
+const BUILD = "199";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -2177,6 +2177,10 @@ async function shareChampionImage(code) {
 }
 function renderSim() {
   const el = $("#view-sim");
+  // preserve scroll + which step sections are expanded so a re-render (a pick, photos loading, a poll) never
+  // bounces the user back to the top or collapses what they were working on
+  const openSteps = new Set([...el.querySelectorAll(".sim-step[open]")].map(d => d.id));
+  const keepY = window.scrollY, keepBX = el.querySelector(".bracket-scroll")?.scrollLeft || 0;
   // seed a valid default set of thirds so the knockout bracket is visible & tappable from the first visit
   // (done here, not at boot, so live standings are already loaded — order reflects real results)
   if (S.sim.thirds.length === 0) { seedSimThirds(); saveSim(); }
@@ -2228,12 +2232,14 @@ function renderSim() {
 
   // how the prediction is tracking against real results (only once something has been played)
   // "Your call vs reality" scorecard removed from the UI for now (unclear to users); simScore() kept.
+  // each step is a collapsible section, collapsed by default, so a user landing here sees all three steps at a
+  // glance (and the bracket isn't buried at the bottom). Open state is preserved across re-renders (see top).
+  const step = (id, head, body) => `<details class="sim-step" id="${id}"${openSteps.has(id) ? " open" : ""}><summary class="eyebrow">${head}<span class="sim-chev" aria-hidden="true">▾</span></summary><div class="sim-step-body">${body}</div></details>`;
   el.innerHTML = `
     <div class="sim-intro">
       <h2>Call the whole tournament ${ICO.spark}</h2>
-      <p>Order each group, pick the best third-placed teams, then tap winners all the way to the final, and crown your champion. Saves on this device.</p>
+      <p>Work through the three steps below: order each group, pick the best third-placed teams, then tap winners to the final. Saved on this device.</p>
       <div class="sim-actions">
-        <button class="btn ghost" id="simStandings"><span class="b-lg">Use live standings</span><span class="b-sm">Standings</span></button>
         <button class="btn ghost" id="simShuffle"><span class="b-lg">Shuffle it all</span><span class="b-sm">Shuffle</span></button>
         <button class="btn ghost" id="simReset"><span class="b-lg">Start over</span><span class="b-sm">Reset</span></button>
         <button class="btn" id="simShare">${ICO.link} Share prediction</button>
@@ -2241,17 +2247,13 @@ function renderSim() {
       </div>
     </div>
     ${champTeaser}
-    <div class="eyebrow"><span class="step-n">1</span> Order the groups: top two go through</div>
-    <div class="gwrap">${GROUPS.map(groupCard).join("")}</div>
-    <div class="eyebrow"><span class="step-n">2</span> Best third-placed teams <span class="tcount">${S.sim.thirds.length}/8</span></div>
-    <div class="thirds">${thirdChips}</div>
-    <div class="eyebrow" id="simKoHead"><span class="step-n">3</span> Tap winners through to crown your champion ${TROPHY}</div>
-    ${thirdsDone && alloc !== "impossible" ? `<p class="sim-ko-hint">${ICO.tap} Tap a team in any tie to send them through. Winners flow left → right to the final.</p>` : ""}
-    ${simBracket}
+    ${step("simStep1", `<span class="step-n">1</span> Order the groups: top two go through`, `<div class="gwrap">${GROUPS.map(groupCard).join("")}</div>`)}
+    ${step("simStep2", `<span class="step-n">2</span> Best third-placed teams <span class="tcount">${S.sim.thirds.length}/8</span>`, `<div class="thirds">${thirdChips}</div>`)}
+    ${step("simStep3", `<span class="step-n">3</span> Tap winners to crown your champion ${TROPHY}`, `${thirdsDone && alloc !== "impossible" ? `<p class="sim-ko-hint">${ICO.tap} Tap a team in any tie to send them through. Winners flow left → right to the final.</p>` : ""}${simBracket}`)}
     ${champ ? championBanner(champ, true) : ""}`;
 
   const goal = $("#simGoal", el);
-  if (goal) goal.onclick = () => $("#simKoHead", el)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  if (goal) goal.onclick = () => { const s3 = $("#simStep3", el); if (s3) { s3.open = true; s3.scrollIntoView({ behavior: "smooth", block: "start" }); } };
 
   // wire: move-up
   $$(".up", el).forEach(b => b.onclick = () => {
@@ -2276,19 +2278,13 @@ function renderSim() {
   $$("[data-pick]", el).forEach(r => r.onclick = e => {
     const [num, code] = r.dataset.pick.split("|");
     S.sim.ko[+num] = code;
-    // re-rendering rebuilds the bracket — keep the user where they are (the bracket's horizontal
-    // scroll would otherwise snap back to the Round-of-32 column) instead of yanking them left.
-    const sc = el.querySelector(".bracket-scroll"), sx = sc ? sc.scrollLeft : 0, wy = window.scrollY;
-    pruneSim(); saveSim(); renderSim();
-    const nsc = el.querySelector(".bracket-scroll"); if (nsc) nsc.scrollLeft = sx;
-    window.scrollTo(0, wy);
+    pruneSim(); saveSim(); renderSim();   // renderSim restores scroll + the bracket's horizontal position centrally
     if (+num === 104) {
       const t = S.teams[code];
       confetti(t.c1, t.c2, { x: e.clientX || innerWidth / 2, y: e.clientY || innerHeight / 2 });
     }
   });
   // wire: actions
-  $("#simStandings").onclick = () => { S.sim = { order: {}, thirds: [], ko: {} }; seedSimThirds(); saveSim(); renderSim(); };
   $("#simShuffle").onclick = () => {
     GROUPS.forEach(g => S.sim.order[g] = simOrder(g).slice().sort(() => Math.random() - .5));
     const thirds = GROUPS.map(g => simOrder(g)[2]).sort(() => Math.random() - .5);
@@ -2314,7 +2310,13 @@ function renderSim() {
     catch { prompt("Copy your prediction link:", url); }
   };
   $("#simShareImg")?.addEventListener("click", () => shareChampionImage(S.sim.ko[104]));
-  layoutBracket(el);
+  // the bracket needs measurable dimensions to lay out its tree, so only when step 3 is expanded — and re-lay it
+  // out whenever that section is opened
+  const s3 = $("#simStep3", el);
+  if (s3) { if (s3.open) layoutBracket(el); s3.ontoggle = () => { if (s3.open) layoutBracket(el); }; }
+  // restore scroll + bracket position captured at the top (the innerHTML rebuild reset them)
+  window.scrollTo(0, keepY);
+  const nb = el.querySelector(".bracket-scroll"); if (nb) nb.scrollLeft = keepBX;
 }
 function simMatch(m, i, alloc) {
   const { h, a } = simSlots(m, alloc);
