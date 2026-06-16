@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "213";  // shown in footer; bump with the ?v= asset version
+const BUILD = "214";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -2810,7 +2810,7 @@ function renderCommentary(c) {
 // Shape: { updated, matches: { "<matchId>": { heat:0-100, reactions:[{text,score,src,url}] } }, headlines:[{title,src,url,team?}] }
 function renderPulse() {
   const el = $("#view-pulse"), b = S.buzz;
-  const intro = `<div class="pulse-intro"><h2>The Pulse</h2><p>What fans and the press are saying, pulled from public match threads and headlines. No accounts, no tracking.</p></div>`;
+  const intro = `<div class="pulse-intro"><h2>The Pulse</h2><p>What fans and the press are saying, pulled from public social posts and headlines. No accounts, no tracking.</p></div>`;
   const blocks = Object.entries((b && b.matches) || {})
     .map(([id, d]) => ({ m: S.matches.find(x => x.id === id), d }))
     .filter(x => x.m && x.d && x.d.reactions && x.d.reactions.length)
@@ -2828,7 +2828,7 @@ function renderPulse() {
         <div class="pl-rx-list">${d.reactions.slice(0, 4).map(rx =>
           `<a class="pl-rx" href="${esc(rx.url || "#")}" target="_blank" rel="noopener noreferrer">
             <span class="pl-rx-q">${esc(rx.text)}</span>
-            <span class="pl-rx-m">▲ ${Number(rx.score || 0).toLocaleString()} · ${esc(rx.src || "")} ↗</span></a>`).join("")}</div>
+            <span class="pl-rx-m">${rx.score ? `▲ ${Number(rx.score).toLocaleString()} · ` : ""}${esc(rx.src || "")} ↗</span></a>`).join("")}</div>
       </div>`;
     }).join("");
   const heads = (b && b.headlines) || [];
@@ -2845,7 +2845,7 @@ function renderPulse() {
   paint(el, intro + storyHTML +
     (blocks ? `<div class="eyebrow">Loudest right now</div>${blocks}` : "") +
     headHTML +
-    `<p class="pulse-foot">Gathered automatically from public match threads and headlines, each linking out to its source. Fans' and reporters' views, not ours.</p>`);
+    `<p class="pulse-foot">Gathered automatically from public social posts and headlines, each linking out to its source. Fans' and reporters' views, not ours.</p>`);
 }
 async function loadBuzz() {
   try { S.buzz = await (await fetch("data/buzz.json?t=" + Date.now(), { cache: "no-store" })).json(); } catch { /* not published yet — keep what we have */ }

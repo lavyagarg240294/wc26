@@ -191,14 +191,20 @@ const matchHashtags = m => {
 async function fetchMastodon(recent) {
   const tagged = recent.map(m => ({ m, ko: +new Date(m.utc), tags: new Set(matchHashtags(m)),
     htri: (TRI[m.home.team] || "").toLowerCase(), atri: (TRI[m.away.team] || "").toLowerCase() }));
-  const out = {}, statuses = [], seen = new Set();
-  for (const tag of ["worldcup", "fifaworldcup", "worldcup2026"]) {
+  const out = {}, statuses = [], seen = new Set(), seenIds = new Set();
+  // pull a hashtag timeline once, de-duplicating statuses we've already seen from another tag
+  const pull = async tag => {
+    if (!tag) return;
     try {
       const r = await fetch(`https://mastodon.social/api/v1/timelines/tag/${tag}?limit=40`, { headers: { "User-Agent": UA, Accept: "application/json" } });
-      if (!r.ok) { console.log("mastodon HTTP " + r.status, tag); continue; }
-      statuses.push(...(await r.json()));
+      if (!r.ok) { console.log("mastodon HTTP " + r.status, tag); return; }
+      for (const st of await r.json()) if (st?.id && !seenIds.has(st.id)) { seenIds.add(st.id); statuses.push(st); }
     } catch (e) { console.log("mastodon skipped:", tag, e.message); }
-  }
+  };
+  for (const tag of ["worldcup", "fifaworldcup", "worldcup2026", "wc2026", "worldcup26", "mensworldcup"]) await pull(tag);
+  // the #FediFC convention tags each match #FRASEN-style, so pulling each recent match's own tag timeline gets
+  // match-specific reactions directly (far richer than relying on the broad tags alone)
+  for (const t of tagged) if (t.htri && t.atri) await pull(t.htri + t.atri);
   for (const st of statuses) {
     if (st.language && st.language !== "en") continue;
     // drop the hashtag-link anchors before cleaning so the shown text is prose, not a trailing tag-soup
@@ -246,10 +252,15 @@ function mergeSources(...maps) {
 }
 
 /* ---------------- RSS (press headlines) ---------------- */
+// a spread of outlets, deliberately weighted away from UK-only (Guardian/BBC) toward global desks (France 24,
+// Al Jazeera, DW) so the headline mix reads worldwide, not London. The round-robin below takes one per source.
 const FEEDS = [
   ["The Guardian", "https://www.theguardian.com/football/world-cup-2026/rss", true],
   ["BBC Sport", "https://feeds.bbci.co.uk/sport/football/world-cup/rss.xml", true],
-  ["ESPN", "https://www.espn.com/espn/rss/soccer/news", false],   // general soccer → keep only WC / team items
+  ["France 24", "https://www.france24.com/en/sport/rss", false],     // general feeds below → keep only WC / team items
+  ["Al Jazeera", "https://www.aljazeera.com/xml/rss/all.xml", false],
+  ["DW", "https://rss.dw.com/rdf/rss-en-sports", false],
+  ["ESPN", "https://www.espn.com/espn/rss/soccer/news", false],
 ];
 function parseRSS(xml, src, wcFeed) {
   return [...xml.matchAll(/<item[\s\S]*?<\/item>/gi)].map(m => m[0]).flatMap(it => {
