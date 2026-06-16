@@ -1,10 +1,18 @@
 #!/usr/bin/env python3
 """One-off importer: FIFA official 'SquadLists-English.pdf' -> data/squads.json.
+
 Pulls jersey number, position, name, caps, goals, club for all 48 teams.
-Preserves existing coach names; PDF carries no coach. Run from repo root:
+Preserves existing coach names; the PDF carries no coach. Run from repo root:
     python3 scripts/import-squads-pdf.py /path/to/SquadLists-English.pdf
+
+Name handling (the whole point): the PDF's "PLAYER NAME" column is the COMMON name but ASCII
+("BELAID Zineddine", "GOUIRI Amine"); the accents live in the "FIRST NAME(S)" / "LAST NAME(S)"
+columns ("Zineddine", "BELAÏD", "GHOUIRI"). We take the common name and restore accents word by
+word from those columns — but only when it's demonstrably the SAME word (deburr match). So
+"BELAID" gains its accent -> "Belaïd", while a genuine spelling variant like the formal "GHOUIRI"
+does NOT overwrite the common "Gouiri". Best of both: the name people know, correctly accented.
 """
-import sys, re, json, warnings, logging
+import sys, re, json, warnings, logging, unicodedata
 warnings.filterwarnings("ignore"); logging.getLogger("pdfminer").setLevel(logging.ERROR)
 import pdfplumber
 
@@ -21,20 +29,35 @@ FIFA = {
 }
 POS_OK = {"GK","DF","MF","FW"}
 
+def deb(s):
+    return unicodedata.normalize("NFD", s or "").encode("ascii", "ignore").decode("ascii").lower()
+
 def title_word(w):
-    # Title-case a surname token, keeping hyphens/apostrophes: AÏT-NOURI -> Aït-Nouri
+    # Title-case a token, keeping hyphens/apostrophes + accents: AÏT-NOURI -> Aït-Nouri, O'NEIL -> O'Neil
     return re.sub(r"[A-Za-zÀ-ÿ]+", lambda m: m.group(0)[:1].upper() + m.group(0)[1:].lower(), w)
 
-def fmt_name(player_name):
-    """FIFA 'PLAYER NAME' is 'SURNAME Given' (surname = leading ALL-CAPS tokens)."""
-    toks = player_name.split()
+def title_str(s):
+    return " ".join(title_word(w) for w in (s or "").split())
+
+def accentize(common, accented_source):
+    """Restore accents on `common`, word by word, from the accented column — only when it's the same word."""
+    amap = {}
+    for w in (accented_source or "").split():
+        k = deb(w)
+        if k and k != w.lower():               # this source word carries an accent worth remembering
+            amap.setdefault(k, w)
+    return " ".join(amap.get(deb(t), t) for t in (common or "").split())
+
+def build_name(player_name, first_names, last_names):
+    """PLAYER NAME is 'SURNAME Given' (surname = leading ALL-CAPS tokens). Accent-restore each half."""
+    toks = (player_name or "").split()
     i = 0
     while i < len(toks) and toks[i] == toks[i].upper() and any(c.isalpha() for c in toks[i]):
         i += 1
-    surname = toks[:i] if i > 0 else toks[:1]
-    given = toks[i:] if 0 < i < len(toks) else []
-    sur = " ".join(title_word(w) for w in surname)
-    giv = " ".join(given)
+    sur_common = " ".join(toks[:i]) if i else (toks[0] if toks else "")
+    giv_common = " ".join(toks[i:]) if 0 < i < len(toks) else ""
+    sur = title_str(accentize(sur_common, last_names))
+    giv = title_str(accentize(giv_common, first_names))
     return (giv + " " + sur).strip() if giv else sur
 
 def clean_club(c):
@@ -43,6 +66,15 @@ def clean_club(c):
 def to_int(x):
     m = re.search(r"-?\d+", x or "")
     return int(m.group(0)) if m else None
+
+try:
+    prev = json.load(open("data/squads.json"))["squads"]
+except Exception:
+    prev = {}
+# prior clean ASCII names, keyed by code+jersey — authoritative spelling baseline. Some glyphs (the "fi"
+# ligature) drop to a null byte in this PDF's font; when a rebuilt name deburrs differently from the prior
+# one, the drop corrupted it, so we re-accent the prior clean spelling instead.
+prev_name = {(c, p.get("n")): p.get("name") for c, s in prev.items() for p in s.get("players", [])}
 
 pdf = pdfplumber.open(PDF)
 out_squads = {}
@@ -64,30 +96,29 @@ for pi, page in enumerate(pdf.pages):
     players = []
     for row in (table or [])[1:]:
         cells = [c for c in row if c is not None]
-        if len(cells) < 9: continue
-        num, pos, pname = cells[0], cells[1], cells[2]
-        if pos not in POS_OK: continue
-        # cells layout after dropping None: #,POS,PLAYER NAME,FIRST,LAST,SHIRT,DOB,CLUB,HEIGHT,CAPS,GOALS
-        club = clean_club(cells[7]) if len(cells) > 7 else None
-        caps = to_int(cells[-2]); goals = to_int(cells[-1])
-        name = fmt_name(pname)
-        p = {"pos": pos, "name": name}
+        if len(cells) < 11:
+            continue
+        # layout: 0:#  1:POS  2:PLAYER NAME  3:FIRST  4:LAST  5:SHIRT  6:DOB  7:CLUB  8:HEIGHT  9:CAPS  10:GOALS
+        num, pos, pname, first, last = cells[0], cells[1], cells[2], cells[3], cells[4]
+        if pos not in POS_OK:
+            continue
+        name = build_name(pname, first, last)
         n = to_int(num)
+        o = prev_name.get((code, n))
+        if "\x00" in name or (o and deb(name) != deb(o)):   # glyph drop corrupted it → re-accent the prior clean spelling
+            name = title_str(accentize(accentize(o or name.replace("\x00", ""), first), last))
+        p = {"pos": pos, "name": name}
         if n is not None: p = {"n": n, **p}
+        caps = to_int(cells[9]); goals = to_int(cells[10])
         if caps is not None: p["caps"] = caps
         if goals is not None: p["goals"] = goals
+        club = clean_club(cells[7])
         if club: p["club"] = club
         players.append(p)
-        # quality flags: dropped ligature leaves a stray single letter or double space
-        if "  " in pname or re.search(r"\b[b-df-hj-np-tv-z]\b", name, re.I):
-            suspicious.append(f"{code} #{num}: '{pname}' -> '{name}'")
+        if "  " in pname or re.search(r"\b[b-df-hj-np-tv-z]\b", deb(name), re.I):
+            suspicious.append(f"{code} #{num}: '{pname}' / '{first}' / '{last}' -> '{name}'")
     out_squads[code] = {"players": players}
 
-# merge: preserve existing coach; replace players with PDF data
-try:
-    prev = json.load(open("data/squads.json"))["squads"]
-except Exception:
-    prev = {}
 for code, sq in out_squads.items():
     sq["coach"] = (prev.get(code) or {}).get("coach")
 
@@ -95,8 +126,10 @@ print(f"teams parsed: {len(out_squads)} / 48")
 counts = {c: len(s["players"]) for c, s in out_squads.items()}
 bad = {c: n for c, n in counts.items() if n < 20 or n > 30}
 print("player counts out of [20,30]:", bad or "none")
-print(f"suspicious names (possible ligature loss): {len(suspicious)}")
-for s in suspicious[:40]: print("   ", s)
+acc = sum(len(re.findall(r"[À-ÿ]", p["name"])) for s in out_squads.values() for p in s["players"])
+print("accented chars in output names:", acc)
+print(f"suspicious names: {len(suspicious)}")
+for s in suspicious[:30]: print("   ", s)
 
 out = {"updated": None, "note": "Official FIFA squad lists (PDF import); coach preserved from prior data", "squads": out_squads}
 json.dump(out, open("data/squads.json.new", "w"), ensure_ascii=False)
