@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "196";  // shown in footer; bump with the ?v= asset version
+const BUILD = "197";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -2635,7 +2635,7 @@ function renderCommentary(c) {
 // Shape: { updated, matches: { "<matchId>": { heat:0-100, reactions:[{text,score,src,url}] } }, headlines:[{title,src,url,team?}] }
 function renderPulse() {
   const el = $("#view-pulse"), b = S.buzz;
-  const intro = `<div class="pulse-intro"><h2>The Pulse</h2><p>What fans and the press are saying — gathered from public match threads and headlines. No accounts, no tracking.</p></div>`;
+  const intro = `<div class="pulse-intro"><h2>The Pulse</h2><p>What fans and the press are saying, pulled from public match threads and headlines. No accounts, no tracking.</p></div>`;
   const blocks = Object.entries((b && b.matches) || {})
     .map(([id, d]) => ({ m: S.matches.find(x => x.id === id), d }))
     .filter(x => x.m && x.d && x.d.reactions && x.d.reactions.length)
@@ -2668,7 +2668,7 @@ function renderPulse() {
   paint(el, intro +
     (blocks ? `<div class="eyebrow">Loudest right now</div>${blocks}` : "") +
     headHTML +
-    `<p class="pulse-foot">Each reaction links out to its source thread. Curated and filtered automatically — these are fans' views, not ours.</p>`);
+    `<p class="pulse-foot">Gathered automatically from public match threads and headlines, each linking out to its source. Fans' and reporters' views, not ours.</p>`);
 }
 async function loadBuzz() {
   try { S.buzz = await (await fetch("data/buzz.json?t=" + Date.now(), { cache: "no-store" })).json(); } catch { /* not published yet — keep what we have */ }
@@ -3032,7 +3032,7 @@ async function boot() {
     if (/iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent)) { location.href = webcal; return; }
     try { navigator.clipboard?.writeText(https); } catch { /* clipboard blocked — the Google tab still opens */ }
     window.open("https://calendar.google.com/calendar/u/0/r?cid=" + encodeURIComponent(https), "_blank", "noopener");
-    flashToast("Calendar URL copied — paste it into your calendar app if it doesn't open");
+    flashToast("Calendar URL copied. Paste it into your calendar app if it doesn't open");
   };
   $("#calDownload").onclick = () => downloadICS(S.matches.slice().sort((a, b) => a.utc.localeCompare(b.utc)), "FIFA World Cup 2026");
   $("#aboutBtn").onclick = () => showSheet($("#aboutDialog"));
