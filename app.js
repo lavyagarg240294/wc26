@@ -5,7 +5,7 @@
 /* ---------------- state ---------------- */
 const S = {
   matches: [], teams: {}, results: { matches: {} }, details: { matches: {} }, matchData: {},
-  reports: { matches: {} }, commentary: {},   // credited match reports (reports.json) + lazy per-match live commentary
+  reports: { matches: {} }, commentary: {}, buzz: null,   // reports.json, lazy per-match commentary, and buzz.json (fan reactions + headlines)
   tz: localStorage.getItem("wc26.tz") || "auto",
   fav: localStorage.getItem("wc26.fav") || null,
   view: null,   // set by boot's nav() — null until then so the pre-first-paint refreshResults() doesn't double-render
@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "194";  // shown in footer; bump with the ?v= asset version
+const BUILD = "195";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -2606,11 +2606,55 @@ function renderCommentary(c) {
   return lead.map(row).join("") + full + credit;
 }
 
+/* ---------------- the Pulse: fan reactions + press headlines, baked into data/buzz.json by the Action ---------------- */
+// Shape: { updated, matches: { "<matchId>": { heat:0-100, reactions:[{text,score,src,url}] } }, headlines:[{title,src,url,team?}] }
+function renderPulse() {
+  const el = $("#view-pulse"), b = S.buzz;
+  const intro = `<div class="pulse-intro"><h2>The Pulse</h2><p>What fans and the press are saying — gathered from public match threads and headlines. No accounts, no tracking.</p></div>`;
+  const blocks = Object.entries((b && b.matches) || {})
+    .map(([id, d]) => ({ m: S.matches.find(x => x.id === id), d }))
+    .filter(x => x.m && x.d && x.d.reactions && x.d.reactions.length)
+    .sort((x, y) => (y.d.heat || 0) - (x.d.heat || 0))
+    .map(({ m, d }) => {
+      const h = slotInfo(m, "home"), a = slotInfo(m, "away"), r = res(m);
+      const score = r && r.h != null ? `${r.h}–${r.a}` : "";
+      const heat = Math.max(0, Math.min(100, d.heat || 0));
+      return `<div class="pl-match">
+        <button class="pl-mh" data-mid="${m.id}">
+          <span class="pl-mh-t">${h.code ? flag(h.code) : TBD_FLAG} <b>${esc(h.short || h.name)}</b> <i>v</i> <b>${esc(a.short || a.name)}</b> ${a.code ? flag(a.code) : TBD_FLAG}</span>
+          ${score ? `<span class="pl-mh-s">${score}</span>` : ""}
+          <span class="pl-heat" aria-label="Buzz level"><span style="width:${heat}%"></span></span>
+        </button>
+        <div class="pl-rx-list">${d.reactions.slice(0, 4).map(rx =>
+          `<a class="pl-rx" href="${esc(rx.url || "#")}" target="_blank" rel="noopener noreferrer">
+            <span class="pl-rx-q">${esc(rx.text)}</span>
+            <span class="pl-rx-m">▲ ${Number(rx.score || 0).toLocaleString()} · ${esc(rx.src || "")} ↗</span></a>`).join("")}</div>
+      </div>`;
+    }).join("");
+  const heads = (b && b.headlines) || [];
+  const headHTML = heads.length ? `<div class="eyebrow">In the press</div>
+    <div class="pl-heads">${heads.slice().sort((x, y) => (y.team === S.fav) - (x.team === S.fav)).slice(0, 12).map(hd =>
+      `<a class="pl-head" href="${esc(hd.url || "#")}" target="_blank" rel="noopener noreferrer">
+        <span class="pl-head-t">${esc(hd.title)}</span><span class="pl-head-s">${esc(hd.src || "")} ↗</span></a>`).join("")}</div>` : "";
+  if (!blocks && !headHTML) {
+    paint(el, intro + `<div class="pulse-empty">${ICO.spark}<p>Fan reactions and the day's headlines gather here as matches play. Check back once the action starts.</p></div>`);
+    return;
+  }
+  paint(el, intro +
+    (blocks ? `<div class="eyebrow">Loudest right now</div>${blocks}` : "") +
+    headHTML +
+    `<p class="pulse-foot">Each reaction links out to its source thread. Curated and filtered automatically — these are fans' views, not ours.</p>`);
+}
+async function loadBuzz() {
+  try { S.buzz = await (await fetch("data/buzz.json?t=" + Date.now(), { cache: "no-store" })).json(); } catch { /* not published yet — keep what we have */ }
+  if (S.view === "pulse") renderPulse();
+}
+
 /* ---------------- navigation ---------------- */
-const RENDER = { matches: renderMatches, teams: renderTeams, groups: renderGroups, stats: renderStats, sim: renderSim };
+const RENDER = { matches: renderMatches, teams: renderTeams, groups: renderGroups, stats: renderStats, sim: renderSim, pulse: renderPulse };
 // shareable per-tab URL hash (Matches is the default → no hash; Predict's internal view name is "sim")
-const VIEW_HASH = { teams: "teams", groups: "groups", sim: "predict", stats: "stats" };
-const HASH_VIEW = { matches: "matches", teams: "teams", groups: "groups", predict: "sim", stats: "stats" };
+const VIEW_HASH = { teams: "teams", groups: "groups", sim: "predict", stats: "stats", pulse: "pulse" };
+const HASH_VIEW = { matches: "matches", teams: "teams", groups: "groups", predict: "sim", stats: "stats", pulse: "pulse" };
 function nav(v) {
   S.view = v;
   const _want = VIEW_HASH[v] ? "#" + VIEW_HASH[v] : "";       // reflect the tab in the URL so it's shareable / bookmarkable
@@ -3084,6 +3128,7 @@ async function boot() {
   // can't block the page; if the data is late it simply re-renders when it lands.
   await Promise.race([refreshResults(), new Promise(r => setTimeout(r, 3500))]);
   nav(initView);
+  loadBuzz();   // fan reactions + headlines (data/buzz.json); refreshed on the poll below
   addEventListener("hashchange", () => { const v = HASH_VIEW[location.hash.slice(1)]; if (v && v !== S.view) nav(v); });  // a shared #tab link opened in-session / back-forward
   const bl = $("#bootLoading"); if (bl) { bl.classList.add("gone"); setTimeout(() => bl.remove(), 320); }   // first view rendered → reveal
   // a shared match link (?match=<id>, e.g. from a share-card stub) opens that match
@@ -3092,7 +3137,7 @@ async function boot() {
     history.replaceState(null, "", location.pathname);
     setTimeout(() => openMatch(mq), 350);
   }
-  setInterval(() => { refreshResults(); refreshOpenCommentary(); }, 60 * 1000); // fresh scores + live commentary every 60s (initial load already done pre-paint)
+  setInterval(() => { refreshResults(); refreshOpenCommentary(); loadBuzz(); }, 60 * 1000); // fresh scores + live commentary + buzz every 60s (initial load already done pre-paint)
   checkKickoffAlert();
   setInterval(checkKickoffAlert, 60 * 1000); // fire a kickoff reminder for the favourite team (opt-in)
   $("#updatePill").onclick = hardRefresh;

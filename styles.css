@@ -1182,6 +1182,32 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .search-roll b{font-weight:600;color:var(--ink);display:inline-block;transition:opacity .28s ease,transform .28s ease}
 .search-roll.swap b{opacity:0;transform:translateY(-7px)}
 .search-roll.is-hidden{opacity:0}
+/* ── The Pulse (fan reactions + press) ── */
+.pulse-intro{margin:2px 0 16px}
+.pulse-intro h2{font-family:var(--disp);font-weight:800;font-stretch:110%;font-size:clamp(22px,5.2vw,30px);letter-spacing:.01em;color:var(--ink)}
+.pulse-intro p{color:var(--ink-soft);font-size:13.5px;margin-top:4px;max-width:58ch;line-height:1.5}
+.pulse-empty{display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center;padding:46px 20px;color:var(--ink-soft);animation:rise .5s both}
+.pulse-empty .ico{width:32px;height:32px;color:var(--acc-text);opacity:.55}
+.pulse-empty p{max-width:32ch;font-size:13.5px;line-height:1.5}
+.pl-match{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);margin-bottom:12px;overflow:hidden;animation:rise .5s both}
+.pl-mh{display:flex;align-items:center;gap:10px;width:100%;padding:12px 14px;text-align:left;border-bottom:1px solid var(--line)}
+.pl-mh-t{display:flex;align-items:center;gap:5px;font-size:13.5px;min-width:0;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pl-mh-t b{font-weight:700}
+.pl-mh-t i{font-style:normal;color:var(--ink-soft);font-weight:500;margin:0 1px}
+.pl-mh-s{font-family:var(--mono);font-weight:700;font-size:14px;flex:0 0 auto;font-variant-numeric:tabular-nums}
+.pl-heat{flex:0 0 44px;height:5px;border-radius:99px;background:color-mix(in srgb,var(--ink) 10%,transparent);overflow:hidden}
+.pl-heat>span{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--gold),var(--acc1))}
+.pl-rx{display:block;padding:11px 14px;border-top:1px solid color-mix(in srgb,var(--line) 55%,transparent);text-decoration:none;transition:background .14s}
+.pl-rx:first-child{border-top:none}
+.pl-rx:hover{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
+.pl-rx-q{display:block;font-size:13.5px;line-height:1.45;color:var(--ink)}
+.pl-rx-m{display:block;margin-top:4px;font-size:11px;color:var(--ink-soft);font-variant-numeric:tabular-nums}
+.pl-heads{display:flex;flex-direction:column;gap:6px}
+.pl-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:11px 14px;border-radius:12px;background:var(--card);border:1px solid var(--line);text-decoration:none;transition:border-color .2s}
+.pl-head:hover{border-color:color-mix(in srgb,var(--acc1) 40%,var(--line))}
+.pl-head-t{font-size:13px;font-weight:600;line-height:1.4;color:var(--ink)}
+.pl-head-s{flex:0 0 auto;font-size:10.5px;color:var(--ink-soft);white-space:nowrap}
+.pulse-foot{margin:16px 2px 4px;font-size:11px;color:var(--ink-soft);opacity:.8;line-height:1.5}
 /* global search results */
 .sr-hint{color:var(--ink-soft);font-size:13px;text-align:center;padding:24px 16px}
 .sr-label{font-family:var(--disp);font-weight:800;font-stretch:110%;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);padding:11px 8px 3px}
