@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "179";  // shown in footer; bump with the ?v= asset version
+const BUILD = "180";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1486,7 +1486,7 @@ function openPlayer(name, code) {
   const m = (md?.open && md.dataset.openMid) ? S.matches.find(x => x.id === md.dataset.openMid) : null;
   const r = m && res(m);
   const bio = squadBio(name, code);
-  const photo = bestPhoto(name, code) || bio?.photo || "";
+  const photo = atWidth(bestPhoto(name, code) || bio?.photo || "", 640);   // sharp on retina for the big 78px popup avatar
   let num = null, pos = "";
   if (r?.xi && m) {
     const side = slotInfo(m, "home").code === code ? "h" : "a";
@@ -1613,7 +1613,7 @@ function playerStats(name, code, ts) {
   const sc = hit(ts.scorers), as = hit(ts.assisters), bk = hit(ts.booked), ke = hit(ts.keepers);
   const bio = squadBio(name, code) || {};
   return { goals: sc?.goals || 0, assists: sc?.assists ?? as?.assists ?? 0, y: bk?.y || 0, r: bk?.r || 0, cs: ke?.cs || 0,
-    caps: bio.caps, careerGoals: bio.goals, club: bio.club, pos: bio.pos, photo: bestPhoto(name, code) || bio.photo || "" };
+    caps: bio.caps, careerGoals: bio.goals, club: bio.club, pos: bio.pos, photo: atWidth(bestPhoto(name, code) || bio.photo || "", 640) };
 }
 // head-to-head comparison of two players (reuses the player dialog)
 function openCompare(a, b) {
@@ -2714,6 +2714,8 @@ const LITE = () => localStorage.getItem("wc26.lite") === "on";   // data-saver: 
 // resizes via ?io=transform: request a small width and let the existing CSS (background cover, top-anchored) crop to
 // the face. ~900KB -> ~14KB per avatar, no visual change. Only FIFA URLs support it; everything else passes through.
 const safePhoto = u => !/^https:\/\/[^\s'"()<>]+$/.test(u || "") ? "" : (/\/\/digitalhub\.fifa\.com\//.test(u) && !u.includes("?") ? u + "?io=transform:fit,width:256" : u);
+// list avatars take the tiny 256px default; the big player-popup / compare photo asks for a sharper width (one image, retina-ready).
+const atWidth = (u, w) => (u || "").includes("io=transform:fit,width:") ? u.replace(/width:\d+/, "width:" + w) : (u || "");
 const playerPhoto = (name, code) => safePhoto((!LITE() && S.photos && S.photos[name + "|" + code]) || "");
 // like playerPhoto, but tolerantly matches a full squad name ("Mathew Ryan") against the terser FIFA
 // short-name photo keys ("M. RYAN", "RYAN", "Mathew RYAN") — accent-insensitive and surname-anchored, so a
