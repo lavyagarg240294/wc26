@@ -892,6 +892,7 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .lead-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(248px,1fr));gap:12px}
 .lead-card{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);overflow:hidden;animation:rise .45s both}
 .lead-card h4{font-family:var(--disp);font-weight:800;font-stretch:112%;font-size:12px;letter-spacing:.08em;text-transform:uppercase;padding:12px 14px;border-bottom:1px solid var(--line);color:var(--ink-soft)}
+.lead-card h4 small{display:block;margin-top:3px;text-transform:none;font-family:var(--body);font-weight:600;font-stretch:normal;font-size:11px;letter-spacing:0;color:var(--ink-soft);opacity:.8}
 .lead-row{display:flex;align-items:center;gap:10px;padding:9px 14px;font-size:13px;border-top:1px solid color-mix(in srgb,var(--line) 55%,transparent);transition:background .15s}
 .lead-card .lead-row:first-of-type{border-top:none}
 .lead-row[data-squad],.lead-row[data-player]{cursor:pointer}
@@ -963,8 +964,8 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .susp-tag{font-family:var(--disp);font-weight:800;font-stretch:106%;font-size:9.5px;letter-spacing:.04em;text-transform:uppercase;padding:4px 10px;border-radius:99px;white-space:nowrap;flex:0 0 auto}
 .susp-tag.is-ban{background:color-mix(in srgb,var(--live) 18%,var(--card));color:var(--live)}
 .susp-tag.is-risk{background:color-mix(in srgb,var(--gold) 24%,var(--card));color:color-mix(in srgb,var(--gold) 55%,var(--ink))}
-.lead-scorers .lead-row:first-of-type .lead-rank{color:var(--gold-text)}
-.lead-scorers .lead-row:first-of-type .lead-v{color:var(--gold-text)}
+.lead-scorers .lead-top .lead-rank{color:var(--gold-text)}
+.lead-scorers .lead-top .lead-v{color:var(--gold-text)}
 .lead-fair-top .lead-rank,.lead-fair-top .lead-v{color:var(--pitch)}
 /* confederation breakdown rows */
 .conf-row{display:flex;align-items:center;gap:11px;padding:11px 14px;border-top:1px solid color-mix(in srgb,var(--line) 55%,transparent)}

@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "185";  // shown in footer; bump with the ?v= asset version
+const BUILD = "186";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -2435,7 +2435,7 @@ function renderStats() {
   const tile = (label, val) => `<div class="stat-tile"><span class="stat-val">${val}</span><span class="stat-lbl">${label}</span></div>`;
   const tname = c => esc(S.teams[c]?.name || c);
   // a player leaderboard row (photo + name + value). 2nd arg is the competition rank (tied rows share it), not the index.
-  const playerRow = (p, rank, val) => { const ph = bestPhoto(p.name, p.code); return `<div class="lead-row lead-player" data-player="${esc(p.name)}|${p.code}" role="button" tabindex="0">
+  const playerRow = (p, rank, val) => { const ph = bestPhoto(p.name, p.code); return `<div class="lead-row lead-player${rank === 1 ? " lead-top" : ""}" data-player="${esc(p.name)}|${p.code}" role="button" tabindex="0">
     <span class="lead-rank">${rank}</span>${ph ? `<span class="lead-face" style="background-image:url('${ph}')"></span>` : `<span class="fl">${flag(p.code)}</span>`}
     <span class="lead-name">${esc(pName(p.name, p.code))}<small>${flag(p.code)} ${tname(p.code)}</small></span>
     <span class="lead-v">${val}</span></div>`; };
@@ -2458,7 +2458,7 @@ function renderStats() {
     <span class="lead-rank">${rank}</span><span class="fl">${flag(x.code)}</span><span class="lead-name">${tname(x.code)}</span>
     <span class="lead-v">${fmt(x)}</span></div>`, fmt)}</div>` : "";
   const perGame = x => `${x.v.toFixed(1)}<small>/ match</small>`;
-  const fairLead = s.fairPlay.length ? `<div class="lead-card"><h4>Fair play</h4>${ranked(s.fairPlay.slice(0, 5), (x, rank, i) => `<div class="lead-row ${i === 0 ? "lead-fair-top" : ""}" data-squad="${x.code}" role="button" tabindex="0">
+  const fairLead = s.fairPlay.length ? `<div class="lead-card"><h4>Fair play <small>−1 per yellow, −3 per red · fewer is cleaner</small></h4>${ranked(s.fairPlay.slice(0, 5), (x, rank, i) => `<div class="lead-row ${rank === 1 ? "lead-fair-top" : ""}" data-squad="${x.code}" role="button" tabindex="0">
     <span class="lead-rank">${rank}</span><span class="fl">${flag(x.code)}</span><span class="lead-name">${tname(x.code)}</span>
     <span class="lead-v">${x.pts}<small>pts</small></span></div>`, x => x.pts)}</div>` : "";
   const cardLead = s.teamCards.length ? `<div class="lead-card"><h4>Team cards</h4>${ranked(s.teamCards.slice(0, 5), (x, rank) => `<div class="lead-row" data-squad="${x.code}" role="button" tabindex="0">
