@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "183";  // shown in footer; bump with the ?v= asset version
+const BUILD = "184";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -120,24 +120,13 @@ const _nameCache = new Map();
 const pName = (s, code) => {
   const key = (s || "") + "|" + (code || "");
   const hit = _nameCache.get(key); if (hit !== undefined) return hit;
-  const dict = code ? _accentDict(code) : null;
-  let out = _titleCase(s).replace(/\S+/g, w => (dict && dict[_deburr(w)]) || w);
-  // The feed often gives only a surname ("HAVERTZ", "GUNN"). Expand it to the full squad name when exactly one
-  // player on that team carries that surname (its last name token). Matching the LAST token only means a same-named
-  // team-mate can never be swapped in (Alexander Isak's "Isak" won't grab "Isak Hien", whose surname is Hien). A
-  // mononym with no surname match is left untouched.
-  if (code && out) {
-    const toks = out.split(/\s+/), L = toks.length, initial = /^[A-ZÀ-Ý]\.?$/;
-    // a "partial" feed name is a surname on its own ("Havertz") or an initial + surname ("E. Ashour"); expand it to
-    // the full squad name. Match the LAST token (alpha-only, also trying the last two so "Alamri" finds "Al Amri")
-    // so a same-named team-mate can't be swapped in; if several share the surname, the given initial breaks the tie.
-    if (L === 1 || toks.slice(0, -1).every(t => initial.test(t))) {
-      const norm = w => _deburr(w).replace(/[^a-z]/g, ""), k = norm(toks[L - 1]), fi = L > 1 ? _deburr(toks[0][0]) : null;
-      let m = (S.squads?.[code]?.players || []).filter(p => { const t = p.name.split(/\s+/), n = t.length; return norm(t[n - 1]) === k || (n > 1 && norm(t[n - 2] + t[n - 1]) === k); });
-      if (m.length > 1 && fi) m = m.filter(p => _deburr(p.name[0]) === fi);
-      if (m.length === 1) out = m[0].name;
-    }
-  }
+  const p = code ? resolvePlayer(s, code) : null;
+  // resolved to a real squad player → use their exact, full, accented name; otherwise format the feed name as best
+  // we can (title-case + restore accents the feed dropped). resolvePlayer expands surnames ("Havertz" -> Kai Havertz)
+  // and initials ("E. Ashour" -> Emam Ashour) but only when it can identify the player with certainty.
+  let out;
+  if (p) out = p.name;
+  else { const dict = code ? _accentDict(code) : null; out = _titleCase(s).replace(/\S+/g, w => (dict && dict[_deburr(w)]) || w); }
   _nameCache.set(key, out);
   return out;
 };
@@ -685,7 +674,7 @@ function pitchSide(side, s, home) {
   const dot = (p, x, depth) => {                                        // depth 0 = own goal, 1 = halfway
     const top = home ? 96 - depth * 44 : 4 + depth * 44;               // home bottom half, away top half
     const left = home ? x : 100 - x;
-    const photo = playerPhoto(p[1], s.code);
+    const photo = bestPhoto(p[1], s.code, p[0]);   // p[0] = jersey number → exact match
     const face = photo
       ? `<span class="pp-dot pp-photo" style="background-image:url('${photo}')"><i>${p[0] ?? ""}</i></span>`
       : `<span class="pp-dot">${p[0] ?? ""}</span>`;
@@ -1355,7 +1344,7 @@ function rosterMarkup(sq, code) {
   return `<div class="roster">${Object.entries(groups).map(([p, label]) => {
     const ps = byPos(p);
     return ps.length ? `<div class="roster-pos"><h5>${label} <span>${ps.length}</span></h5>
-      ${ps.map(x => { const nm = x.name.replace(" (captain)", ""), ph = bestPhoto(nm, code);
+      ${ps.map(x => { const nm = x.name.replace(" (captain)", ""), ph = bestPhoto(nm, code, x.n);
         return `<div class="roster-row" data-player="${esc(nm)}|${code}" role="button" tabindex="0">
         <span class="rnum">${x.n ?? "·"}</span>
         <span class="rface"${ph ? ` style="background-image:url('${ph}')"` : ""}>${ph ? "" : flag(code)}</span>
@@ -1441,7 +1430,7 @@ function teamRotation(code) {
 function rotationSection(code) {
   const R = teamRotation(code);
   if (!R) return "";
-  const row = p => { const ph = playerPhoto(p.name, p.code);
+  const row = p => { const ph = bestPhoto(p.name, p.code, p.n);
     return `<div class="rt-row" data-player="${esc(p.name)}|${p.code}" role="button" tabindex="0">
       ${ph ? `<span class="lead-face" style="background-image:url('${ph}')"></span>` : `<span class="fl">${flag(p.code)}</span>`}
       <span class="rt-name">${esc(pName(p.name, p.code))}<small>${p.starts} start${p.starts !== 1 ? "s" : ""}${p.subs ? ` · ${p.subs} sub` : ""}</small></span>
@@ -1488,13 +1477,9 @@ function openTeam(code) {
   showSheet($("#teamSheet"));
 }
 // best-effort match of a feed name (e.g. "Julian QUINONES") to a squad entry (names come from a different feed)
-function squadBio(name, code) {
-  const sq = S.squads?.[code]; if (!sq?.players) return null;
-  const norm = s => (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z]/gi, "").toLowerCase();
-  const surname = name.split(/\s+/).filter(w => w && w === w.toUpperCase()).join("");
-  const nn = norm(name), ns = norm(surname);
-  return sq.players.find(x => { const xn = norm(x.name); return xn === nn || (ns.length > 2 && (xn.includes(ns) || ns.includes(xn))); }) || null;
-}
+// the squad player behind a feed reference (caps, club, position, jersey) — same robust resolver as the name & photo,
+// so the bio can never describe a different person than the one named.
+function squadBio(name, code) { return resolvePlayer(name, code); }
 // tap a player name anywhere (timeline, lineup, Golden Boot, squad) → a compact profile.
 // Uses live-match context (XI position + what they did) only when a match modal is actually open.
 // join a player to their ESPN per-match box score (pstats keys are raw ESPN names) — exact, then unique surname
@@ -1512,7 +1497,7 @@ function openPlayer(name, code) {
   const m = (md?.open && md.dataset.openMid) ? S.matches.find(x => x.id === md.dataset.openMid) : null;
   const r = m && res(m);
   const bio = squadBio(name, code);
-  const photo = atWidth(bestPhoto(name, code) || bio?.photo || "", 640);   // sharp on retina for the big 78px popup avatar
+  const photo = atWidth(bestPhoto(name, code, bio?.n) || bio?.photo || "", 640);   // sharp on retina for the big 78px popup avatar
   let num = null, pos = "";
   if (r?.xi && m) {
     const side = slotInfo(m, "home").code === code ? "h" : "a";
@@ -1611,7 +1596,7 @@ function renderSearch(raw) {
   const rank = s => { const n = (s || "").toLowerCase(); return n.startsWith(q) ? 0 : n.split(/\s+/).some(w => w.startsWith(q)) ? 1 : 2; };
   const byRank = key => (a, b) => rank(key(a)) - rank(key(b)) || key(a).localeCompare(key(b));
   const players = SIDX.players.filter(p => (has(p.name) || has(p.club)) && !(cmp && p.name === compareSeed.name && p.code === compareSeed.code)).sort(byRank(p => p.name)).slice(0, cmp ? 12 : 8);
-  const playerRowHtml = (p, attr) => { const ph = playerPhoto(p.name, p.code);
+  const playerRowHtml = (p, attr) => { const ph = bestPhoto(p.name, p.code, p.n);
     return `<button class="sr-row" ${attr}>${ph ? `<span class="lead-face" style="background-image:url('${ph}')"></span>` : `<span class="fl">${flag(p.code)}</span>`}<span class="sr-name">${esc(pName(p.name, p.code))}<small>${flag(p.code)} ${tname(p.code)}${p.club ? ` · ${esc(p.club)}` : ""}</small></span></button>`; };
   if (cmp) {   // compare mode: players only, tapping picks the second player
     res.innerHTML = players.length ? `<div class="sr-label">Compare with…</div>` + players.map(p => playerRowHtml(p, `data-compare="${esc(p.name)}|${p.code}"`)).join("") : `<div class="sr-hint">No players match “${esc(raw.trim())}”.</div>`;
@@ -1639,7 +1624,7 @@ function playerStats(name, code, ts) {
   const sc = hit(ts.scorers), as = hit(ts.assisters), bk = hit(ts.booked), ke = hit(ts.keepers);
   const bio = squadBio(name, code) || {};
   return { goals: sc?.goals || 0, assists: sc?.assists ?? as?.assists ?? 0, y: bk?.y || 0, r: bk?.r || 0, cs: ke?.cs || 0,
-    caps: bio.caps, careerGoals: bio.goals, club: bio.club, pos: bio.pos, photo: atWidth(bestPhoto(name, code) || bio.photo || "", 640) };
+    caps: bio.caps, careerGoals: bio.goals, club: bio.club, pos: bio.pos, photo: atWidth(bestPhoto(name, code, bio.n) || bio.photo || "", 640) };
 }
 // head-to-head comparison of two players (reuses the player dialog)
 function openCompare(a, b) {
@@ -2447,7 +2432,7 @@ function renderStats() {
   const tile = (label, val) => `<div class="stat-tile"><span class="stat-val">${val}</span><span class="stat-lbl">${label}</span></div>`;
   const tname = c => esc(S.teams[c]?.name || c);
   // a player leaderboard row (photo + name + value). 2nd arg is the competition rank (tied rows share it), not the index.
-  const playerRow = (p, rank, val) => { const ph = playerPhoto(p.name, p.code); return `<div class="lead-row lead-player" data-player="${esc(p.name)}|${p.code}" role="button" tabindex="0">
+  const playerRow = (p, rank, val) => { const ph = bestPhoto(p.name, p.code); return `<div class="lead-row lead-player" data-player="${esc(p.name)}|${p.code}" role="button" tabindex="0">
     <span class="lead-rank">${rank}</span>${ph ? `<span class="lead-face" style="background-image:url('${ph}')"></span>` : `<span class="fl">${flag(p.code)}</span>`}
     <span class="lead-name">${esc(pName(p.name, p.code))}<small>${flag(p.code)} ${tname(p.code)}</small></span>
     <span class="lead-v">${val}</span></div>`; };
@@ -2459,7 +2444,7 @@ function renderStats() {
   const ranked = (rows, rowFn, keyOf) => { const rk = compRanks(rows, keyOf); return rows.map((x, i) => rowFn(x, rk[i], i)).join(""); };
   // suspension watch: a red card or an accumulated 2nd yellow = a one-match ban. We list only players who will
   // actually miss their next game — a lone yellow is far too common to flag (and the count is arbitrary).
-  const suspRow = p => { const ph = playerPhoto(p.name, p.code); return `<div class="lead-row lead-player" data-player="${esc(p.name)}|${p.code}" role="button" tabindex="0">
+  const suspRow = p => { const ph = bestPhoto(p.name, p.code); return `<div class="lead-row lead-player" data-player="${esc(p.name)}|${p.code}" role="button" tabindex="0">
     ${ph ? `<span class="lead-face" style="background-image:url('${ph}')"></span>` : `<span class="fl">${flag(p.code)}</span>`}
     <span class="lead-name">${esc(pName(p.name, p.code))}<small>${flag(p.code)} ${tname(p.code)}</small></span>
     <span class="susp-tag is-ban">${p.r > 0 ? "Sent off: banned" : "2 yellows: banned"}</span></div>`; };
@@ -2732,6 +2717,7 @@ async function loadStatic() {
   catch { S.squads = {}; }
   // official player photos harvested from FIFA lineups (keyed "ShortName|CODE"); optional, skipped in data-saver
   if (!LITE()) { try { S.photos = await (await fetch("data/photos.json?t=" + Date.now(), { cache: "no-store" })).json() || {}; } catch { S.photos = {}; } }
+  _resolveCache.clear(); _teamPhotoCache.clear(); _nameCache.clear(); _accentCache.clear();   // squads/photos just loaded → drop anything resolved before the data was ready
 }
 const LITE = () => localStorage.getItem("wc26.lite") === "on";   // data-saver: suppress hot-linked photos, fall back to flags
 // Only ever surface an https image URL with no CSS/HTML-breaking characters: these are inserted into
@@ -2742,35 +2728,70 @@ const LITE = () => localStorage.getItem("wc26.lite") === "on";   // data-saver: 
 const safePhoto = u => !/^https:\/\/[^\s'"()<>]+$/.test(u || "") ? "" : (/\/\/digitalhub\.fifa\.com\//.test(u) && !u.includes("?") ? u + "?io=transform:fit,width:256" : u);
 // list avatars take the tiny 256px default; the big player-popup / compare photo asks for a sharper width (one image, retina-ready).
 const atWidth = (u, w) => (u || "").includes("io=transform:fit,width:") ? u.replace(/width:\d+/, "width:" + w) : (u || "");
-const playerPhoto = (name, code) => safePhoto((!LITE() && S.photos && S.photos[name + "|" + code]) || "");
-// like playerPhoto, but tolerantly matches a full squad name ("Mathew Ryan") against the terser FIFA
-// short-name photo keys ("M. RYAN", "RYAN", "Mathew RYAN") — accent-insensitive and surname-anchored, so a
-// roster tap resolves even though the feed stored only the surname or an initial.
 const normName = s => (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z]/gi, "").toLowerCase();
-const PH_SUFFIX = new Set(["jr", "junior", "jnr", "filho", "neto", "segundo", "ii", "iii"]);   // ignored when picking a surname
+const PH_SUFFIX = new Set(["jr", "junior", "jnr", "filho", "neto", "segundo", "ii", "iii"]);
 const nameToks = s => (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z ]/g, " ").split(/\s+/).filter(Boolean);
 const sigToks = s => { const t = nameToks(s).filter(w => !PH_SUFFIX.has(w)); return t.length ? t : nameToks(s); };
-const surnameOf = s => { const t = sigToks(s); return t[t.length - 1] || ""; };
-function bestPhoto(name, code) {
-  if (LITE()) return "";
-  const direct = playerPhoto(name, code); if (direct) return direct;
-  const suf = "|" + code, fall = () => safePhoto(squadBio(name, code)?.photo || "");   // last resort: squads.json headshot
-  if (!S.photos) return fall();
-  const keys = []; for (const k in S.photos) if (k.endsWith(suf)) keys.push(k.slice(0, -suf.length));
-  const ns = normName(name);
-  for (const k of keys) if (normName(k) === ns) return safePhoto(S.photos[k + suf]);   // 1) whole-name equality
-  const nsig = sigToks(name), nsur = surnameOf(name), nfi = (nsig[0] || "")[0];
-  const pick = list => {                                  // exactly one candidate, or break a tie on the first initial
-    if (list.length === 1) return list[0];
-    if (list.length > 1) { const ini = list.filter(k => { const f = sigToks(k)[0]; return f && nfi && f[0] === nfi; }); return ini.length === 1 ? ini[0] : null; }
-    return null;
-  };
-  let hit = pick(keys.filter(k => surnameOf(k) === nsur));   // 2) surname-anchored
-  if (!hit) {                                                // 3) token subset — mononyms ("Alisson") & suffix variants ("Vinicius Jr")
-    const nset = new Set(nsig);
-    hit = pick(keys.filter(k => { const kt = sigToks(k), kset = new Set(kt); return kt.length && (kt.every(w => nset.has(w)) || nsig.every(w => kset.has(w))) && (kset.has(nsur) || nset.has(surnameOf(k))); }));
+const surnameOf = s => { const t = sigToks(s); return t[t.length - 1] || ""; };   // matchPstat joins ESPN box-score keys by surname
+// ---------- one source of truth for "who is this feed reference?" ----------
+// resolvePlayer maps a feed name (+team, with optional jersey number / position hints) to the actual squad player,
+// so the displayed name, the headshot and the bio always describe the SAME person. Signals strongest-first: jersey
+// number → exact full name → surname (anchored; also tries the last two tokens so "Alamri" finds "Al Amri")
+// narrowed by the given name/initial, then position → a unique first-name match (for players the feed lists by
+// first name, e.g. Vinicius). Returns null when it genuinely can't separate two same-surname team-mates, so callers
+// fall back to the plain feed name (and no photo) rather than risk showing the wrong person.
+const _resolveCache = new Map();
+function resolvePlayer(name, code, num, pos) {
+  const sq = S.squads?.[code]?.players; if (!sq || (!name && num == null)) return null;
+  const ck = (name || "") + "|" + (code || "") + "|" + (num ?? "") + "|" + (pos || "");
+  if (_resolveCache.has(ck)) return _resolveCache.get(ck);
+  const nrm = w => _deburr(w).replace(/[^a-z]/g, "");
+  let hit = null;
+  if (num != null) hit = sq.find(p => p.n === num) || null;                       // jersey: exact + strongest
+  if (!hit && name) {
+    const toks = _splitInitials(name).split(/\s+/).filter(Boolean), L = toks.length, full = toks.map(nrm).join("");   // "E.ASHOUR" -> "E. ASHOUR"
+    hit = sq.find(p => p.name.split(/\s+/).map(nrm).join("") === full);           // whole-name match (also fixes accents)
+    if (!hit && L) {
+      const sur = nrm(toks[L - 1]);
+      let cand = sq.filter(p => { const t = p.name.split(/\s+/), n = t.length; return nrm(t[n - 1]) === sur || (n > 1 && nrm(t[n - 2] + t[n - 1]) === sur); });
+      if (cand.length > 1 && L > 1) { const g = nrm(toks.slice(0, -1).join("")); const byG = cand.filter(p => { const f = nrm(p.name.split(/\s+/)[0]); return f === g || f[0] === g[0]; }); if (byG.length) cand = byG; }
+      if (cand.length > 1 && pos) { const byPos = cand.filter(p => p.pos === pos); if (byPos.length) cand = byPos; }
+      if (cand.length === 1) hit = cand[0];
+      else if (!cand.length && L === 1) { const bf = sq.filter(p => nrm(p.name.split(/\s+/)[0]) === nrm(toks[0])); if (bf.length === 1) hit = bf[0]; }
+      if (!hit && L > 1) {   // same set of name tokens, any order — handles reversed "SURNAME-First" photo filenames
+        const set = toks.map(nrm).filter(Boolean), ts = sq.filter(p => { const pt = p.name.split(/\s+/).map(nrm).filter(Boolean); return pt.length === set.length && set.every(w => pt.includes(w)); });
+        if (ts.length === 1) hit = ts[0];
+      }
+    }
   }
-  return hit ? safePhoto(S.photos[hit + suf]) : fall();
+  _resolveCache.set(ck, hit);
+  return hit;
+}
+// FIFA photo filenames carry the player's name even when the key is only a surname (".../FOFANA-Yahia_405873"),
+// which disambiguates two same-surname team-mates the key alone can't.
+const urlName = u => ((u || "").split("?")[0].split("/").pop() || "").replace(/\.\w+$/, "").replace(/_\d+$/, "").replace(/[-_]+/g, " ").trim();
+// Match each headshot to a squad player, once per team, so everyone carries the RIGHT face. A surname-only key is
+// resolved via its filename; if it still can't be pinned to one player it's assigned to nobody (no photo > wrong photo).
+const _teamPhotoCache = new Map();
+function teamPhotos(code) {
+  if (_teamPhotoCache.has(code)) return _teamPhotoCache.get(code);
+  const tmp = new Map(), suf = "|" + code;
+  if (S.photos) for (const k in S.photos) {
+    if (!k.endsWith(suf)) continue;
+    const feed = k.slice(0, -suf.length), url = S.photos[k];
+    const p = resolvePlayer(feed, code) || resolvePlayer(urlName(url), code); if (!p) continue;
+    const t = Math.max(feed.split(/\s+/).length, urlName(url).split(/\s+/).length), prev = tmp.get(p.name);   // keep the fullest-named key
+    if (!prev || t > prev.t) tmp.set(p.name, { u: safePhoto(url), t });
+  }
+  const m = new Map([...tmp].map(([n, v]) => [n, v.u]));
+  _teamPhotoCache.set(code, m); return m;
+}
+// the headshot for a feed reference: resolve the player, return THEIR photo. Optional jersey/pos sharpen the match.
+// If the player can't be pinned down (ambiguous surname) we show no photo rather than risk a team-mate's face.
+function bestPhoto(name, code, num, pos) {
+  if (LITE() || !S.photos) return "";
+  const p = resolvePlayer(name, code, num, pos);
+  return p ? (teamPhotos(code).get(p.name) || "") : "";
 }
 // manual "refresh scores" controls (footer + hero) — re-fetch the published results.json now
 async function manualRefresh() {
@@ -2966,6 +2987,7 @@ async function boot() {
     localStorage.setItem("wc26.lite", on ? "on" : "off"); liteUI();
     if (!on && (!S.photos || !Object.keys(S.photos).length)) {   // turning off → fetch the photos we skipped
       try { S.photos = await (await fetch("data/photos.json?t=" + Date.now(), { cache: "no-store" })).json() || {}; } catch { /* keep flags */ }
+      _teamPhotoCache.clear();   // photos now available → rebuild the player→headshot map
     }
     flashToast(on ? "Data saver on: photos hidden" : "Data saver off");
     RENDER[S.view]();   // re-render so photos↔flags swap immediately
