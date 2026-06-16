@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "180";  // shown in footer; bump with the ?v= asset version
+const BUILD = "181";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -400,23 +400,31 @@ function groupOutlook(g) {
     let status, k;
     if (W <= 1) { status = "Group winners, confirmed"; k = "q"; }
     else if (W <= 2) { status = "Through to the last 32"; k = "q"; }
-    else if (B <= 2) { status = "Still in the top-two race"; k = "live"; }
-    else if (B === 3) { status = "3rd place: chasing a best-eight spot"; k = "third"; }
+    else if (B <= 2) { status = "Top two still in reach"; k = "live"; }
+    else if (B === 3) { status = "Chasing a third-place spot"; k = "third"; }
     else { status = "Eliminated"; k = "out"; }
-    // concrete "what they need" — resolvable once a team has a single group game left to play, naming the
-    // opponent and the exact result. winW/drawW = worst finish if they win/draw; winB = best finish if they win.
+    // The actionable part: name the exact result a team still needs, for ANY number of games left. winW/drawW =
+    // worst finish if they win/draw their last game; winB = best if they win; winOutW = worst if they win them all.
     let need = "";
     const mine = rem.filter(m => m.home.team === c || m.away.team === c);
-    if (mine.length === 1 && W > 1 && B <= 3) {
-      const mc = mine[0], opp = mc.home.team === c ? mc.away.team : mc.home.team, others = rem.filter(m => m !== mc), on = nmOf(opp);
-      const winW = ranksFor({ [c]: base[c] + 3, [opp]: base[opp] }, others)[c].W;
-      const drawW = ranksFor({ [c]: base[c] + 1, [opp]: base[opp] + 1 }, others)[c].W;
-      const winB = ranksFor({ [c]: base[c] + 3, [opp]: base[opp] }, others)[c].B;
-      if (W <= 2) need = `already through, ${on} decides top spot`;
-      else if (drawW <= 2) need = `a draw with ${on} is enough for the top 2`;
-      else if (winW <= 2) need = `beat ${on} to be sure of the top 2`;
-      else if (winB <= 2) need = `beat ${on}, then hope other results help`;
-      else need = `a win over ${on} keeps best-eight hopes alive`;
+    if (W > 1 && B <= 3 && mine.length) {
+      if (W <= 2) {
+        need = B <= 1 ? "can still finish top of the group" : "";   // already through; only the group win is left to settle
+      } else if (mine.length === 1) {
+        const mc = mine[0], opp = mc.home.team === c ? mc.away.team : mc.home.team, others = rem.filter(m => m !== mc), on = nmOf(opp);
+        const winW = ranksFor({ [c]: base[c] + 3, [opp]: base[opp] }, others)[c].W;
+        const drawW = ranksFor({ [c]: base[c] + 1, [opp]: base[opp] + 1 }, others)[c].W;
+        const winB = ranksFor({ [c]: base[c] + 3, [opp]: base[opp] }, others)[c].B;
+        need = drawW <= 2 ? `a draw with ${on} reaches the top two`
+          : winW <= 2 ? `must beat ${on} to go through`
+          : winB <= 2 ? `must beat ${on}, then hope other results help`
+          : `must beat ${on} to keep a best-third place alive`;
+      } else {
+        const winOutW = ranksFor({ [c]: base[c] + 3 * mine.length }, rem.filter(m => !mine.includes(m)))[c].W;
+        need = winOutW <= 2 ? `win their last ${mine.length} and they're through`
+          : B <= 2 ? `must win out, and need results to fall their way`
+          : `must keep winning to chase a best-third place`;
+      }
     }
     return { code: c, status, k, need };
   }).sort((a, b) => standings(g).findIndex(r => r.code === a.code) - standings(g).findIndex(r => r.code === b.code));
