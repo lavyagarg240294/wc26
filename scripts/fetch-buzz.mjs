@@ -205,20 +205,25 @@ async function fetchMastodon(recent) {
   // the #FediFC convention tags each match #FRASEN-style, so pulling each recent match's own tag timeline gets
   // match-specific reactions directly (far richer than relying on the broad tags alone)
   for (const t of tagged) if (t.htri && t.atri) await pull(t.htri + t.atri);
+  // wider tag pulls bring noise: news live-blog link-shares, promo bots, off-topic posts. Drop the obvious ones.
+  const NOISE = /world cup 2026\s*[–—-]\s*live|\blive(?:\s|-)?(?:blog|updates?|stream|score)|praat mee|👇|join us|watch live|full[- ]time:|how to watch|line-?ups?:/i;
   for (const st of statuses) {
     if (st.language && st.language !== "en") continue;
     // drop the hashtag-link anchors before cleaning so the shown text is prose, not a trailing tag-soup
     const text = clean(String(st.content || "").replace(/<a[^>]*hashtag[^>]*>[\s\S]*?<\/a>/gi, "")), score = (st.favourites_count || 0) + (st.reblogs_count || 0) * 2;
     // fresh posts usually have 0 favourites, so gate on civility/length, not score; rank by score later
-    if (!st.url || !okSocial(text, score, 0)) continue;
+    if (!st.url || st.card || !okSocial(text, score, 0) || NOISE.test(text)) continue;   // st.card => a link/article share, not a reaction
+    const codesText = codesIn(text);   // a team named in the PROSE (not just a tag) — kills off-topic + non-English
+    if (!codesText.length) continue;
     const k = text.toLowerCase().slice(0, 60); if (seen.has(k)) continue;
     const tagNames = (st.tags || []).map(t => String(t.name || "").toLowerCase()), tagSet = new Set(tagNames);
     const codes = codesIn(text + " " + tagNames.join(" "));   // team-name hashtags count as a mention too
     const created = +new Date(st.created_at || 0);
     const hit = tagged.find(t => Math.abs(created - t.ko) < 36 * 3600e3 && (
       (codes.includes(t.m.home.team) && codes.includes(t.m.away.team))   // both teams named (prose or name-tag)
-      || tagNames.some(n => t.tags.has(n))                                // a #FRASEN-style match hashtag
-      || (t.htri && t.atri && tagSet.has(t.htri) && tagSet.has(t.atri))   // a #FRA + #SEN tricode pair
+      // a #FRASEN-style match hashtag, but only when the prose also names one of the two sides (guards mis-tagged posts)
+      || ((tagNames.some(n => t.tags.has(n)) || (t.htri && t.atri && tagSet.has(t.htri) && tagSet.has(t.atri)))
+        && (codesText.includes(t.m.home.team) || codesText.includes(t.m.away.team)))
     ));
     if (!hit) continue;
     seen.add(k);
