@@ -285,7 +285,7 @@ function parseRSS(xml, src, wcFeed) {
 async function fetchHeadlines() {
   const all = [];
   for (const [src, url, wcFeed] of FEEDS) {
-    try { all.push(...parseRSS(await (await fetch(url, { headers: { "User-Agent": UA } })).text(), src, wcFeed).slice(0, 12)); }
+    try { all.push(...parseRSS(await (await fetch(url, { headers: { "User-Agent": UA } })).text(), src, wcFeed).slice(0, 30)); }
     catch (e) { console.log("rss skipped", src, e.message); }
   }
   const seen = new Set(), out = [];
@@ -293,7 +293,7 @@ async function fetchHeadlines() {
     const k = h.title.toLowerCase(); if (seen.has(k)) continue;
     seen.add(k); out.push(h);
   }
-  return out.slice(0, 40);
+  return out.slice(0, 70);
 }
 
 /* ---------------- Phase 3: derived signals ---------------- */
