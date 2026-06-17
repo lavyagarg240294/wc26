@@ -384,6 +384,13 @@ body.bg-paused #bg span{animation-play-state:paused;will-change:auto}
 .team-hero .fl{font-size:54px;filter:drop-shadow(0 3px 6px rgba(13,27,42,.2))}
 .team-hero h2{font-family:var(--disp);font-weight:900;font-stretch:115%;font-size:clamp(22px,5vw,30px)}
 .team-hero p{color:var(--ink-soft);font-size:13px;margin-top:7px;line-height:1.45}
+.team-hero-tap{display:flex;align-items:center;gap:18px;flex:1 1 auto;min-width:0;cursor:pointer;border-radius:12px;transition:background .15s}
+.team-hero-tap:focus-visible{outline:2px solid var(--focus);outline-offset:3px}
+.team-hero-tap:active{background:color-mix(in srgb,var(--acc1) 9%,transparent)}
+@media (hover:hover){.team-hero-tap:hover{background:color-mix(in srgb,var(--acc1) 6%,transparent)}}
+.team-hero .th-text{min-width:0}
+.team-hero .th-standing{margin-top:11px;white-space:nowrap}                 /* live standing on its own line, with breathing room above */
+.team-hero .th-standing b{color:var(--ink);font-weight:800}
 .pick-cta{display:flex;flex-direction:column;align-items:center;gap:14px;padding:46px 20px;background:var(--card);border:1px dashed color-mix(in srgb,var(--acc1) 45%,var(--line));border-radius:22px;text-align:center}
 .pick-cta .big{font-family:var(--disp);font-weight:800;font-stretch:110%;font-size:20px}
 .btn{font-family:var(--disp);font-weight:700;font-stretch:108%;letter-spacing:.04em;font-size:13.5px;text-transform:uppercase;background:var(--acc-deep);color:#fff;padding:11px 22px;border-radius:99px;transition:transform .15s,box-shadow .2s,background .5s}

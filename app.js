@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "261";  // shown in footer; bump with the ?v= asset version
+const BUILD = "262";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1627,9 +1627,13 @@ function myTeamBlock() {
   const upcoming = mine.filter(m => status(m) === ST.SCHED);
   const done = mine.filter(m => status(m) !== ST.SCHED);
   return `
-    <div class="team-hero"><span class="fl">${flag(S.fav)}</span>
-      <div><h2>${esc(t.name)}</h2>
-      <p>${t.conf ? esc(t.conf) + " · " : ""}Group ${group || "–"}${t.titles ? ` · <b style="color:var(--gold)">${TROPHY} ${t.titles}</b>` : ""}${played ? ` · currently <b>${ordinal(pos)}</b> after ${played} match${played > 1 ? "es" : ""}` : ""}</p>
+    <div class="team-hero">
+      <div class="team-hero-tap" data-squad="${S.fav}" role="button" tabindex="0" aria-label="Open ${esc(t.name)} details">
+        <span class="fl">${flag(S.fav)}</span>
+        <div class="th-text"><h2>${esc(t.name)}</h2>
+          <p class="th-sub">${t.conf ? esc(t.conf) + " · " : ""}Group ${group || "–"}${t.titles ? ` · <b style="color:var(--gold)">${TROPHY} ${t.titles}</b>` : ""}</p>
+          ${played ? `<p class="th-standing">Currently <b>${ordinal(pos)}</b> after ${played} match${played > 1 ? "es" : ""}</p>` : ""}
+        </div>
       </div>
       <button class="btn ghost team-change" id="ctaChange">Change</button></div>
     ${mine.length ? `<div class="team-actions"><button class="btn ghost ics-btn" id="icsTeam">${CAL_SVG} Add ${esc(t.name)}'s matches to calendar</button></div>` : ""}
@@ -2057,6 +2061,8 @@ function openCompare(a, b) {
   if (!a || !b) return;
   const ts = tournamentStats();
   const A = playerStats(a.name, a.code, ts), B = playerStats(b.name, b.code, ts);
+  const va = playerBio(a.name, a.code), vb = playerBio(b.name, b.code);   // FIFA vitals (age/height/weight)
+  const ageA = va?.d ? ageFrom(va.d) : null, ageB = vb?.d ? ageFrom(vb.d) : null;
   const POS = { GK: "Goalkeeper", DF: "Defender", MF: "Midfielder", FW: "Forward" };
   const head = (p, side) => `<div class="cmp-p">
     ${p.photo ? `<span class="pl-face" style="background-image:url('${p.photo}')"></span>` : `<span class="pl-face pl-flag">${flag(side.code)}</span>`}
@@ -2080,6 +2086,11 @@ function openCompare(a, b) {
       ${row("Caps", A.caps, B.caps)}
       ${row("Career goals", A.careerGoals, B.careerGoals)}
       <div class="cmp-row"><span class="cmp-a cmp-txt">${A.club ? esc(A.club) : "–"}</span><span class="cmp-lbl">Club</span><span class="cmp-b cmp-txt">${B.club ? esc(B.club) : "–"}</span></div>
+    </div>` : ""}
+    ${(va || vb) ? `<div class="eyebrow">Profile</div><div class="cmp-rows">
+      ${row("Age", ageA, ageB, false)}
+      ${row("Height", va?.h ? va.h + " cm" : null, vb?.h ? vb.h + " cm" : null, false)}
+      ${row("Weight", va?.w ? va.w + " kg" : null, vb?.w ? vb.w + " kg" : null, false)}
     </div>` : ""}
     <button class="pl-compare" data-recompare="${esc(a.name)}|${a.code}">${ICO.compare} Compare ${esc(a.name)} with someone else</button></div>`;
   const re = $("#playerBody [data-recompare]");
@@ -3741,6 +3752,21 @@ async function boot() {
   addEventListener("click", e => { if (!e.target.closest("#stageSelWrap")) closeStagePop(); });  // …and the stage dropdown
   addEventListener("click", e => { if (!e.target.closest(".rk-filter .tsel")) closeRkPops(); });   // …and both rankings dropdowns
   addEventListener("keydown", e => { if (e.key === "Escape") { closeTeamSel(); closeRkPops(); } });
+  // Keep an open sheet (search, compare, team picker…) above the on-screen keyboard. The visual viewport shrinks when
+  // the keyboard is up, so cap the dialog to that height and top-anchor it; reset to the centered CSS default when it's
+  // down. Fixes the keyboard covering the player-search results on phones (works on iOS + Android via visualViewport).
+  if (window.visualViewport) {
+    const vv = window.visualViewport;
+    const fitSheet = () => {
+      const kbUp = innerHeight - vv.height > 120;
+      document.querySelectorAll("dialog.sheet").forEach(d => {
+        if (kbUp && d.open) { d.style.maxHeight = (vv.height - 12) + "px"; d.style.marginTop = (vv.offsetTop + 8) + "px"; d.style.marginBottom = "auto"; }
+        else { d.style.maxHeight = ""; d.style.marginTop = ""; d.style.marginBottom = ""; }
+      });
+    };
+    vv.addEventListener("resize", fitSheet);
+    vv.addEventListener("scroll", fitSheet);
+  }
   initMusic();
   $$("[data-close]").forEach(b => b.onclick = () => b.closest("dialog").close());
   $$("dialog").forEach(d => d.onclick = e => { if (e.target === d) d.close(); });
