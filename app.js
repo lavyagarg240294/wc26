@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "263";  // shown in footer; bump with the ?v= asset version
+const BUILD = "264";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -51,9 +51,19 @@ const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 // stacked context would otherwise throw InvalidStateError on Safari/Firefox, or silently update the
 // hidden dialog underneath on Chromium). Brings the sheet to the front with its fresh content.
 let _sheetOpenAt = 0;
-// keep at most ONE content sheet open: tapping a player from a match (etc.) swaps the sheet rather than stacking
-// backdrops, so closing always returns to the list the user started from.
-const showSheet = d => { if (!d) return; document.querySelectorAll("dialog[open].sheet").forEach(o => { if (o !== d) o.close(); }); if (d.open) d.close(); d.showModal(); d.querySelectorAll(".sheet-body").forEach(b => b.scrollTop = 0); _sheetOpenAt = Date.now(); };
+// Modal sheet stack: opening a sheet while another is open pushes it on top instead of swapping.
+// The X button / back pops the topmost sheet, revealing the one below.
+// Clicking outside the topmost sheet (its backdrop) collapses everything.
+let _sheetStack = [];
+const _closeAll = () => [..._sheetStack].reverse().forEach(s => s.close());
+const showSheet = d => {
+  if (!d) return;
+  // If already open, close silently (bypass our patched close) and remove from stack so the showModal patch re-adds it at the top
+  if (d.open) { _origClose.call(d); _sheetStack = _sheetStack.filter(s => s !== d); }
+  d.showModal();  // patched below: marks existing sheets as behind, pushes d to top
+  d.querySelectorAll(".sheet-body").forEach(b => b.scrollTop = 0);
+  _sheetOpenAt = Date.now();
+};
 // Modal history: make the hardware/gesture Back button DISMISS the open sheet instead of backgrounding/exiting the
 // installed PWA (phones have no Esc, so Back is the instinctive dismiss). One history entry covers the whole modal
 // session (sheets swap, not stack); it is popped when the last sheet closes. Routing uses hashchange, not popstate,
@@ -65,14 +75,27 @@ let _flickT = 0;
 const _flickGuard = () => { const h = document.documentElement; h.classList.add("sheet-dismiss"); clearTimeout(_flickT); _flickT = setTimeout(() => h.classList.remove("sheet-dismiss"), 240); };
 addEventListener("popstate", () => {
   if (!_inModal) return;
-  _inModal = false; _popClosing = true;
-  document.querySelectorAll("dialog[open]").forEach(d => d.close());
+  _inModal = false; _popClosing = true; _sheetStack = [];
+  document.querySelectorAll("dialog[open]").forEach(d => { d.classList.remove("is-stack-behind"); d.close(); });
   _popClosing = false; _flickGuard();
 });
 const _dlgProto = HTMLDialogElement.prototype, _origShowModal = _dlgProto.showModal, _origClose = _dlgProto.close;
-_dlgProto.showModal = function () { _origShowModal.call(this); if (!_inModal) { _inModal = true; history.pushState({ modal: 1 }, ""); } };
+_dlgProto.showModal = function () {
+  if (this.classList.contains("sheet")) {
+    // mark everything currently in the stack as behind (their backdrops will be hidden)
+    _sheetStack.forEach(s => s.classList.add("is-stack-behind"));
+    _sheetStack.push(this);
+    this.classList.remove("is-stack-behind");
+  }
+  _origShowModal.call(this);
+  if (!_inModal) { _inModal = true; history.pushState({ modal: 1 }, ""); }
+};
 _dlgProto.close = function (v) {
   _origClose.call(this, v);
+  if (this.classList.contains("sheet")) {
+    _sheetStack = _sheetStack.filter(s => s !== this);
+    if (_sheetStack.length > 0) _sheetStack[_sheetStack.length - 1].classList.remove("is-stack-behind");
+  }
   if (_popClosing || !_inModal) return;
   queueMicrotask(() => { if (_inModal && !document.querySelector("dialog[open]")) { _inModal = false; _flickGuard(); if (history.state && history.state.modal) history.back(); } });
 };
@@ -732,7 +755,13 @@ function formationRows(side) {
   else bands = [1, 2, 3].map(pp => out.filter(p => p[2] === pp)).filter(b => b.length);
   return { gk, bands };
 }
-const lastName = n => { const t = String(n || "").trim().split(/\s+/); return t[t.length - 1] || String(n || ""); };
+const lastName = n => {
+  const t = String(n || "").trim().split(/\s+/);
+  const last = t[t.length - 1];
+  // If last token is just an initial like "E." (FIFA's "SURNAME Initial." format), use the first token (the surname)
+  if (t.length > 1 && /^[A-Za-zÀ-ÿ]\.$/.test(last)) return t[0];
+  return last || String(n || "");
+};
 function pitchSide(side, s, home) {
   const fr = formationRows(side); if (!fr) return null;
   const c1 = (s.code && S.teams[s.code]?.c1) || "#1f2937", c2 = (s.code && S.teams[s.code]?.c2) || "#ffffff";
@@ -816,7 +845,7 @@ const statBar = ([hv, av], label, suf = "") => {
     <span class="st-bar"><i class="st-h" style="width:${hp}%"></i><i class="st-a" style="width:${100 - hp}%"></i></span>
   </div>`;
 };
-function mdStats(r) {
+function mdStats(r, expand = false) {
   if (!r?.stats) return "";
   const s = r.stats, parts = [];
   // possession, shots and on target already sit in Key stats just above — don't repeat them here.
@@ -829,8 +858,9 @@ function mdStats(r) {
       parts.push(statBar([Math.round(s.pass[0] / s.passT[0] * 100), Math.round(s.pass[1] / s.passT[1] * 100)], "Pass accuracy", "%"));
   }
   if (!parts.length) return "";
-  // summarize-then-expand: lead the popup with a one-line headline; the full 16-stat panel + performers are one tap deep.
-  // Tease with each side's passes (home–away, matching the scoreline) rather than possession, which already sits in Key stats.
+  if (expand) {
+    return `<div class="eyebrow">All match stats</div><div class="md-stats">${parts.join("")}</div>${mdLeaders(r)}`;
+  }
   const head = Array.isArray(s.pass) ? `${s.pass[0]}–${s.pass[1]} passes · ${parts.length} stats` : `${parts.length} stats`;
   return `<details class="md-fold"><summary><span>All match stats</span><small>${head}</small></summary>
     <div class="md-fold-body"><div class="md-stats">${parts.join("")}</div>${mdLeaders(r)}</div></details>`;
@@ -849,45 +879,52 @@ function mdKeyStats(r, m) {
 }
 // "Deep analysis": FIFA Enhanced Football Intelligence (post-match) — official xG, line breaks, ball progressions,
 // pressures, phases of play, and the headline: per-player distance covered. Only shown when data/efi.json has it.
-function mdEfi(m) {
+function mdEfi(m, expand = false) {
   const e = S.efi?.[m.num]; if (!e) return "";
   const h = slotInfo(m, "home"), a = slotInfo(m, "away");
   const hc = (h.code && S.teams[h.code]?.c1) || "#0BA360", ac = (a.code && S.teams[a.code]?.c1) || "#5B6B7A";
   const sb = [];
-  if (e.xg) sb.push(statBar(e.xg, "Expected goals (xG)"));
+  // When expanded (FT), xG and possession are already visible in Key stats — skip them here to avoid repetition
+  if (!expand && e.xg) sb.push(statBar(e.xg, "Expected goals (xG)"));
   if (e.shots) sb.push(statBar([e.shots[0], e.shots[2]], "Attempts at goal"));
-  if (e.poss && e.possContest != null) sb.push(statBar(e.poss, "Possession", "%"));
+  if (!expand && e.poss && e.possContest != null) sb.push(statBar(e.poss, "Possession", "%"));
   if (e.lineBreaks) sb.push(statBar(e.lineBreaks, "Completed line breaks"));
   if (e.ballProg) sb.push(statBar(e.ballProg, "Ball progressions"));
   if (e.pressures) sb.push(statBar(e.pressures, "Defensive pressures"));
   const phaseKeys = ["Build Up Unopposed", "Progression", "Final Third", "Attacking Transition"];
   const phaseBars = phaseKeys.filter(k => e.phasesIn?.[k]).map(k => statBar(e.phasesIn[k], k, "%")).join("");
-  const players = [...(e.players?.home || []).map(p => ({ ...p, c: hc, code: h.code })), ...(e.players?.away || []).map(p => ({ ...p, c: ac, code: a.code }))]
-    .filter(p => p.km).sort((x, y) => y.km - x.km);
+  const homeKm = (e.players?.home || []).filter(p => p.km);
+  const awayKm = (e.players?.away || []).filter(p => p.km);
+  const players = [...homeKm.map(p => ({ ...p, c: hc, code: h.code })), ...awayKm.map(p => ({ ...p, c: ac, code: a.code }))]
+    .sort((x, y) => y.km - x.km);
   const maxKm = players[0]?.km || 12;
-  const dist = players.length ? `<div class="efi-sub">Distance covered <small>km, both teams</small></div>
+  const distLabel = homeKm.length && awayKm.length ? "km, both teams"
+    : homeKm.length ? `km, ${esc(h.name)} only`
+    : awayKm.length ? `km, ${esc(a.name)} only` : null;
+  const dist = players.length && distLabel ? `<div class="efi-sub">Distance covered <small>${distLabel}</small></div>
     <div class="efi-dist">${players.slice(0, 14).map(p => `<div class="efi-prow">
       <span class="efi-pn">${esc(tlName(p.name, p.code))}</span>
       <span class="efi-pbar"><i style="width:${Math.max(5, Math.round(p.km / maxKm * 100))}%;background:${p.c}"></i></span>
       <span class="efi-pv">${p.km.toFixed(1)}</span></div>`).join("")}</div>` : "";
   if (!sb.length && !dist) return "";
-  return `<details class="md-fold"><summary><span>Deep analysis</span><small>FIFA EFI · post-match</small></summary>
-    <div class="md-fold-body">
-      ${sb.length ? `<div class="md-stats">${sb.join("")}</div>` : ""}
+  const body = `${sb.length ? `<div class="md-stats">${sb.join("")}</div>` : ""}
       ${phaseBars ? `<div class="efi-sub">Phases of play <small>in possession</small></div><div class="md-stats">${phaseBars}</div>` : ""}
       ${dist}
-      <p class="efi-credit">Source: FIFA Enhanced Football Intelligence, published after the match.</p>
-    </div></details>`;
+      <p class="efi-credit">Source: FIFA Enhanced Football Intelligence, published after the match.</p>`;
+  if (expand) return `<div class="eyebrow">Deep analysis</div>${body}`;
+  return `<details class="md-fold"><summary><span>Deep analysis</span><small>FIFA EFI · post-match</small></summary>
+    <div class="md-fold-body">${body}</div></details>`;
 }
 // per-team standout performers (top shooter / passer / defender / keeper) — names are display-only
 function mdLeaders(r) {
   if (!r?.lead?.length) return "";
   const CAT = [["totalShots", "Shots"], ["accuratePasses", "Passes"], ["defensiveInterventions", "Defensive actions"], ["saves", "Saves"]];
   const byCat = {}; for (const L of r.lead) (byCat[L.k] ||= []).push(L);
-  // one performer per row; the category label heads its first row, blank on any runner-up beneath it
-  const rows = CAT.filter(([k]) => byCat[k]).flatMap(([k, label]) =>
-    byCat[k].map((L, i) => `<div class="ld-row"><span class="ld-cat">${i === 0 ? label : ""}</span><span class="ld-p">${flag(L.c)} <span class="ld-n">${esc(L.n)}</span> <em>${esc(L.v)}</em></span></div>`)).join("");
-  return rows ? `<div class="eyebrow">Key performers</div><div class="md-leaders">${rows}</div>` : "";
+  const sects = CAT.filter(([k]) => byCat[k]).map(([k, label]) => {
+    const rows = byCat[k].map(L => `<div class="ld-row"><span class="ld-p">${flag(L.c)} <span class="ld-n">${esc(L.n)}</span> <em>${esc(L.v)}</em></span></div>`).join("");
+    return `<div class="ld-sect"><span class="ld-cat">${label}</span>${rows}</div>`;
+  }).join("");
+  return sects ? `<div class="eyebrow">Key performers</div><div class="md-leaders">${sects}</div>` : "";
 }
 const evMin = s => { const m = String(s || "").match(/(\d+)(?:'?\+(\d+))?/); return m ? +m[1] + (m[2] ? +m[2] / 100 : 0) : 0; };
 // "match flow" — the running lead (home − away) over the timeline, as a signed area
@@ -1275,12 +1312,10 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
     : st === ST.HT ? `<span class="md-tag live">Half-time</span>`
     : st === ST.FT ? `<span class="md-tag ft">Full time</span>`
     : `<span class="md-tag soon">Upcoming</span>`;   // time/date live in the meta row below — no need to repeat it
-  const side = (s, key) => `<div class="md-team ${s.code === S.fav ? "is-fav" : ""}">
+  const side = (s, key) => `<div class="md-team ${s.code === S.fav ? "is-fav" : ""}${s.code ? " md-team-clk" : ""}"${s.code ? ` data-squad="${s.code}" role="button" tabindex="0" aria-label="Open ${esc(s.name)} details"` : ""}>
       <span class="md-flag">${s.code ? flag(s.code) : TBD_FLAG}</span>
       <span class="md-name ${s.ph ? "is-ph" : ""}">${esc(slotText(m, key, s))}</span>
       ${s.code ? `<span class="md-teaminfo">${esc(S.teams[s.code].conf || "")}${fifaRankOf(s.code) ? ` · <span class="md-rank" title="FIFA World Ranking">#${fifaRankOf(s.code)}</span>` : ""}${S.teams[s.code].titles ? ` · ${TROPHY} ${S.teams[s.code].titles}` : ""}</span>` : ""}</div>`;
-  const squadLinks = [h, a].filter(s => s.code)
-    .map(s => `<button class="md-squad-link" data-squad="${s.code}"><span class="fl">${flag(s.code)}</span> ${esc(s.name)} ›</button>`).join("");
   const mid = (score || live)
     ? `<div class="md-score">${r?.h ?? 0}<span>–</span>${r?.a ?? 0}</div>${r?.hp != null ? `<div class="md-pens">${r.hp}–${r.ap} on penalties</div>` : ""}`
     : `<div class="md-vs">VS</div>`;
@@ -1301,11 +1336,11 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
       <div class="md-goals-col">${(r.gh || []).map(g => `<div class="md-goal">${ICO.ball} ${esc(g)}</div>`).join("")}</div>
       <div class="md-goals-col away">${(r.ga || []).map(g => `<div class="md-goal">${esc(g)} ${ICO.ball}</div>`).join("")}</div>
     </div>` : "";
-  const pKeyStats = mdKeyStats(r, m), pStats = mdStats(r), pEfi = mdEfi(m);
+  const pKeyStats = mdKeyStats(r, m), pStats = mdStats(r, isFT), pEfi = mdEfi(m, isFT);
   const pReport = mdReport(m), pComm = mdCommentaryShell(m), pWinProb = winProbBlock(m), pStakes = stakesBlock(m);
   const pXiInline = r?.xi ? `<div class="eyebrow">${liveNow ? "Line-ups" : "Starting XI"}</div>${xiPanel(r.xi, h, a)}` : "";
   const pXiFold = r?.xi ? `<details class="md-fold"><summary><span>Starting XI</span><small>${esc([r.xi.h?.f, r.xi.a?.f].filter(Boolean).join(" v ")) || "line-ups & formations"}</small></summary><div class="md-fold-body">${xiPanel(r.xi, h, a)}</div></details>` : "";
-  const pXiNote = (!r?.xi && st === ST.SCHED) ? `<p class="md-xi-note">Confirmed line-ups appear about an hour before kickoff.</p>` : "";
+  const pXiNote = (!r?.xi && st === ST.SCHED) ? `<p class="md-xi-note">Confirmed line-ups are usually available closer to kickoff.</p>` : "";
   const pMeta = `<div class="md-meta">
       <span>${fmt(m.utc, { weekday: "long", day: "numeric", month: "long" })}</span>
       <span>${timeStr(m.utc)}</span>
@@ -1314,15 +1349,14 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
       ${r?.facts?.att ? `<span>${ICO.people} ${(+r.facts.att).toLocaleString()} in</span>` : ""}
       ${r?.facts?.ref ? `<span>Referee · ${esc(r.facts.ref)}</span>` : ""}
     </div>`;
-  const pSquads = squadLinks ? `<div class="md-squads">${squadLinks}</div>` : "";
-  // order by state so each opens with what you came for. Folded items (full stats, EFI, finished XI) keep an
+  // order by state so each opens with what you came for.
   // informative summary, so nothing valuable is ever fully hidden — the worst case is a one-line headline.
   const middle = liveNow
     ? [pTimeline, pXiInline, pComm, pKeyStats, pStats, pEfi, pWinProb, pStakes]
     : isFT
-    ? [pTimeline, pKeyStats, pStats, pXiFold, pReport, pEfi, pWinProb, pStakes]
+    ? [pTimeline, pKeyStats, pStats, pXiInline, pReport, pEfi, pWinProb, pStakes]
     : [pStakes, pWinProb, pXiInline, pXiNote];   // upcoming: stakes + odds + (announced) line-ups
-  const _body = pTop + middle.join("") + pMeta + pSquads;
+  const _body = pTop + middle.join("") + pMeta;
   const mb = $("#matchBody");
   if (reuse) paint(mb, _body);                       // live poll: morph the body in place — score/minute/timeline/stats update while expanded folds, scroll & loaded commentary survive
   else { mb.__sig = _body; mb.innerHTML = _body; }   // fresh open: one clean render (seed the signature so the first refresh morphs against it)
@@ -3771,7 +3805,7 @@ async function boot() {
   }
   initMusic();
   $$("[data-close]").forEach(b => b.onclick = () => b.closest("dialog").close());
-  $$("dialog").forEach(d => d.onclick = e => { if (e.target === d) d.close(); });
+  $$("dialog").forEach(d => d.onclick = e => { if (e.target === d) { if (d.classList.contains("sheet")) _closeAll(); else d.close(); } });
   $("#searchDialog").addEventListener("close", () => { compareSeed = null; stopSearchRoll(); });   // never leave compare mode armed (or a timer running) after the overlay closes
   // Closing a modal restores focus to whatever opened it (e.g. the tapped match card). On a pointer close the
   // browser paints a :focus-visible ring on that card, which reads as a flicker. Track input modality and drop
