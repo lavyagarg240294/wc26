@@ -640,9 +640,6 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .wp-score b{font-family:var(--mono);font-weight:800;font-size:14.5px;font-variant-numeric:tabular-nums;color:var(--ink)}
 .wp-score-p{font-family:var(--mono);font-size:11px;color:var(--ink-soft)}
 .wp-score-et{font-size:10.5px;color:var(--ink-soft)}
-.wp-score-alt{font-family:var(--mono);font-size:10.5px;color:var(--ink-soft);margin-left:auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
-.wp-score-exp{flex-basis:100%;font-size:11px;color:var(--ink-soft);margin-top:1px}
-.wp-score-exp b{font-family:var(--mono);font-weight:700;font-size:11.5px;color:var(--ink);font-variant-numeric:tabular-nums}
 .wp-why{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;margin-top:7px;font-size:11.5px;line-height:1.4}
 .wp-why-lab{font-size:9.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);font-weight:700}
 .wp-why-r{font-weight:600}
@@ -651,7 +648,6 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .wp-why-r.r-n{color:var(--ink-soft)}
 .wp-why-sep{color:var(--ink-soft);opacity:.55}
 .wp-why-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--live);margin-right:3px;animation:pulse 1.4s infinite}
-@media(max-width:380px){.wp-score-alt{display:none}}
 /* about-the-tournament sheet */
 .about-lead{font-size:15px;line-height:1.5;margin:0 0 14px;color:var(--ink)}
 .about-tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:8px}
