@@ -81,25 +81,23 @@ b{font-weight:600}
 
 /* ---------- animated stadium light-show background ---------- */
 #bg{position:fixed;inset:0;z-index:-1;overflow:hidden;pointer-events:none;contain:strict}
-#bg span{position:absolute;border-radius:50%;filter:blur(90px);will-change:transform,opacity;mix-blend-mode:multiply}
+/* 3 blobs (was 5) at a lighter blur — fewer always-promoted, blend-composited layers = smoother scroll + less battery.
+   Reduced-motion is neutralised globally above; bg-paused (set when the tab is hidden) parks the animation + drops the
+   GPU promotion so a backgrounded tab costs nothing. */
+#bg span{position:absolute;border-radius:50%;filter:blur(56px);will-change:transform,opacity;mix-blend-mode:multiply}
 #bg span:nth-child(1){width:52vmax;height:52vmax;left:-16vmax;top:-18vmax;opacity:.55;
   background:radial-gradient(circle,var(--acc1),transparent 68%);animation:drift1 26s ease-in-out infinite alternate}
 #bg span:nth-child(2){width:44vmax;height:44vmax;right:-16vmax;top:6vh;opacity:.48;
   background:radial-gradient(circle,var(--gold),transparent 68%);animation:drift2 33s ease-in-out infinite alternate}
 #bg span:nth-child(3){width:48vmax;height:48vmax;left:18vw;bottom:-26vmax;opacity:.45;
   background:radial-gradient(circle,#2DD4BF,transparent 68%);animation:drift3 30s ease-in-out infinite alternate}
-#bg span:nth-child(4){width:40vmax;height:40vmax;right:10vw;bottom:-6vh;opacity:.40;
-  background:radial-gradient(circle,#6366F1,transparent 68%);animation:drift4 38s ease-in-out infinite alternate}
-#bg span:nth-child(5){width:36vmax;height:36vmax;left:42vw;top:22vh;opacity:.32;
-  background:radial-gradient(circle,#FB7185,transparent 70%);animation:drift5 34s ease-in-out infinite alternate}
+body.bg-paused #bg span{animation-play-state:paused;will-change:auto}
 /* fine grain for a printed-paper feel */
 #bg::after{content:"";position:absolute;inset:0;opacity:.05;mix-blend-mode:soft-light;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
 @keyframes drift1{to{transform:translate(15vw,10vh) scale(1.2)}}
 @keyframes drift2{to{transform:translate(-13vw,8vh) scale(1.14)}}
 @keyframes drift3{to{transform:translate(11vw,-9vh) scale(1.24)}}
-@keyframes drift4{to{transform:translate(-10vw,-7vh) scale(1.16);opacity:.34}}
-@keyframes drift5{to{transform:translate(-12vw,10vh) scale(1.3);opacity:.3}}
 
 /* ---------- top bar ---------- */
 .topbar{

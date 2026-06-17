@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "239";  // shown in footer; bump with the ?v= asset version
+const BUILD = "240";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -183,7 +183,16 @@ const ICO = {
   compare: _ico('<path d="M4 20h16M7.5 20v-6M12 20V5M16.5 20v-9"/>'),         // bars — compare two players
 };
 const TROPHY = `<span class="ico-gold">${ICO.trophy}</span>`;   // gold-tinted trophy (replaces the old emoji)
-const fmt = (iso, opts) => new Intl.DateTimeFormat("en", { timeZone: tz(), ...opts }).format(new Date(iso));
+// Building an Intl.DateTimeFormat is the costly part; reuse one formatter per (locale, zone, options) shape instead of
+// constructing a fresh object on every fmt()/timeStr() call in the paint loop. Keyed by tz() so a timezone change is a miss.
+const _dtfCache = new Map();
+const _dtf = (locale, opts) => {
+  const z = tz(), k = locale + "|" + z + "|" + JSON.stringify(opts || {});
+  let f = _dtfCache.get(k);
+  if (!f) { f = new Intl.DateTimeFormat(locale, { timeZone: z, ...opts }); _dtfCache.set(k, f); }
+  return f;
+};
+const fmt = (iso, opts) => _dtf("en", opts).format(new Date(iso));
 const timeStr = iso => fmt(iso, { hour: "2-digit", minute: "2-digit", hour12: false });
 // The matches LIST groups by the real, technical calendar date in the visitor's timezone — Sunday's matches under
 // "Sunday", a 2am-Monday kickoff under "Monday". Straightforward and correct.
@@ -195,7 +204,7 @@ const dayLabel = iso => fmt(iso, { weekday: "long", day: "numeric", month: "long
 // above stays on the calendar date.
 const DAY_ROLLOVER_H = 10;
 // en-CA → "2026-06-14": a SORTABLE practical-day key (used for equality + ordering by the ticker window + match-of-day).
-const viewDay = iso => new Intl.DateTimeFormat("en-CA", { timeZone: tz(), year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(Date.parse(iso) - DAY_ROLLOVER_H * 36e5));
+const viewDay = iso => _dtf("en-CA", { year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(Date.parse(iso) - DAY_ROLLOVER_H * 36e5));
 // uniform offset label everywhere ("GMT+4", "GMT-5", "GMT+5:30") — not the mixed EST/IST/GMT+N that "short" gives
 const tzShort = () => {
   try { return new Intl.DateTimeFormat("en", { timeZone: tz(), timeZoneName: "shortOffset" }).formatToParts(new Date()).find(p => p.type === "timeZoneName").value.replace(/^GMT$/, "GMT+0"); }
@@ -1918,7 +1927,17 @@ const ordinal = n => n + (["th", "st", "nd", "rd"][((n % 100) - 20) % 10] || ["t
 /* ---------------- global search (teams · players · matches) ---------------- */
 // Result rows reuse the existing data-squad / data-player / data-mid delegation, so a tap
 // opens the right sheet; #searchResults' own listener just closes the overlay first.
-let SIDX = null;
+let SIDX = null, _sidxSig = "";
+// Memoised wrapper: rebuilding the whole index (every team, ~700 players, every match's slot resolution) on each
+// search-open was wasted work when nothing changed. Rebuild only when the data that feeds it moves — team count,
+// total squad size, match count, or the results stamp (which is what flips knockout slot names + scores).
+function searchIndex() {
+  const sig = S.matches.length + "|" + Object.keys(S.teams).length + "|" +
+    Object.values(S.squads || {}).reduce((n, s) => n + (s.players ? s.players.length : 0), 0) + "|" + (S.results.updated || "");
+  if (SIDX && sig === _sidxSig) return SIDX;
+  _sidxSig = sig;
+  return (SIDX = buildSearchIndex());
+}
 function buildSearchIndex() {
   const teams = Object.keys(S.teams).map(c => ({ code: c, name: S.teams[c].name, conf: S.teams[c].conf || "" }));
   const players = [];
@@ -1955,7 +1974,7 @@ function startSearchRoll() {
   }, 2600);
 }
 function openSearchOverlay() {
-  SIDX = buildSearchIndex();
+  searchIndex();   // (re)builds SIDX only when the underlying data changed
   const inp = $("#searchInput"), roll = $("#searchRoll");
   inp.value = "";
   if (compareSeed) { inp.placeholder = `Compare ${pName(compareSeed.name, compareSeed.code)} with…`; stopSearchRoll(); if (roll) roll.classList.add("is-hidden"); }
@@ -3476,7 +3495,7 @@ async function loadCommentary(num) {
 function setFreshness() {
   const el = $("#updatedLabel"); if (!el) return;
   if (!S.lastChecked) { el.textContent = S.results.updated ? "Up to date" : "Schedule loaded"; return; }
-  const fmtT = ms => new Intl.DateTimeFormat("en", { timeZone: tz(), hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(ms));   // 24h, matching every kickoff time on screen
+  const fmtT = ms => _dtf("en", { hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(ms));   // 24h, matching every kickoff time on screen
   // lead with how recently we checked, not the data's age — a quiet stretch with no matches isn't staleness
   if (Date.now() - S.lastChecked > 5 * 60000) { el.textContent = `Last checked ${fmtT(S.lastChecked)}`; return; }
   const live = S.matches.some(m => [ST.LIVE, ST.HT].includes(status(m)));
@@ -3739,6 +3758,7 @@ async function boot() {
   // returning to a backgrounded tab is the classic "stale score" moment (the goal happened while you were away):
   // pull the latest immediately instead of waiting for the next poll. Throttled so quick tab-flicks don't spam.
   document.addEventListener("visibilitychange", () => {
+    document.body.classList.toggle("bg-paused", document.hidden);   // park the ambient blobs (animation + GPU promotion) while backgrounded
     if (!document.hidden && Date.now() - (S.lastChecked || 0) > 8000) refreshResults();
   });
   setInterval(loadEfi, 5 * 60 * 1000);   // EFI is post-match — refresh every 5 min is plenty
