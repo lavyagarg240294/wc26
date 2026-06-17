@@ -11,7 +11,7 @@
   --ink-soft:#5B6B7A;
   --line:#E4E9E3;
   --pitch:#0BA360;
-  --live:#FF3B30;
+  --live:#D62518;   /* deepened from iOS #FF3B30 so WHITE text on the live fills (badge/chip/red-card) clears AA (5.1:1, was 3.5); also sharpens --live used as red text on light */
   --gold:#E8B931;
   --acc1:var(--pitch);
   --focus:var(--acc1);
@@ -19,6 +19,9 @@
      stay for fills, large display, icons & dark mode where they already pass). */
   --acc-text:#0A7D45;
   --gold-text:#8A6A12;
+  /* Solid green fill that carries WHITE text at AA in BOTH themes (white on #0A7D45 = 5.2:1; the brand
+     --acc1 #0BA360 only reaches 3.3:1). Used for primary buttons + the selected segmented-pill state. */
+  --acc-deep:#0A7D45;
   --acc2:#0D1B2A;
   --r:16px;
   --mono:'Spline Sans Mono',ui-monospace,monospace;
@@ -241,7 +244,7 @@ b{font-weight:600}
   font-family:var(--disp);font-weight:700;font-size:11px;letter-spacing:.08em;text-transform:uppercase;
   color:var(--acc-text);background:color-mix(in srgb,var(--acc1) 10%,var(--card));border:1px solid color-mix(in srgb,var(--acc1) 25%,transparent);
   padding:5px 10px;border-radius:99px}
-.hero:hover .hero-go{background:var(--acc1);color:#fff}
+.hero:hover .hero-go{background:var(--acc-deep);color:#fff}
 .hero-tag{display:flex;align-items:center;flex-wrap:wrap;gap:6px 8px;font-family:var(--disp);font-weight:700;font-stretch:115%;font-size:12px;letter-spacing:.13em;text-transform:uppercase;color:var(--acc-text);margin-bottom:16px}
 .hero-tag.is-live{color:var(--live)}
 .live-dot{width:8px;height:8px;border-radius:50%;background:var(--live);animation:pulse 1.4s ease-out infinite}
@@ -365,6 +368,11 @@ b{font-weight:600}
 .mcard-refresh:hover{opacity:1;color:var(--acc-text);background:color-mix(in srgb,var(--acc1) 10%,transparent)}
 .mcard-refresh:focus-visible{outline:2px solid var(--acc1);outline-offset:1px;opacity:1}
 .mcard-refresh.spinning svg{animation:spin .7s linear infinite}
+/* Share sits in the same top-right slot as refresh; they're mutually exclusive (live shows refresh, otherwise share). */
+.mcard-share{position:absolute;top:5px;right:48px;z-index:2;background:none;border:0;cursor:pointer;color:var(--ink-soft);opacity:.5;padding:8px 9px;border-radius:9px;line-height:0;transition:color .2s,opacity .2s,background .2s,transform .15s}
+.mcard-share:hover{opacity:1;color:var(--acc-text);background:color-mix(in srgb,var(--acc1) 10%,transparent)}
+.mcard-share:focus-visible{outline:2px solid var(--acc1);outline-offset:1px;opacity:1}
+.mcard-share:active{transform:scale(.9);transition-duration:.08s}
 .mcard-right{padding-right:16px}
 .ics-link{margin-left:auto;color:var(--ink-soft);text-decoration:none;font-size:11.5px;border-bottom:1px dotted var(--line)}
 .ics-link:hover{color:var(--acc-text)}
@@ -379,7 +387,7 @@ b{font-weight:600}
 .team-hero p{color:var(--ink-soft);font-size:13.5px;margin-top:3px}
 .pick-cta{display:flex;flex-direction:column;align-items:center;gap:14px;padding:46px 20px;background:var(--card);border:1px dashed color-mix(in srgb,var(--acc1) 45%,var(--line));border-radius:22px;text-align:center}
 .pick-cta .big{font-family:var(--disp);font-weight:800;font-stretch:110%;font-size:20px}
-.btn{font-family:var(--disp);font-weight:700;font-stretch:108%;letter-spacing:.04em;font-size:13.5px;text-transform:uppercase;background:var(--acc1);color:#fff;padding:11px 22px;border-radius:99px;transition:transform .15s,box-shadow .2s,background .5s}
+.btn{font-family:var(--disp);font-weight:700;font-stretch:108%;letter-spacing:.04em;font-size:13.5px;text-transform:uppercase;background:var(--acc-deep);color:#fff;padding:11px 22px;border-radius:99px;transition:transform .15s,box-shadow .2s,background .5s}
 .btn:hover{transform:translateY(-1px);box-shadow:0 8px 20px -6px color-mix(in srgb,var(--acc1) 60%,transparent)}
 .btn:active{transform:scale(.96);transition-duration:.08s}
 /* press feedback on every tappable content surface — :hover never fires on touch, so without these a tap feels dead
@@ -483,9 +491,9 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 
 /* ---------- calendar filters ---------- */
 .filters{display:flex;gap:8px;flex-wrap:wrap;margin:26px 0 14px}
-.fbtn{font-size:12px;font-weight:600;padding:8px 14px;border-radius:99px;border:1px solid var(--line);background:var(--card);color:var(--ink-soft);transition:all .18s}
+.fbtn{font-size:12px;font-weight:700;padding:8px 14px;border-radius:99px;border:1px solid var(--line);background:var(--card);color:var(--ink-soft);transition:all .18s}
 .fbtn:hover{border-color:var(--acc-text);color:var(--ink)}
-.fbtn.is-on{background-color:color-mix(in srgb,var(--acc1) 13%,var(--card));border-color:var(--acc-text);color:var(--ink)}
+.fbtn.is-on{background:var(--acc-deep);border-color:transparent;color:#fff}
 .fsel{
   appearance:none;-webkit-appearance:none;
   font-family:inherit;font-size:12px;font-weight:600;color:var(--ink);
@@ -571,7 +579,7 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .sim-intro-foot>h2{font-size:clamp(18px,4.2vw,22px)}   /* a touch smaller down here — a recap, not a hero */
 .sim-goal{margin-bottom:14px}                          /* breathing room between the champion teaser and step 1 */
 .sim-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
-.step-n{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--acc1);color:#fff;font-family:var(--mono);font-size:11.5px;font-weight:700;flex:0 0 22px}
+.step-n{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--acc-deep);color:#fff;font-family:var(--mono);font-size:11.5px;font-weight:700;flex:0 0 22px}
 /* collapsible Predict steps — each step is its own tappable section, collapsed by default so the whole flow
    (and the bracket) is visible at a glance instead of buried below a long scroll */
 .sim-step{border:1px solid var(--line);border-radius:14px;background:color-mix(in srgb,var(--ink) 2%,var(--card));margin-bottom:10px}
@@ -954,7 +962,7 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .substat-nav::-webkit-scrollbar{display:none}
 .substat{flex:1 1 auto;text-align:center;font-family:var(--disp);font-weight:700;font-stretch:106%;font-size:12.5px;letter-spacing:.02em;padding:8px 15px;border-radius:99px;border:1px solid var(--line);background:var(--card);color:var(--ink-soft);white-space:nowrap;transition:background .15s,border-color .15s,color .15s}
 .substat:hover{border-color:color-mix(in srgb,var(--acc1) 40%,var(--line))}
-.substat.is-on{background:var(--acc1);border-color:var(--acc-text);color:#fff}
+.substat.is-on{background:var(--acc-deep);border-color:transparent;color:#fff}
 .substat-panel[hidden]{display:none}
 .substat-panel{animation:rise .35s both}
 .stat-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:8px}
@@ -989,15 +997,16 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .rk-row .fl{font-size:18px;line-height:1;flex:0 0 auto}
 .rk-num{font-family:var(--mono);font-size:12px;font-weight:700;color:var(--ink-soft);width:22px;text-align:right;flex:0 0 22px;font-variant-numeric:tabular-nums}
 .rk-name{flex:1;font-weight:600;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.rk-q{flex:0 0 auto;font-family:var(--disp);font-weight:800;font-size:9px;letter-spacing:.04em;background:var(--acc1);color:#fff;border-radius:5px;padding:2px 5px}
+.rk-q{flex:0 0 auto;font-family:var(--disp);font-weight:800;font-size:9px;letter-spacing:.04em;background:var(--acc-deep);color:#fff;border-radius:5px;padding:2px 5px}
 .rk-no{flex:0 0 auto;font-size:10px;font-weight:600;letter-spacing:.02em;color:var(--ink-soft);text-transform:uppercase;opacity:.75}
 .rk-out{opacity:.5}
 .rk-out .rk-name{font-weight:500}
 .rk-flag{flex:0 0 auto;width:26px;height:17px;object-fit:cover;border-radius:2px;box-shadow:0 0 0 1px color-mix(in srgb,var(--line) 70%,transparent);background:var(--line)}
 .rk-conf{flex:0 0 auto;font-family:var(--mono);font-size:9.5px;font-weight:700;letter-spacing:.02em;color:var(--ink-soft);background:color-mix(in srgb,var(--line) 55%,transparent);border-radius:5px;padding:2px 5px}
 .rk-filter{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 11px}
-.rk-fbtn{font-family:inherit;font-size:12px;font-weight:700;padding:7px 14px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--ink-soft);cursor:pointer;transition:background .15s,color .15s}
-.rk-fbtn.is-on{background:var(--acc1);color:#fff;border-color:transparent}
+.rk-fbtn{font-family:inherit;font-size:12px;font-weight:700;padding:7px 14px;border-radius:99px;border:1px solid var(--line);background:var(--card);color:var(--ink-soft);cursor:pointer;transition:background .15s,color .15s,border-color .15s}
+.rk-fbtn:hover{border-color:var(--acc-text);color:var(--ink)}
+.rk-fbtn.is-on{background:var(--acc-deep);color:#fff;border-color:transparent}
 .rk-list.q-only .rk-nq{display:none}
 /* override .team-search's centring margins (defined later in the sheet) so the box spans the full width from the left edge */
 .team-search.rk-search{width:100%;margin:0 0 11px}
@@ -1021,7 +1030,7 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .cm-row:first-child{border-top:none}
 .cm-t{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--ink-soft);text-align:right;font-variant-numeric:tabular-nums}
 .cm-x{min-width:0}
-.cm-var{display:inline-block;font-family:var(--disp);font-weight:800;font-size:9px;letter-spacing:.06em;background:var(--acc1);color:#fff;border-radius:5px;padding:1px 5px;margin-right:6px;vertical-align:middle;transform:translateY(-1px)}
+.cm-var{display:inline-block;font-family:var(--disp);font-weight:800;font-size:9px;letter-spacing:.06em;background:var(--acc-deep);color:#fff;border-radius:5px;padding:1px 5px;margin-right:6px;vertical-align:middle;transform:translateY(-1px)}
 .cm-var-row .cm-x{color:var(--ink-soft)}
 .cm-full{margin-top:6px;border-top:1px solid color-mix(in srgb,var(--line) 50%,transparent)}
 .cm-full>summary{cursor:pointer;font-size:11.5px;font-weight:600;color:var(--acc-text);padding:9px 16px;list-style:none}
@@ -1394,7 +1403,7 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .update-pill{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(18px + env(safe-area-inset-bottom));z-index:61;
   display:inline-flex;align-items:center;gap:8px;
   font-family:var(--disp);font-weight:700;font-stretch:105%;font-size:12.5px;letter-spacing:.02em;
-  color:#fff;background:var(--acc1);border:none;border-radius:99px;padding:11px 18px;cursor:pointer;white-space:nowrap;max-width:calc(100vw - 28px);
+  color:#fff;background:var(--acc-deep);border:none;border-radius:99px;padding:11px 18px;cursor:pointer;white-space:nowrap;max-width:calc(100vw - 28px);
   box-shadow:0 12px 30px -8px color-mix(in srgb,var(--acc1) 60%,transparent);animation:jumpIn .3s cubic-bezier(.2,1.3,.4,1) both}
 .update-pill[hidden]{display:none}
 .update-pill:hover{transform:translateX(-50%) translateY(-1px)}

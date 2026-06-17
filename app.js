@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "238";  // shown in footer; bump with the ?v= asset version
+const BUILD = "239";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -690,7 +690,9 @@ function matchCard(m, i, opts = {}) {
     ${opts.sub !== false ? `<div class="mcard-sub"><span class="grp">${esc(stageL)}</span><span>${esc(m.stadium)}</span><span>${esc(m.city)}</span><span class="mcard-go">Details ›</span></div>` : ""}
     </div>
     <button class="mcard-star ${sv ? "is-on" : ""}" data-save="${m.id}" aria-pressed="${sv}" aria-label="${sv ? "Remove from saved" : "Save match"}" title="${sv ? "Saved" : "Save match"}">${sv ? "★" : "☆"}</button>
-    ${live ? `<button class="mcard-refresh" data-refresh aria-label="Refresh score now" title="Refresh score now">${REFRESH_SVG}</button>` : ""}
+    ${live
+      ? `<button class="mcard-refresh" data-refresh aria-label="Refresh score now" title="Refresh score now">${REFRESH_SVG}</button>`
+      : `<button class="mcard-share" data-share-match="${m.id}" aria-label="Share this match" title="Share this match">${SHARE_SVG}</button>`}
   </div>`;
 }
 // split a starting XI into {gk, bands[]} using its formation string (fallback: coarse positions)
@@ -1135,7 +1137,7 @@ function winProbBlock(m) {
   const xg = wp.xg, ph_ = xg ? Math.round(xg.h) : 0, pa_ = xg ? Math.round(xg.a) : 0;   // projected score = the expected goals rounded — a representative scoreline, not the low-scoring distribution mode
   const score = xg ? `<div class="wp-score"><span class="wp-score-lab">Projected score</span> <b>${ph_}–${pa_}</b> <span class="wp-score-p">(${xg.h.toFixed(1)}–${xg.a.toFixed(1)})</span>${wp.ko && ph_ === pa_ ? ` <span class="wp-score-et">in 90′, then ET/pens</span>` : ""}</div>` : "";
   const why = (wp.reasons || []).length ? `<div class="wp-why"><span class="wp-why-lab">Why</span>${wp.reasons.map((rs, i) => `${i ? `<span class="wp-why-sep">·</span>` : ""}<span class="wp-why-r r-${(rs.dir || "N").toLowerCase()}">${rs.dot ? `<i class="wp-why-dot"></i>` : ""}${esc(rs.text)}</span>`).join("")}</div>` : "";
-  const note = `<p class="wp-note">Dixon–Coles model from each team's <b>rating</b> (Elo, updated by results &amp; official xG)${wp.live ? ", with the live score, minutes left and red cards" : ""}.${wp.ko ? " A 90-minute draw goes to extra time and penalties (split 50/50)." : ""}</p>`;
+  const note = `<p class="wp-note">Dixon-Coles model from each team's <b>rating</b> (Elo, updated by results &amp; official xG)${wp.live ? ", with the live score, minutes left and red cards" : ""}.${wp.ko ? " A 90-minute draw goes to extra time and penalties (split 50/50)." : ""}</p>`;
   return `<div class="eyebrow">Win probability <span class="wp-est">${wp.live ? "live estimate" : "pre-match estimate"}</span></div>
     <div class="wp">
       <div class="wp-bar" role="img" aria-label="${esc(h.name)} ${ph}%, draw ${pd}%, ${esc(a.name)} ${pa}%">
@@ -2524,7 +2526,8 @@ async function shareMatchCard(m) {
   const link = matchShareLink(m), hn = h.code ? h.name : slotText(m, "home", h), an = a.code ? a.name : slotText(m, "away", a);
   const copyLink = async () => { try { await navigator.clipboard.writeText(link); flashToast("Match link copied. Share it!"); } catch { flashToast("Couldn't copy the link"); } };
   if (st === ST.FT) {   // result card already exists; share its link
-    if (navigator.share) { try { await navigator.share({ title: `${hn} ${r.h}–${r.a} ${an} · WC 2026`, url: link }); return; } catch (err) { if (err?.name === "AbortError") return; } }
+    const title = r && r.h != null ? `${hn} ${r.h}–${r.a} ${an} · WC 2026` : `${hn} vs ${an} · WC 2026`;   // guard a FT row that briefly lacks a scoreline
+    if (navigator.share) { try { await navigator.share({ title, url: link }); return; } catch (err) { if (err?.name === "AbortError") return; } }
     return copyLink();
   }
   try { await document.fonts.ready; } catch { /* fall back to system fonts */ }
@@ -3473,7 +3476,7 @@ async function loadCommentary(num) {
 function setFreshness() {
   const el = $("#updatedLabel"); if (!el) return;
   if (!S.lastChecked) { el.textContent = S.results.updated ? "Up to date" : "Schedule loaded"; return; }
-  const fmtT = ms => new Intl.DateTimeFormat("en", { timeZone: tz(), hour: "2-digit", minute: "2-digit" }).format(new Date(ms));
+  const fmtT = ms => new Intl.DateTimeFormat("en", { timeZone: tz(), hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(ms));   // 24h, matching every kickoff time on screen
   // lead with how recently we checked, not the data's age — a quiet stretch with no matches isn't staleness
   if (Date.now() - S.lastChecked > 5 * 60000) { el.textContent = `Last checked ${fmtT(S.lastChecked)}`; return; }
   const live = S.matches.some(m => [ST.LIVE, ST.HT].includes(status(m)));

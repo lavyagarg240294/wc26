@@ -33,7 +33,7 @@
 <meta name="apple-mobile-web-app-title" content="World Cup 26">
 <meta name="application-name" content="World Cup 26">
 <link rel="stylesheet" href="assets/fonts.css?v=112">
-<link rel="stylesheet" href="styles.css?v=238">
+<link rel="stylesheet" href="styles.css?v=239">
 <link rel="icon" href="assets/mark.svg">
 <link rel="icon" type="image/png" href="assets/icon-32.png" sizes="32x32">
 </head>
@@ -243,7 +243,7 @@
     </ul>
 
     <div class="eyebrow">The prediction model</div>
-    <p class="about-p">Win probabilities come from a <b>Dixon–Coles</b> scoring model. Each side carries a strength rating: an Elo that updates after every result and leans on <b>official expected goals</b>, not just the final score. That gets refined by an <b>attack-versus-defence</b> read of how the two teams actually play, by <b>home advantage</b> for the host nations, and, late in the groups, by <b>what each side still needs to qualify</b>. It's tuned to football's history, never to this tournament's own results, and it surfaces what's behind a call when there's a factor worth flagging.</p>
+    <p class="about-p">Win probabilities come from a <b>Dixon-Coles</b> scoring model. Each side carries a strength rating: an Elo that updates after every result and leans on <b>official expected goals</b>, not just the final score. That gets refined by an <b>attack-versus-defence</b> read of how the two teams actually play, by <b>home advantage</b> for the host nations, and, late in the groups, by <b>what each side still needs to qualify</b>. It's tuned to football's history, never to this tournament's own results, and it surfaces what's behind a call when there's a factor worth flagging.</p>
 
     <div class="eyebrow">How it works</div>
     <p class="about-p">It's a single static page with no app server. Scores and data are refreshed by automated jobs that publish plain JSON the page reads, so <b>your browser never calls a sports API directly</b> and no keys are ever exposed. Kick-off times convert to your device's clock automatically.</p>
@@ -308,6 +308,6 @@
 <canvas id="confetti" aria-hidden="true"></canvas>
 <audio id="bgm" preload="none"></audio>
 
-<script src="app.js?v=238"></script>
+<script src="app.js?v=239"></script>
 </body>
 </html>
