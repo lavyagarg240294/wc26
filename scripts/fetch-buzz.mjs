@@ -275,9 +275,11 @@ const FEEDS = [
 ];
 function parseRSS(xml, src, wcFeed) {
   return [...xml.matchAll(/<item[\s\S]*?<\/item>/gi)].map(m => m[0]).flatMap(it => {
-    const title = clean(it.match(/<title>([\s\S]*?)<\/title>/i)?.[1] || "");
+    const title = clean(it.match(/<title>([\s\S]*?)<\/title>/i)?.[1] || "").replace(/^\s*copy of\s+/i, "");
     const link = (it.match(/<link>([\s\S]*?)<\/link>/i)?.[1] || "").replace(/<!\[CDATA\[|\]\]>/g, "").replace(/&amp;/g, "&").trim();
-    if (!title || !link || !/^https?:/.test(link)) return [];
+    // some desks (ESPN live blogs) ship a title the source already truncated with "…" — skip it so the News tab only
+    // ever shows complete headlines
+    if (!title || /(?:…|\.\.\.)\s*$/.test(title) || !link || !/^https?:/.test(link)) return [];
     const codes = codesIn(title);
     if (!wcFeed && !/world cup|wc[\s-]?2026/i.test(title) && !codes.length && !STAR_RE.test(_deb(title))) return [];
     // pubDate (RSS) / dc:date (RDF) / published (Atom) → ISO, for the chronological News tab

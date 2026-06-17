@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "257";  // shown in footer; bump with the ?v= asset version
+const BUILD = "258";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -3235,7 +3235,13 @@ const relTime = iso => {
 function renderPulse() {
   const el = $("#view-pulse"), b = S.buzz;
   const intro = `<div class="pulse-intro"><h2>News</h2><p>The latest World Cup headlines from football desks worldwide, newest first. Each links out to its source.</p></div>`;
-  const heads = ((b && b.headlines) || []).slice().sort((x, y) => (y.date || "").localeCompare(x.date || ""));
+  // show whole headlines only: some desks (ESPN live blogs) ship a title the source itself truncated with "…" and an
+  // editorial "Copy of " prefix. Strip the prefix and drop anything still cut off, so every card reads in full.
+  const cleanHl = t => String(t || "").replace(/^\s*copy of\s+/i, "").trim();
+  const heads = ((b && b.headlines) || [])
+    .map(h => ({ ...h, title: cleanHl(h.title) }))
+    .filter(h => h.title && !/(?:…|\.\.\.)\s*$/.test(h.title))
+    .sort((x, y) => (y.date || "").localeCompare(x.date || ""));
   if (!heads.length) {
     paint(el, intro + `<div class="pulse-empty">${ICO.spark}<p>The day's headlines gather here as the tournament plays. Check back soon.</p></div>`);
     return;
