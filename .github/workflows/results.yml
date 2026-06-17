@@ -39,7 +39,7 @@ jobs:
             node scripts/fetch-results.mjs || echo "fetch error — will retry next loop"
             # stage scores + heavy detail + photos + credited reports + per-match commentary, then commit if anything
             # actually changed. `git add` first (not `git diff` on a path list) so brand-new commentary files count.
-            git add data/results.json data/details.json data/photos.json data/reports.json 2>/dev/null
+            git add data/results.json data/details.json data/photos.json data/playerbio.json data/reports.json 2>/dev/null
             [ -d data/commentary ] && git add data/commentary 2>/dev/null
             if ! git diff --cached --quiet 2>/dev/null; then
               git commit -m "scores: $(date -u +'%Y-%m-%d %H:%M UTC')"

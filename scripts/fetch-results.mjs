@@ -38,6 +38,8 @@ async function fifaGet(url) {
 
 // official player photos harvested from FIFA lineups → data/photos.json, keyed "ShortName|CODE"
 const harvestedPhotos = {};
+// player vitals from the FIFA squad endpoint → data/playerbio.json, keyed the same way: { d:DOB, h:cm, w:kg }
+const harvestedBio = {};
 function harvestPhotos(team, code) {
   if (!team || !code) return;
   for (const p of (team.Players || [])) {
@@ -52,8 +54,8 @@ function harvestPhotos(team, code) {
 // had a couple of names leak in from a feed but never played, from staying stuck at a handful of the 26 forever.
 const teamIdByCode = {};
 const SQUAD_PHOTO_CAP = 24;
-async function harvestSquadPhotos(needsPhotos) {
-  const todo = Object.keys(teamIdByCode).filter(needsPhotos);
+async function harvestSquad(needsSquad) {   // one squad fetch backfills BOTH photos and vitals (DOB/height/weight)
+  const todo = Object.keys(teamIdByCode).filter(needsSquad);
   let teams = 0;
   for (const code of todo) {
     if (teams >= SQUAD_PHOTO_CAP) break;
@@ -61,14 +63,20 @@ async function harvestSquadPhotos(needsPhotos) {
       const sq = await fifaGet(`${FIFA}/teams/${teamIdByCode[code]}/squad?idCompetition=${COMP}&idSeason=${SEASON}&language=en`);
       let added = 0;
       for (const p of (sq.Players || [])) {
-        const url = p.PlayerPicture?.PictureUrl; if (!url) continue;
-        for (const nm of [loc(p.PlayerName), loc(p.ShortName)]) if (nm) harvestedPhotos[nm + "|" + code] = url;
-        added++;
+        const url = p.PlayerPicture?.PictureUrl;
+        const d = (p.BirthDate || "").slice(0, 10), h = +p.Height || 0, w = +p.Weight || 0;
+        const bio = (d || h || w) ? { ...(d ? { d } : {}), ...(h ? { h } : {}), ...(w ? { w } : {}) } : null;
+        for (const nm of [loc(p.PlayerName), loc(p.ShortName)]) {
+          if (!nm) continue;
+          if (url) harvestedPhotos[nm + "|" + code] = url;
+          if (bio) harvestedBio[nm + "|" + code] = bio;
+        }
+        if (url || bio) added++;
       }
       if (added) teams++;
     } catch { /* skip this team this run */ }
   }
-  if (teams) console.log(`FIFA squad photos: backfilled ${teams} team(s)`);
+  if (teams) console.log(`FIFA squad: backfilled photos/vitals for ${teams} team(s)`);
 }
 
 // credited match reports (→ data/reports.json) + live commentary (→ data/commentary/<num>.json), both harvested
@@ -516,6 +524,11 @@ try { if (existsSync("data/photos.json")) prevPhotos = JSON.parse(readFileSync("
 // appearing player, so a not-yet-played team sits well under 26 and is correctly treated as incomplete.
 const photoCounts = {}; for (const k of Object.keys(prevPhotos)) { const c = k.split("|")[1]; photoCounts[c] = (photoCounts[c] || 0) + 1; }
 const photoIncomplete = c => (photoCounts[c] || 0) < 26;
+// same coverage idea for vitals (data/playerbio.json) — fetch a team's squad if it's missing either photos OR bios
+let prevBio = {};
+try { if (existsSync("data/playerbio.json")) prevBio = JSON.parse(readFileSync("data/playerbio.json", "utf8")); } catch { /* ignore */ }
+const bioCounts = {}; for (const k of Object.keys(prevBio)) { const c = k.split("|")[1]; bioCounts[c] = (bioCounts[c] || 0) + 1; }
+const bioIncomplete = c => (bioCounts[c] || 0) < 26;
 // previously-captured reports (keyed by match number) — so we stop re-polling a finished match once its report lands
 let prevReports = { matches: {} };
 try { if (existsSync("data/reports.json")) prevReports = JSON.parse(readFileSync("data/reports.json", "utf8")); } catch { /* ignore */ }
@@ -536,7 +549,7 @@ try {
 }
 
 try { await enrichStats(matches, prevMerged, prevReportMatches); } catch (e) { console.warn("ESPN stats enrichment failed:", e.message); }
-try { await harvestSquadPhotos(photoIncomplete); } catch (e) { console.warn("squad photo backfill failed:", e.message); }   // no-op if FIFA primary didn't run
+try { await harvestSquad(c => photoIncomplete(c) || bioIncomplete(c)); } catch (e) { console.warn("squad backfill failed:", e.message); }   // no-op if FIFA primary didn't run
 
 // DATA-LOSS GUARD: a fallback feed (worldcup26.ir / football-data) only returns the fixtures it knows about, and
 // the writer below overwrites results.json/details.json wholesale. So overlay this run's matches onto the previous
@@ -580,6 +593,18 @@ if (!DRY && Object.keys(harvestedPhotos).length) {
   if (JSON.stringify(prevPhotos) !== JSON.stringify(merged)) {
     writeFileSync(pPath, JSON.stringify(merged));
     console.log(`photos.json updated (${Object.keys(merged).length} players)`);
+  }
+}
+
+// player vitals (DOB/height/weight): merge into data/playerbio.json (write only when changed)
+if (!DRY && Object.keys(harvestedBio).length) {
+  const bPath = "data/playerbio.json";
+  let prev = {};
+  try { if (existsSync(bPath)) prev = JSON.parse(readFileSync(bPath, "utf8")); } catch { /* overwrite */ }
+  const merged = { ...prev, ...harvestedBio };
+  if (JSON.stringify(prev) !== JSON.stringify(merged)) {
+    writeFileSync(bPath, JSON.stringify(merged));
+    console.log(`playerbio.json updated (${Object.keys(merged).length} keys)`);
   }
 }
 

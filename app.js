@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "258";  // shown in footer; bump with the ?v= asset version
+const BUILD = "259";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1883,6 +1883,7 @@ function openPlayer(name, code) {
     if (row) { num = row[0]; pos = ["Goalkeeper", "Defender", "Midfielder", "Forward"][row[2]] || ""; }
   }
   if (bio) { if (num == null && bio.n != null) num = bio.n; if (!pos && bio.pos) pos = { GK: "Goalkeeper", DF: "Defender", MF: "Midfielder", FW: "Forward" }[bio.pos] || ""; }
+  const vitals = playerBio(name, code, num, pos), age = vitals?.d ? ageFrom(vitals.d) : null;   // FIFA DOB/height/weight
   const wc = playerWC(name, code);   // this-tournament record, counted from the team's played matches
   const isGK = pos === "Goalkeeper" || bio?.pos === "GK";   // keepers: clean sheets / conceded, not goals / assists
   const isDF = pos === "Defender" || bio?.pos === "DF";     // defenders: clean sheets + goals (assists are rarely their story)
@@ -1916,10 +1917,13 @@ function openPlayer(name, code) {
         ${(num != null || pos) ? `<span class="pl-pos">${num != null ? "#" + num : ""}${num != null && pos ? " · " : ""}${pos}</span>` : ""}
       </div>
     </div>
-    ${bio && (bio.club || bio.caps != null) ? `<div class="pl-bio">
-      ${bio.club ? `<span><i>Club</i>${esc(bio.club)}</span>` : ""}
-      ${bio.caps != null ? `<span><i>Caps</i>${bio.caps}</span>` : ""}
-      ${bio.goals ? `<span><i>Career goals</i>${bio.goals}</span>` : ""}
+    ${(vitals || (bio && (bio.club || bio.caps != null))) ? `<div class="pl-bio">
+      ${age != null ? `<span><i>Age</i>${age}</span>` : ""}
+      ${vitals?.h ? `<span><i>Height</i>${vitals.h} cm</span>` : ""}
+      ${vitals?.w ? `<span><i>Weight</i>${vitals.w} kg</span>` : ""}
+      ${bio?.club ? `<span><i>Club</i>${esc(bio.club)}</span>` : ""}
+      ${bio?.caps != null ? `<span><i>Caps</i>${bio.caps}</span>` : ""}
+      ${bio?.goals ? `<span><i>Career goals</i>${bio.goals}</span>` : ""}
     </div>` : ""}
     ${wc.apps ? `<div class="eyebrow">This World Cup</div><div class="pl-wc">
       <div class="pw"><b>${wc.apps}</b><span>Played</span></div>
@@ -3412,9 +3416,12 @@ async function loadStatic() {
   // squads.json is committed data that changes (squad updates) — bypass cache so it's always current
   try { S.squads = (await (await fetch("data/squads.json?t=" + Date.now(), { cache: "no-store" })).json()).squads || {}; }
   catch { S.squads = {}; }
-  // official player photos harvested from FIFA lineups (keyed "ShortName|CODE"); optional, skipped in data-saver
-  if (!LITE()) { try { S.photos = await (await fetch("data/photos.json?t=" + Date.now(), { cache: "no-store" })).json() || {}; } catch { S.photos = {}; } }
-  _resolveCache.clear(); _teamPhotoCache.clear(); _nameCache.clear(); _accentCache.clear();   // squads/photos just loaded → drop anything resolved before the data was ready
+  // official player photos + bios (DOB/height/weight) harvested from FIFA, keyed "name|CODE"; optional, skipped in data-saver
+  if (!LITE()) {
+    try { S.photos = await (await fetch("data/photos.json?t=" + Date.now(), { cache: "no-store" })).json() || {}; } catch { S.photos = {}; }
+    try { S.bio = await (await fetch("data/playerbio.json?t=" + Date.now(), { cache: "no-store" })).json() || {}; } catch { S.bio = {}; }
+  }
+  _resolveCache.clear(); _teamPhotoCache.clear(); _teamBioCache.clear(); _nameCache.clear(); _accentCache.clear();   // squads/photos/bios just loaded → drop anything resolved before the data was ready
 }
 const LITE = () => localStorage.getItem("wc26.lite") === "on";   // data-saver: suppress hot-linked photos, fall back to flags
 // Only ever surface an https image URL with no CSS/HTML-breaking characters: these are inserted into
@@ -3494,6 +3501,24 @@ function bestPhoto(name, code, num, pos) {
   const p = resolvePlayer(name, code, num, pos);
   return p ? (teamPhotos(code).get(p.name) || "") : "";
 }
+// player vitals (DOB → age, height, weight) from data/playerbio.json, resolved the same way as the headshot
+const _teamBioCache = new Map();
+function teamBio(code) {
+  if (_teamBioCache.has(code)) return _teamBioCache.get(code);
+  const m = new Map(), suf = "|" + code;
+  if (S.bio) for (const k in S.bio) {
+    if (!k.endsWith(suf)) continue;
+    const p = resolvePlayer(k.slice(0, -suf.length), code); if (!p || m.has(p.name)) continue;
+    m.set(p.name, S.bio[k]);
+  }
+  _teamBioCache.set(code, m); return m;
+}
+function playerBio(name, code, num, pos) {
+  if (!S.bio) return null;
+  const p = resolvePlayer(name, code, num, pos);
+  return p ? (teamBio(code).get(p.name) || null) : null;
+}
+const ageFrom = dob => { const t = Date.parse(dob); if (!t) return null; const a = (Date.now() - t) / 31557600000; return a > 13 && a < 60 ? Math.floor(a) : null; };
 // manual "refresh scores" controls (footer + hero) — re-fetch the published results.json now
 async function manualRefresh(origin) {
   const btns = origin ? [origin] : $$("[data-refresh]");   // a tapped per-card/footer button spins only itself, not every refresh icon
@@ -3703,9 +3728,10 @@ async function boot() {
   $("#liteToggle").onclick = async () => {
     const on = !LITE();
     localStorage.setItem("wc26.lite", on ? "on" : "off"); liteUI();
-    if (!on && (!S.photos || !Object.keys(S.photos).length)) {   // turning off → fetch the photos we skipped
+    if (!on && (!S.photos || !Object.keys(S.photos).length)) {   // turning off → fetch the photos + bios we skipped
       try { S.photos = await (await fetch("data/photos.json?t=" + Date.now(), { cache: "no-store" })).json() || {}; } catch { /* keep flags */ }
-      _teamPhotoCache.clear();   // photos now available → rebuild the player→headshot map
+      try { S.bio = await (await fetch("data/playerbio.json?t=" + Date.now(), { cache: "no-store" })).json() || {}; } catch { /* keep flags */ }
+      _teamPhotoCache.clear(); _teamBioCache.clear();   // photos/bios now available → rebuild the maps
     }
     flashToast(on ? "Data saver on: photos hidden" : "Data saver off");
     RENDER[S.view]();   // re-render so photos↔flags swap immediately
