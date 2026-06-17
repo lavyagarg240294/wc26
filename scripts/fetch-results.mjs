@@ -46,14 +46,14 @@ function harvestPhotos(team, code) {
   }
 }
 // FIFA's per-team squad endpoint carries official headshots for EVERY player pre-tournament (no key, no waiting
-// for a team to play). Backfill teams that still have no photos this run — keyed by BOTH full and short name so
-// roster taps (squad names) and timeline taps (feed names) both resolve. `teamIdByCode` is learned in fromFifa
-// from the calendar. Cap is a latency bound, not scarcity: `todo` already excludes any team that has photos, so
-// in practice it's only the not-yet-played teams — 24 clears them in a single run (two from a cold start).
+// for a team to play). Backfill teams whose coverage is INCOMPLETE (not just empty) — keyed by BOTH full and short
+// name so roster taps (squad names) and timeline taps (feed names) both resolve. `teamIdByCode` is learned in
+// fromFifa from the calendar. NB: targeting "incomplete" (not "no photos") is what stops a team like Portugal, which
+// had a couple of names leak in from a feed but never played, from staying stuck at a handful of the 26 forever.
 const teamIdByCode = {};
 const SQUAD_PHOTO_CAP = 24;
-async function harvestSquadPhotos(photoCodes) {
-  const todo = Object.keys(teamIdByCode).filter(c => !photoCodes.has(c));
+async function harvestSquadPhotos(needsPhotos) {
+  const todo = Object.keys(teamIdByCode).filter(needsPhotos);
   let teams = 0;
   for (const code of todo) {
     if (teams >= SQUAD_PHOTO_CAP) break;
@@ -154,7 +154,7 @@ function buildEvents(lv) {
   return { ev, xi };
 }
 
-async function fromFifa(prev, photoCodes) {
+async function fromFifa(prev, needsPhotos) {
   const cal = await fifaGet(`${FIFA}/calendar/matches?idCompetition=${COMP}&idSeason=${SEASON}&language=en&count=104`);
   const rows = cal.Results || [];
   if (!rows.length) throw new Error("FIFA calendar empty");
@@ -241,7 +241,7 @@ async function fromFifa(prev, photoCodes) {
     const inPlay = st === "LIVE" || st === "HT";
     const captured = prevE && prevE.ev;             // already grabbed this finished match's events
     const hc = f.home.team || entry.ht, ac = f.away.team || entry.at;
-    const needPhotos = (hc && !photoCodes.has(hc)) || (ac && !photoCodes.has(ac));   // backfill photos for teams we haven't seen
+    const needPhotos = (hc && needsPhotos(hc)) || (ac && needsPhotos(ac));   // (re)harvest photos for any team still missing players
     if (inPlay || (st === "FT" && (!captured || needPhotos))) needLive.push({ f, x, entry, swap });
     else if (st === "FT" && captured) { entry.ev = prevE.ev; if (prevE.xi) entry.xi = prevE.xi; }
 
@@ -511,7 +511,11 @@ for (const id of new Set([...Object.keys(prevMatches), ...Object.keys(prevDetail
   prevMerged[id] = { ...(prevDetailMatches[id] || {}), ...(prevMatches[id] || {}) };
 let prevPhotos = {};
 try { if (existsSync("data/photos.json")) prevPhotos = JSON.parse(readFileSync("data/photos.json", "utf8")); } catch { /* ignore */ }
-const photoCodes = new Set(Object.keys(prevPhotos).map(k => k.split("|")[1]));
+// per-team photo coverage. A full FIFA squad backfill keys 26 players by full+short name, so a complete team has
+// >= 26 keys; anything below that is still missing players and gets (re)backfilled. Lineup harvests add 1 key per
+// appearing player, so a not-yet-played team sits well under 26 and is correctly treated as incomplete.
+const photoCounts = {}; for (const k of Object.keys(prevPhotos)) { const c = k.split("|")[1]; photoCounts[c] = (photoCounts[c] || 0) + 1; }
+const photoIncomplete = c => (photoCounts[c] || 0) < 26;
 // previously-captured reports (keyed by match number) — so we stop re-polling a finished match once its report lands
 let prevReports = { matches: {} };
 try { if (existsSync("data/reports.json")) prevReports = JSON.parse(readFileSync("data/reports.json", "utf8")); } catch { /* ignore */ }
@@ -520,7 +524,7 @@ const prevReportMatches = prevReports.matches || {};
 const DRY = process.argv.includes("--dry-run");
 let matches;
 try {
-  matches = await fromFifa(prevMerged, photoCodes);
+  matches = await fromFifa(prevMerged, photoIncomplete);
 } catch (e1) {
   console.warn("Primary api.fifa.com failed:", e1.message, "— trying worldcup26.ir");
   try { matches = await fromWorldCup26(); }
@@ -532,7 +536,7 @@ try {
 }
 
 try { await enrichStats(matches, prevMerged, prevReportMatches); } catch (e) { console.warn("ESPN stats enrichment failed:", e.message); }
-try { await harvestSquadPhotos(photoCodes); } catch (e) { console.warn("squad photo backfill failed:", e.message); }   // no-op if FIFA primary didn't run
+try { await harvestSquadPhotos(photoIncomplete); } catch (e) { console.warn("squad photo backfill failed:", e.message); }   // no-op if FIFA primary didn't run
 
 // DATA-LOSS GUARD: a fallback feed (worldcup26.ir / football-data) only returns the fixtures it knows about, and
 // the writer below overwrites results.json/details.json wholesale. So overlay this run's matches onto the previous
