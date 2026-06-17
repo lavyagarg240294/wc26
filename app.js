@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "220";  // shown in footer; bump with the ?v= asset version
+const BUILD = "221";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -984,6 +984,23 @@ function attackDefence() {
   }
   return (_adCache = out, _adSig = sig, out);
 }
+// Group-stage qualification stakes — only the two scenarios with a real, evidenced behavioural signal, detected
+// EXACTLY from the live table via _qualScan (no heuristics). Mutually exclusive; fires only once a final-round
+// permutation is decided (so it stays dormant until matchday 3). Returns null when no clear stake applies.
+function stakeAdjust(m) {
+  if (m.stage !== "group" || !m.group || status(m) === ST.FT) return null;
+  const g = m.group, H = m.home.team, A = m.away.team;
+  if (!H || !A || !S.matches.some(x => x.group === g && status(x) === ST.FT && res(x)?.h != null)) return null;
+  const through = c => _qualScan(g, c).clinched, gone = c => _qualScan(g, c).out;
+  // 1) a draw sends BOTH through — neither already safe, yet a draw here guarantees top-two for each (cap the draw, ease the goals)
+  if (!through(H) && !through(A) && _qualScan(g, H, m.id, "d").clinched && _qualScan(g, A, m.id, "d").clinched)
+    return { lamMult: 0.92, draw: { mode: "boost", w: 0.20 }, reason: { key: "stake", dir: "N", mag: 0.16, text: "A draw sends both through" } };
+  // 2) both need the win — for EACH side a win clinches top-two but a draw leaves it uncertain (open, end-to-end game)
+  const needWin = (c, win) => !through(c) && !gone(c) && _qualScan(g, c, m.id, win).clinched && !_qualScan(g, c, m.id, "d").clinched;
+  if (needWin(H, "h") && needWin(A, "a"))
+    return { lamMult: 1.06, draw: { mode: "cut", w: 0.85 }, reason: { key: "stake", dir: "N", mag: 0.14, text: "Both need a win — open game" } };
+  return null;
+}
 // Dixon-Coles bivariate-Poisson outcome + scoreline. Strength enters via Elo→goal-supremacy; host, live red cards
 // and (later) weather enter MULTIPLICATIVELY so they compose without driving a rate negative. The score grid is
 // retained to surface the most-likely scoreline, and each factor's signed supremacy shift is logged for the "why".
@@ -1010,11 +1027,13 @@ function winProb(m) {
     if (adH.D > 1.08 && adA.D > 1.08) reasons.push({ key: "matchup", dir: "N", mag: 0.06, text: "Two leaky defences — goals likely" });
     else if (adH.D < 0.92 && adA.D < 0.92) reasons.push({ key: "matchup", dir: "N", mag: 0.06, text: "Two tight defences — low-scoring" });
   }
-  // two movers from strength: the seeded PRIOR, and the in-tournament FORM the sequential-Elo has added on top
+  // the bar itself already conveys "who's stronger" — the "why" is reserved for NON-obvious movers. Surface only the
+  // in-tournament FORM the sequential-Elo has added on top of the seeded prior (the raw strength gap is intentionally silent).
   const seedGap = ((S.teams[hc]?.elo || 1700) - (S.teams[ac]?.elo || 1700)) / 300;
   const formGap = (eloH - eloA) / 300 - seedGap;
-  if (Math.abs(seedGap) >= 0.04) reasons.push({ key: "elo", dir: seedGap >= 0 ? "H" : "A", mag: Math.abs(seedGap), text: `${nm(seedGap >= 0 ? hc : ac)} stronger on paper` });
   if (Math.abs(formGap) >= 0.06) reasons.push({ key: "form", dir: formGap >= 0 ? "H" : "A", mag: Math.abs(formGap), text: `${nm(formGap >= 0 ? hc : ac)} in form here` });
+  const stk = (ko || live) ? null : stakeAdjust(m);   // pre-match group stakes (qualification scenario)
+  if (stk) { lamH *= stk.lamMult; lamA *= stk.lamMult; reasons.push(stk.reason); }
   const host = hostCode(m);   // host home advantage — only a host playing in its own country (else stays neutral)
   if (host === hc || host === ac) {
     const hs = host === hc; lamH *= Math.exp(hs ? 0.13 : -0.06); lamA *= Math.exp(hs ? -0.06 : 0.13);
@@ -1046,6 +1065,11 @@ function winProb(m) {
     const sh = 0.18 * Math.max(0, 1 - (pld(hc) + pld(ac)) / 6);
     if (sh > 0) { probH = (1 - sh) * probH + sh * 0.35; probD = (1 - sh) * probD + sh * 0.30; probA = (1 - sh) * probA + sh * 0.35; }
   }
+  if (stk?.draw) {   // reshape the draw to the qualification incentive, then refill home/away proportionally (cap at 0.55)
+    const newD = stk.draw.mode === "boost" ? Math.min(0.55, probD + stk.draw.w * (0.50 - probD)) : probD * stk.draw.w;
+    const oldRest = probH + probA || 1, rest = 1 - newD;
+    probH = probH / oldRest * rest; probA = probA / oldRest * rest; probD = newD;
+  }
   const predicted = cells.sort((x, y) => y.p - x.p).slice(0, 3).map(c => ({ h: c.h, a: c.a, p: c.p / tot }));
   return { h: probH, d: probD, a: probA, live, ko,
     adv: ko ? { h: probH + 0.5 * probD, a: probA + 0.5 * probD } : null,   // KO: a 90' draw → ET/pens, split 50/50
@@ -1063,7 +1087,7 @@ function winProbBlock(m) {
     : `<div class="wp-legend"><span class="wp-lh"><b>${ph}%</b> ${flag(h.code)} ${esc(h.name)}</span><span class="wp-ld">Draw <b>${pd}%</b></span><span class="wp-la">${esc(a.name)} ${flag(a.code)} <b>${pa}%</b></span></div>`;
   const score = P.length ? `<div class="wp-score"><span class="wp-score-lab">Likely score</span> <b>${f(P[0])}</b> <span class="wp-score-p">${pct(P[0].p)}</span>${wp.ko && wp.drawMode ? ` <span class="wp-score-et">in 90′, then ET/pens</span>` : ""}${P.length > 1 ? `<span class="wp-score-alt">${P.slice(1, 3).map(s => `${f(s)} ${pct(s.p)}`).join(" · ")}</span>` : ""}</div>` : "";
   const why = (wp.reasons || []).length ? `<div class="wp-why"><span class="wp-why-lab">Why</span>${wp.reasons.map((rs, i) => `${i ? `<span class="wp-why-sep">·</span>` : ""}<span class="wp-why-r r-${(rs.dir || "N").toLowerCase()}">${rs.dot ? `<i class="wp-why-dot"></i>` : ""}${esc(rs.text)}</span>`).join("")}</div>` : "";
-  const note = `<p class="wp-note">Dixon–Coles model from each team's <b>rating</b> (Elo, updated by results &amp; official xG) and a host edge${wp.live ? ", with the live score, minutes left and red cards" : ""}.${wp.ko ? " A 90-minute draw goes to extra time and penalties (split 50/50)." : ""}</p>`;
+  const note = `<p class="wp-note">Dixon–Coles model from each team's <b>rating</b> (Elo, updated by results &amp; official xG)${wp.live ? ", with the live score, minutes left and red cards" : ""}.${wp.ko ? " A 90-minute draw goes to extra time and penalties (split 50/50)." : ""}</p>`;
   return `<div class="eyebrow">Win probability <span class="wp-est">${wp.live ? "live estimate" : "pre-match estimate"}</span></div>
     <div class="wp">
       <div class="wp-bar" role="img" aria-label="${esc(h.name)} ${ph}%, draw ${pd}%, ${esc(a.name)} ${pa}%">
