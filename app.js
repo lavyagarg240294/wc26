@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "248";  // shown in footer; bump with the ?v= asset version
+const BUILD = "250";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -715,7 +715,6 @@ function matchCard(m, i, opts = {}) {
     ${opts.sub !== false ? `<div class="mcard-sub"><span class="grp">${esc(stageL)}</span><span>${esc(m.stadium)}</span><span>${esc(m.city)}</span><span class="mcard-go">Details ›</span></div>` : ""}
     </div>
     <button class="mcard-star ${sv ? "is-on" : ""}" data-save="${m.id}" aria-pressed="${sv}" aria-label="${sv ? "Remove from saved" : "Save match"}" title="${sv ? "Remove from saved" : "Save match"}">${sv ? "★" : "☆"}</button>
-    ${live ? `<button class="mcard-refresh" data-refresh aria-label="Refresh score now" title="Refresh score now">${REFRESH_SVG}</button>` : ""}
   </div>`;
 }
 // split a starting XI into {gk, bands[]} using its formation string (fallback: coarse positions)
@@ -826,9 +825,10 @@ function mdStats(r) {
       parts.push(statBar([Math.round(s.pass[0] / s.passT[0] * 100), Math.round(s.pass[1] / s.passT[1] * 100)], "Pass accuracy", "%"));
   }
   if (!parts.length) return "";
-  // summarize-then-expand: lead the popup with a one-line headline; the full 16-stat panel + performers are one tap deep
-  const p0 = Array.isArray(s.poss) ? Math.round(s.poss[0]) : null;   // preview shows whole-number possession; derive the away share so the pair always sums to 100
-  const head = p0 != null ? `${p0}%–${100 - p0}% possession · ${parts.length} stats` : `${parts.length} stats`;
+  // summarize-then-expand: lead the popup with a one-line headline; the full 16-stat panel + performers are one tap deep.
+  // Tease with total passes (a sense of tempo) rather than possession — that already sits in the Key stats above.
+  const passTot = Array.isArray(s.pass) ? s.pass[0] + s.pass[1] : null;
+  const head = passTot != null ? `${passTot.toLocaleString()} passes · ${parts.length} stats` : `${parts.length} stats`;
   return `<details class="md-fold"><summary><span>All match stats</span><small>${head}</small></summary>
     <div class="md-fold-body"><div class="md-stats">${parts.join("")}</div>${mdLeaders(r)}</div></details>`;
 }
@@ -1693,7 +1693,7 @@ function teamOverview(code) {
   const tiles = [
     t.apps != null ? `<div class="tp"><b>${t.apps}</b><span>World Cup${t.apps !== 1 ? "s" : ""}</span></div>` : "",
     titles ? `<div class="tp tp-gold"><b>${titles}×</b><span>Champion${titles !== 1 ? "s" : ""}</span></div>` : "",
-    `<div class="tp tp-wide"><b>${esc(debut ? "Debut" : finish)}</b><span>${debut ? "First World Cup" : `Best finish${yr ? ` · ${esc(yr)}` : ""}`}</span></div>`,
+    `<div class="tp tp-wide tp-finish"><b>${debut ? "Debut" : "Best finish"}</b><span>${debut ? "First World Cup" : `${esc(finish)}${yr ? ` · ${esc(yr)}` : ""}`}</span></div>`,
   ].filter(Boolean).join("");
   return `<div class="ts-ped">${tiles}</div>
     ${coach ? `<div class="ts-coach"><span class="ts-coach-badge">${esc(initials(coach))}</span><span class="ts-coach-tx"><i>Head coach</i><b>${esc(coach)}</b></span></div>` : ""}`;
@@ -1983,10 +1983,14 @@ function startSearchRoll() {
   if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;   // one static suggestion, no cycling
   _rollTimer = setInterval(() => {
     if ($("#searchInput")?.value) return;          // hold while there's a query in the box
-    el.classList.add("swap");                       // fade + lift the current term out…
-    setTimeout(() => { _rollIdx = (_rollIdx + 1) % SEARCH_ROLL.length;
+    el.classList.add("swap");                       // current term slides up + fades out the TOP…
+    setTimeout(() => {
+      _rollIdx = (_rollIdx + 1) % SEARCH_ROLL.length;
       const t = el.querySelector("b"); if (t) t.textContent = SEARCH_ROLL[_rollIdx];
-      el.classList.remove("swap"); }, 280);          // …then settle the next one in
+      el.classList.add("enter"); el.classList.remove("swap");   // …drop the next term in below the line (no transition)…
+      void el.offsetWidth;                                       // commit that jump
+      el.classList.remove("enter");                              // …then let it rise UP into place from the bottom (one direction)
+    }, 280);
   }, 2600);
 }
 function openSearchOverlay() {
@@ -2687,15 +2691,14 @@ function renderSim() {
     ${step("simStep2", `<span class="step-n">2</span> Best third-placed teams <span class="tcount">${S.sim.thirds.length}/8</span>`, `<div class="thirds">${thirdChips}</div>`)}
     ${step("simStep3", `<span class="step-n">3</span> Tap winners to crown your champion ${TROPHY}`, `${thirdsDone && alloc !== "impossible" ? `<p class="sim-ko-hint">${ICO.tap} Tap a team in any tie to send them through. Winners flow left → right to the final.</p>` : ""}${simBracket}`)}
     ${champ ? championBanner(champ, true) : ""}
-    <div class="sim-intro sim-intro-foot">
-      <h2>Call the whole tournament ${ICO.spark}</h2>
-      <p>Order each group, pick the best third-placed teams, then tap winners to the final. Saved on this device.</p>
-      <div class="sim-actions">
-        <button class="btn ghost" id="simShuffle"><span class="b-lg">Shuffle it all</span><span class="b-sm">Shuffle</span></button>
-        <button class="btn ghost" id="simReset"><span class="b-lg">Start over</span><span class="b-sm">Reset</span></button>
-        <button class="btn" id="simShare">${ICO.link} Share prediction</button>
-        ${champ ? `<button class="btn" id="simShareImg">${ICO.camera} Champion card</button>` : ""}
-      </div>
+    ${champ ? `<div class="sim-share-row">
+      <button class="btn" id="simShare">${ICO.link} Share prediction</button>
+      <button class="btn" id="simShareImg">${ICO.camera} Champion card</button>
+    </div>` : ""}
+    <div class="sim-actions sim-actions-foot">
+      <button class="btn ghost" id="simShuffle"><span class="b-lg">Shuffle it all</span><span class="b-sm">Shuffle</span></button>
+      <button class="btn ghost" id="simReset"><span class="b-lg">Start over</span><span class="b-sm">Reset</span></button>
+      ${champ ? "" : `<button class="btn" id="simShare">${ICO.link} Share prediction</button>`}
     </div>`;
 
   const goal = $("#simGoal", el);
@@ -3115,6 +3118,7 @@ function renderStats() {
       <span class="conf-rank">${rank}</span>
       <span class="conf-name">${CONF_LABEL[c.conf] || c.conf}<small>${c.conf} · ${c.teams} team${c.teams > 1 ? "s" : ""}</small></span>
       <span class="conf-rec">${c.w}<i>W</i> ${c.d}<i>D</i> ${c.l}<i>L</i></span>
+      <span class="conf-gd"><b>${c.gf}–${c.ga}</b><small>for–ag.</small></span>
       <span class="conf-ppg">${c.ppg.toFixed(2)}<small>pts/gm</small></span></div>`, c => c.ppg.toFixed(2))}</div>
     <p class="sim-ko-hint">Combined record of each confederation's teams, ranked by points per game.</p>` : "";
 

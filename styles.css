@@ -369,13 +369,8 @@ body.bg-paused #bg span{animation-play-state:paused;will-change:auto}
 .mcard-star:hover{opacity:1;transform:scale(1.22)}
 .mcard-star.is-on{color:var(--gold);opacity:1;text-shadow:0 1px 6px color-mix(in srgb,var(--gold) 55%,transparent)}
 .mcard-star:focus-visible{outline:2px solid var(--acc1);outline-offset:1px;opacity:1}
-/* invisible hit-area expanders bring these icon buttons to ~44px without enlarging the glyph; refresh sits at
-   right:54 (was 48) so the expanded star + refresh never overlap on a live card. */
-.mcard-star::before,.mcard-refresh::before{content:"";position:absolute;inset:-6px}
-.mcard-refresh{position:absolute;top:5px;right:54px;z-index:2;background:none;border:0;cursor:pointer;color:var(--ink-soft);opacity:.5;padding:8px 9px;border-radius:9px;line-height:0;transition:color .2s,opacity .2s,background .2s}
-.mcard-refresh:hover{opacity:1;color:var(--acc-text);background:color-mix(in srgb,var(--acc1) 10%,transparent)}
-.mcard-refresh:focus-visible{outline:2px solid var(--acc1);outline-offset:1px;opacity:1}
-.mcard-refresh.spinning svg{animation:spin .7s linear infinite}
+/* invisible hit-area expander brings the save star to a ~44px target without enlarging the glyph */
+.mcard-star::before{content:"";position:absolute;inset:-6px}
 .mcard-right{padding-right:16px}
 .ics-link{margin-left:auto;color:var(--ink-soft);text-decoration:none;font-size:11.5px;border-bottom:1px dotted var(--line)}
 .ics-link:hover{color:var(--acc-text)}
@@ -387,7 +382,7 @@ body.bg-paused #bg span{animation-play-state:paused;will-change:auto}
 .team-hero::after{content:"";position:absolute;inset:0 0 auto;height:6px;background:linear-gradient(90deg,var(--acc1),var(--acc2))}
 .team-hero .fl{font-size:54px;filter:drop-shadow(0 3px 6px rgba(13,27,42,.2))}
 .team-hero h2{font-family:var(--disp);font-weight:900;font-stretch:115%;font-size:clamp(22px,5vw,30px)}
-.team-hero p{color:var(--ink-soft);font-size:13.5px;margin-top:3px}
+.team-hero p{color:var(--ink-soft);font-size:13px;margin-top:7px;line-height:1.45}
 .pick-cta{display:flex;flex-direction:column;align-items:center;gap:14px;padding:46px 20px;background:var(--card);border:1px dashed color-mix(in srgb,var(--acc1) 45%,var(--line));border-radius:22px;text-align:center}
 .pick-cta .big{font-family:var(--disp);font-weight:800;font-stretch:110%;font-size:20px}
 .btn{font-family:var(--disp);font-weight:700;font-stretch:108%;letter-spacing:.04em;font-size:13.5px;text-transform:uppercase;background:var(--acc-deep);color:#fff;padding:11px 22px;border-radius:99px;transition:transform .15s,box-shadow .2s,background .5s}
@@ -597,6 +592,9 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .sim-firsthint b{color:var(--ink);font-weight:700}
 .sim-firsthint svg{vertical-align:-2px;margin-right:2px}
 .sim-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.sim-share-row{display:flex;gap:8px;margin-top:12px}        /* Share prediction + Champion card, right under the champion banner */
+.sim-share-row .btn{flex:1;text-align:center;padding:11px 10px}
+.sim-actions-foot{margin-top:18px}                          /* just Shuffle / Start over at the very bottom now */
 .step-n{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--acc-deep);color:#fff;font-family:var(--mono);font-size:11.5px;font-weight:700;flex:0 0 22px}
 /* collapsible Predict steps — each step is its own tappable section, collapsed by default so the whole flow
    (and the bracket) is visible at a glance instead of buried below a long scroll */
@@ -893,6 +891,9 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .tp-gold b{color:var(--gold-text)}
 .tp-wide{flex:2 1 130px}
 .tp-wide b{font-size:16px;font-stretch:100%}
+/* best-finish reads "Best finish" first, then the achievement — so "Third place" can't be mistaken for a current standing */
+.tp-finish b{font-size:14px}
+.tp-finish span{font-size:10.5px;color:var(--ink)}
 .ts-coach{display:flex;align-items:center;gap:11px;background:var(--card);border:1px solid var(--line);border-radius:13px;padding:10px 13px;box-shadow:var(--shadow);margin:0 0 6px}
 .ts-coach-badge{flex:0 0 auto;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:color-mix(in srgb,var(--acc1) 13%,var(--card));color:var(--acc-text);font-family:var(--disp);font-weight:800;font-size:13px;letter-spacing:.02em}
 .ts-coach-tx{display:flex;flex-direction:column;gap:1px;min-width:0}
@@ -978,9 +979,9 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .md-goals-col.away{text-align:right}
 .md-goal{font-size:12.5px;color:var(--ink);font-family:var(--mono);font-variant-numeric:tabular-nums}
 /* tournament stats view */
-.substat-nav{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 16px}   /* wrap instead of hidden-scroll: every sub-tab stays visible (full-width row on desktop, 2 rows on a narrow phone) */
+.substat-nav{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin:0 0 16px}   /* wrap + centre: every sub-tab stays visible and content-width, so a lone wrapped pill never stretches full-width */
 .substat-nav::-webkit-scrollbar{display:none}
-.substat{flex:1 1 auto;min-width:max-content;text-align:center;font-family:var(--disp);font-weight:700;font-stretch:106%;font-size:12.5px;letter-spacing:.02em;padding:8px 15px;border-radius:99px;border:1px solid var(--line);background:var(--card);color:var(--ink-soft);white-space:nowrap;transition:background .15s,border-color .15s,color .15s}
+.substat{flex:0 1 auto;text-align:center;font-family:var(--disp);font-weight:700;font-stretch:106%;font-size:12.5px;letter-spacing:.02em;padding:8px 16px;border-radius:99px;border:1px solid var(--line);background:var(--card);color:var(--ink-soft);white-space:nowrap;transition:background .15s,border-color .15s,color .15s}
 .substat:hover{border-color:color-mix(in srgb,var(--acc1) 40%,var(--line))}
 .substat.is-on{background:var(--acc-deep);border-color:transparent;color:#fff}
 .substat-panel[hidden]{display:none}
@@ -1039,12 +1040,13 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .md-credit{font-size:11px;color:var(--ink-soft);margin-top:8px}
 .md-credit a{color:var(--acc-text);font-weight:600;text-decoration:none}
 .md-credit a:hover{text-decoration:underline}
-.md-comm{border:1px solid var(--line);border-radius:14px;margin:0 0 6px;overflow:hidden;background:var(--card)}
+.md-comm{border:1px solid var(--line);border-radius:14px;margin:18px 0 8px;overflow:hidden;background:var(--card)}
 .md-comm>summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;padding:13px 16px;font-family:var(--disp);font-weight:800;font-stretch:106%;font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-soft)}
 .md-comm>summary::-webkit-details-marker{display:none}
 .md-comm-hint{font-family:var(--body);font-weight:500;font-size:10.5px;letter-spacing:.02em;text-transform:none;color:var(--ink-soft);opacity:.8}
 .md-comm[open]>summary{border-bottom:1px solid var(--line)}
 .md-comm-body{padding:4px 0 2px;max-height:380px;overflow-y:auto}
+.md-comm-body .md-credit{padding:2px 16px 8px}   /* the "Commentary: ESPN" line aligns with the rows instead of hugging the left edge */
 .md-comm-spin{padding:18px;text-align:center;color:var(--ink-soft);font-size:12.5px}
 .cm-row{display:grid;grid-template-columns:38px 1fr;gap:10px;align-items:baseline;padding:7px 16px;border-top:1px solid color-mix(in srgb,var(--line) 50%,transparent);font-size:13px;line-height:1.45}
 .cm-row:first-child{border-top:none}
@@ -1056,8 +1058,17 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .cm-full>summary{cursor:pointer;font-size:11.5px;font-weight:600;color:var(--acc-text);padding:9px 16px;list-style:none}
 .cm-full>summary::-webkit-details-marker{display:none}
 .cm-full[open]>summary{color:var(--ink-soft)}
-.cm-goal{background:color-mix(in srgb,var(--acc1) 7%,transparent)}
+/* key moments stand out from the play-by-play: a tinted row + a coloured left rail (inset shadow = no layout shift),
+   with the minute tinted to match. Turns a flat wall of text into something scannable. */
+.cm-goal{background:color-mix(in srgb,var(--acc1) 9%,transparent);box-shadow:inset 3px 0 var(--acc-deep)}
 .cm-goal .cm-x{font-weight:700}
+.cm-goal .cm-t{color:var(--acc-text)}
+.cm-red{background:color-mix(in srgb,var(--live) 7%,transparent);box-shadow:inset 3px 0 var(--live)}
+.cm-red .cm-x{font-weight:600}
+.cm-red .cm-t{color:var(--live)}
+.cm-yellow{box-shadow:inset 3px 0 var(--gold)}
+.cm-yellow .cm-t{color:var(--gold-text)}
+.cm-sub{box-shadow:inset 3px 0 color-mix(in srgb,var(--ink-soft) 45%,transparent)}
 /* cards leaderboard: yellow + red side by side, each a little card chip + count */
 .lead-v.card-tally{flex-direction:row;align-items:center;gap:11px}
 .ct{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-weight:700;font-size:14px}
@@ -1080,6 +1091,9 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .conf-name small{font-weight:500;font-size:10.5px;color:var(--ink-soft);letter-spacing:.01em}
 .conf-rec{font-family:var(--mono);font-size:13px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap}
 .conf-rec i{font-style:normal;font-size:9px;color:var(--ink-soft);margin:0 4px 0 1px}
+.conf-gd{font-family:var(--mono);color:var(--ink-soft);font-variant-numeric:tabular-nums;display:flex;flex-direction:column;align-items:flex-end;line-height:1.1;flex:0 0 auto}
+.conf-gd b{font-weight:600;font-size:12.5px;white-space:nowrap}
+.conf-gd small{font-weight:500;font-size:9px;text-transform:uppercase;letter-spacing:.02em;color:var(--ink-soft);margin-top:1px}
 .conf-ppg{font-family:var(--mono);font-weight:700;font-size:15px;font-variant-numeric:tabular-nums;display:flex;flex-direction:column;align-items:flex-end;line-height:1;flex:0 0 auto}
 .conf-ppg small{font-weight:500;font-size:9px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.03em}
 /* records / superlatives — icon · label+detail · value, each row taps to its match or player */
@@ -1090,6 +1104,7 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .rec-tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;line-height:1.2}
 .rec-tx b{font-family:var(--disp);font-weight:800;font-stretch:108%;font-size:13.5px;letter-spacing:.01em}
 .rec-tx small{font-size:11.5px;color:var(--ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rec-tx small .flagimg{margin:0 4px 0 2px;vertical-align:-.12em}   /* breathing room so "Germany v Curaçao" with its two flags isn't cramped */
 .rec-v{font-family:var(--mono);font-weight:700;font-size:18px;font-variant-numeric:tabular-nums;text-align:right;display:flex;flex-direction:column;align-items:flex-end;line-height:1.1;flex:0 0 auto}
 .rec-v small{font-weight:500;font-size:9px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.03em}
 /* all-time records pill */
@@ -1324,9 +1339,12 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 /* search field with a rolling suggestion that doubles as the placeholder */
 .search-field{position:relative;margin:0 20px 10px}
 .search-field .team-search{width:100%;margin:0}
-.search-roll{position:absolute;left:15px;top:50%;transform:translateY(-50%);font-size:14px;line-height:1;color:var(--ink-soft);pointer-events:none;white-space:nowrap;max-width:calc(100% - 46px);overflow:hidden;transition:opacity .25s}
+/* line-height 1.5 (was 1) gives descenders room — the overflow:hidden that masks the roll was clipping the "g" in
+   Argentina/Senegal. The roll is one-directional: swap = up & out the top, enter = rise up from below. */
+.search-roll{position:absolute;left:15px;top:50%;transform:translateY(-50%);font-size:14px;line-height:1.5;color:var(--ink-soft);pointer-events:none;white-space:nowrap;max-width:calc(100% - 46px);overflow:hidden;transition:opacity .25s}
 .search-roll b{font-weight:600;color:var(--ink);display:inline-block;transition:opacity .28s ease,transform .28s ease}
-.search-roll.swap b{opacity:0;transform:translateY(-7px)}
+.search-roll.swap b{opacity:0;transform:translateY(-100%)}
+.search-roll.enter b{transition:none;opacity:0;transform:translateY(100%)}
 .search-roll.is-hidden{opacity:0}
 /* ── The Pulse (fan reactions + press) ── */
 .pulse-intro{margin:2px 0 16px}
@@ -1349,10 +1367,10 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .pl-rx-q{display:block;font-size:13.5px;line-height:1.45;color:var(--ink)}
 .pl-rx-m{display:block;margin-top:4px;font-size:11px;color:var(--ink-soft);font-variant-numeric:tabular-nums}
 .pl-heads{display:flex;flex-direction:column;gap:6px}
-.pl-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:11px 14px;border-radius:12px;background:var(--card);border:1px solid var(--line);text-decoration:none;transition:border-color .2s}
+.pl-head{display:flex;flex-direction:column;gap:5px;padding:12px 15px;border-radius:12px;background:var(--card);border:1px solid var(--line);text-decoration:none;transition:border-color .2s}
 .pl-head:hover{border-color:color-mix(in srgb,var(--acc1) 40%,var(--line))}
-.pl-head-t{font-size:13px;font-weight:600;line-height:1.4;color:var(--ink)}
-.pl-head-s{flex:0 0 auto;font-size:10.5px;color:var(--ink-soft);white-space:nowrap}
+.pl-head-t{font-size:14px;font-weight:600;line-height:1.4;color:var(--ink)}            /* headline gets the full width + a bit more size */
+.pl-head-s{font-size:11px;color:var(--ink-soft)}                                       /* source + timestamp drop to their own line below */
 .team-search.news-search{width:100%;margin:0 0 12px}
 .pl-head.news-hide{display:none}
 .news-empty{margin:14px 2px;font-size:13px;color:var(--ink-soft);text-align:center}
