@@ -33,7 +33,7 @@
 <meta name="apple-mobile-web-app-title" content="World Cup 26">
 <meta name="application-name" content="World Cup 26">
 <link rel="stylesheet" href="assets/fonts.css?v=112">
-<link rel="stylesheet" href="styles.css?v=221">
+<link rel="stylesheet" href="styles.css?v=222">
 <link rel="icon" href="assets/mark.svg">
 <link rel="icon" type="image/png" href="assets/icon-32.png" sizes="32x32">
 </head>
@@ -234,12 +234,16 @@
     <div class="eyebrow">Why you'd use it</div>
     <ul class="about-list">
       <li>All <b>104 matches in your timezone</b>, with a live countdown and a one-tap <b>calendar export</b>, so a kick-off never sneaks past you</li>
-      <li>Pick a <b>favourite team</b> and the whole app takes on its colours: its fixtures, form, squad and projected <b>route to the final</b></li>
+      <li>Browse <b>all 48 nations</b>: squads, form, fixtures and a <b>playing-style</b> read for each, and make one your <b>favourite</b> so the whole app takes on its colours and projected <b>route to the final</b></li>
+      <li>Every fixture carries a <b>win probability and a predicted scoreline</b> from a transparent model, with a plain-English "why" behind the call</li>
+      <li>Go deep on any match: live <b>goal timeline, line-ups on a formation pitch, stats, reports and commentary</b>, plus <b>FIFA's official deep analysis</b> (expected goals, distance covered, heatmaps)</li>
       <li>A full <b>knockout predictor</b>: order the groups, pick the best third-placed teams, then play the bracket to your champion and watch how your call tracks reality</li>
-      <li>The full <b>qualification picture</b>: live group tables, the best-third race, and a projected Round of 32</li>
-      <li>The scores, line-ups, stats and reports <b>gathered from official sources</b> into one fast, uncluttered place, free of ads and sign-ups</li>
-      <li>Installs as an <b>app</b>, works <b>offline</b>, light &amp; dark, with a quick search for any team, player or match</li>
+      <li>The whole <b>qualification picture and tournament stats</b>: live group tables, the best-third race, a projected Round of 32, the <b>Golden Boot</b> and team leaderboards, and the full <b>FIFA World Ranking</b></li>
+      <li>The <b>latest headlines</b> from football desks worldwide, plus install as an <b>app</b>, <b>offline</b> support, light &amp; dark, and a quick <b>search</b> (⌘K) for any team, player or match</li>
     </ul>
+
+    <div class="eyebrow">The prediction model</div>
+    <p class="about-p">Win probabilities come from a <b>Dixon–Coles</b> scoring model. Each side carries a strength rating: an Elo that updates after every result and leans on <b>official expected goals</b>, not just the final score. That gets refined by an <b>attack-versus-defence</b> read of how the two teams actually play, by <b>home advantage</b> for the host nations, and, late in the groups, by <b>what each side still needs to qualify</b>. It's tuned to football's history, never to this tournament's own results, and every prediction shows its reasoning.</p>
 
     <div class="eyebrow">How it works</div>
     <p class="about-p">It's a single static page with no app server. Scores and data are refreshed by automated jobs that publish plain JSON the page reads, so <b>your browser never calls a sports API directly</b> and no keys are ever exposed. Kick-off times convert to your device's clock automatically.</p>
@@ -248,7 +252,7 @@
     <p class="about-p"><b>No tracking, no cookies, no accounts.</b> Analytics are off by default. Your team, timezone and saved predictions stay on your device.</p>
 
     <div class="eyebrow">Sources & credits</div>
-    <p class="about-p">Schedule from <b>openfootball</b> (public domain); live scores, line-ups, stats, reports & commentary from <b>FIFA</b> and <b>ESPN</b>; squads from <b>official FIFA squad lists</b>; country flags are <b>bundled SVGs</b> (flagcdn); background music is royalty-free. Football data and team names belong to their respective owners.</p>
+    <p class="about-p">Schedule from <b>openfootball</b> (public domain); live scores, line-ups, stats, reports & commentary from <b>FIFA</b> and <b>ESPN</b>; deep-analysis metrics from <b>FIFA's post-match Enhanced Football Intelligence</b>; squads from <b>official FIFA squad lists</b>; headlines from leading football desks (<b>Guardian, BBC, ESPN, France 24, Al Jazeera, DW</b>); country flags are <b>bundled SVGs</b> (flagcdn); background music is royalty-free. Football data and team names belong to their respective owners.</p>
 
     <div class="eyebrow">Open & free</div>
     <p class="about-p">Built with plain HTML, CSS and JavaScript. No framework, no build step. <a href="https://github.com/lavyagarg240294/wc26" target="_blank" rel="noopener noreferrer">View the source on GitHub ↗</a>. Spotted a bug or have an idea? <a href="https://github.com/lavyagarg240294/wc26/issues" target="_blank" rel="noopener noreferrer">Open an issue ↗</a>.</p>
@@ -282,15 +286,15 @@
       </div>
       <div class="welcome-pt">
         <span class="welcome-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2.6 14.7 8.3 21 9.2 16.5 13.6 17.6 19.8 12 16.9 6.4 19.8 7.5 13.6 3 9.2 9.3 8.3"/></svg></span>
-        <div class="welcome-pt-tx"><b>Make it your team</b><small>Pick a side and the whole app takes on their colours and fixtures.</small></div>
+        <div class="welcome-pt-tx"><b>Make it your team</b><small>Pick a side and the whole app takes on its colours, fixtures and <b>route to the final</b>.</small></div>
+      </div>
+      <div class="welcome-pt">
+        <span class="welcome-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 9l2.85 2.07-1.09 3.36h-3.52L9.15 11.07z"/><path d="M12 9V4.5M14.85 11.07l3.7-1.3M13.76 14.43l1.8 3.1M10.24 14.43l-1.8 3.1M9.15 11.07l-3.7-1.3"/></svg></span>
+        <div class="welcome-pt-tx"><b>Live, with the odds</b><small>Scores and line-ups as they land, plus a <b>win probability</b> and predicted score for every match.</small></div>
       </div>
       <div class="welcome-pt">
         <span class="welcome-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 4h10v4.5a5 5 0 0 1-10 0z"/><path d="M7 6.3H4.6A2.2 2.2 0 0 0 7 8.6M17 6.3h2.4A2.2 2.2 0 0 1 17 8.6M12 13.5v2.8M9.5 19.5h5M10 16.3h4"/></svg></span>
         <div class="welcome-pt-tx"><b>Call the bracket</b><small>In <b>Predict</b>, pick winners from the groups all the way to the champion.</small></div>
-      </div>
-      <div class="welcome-pt">
-        <span class="welcome-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 9l2.85 2.07-1.09 3.36h-3.52L9.15 11.07z"/><path d="M12 9V4.5M14.85 11.07l3.7-1.3M13.76 14.43l1.8 3.1M10.24 14.43l-1.8 3.1M9.15 11.07l-3.7-1.3"/></svg></span>
-        <div class="welcome-pt-tx"><b>Live as it happens</b><small>Scores, line-ups, stats and commentary, the second they land.</small></div>
       </div>
     </div>
     <div class="welcome-actions">
@@ -304,6 +308,6 @@
 <canvas id="confetti" aria-hidden="true"></canvas>
 <audio id="bgm" preload="none"></audio>
 
-<script src="app.js?v=221"></script>
+<script src="app.js?v=222"></script>
 </body>
 </html>

@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "221";  // shown in footer; bump with the ?v= asset version
+const BUILD = "222";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -998,7 +998,7 @@ function stakeAdjust(m) {
   // 2) both need the win — for EACH side a win clinches top-two but a draw leaves it uncertain (open, end-to-end game)
   const needWin = (c, win) => !through(c) && !gone(c) && _qualScan(g, c, m.id, win).clinched && !_qualScan(g, c, m.id, "d").clinched;
   if (needWin(H, "h") && needWin(A, "a"))
-    return { lamMult: 1.06, draw: { mode: "cut", w: 0.85 }, reason: { key: "stake", dir: "N", mag: 0.14, text: "Both need a win — open game" } };
+    return { lamMult: 1.06, draw: { mode: "cut", w: 0.85 }, reason: { key: "stake", dir: "N", mag: 0.14, text: "Both need a win, end to end" } };
   return null;
 }
 // Dixon-Coles bivariate-Poisson outcome + scoreline. Strength enters via Elo→goal-supremacy; host, live red cards
@@ -1014,7 +1014,7 @@ function winProb(m) {
   const lamH0 = mu + supR / 2, lamA0 = mu - supR / 2;
   let lamH = lamH0, lamA = lamA0;
   const reasons = [];
-  if (ko) reasons.push({ key: "ko", dir: "N", mag: 0.08, text: "Knockout tie — played tighter" });
+  if (ko) reasons.push({ key: "ko", dir: "N", mag: 0.08, text: "Knockout tie, played tighter" });
   // attack/defence game-character overlay — dormant until BOTH sides have ≥2 games, so today's odds are unchanged
   const ad = attackDefence(), adH = ad[hc], adA = ad[ac];
   const ftN = S.matches.reduce((n, x) => n + (status(x) === ST.FT && res(x)?.h != null ? 1 : 0), 0);
@@ -1024,8 +1024,8 @@ function winProb(m) {
     lamH *= Math.pow(mH, adW); lamA *= Math.pow(mA, adW);
     const T = lamH + lamA, lnR = 0.75 * Math.log(lamH0 / lamA0) + 0.25 * Math.log(lamH / lamA);   // skew-lock: Elo keeps ≥75% of who-wins; att/def own the total
     lamH = T / (1 + Math.exp(-lnR)); lamA = T - lamH;
-    if (adH.D > 1.08 && adA.D > 1.08) reasons.push({ key: "matchup", dir: "N", mag: 0.06, text: "Two leaky defences — goals likely" });
-    else if (adH.D < 0.92 && adA.D < 0.92) reasons.push({ key: "matchup", dir: "N", mag: 0.06, text: "Two tight defences — low-scoring" });
+    if (adH.D > 1.08 && adA.D > 1.08) reasons.push({ key: "matchup", dir: "N", mag: 0.06, text: "Two leaky defences, goals likely" });
+    else if (adH.D < 0.92 && adA.D < 0.92) reasons.push({ key: "matchup", dir: "N", mag: 0.06, text: "Two tight defences, low and tight" });
   }
   // the bar itself already conveys "who's stronger" — the "why" is reserved for NON-obvious movers. Surface only the
   // in-tournament FORM the sequential-Elo has added on top of the seeded prior (the raw strength gap is intentionally silent).
