@@ -1092,8 +1092,13 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .md-fold .md-stats{margin-top:10px}
 /* team "playing style" fingerprint (team sheet) */
 .sty-card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:12px 15px;box-shadow:var(--shadow);margin:2px 0 10px}
-.sty-row{display:grid;grid-template-columns:82px 1fr 46px;align-items:center;gap:10px;padding:5px 0}
-.sty-lbl{font-size:12px;font-weight:600;color:var(--ink-soft)}
+.sty-row{display:grid;grid-template-columns:104px 1fr 46px;align-items:center;gap:10px;padding:5px 0}
+.sty-lbl{font-size:12px;font-weight:600;color:var(--ink-soft);display:inline-flex;align-items:center}
+.sty-info{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;margin-left:5px;flex:0 0 auto;border:1px solid var(--line);border-radius:50%;background:none;color:var(--ink-soft);font-family:var(--mono);font-size:9px;font-weight:700;font-style:italic;line-height:1;cursor:pointer;transition:color .15s,border-color .15s}
+.sty-info:hover{color:var(--acc-text);border-color:var(--acc-text)}
+.sty-info:focus-visible{outline:2px solid var(--acc1);outline-offset:1px}
+.sty-help{font-size:11px;color:var(--ink-soft);line-height:1.45;padding:1px 0 6px 2px;margin:0}
+.sty-help[hidden]{display:none}
 .sty-bar{height:7px;border-radius:4px;background:var(--line);overflow:hidden}
 .sty-bar>i{display:block;height:100%;background:var(--acc1);border-radius:4px}
 .sty-v{font-family:var(--mono);font-size:12px;font-weight:700;text-align:right;font-variant-numeric:tabular-nums}
@@ -1268,6 +1273,10 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .pl-head:hover{border-color:color-mix(in srgb,var(--acc1) 40%,var(--line))}
 .pl-head-t{font-size:13px;font-weight:600;line-height:1.4;color:var(--ink)}
 .pl-head-s{flex:0 0 auto;font-size:10.5px;color:var(--ink-soft);white-space:nowrap}
+.team-search.news-search{width:100%;margin:0 0 12px}
+.pl-head.news-hide{display:none}
+.news-empty{margin:14px 2px;font-size:13px;color:var(--ink-soft);text-align:center}
+.news-empty[hidden]{display:none}
 .pulse-foot{margin:16px 2px 4px;font-size:11px;color:var(--ink-soft);opacity:.8;line-height:1.5}
 /* Phase 3: synthesised storylines + trending teams */
 .pl-stories{display:flex;gap:12px;background:linear-gradient(150deg,color-mix(in srgb,var(--gold) 13%,var(--card)),var(--card) 72%);border:1px solid color-mix(in srgb,var(--gold) 32%,var(--line));border-radius:16px;padding:14px 16px;margin-bottom:14px;box-shadow:var(--shadow);animation:rise .5s both}

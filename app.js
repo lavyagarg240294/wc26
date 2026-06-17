@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "216";  // shown in footer; bump with the ?v= asset version
+const BUILD = "217";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1583,10 +1583,17 @@ function rotationSection(code) {
 function styleSection(code) {
   const me = tournamentStats().style, mine = me.find(x => x.code === code);
   if (!mine || me.length < 4) return "";
-  const AXES = [["poss", "Possession", v => v.toFixed(0) + "%"], ["passAcc", "Passing", v => v.toFixed(0) + "%"],
-    ["directness", "Direct play", v => v.toFixed(0) + "%"], ["pressPg", "Pressing", v => v.toFixed(0) + "/g"], ["shotsPg", "Attacking", v => v.toFixed(1) + "/g"]];
+  const AXES = [
+    ["poss", "Possession", v => v.toFixed(0) + "%", "Average share of the ball. Formula: possession % across their matches."],
+    ["passAcc", "Passing", v => v.toFixed(0) + "%", "Pass accuracy. Formula: completed passes ÷ passes attempted."],
+    ["directness", "Direct play", v => v.toFixed(0) + "%", "How much they go long vs build patiently. Formula: long balls ÷ (passes + long balls)."],
+    ["pressPg", "Pressing", v => v.toFixed(0) + "/g", "Defensive activity. Formula: (tackles + interceptions) per match."],
+    ["shotsPg", "Attacking", v => v.toFixed(1) + "/g", "Shot volume. Formula: shots taken per match."],
+  ];
   const pct = key => { const vs = me.map(x => x[key]), lo = Math.min(...vs), hi = Math.max(...vs); return hi > lo ? Math.round((mine[key] - lo) / (hi - lo) * 100) : 50; };
-  const rows = AXES.map(([key, label, fmt]) => `<div class="sty-row"><span class="sty-lbl">${label}</span><span class="sty-bar"><i style="width:${pct(key)}%"></i></span><span class="sty-v">${fmt(mine[key])}</span></div>`).join("");
+  const rows = AXES.map(([key, label, fmt, help]) => `<div class="sty-item">
+    <div class="sty-row"><span class="sty-lbl">${label}<button class="sty-info" data-styhelp aria-label="What ${label} means" title="${esc(help)}">i</button></span><span class="sty-bar"><i style="width:${pct(key)}%"></i></span><span class="sty-v">${fmt(mine[key])}</span></div>
+    <div class="sty-help" hidden>${esc(help)} The bar shows where they rank among all teams (full = highest), not how good it is.</div></div>`).join("");
   return `<div class="eyebrow">Playing style</div><div class="sty-card">${rows}<p class="sty-hint">Where ${esc(S.teams[code].name)} ranks among teams with match stats. A fuller bar means more than its rivals, not "better".</p></div>`;
 }
 function openTeam(code) {
@@ -2814,44 +2821,40 @@ function renderCommentary(c) {
 
 /* ---------------- the Pulse: fan reactions + press headlines, baked into data/buzz.json by the Action ---------------- */
 // Shape: { updated, matches: { "<matchId>": { heat:0-100, reactions:[{text,score,src,url}] } }, headlines:[{title,src,url,team?}] }
+// short relative age for the chronological News feed: "12m ago" / "3h ago" / "2d ago"
+const relTime = iso => {
+  const s = (Date.now() - +new Date(iso)) / 1000;
+  if (!(s >= 0)) return "";
+  if (s < 90) return "just now";
+  if (s < 3600) return Math.round(s / 60) + "m ago";
+  if (s < 86400) return Math.round(s / 3600) + "h ago";
+  return Math.round(s / 86400) + "d ago";
+};
+// News: a chronological feed of World Cup headlines (newest first) with a live filter box. The fan-reaction
+// pipeline is parked (see fetch-buzz.mjs SOCIAL flag); this reads only b.headlines.
 function renderPulse() {
   const el = $("#view-pulse"), b = S.buzz;
-  const intro = `<div class="pulse-intro"><h2>The Pulse</h2><p>What fans and the press are saying, pulled from public social posts and headlines. No accounts, no tracking.</p></div>`;
-  const blocks = Object.entries((b && b.matches) || {})
-    .map(([id, d]) => ({ m: S.matches.find(x => x.id === id), d }))
-    .filter(x => x.m && x.d && x.d.reactions && x.d.reactions.length)
-    .sort((x, y) => (y.d.heat || 0) - (x.d.heat || 0))
-    .map(({ m, d }) => {
-      const h = slotInfo(m, "home"), a = slotInfo(m, "away"), r = res(m);
-      const score = r && r.h != null ? `${r.h}–${r.a}` : "";
-      const heat = Math.max(0, Math.min(100, d.heat || 0));
-      return `<div class="pl-match">
-        <button class="pl-mh" data-mid="${m.id}">
-          <span class="pl-mh-t">${h.code ? flag(h.code) : TBD_FLAG} <b>${esc(h.short || h.name)}</b> <i>v</i> <b>${esc(a.short || a.name)}</b> ${a.code ? flag(a.code) : TBD_FLAG}</span>
-          ${score ? `<span class="pl-mh-s">${score}</span>` : ""}
-          <span class="pl-heat" aria-label="Buzz level"><span style="width:${heat}%"></span></span>
-        </button>
-        <div class="pl-rx-list">${d.reactions.slice(0, 4).map(rx =>
-          `<a class="pl-rx" href="${esc(rx.url || "#")}" target="_blank" rel="noopener noreferrer">
-            <span class="pl-rx-q">${esc(rx.text)}</span>
-            <span class="pl-rx-m">${rx.score ? `▲ ${Number(rx.score).toLocaleString()} · ` : ""}${esc(rx.src || "")} ↗</span></a>`).join("")}</div>
-      </div>`;
-    }).join("");
-  const heads = (b && b.headlines) || [];
-  const headHTML = heads.length ? `<div class="eyebrow">In the press</div>
-    <div class="pl-heads">${heads.slice().sort((x, y) => (y.team === S.fav) - (x.team === S.fav)).slice(0, 12).map(hd =>
-      `<a class="pl-head" href="${esc(hd.url || "#")}" target="_blank" rel="noopener noreferrer">
-        <span class="pl-head-t">${esc(hd.title)}</span><span class="pl-head-s">${esc(hd.src || "")} ↗</span></a>`).join("")}</div>` : "";
-  const stories = (b && b.storylines) || [];
-  const storyHTML = stories.length ? `<div class="pl-stories">${ICO.spark}<div class="pl-stories-in"><div class="eyebrow">The storylines</div><ul>${stories.map(s => `<li>${esc(s)}</li>`).join("")}</ul></div></div>` : "";
-  if (!blocks && !headHTML && !storyHTML) {
-    paint(el, intro + `<div class="pulse-empty">${ICO.spark}<p>Fan reactions and the day's headlines gather here as matches play. Check back once the action starts.</p></div>`);
+  const intro = `<div class="pulse-intro"><h2>News</h2><p>The latest World Cup headlines from football desks worldwide, newest first. Each links out to its source.</p></div>`;
+  const heads = ((b && b.headlines) || []).slice().sort((x, y) => (y.date || "").localeCompare(x.date || ""));
+  if (!heads.length) {
+    paint(el, intro + `<div class="pulse-empty">${ICO.spark}<p>The day's headlines gather here as the tournament plays. Check back soon.</p></div>`);
     return;
   }
-  paint(el, intro + storyHTML +
-    (blocks ? `<div class="eyebrow">Loudest right now</div>${blocks}` : "") +
-    headHTML +
-    `<p class="pulse-foot">Gathered automatically from public social posts and headlines, each linking out to its source. Fans' and reporters' views, not ours.</p>`);
+  const list = heads.map(hd => `<a class="pl-head" data-news="${esc((hd.title + " " + (hd.src || "")).toLowerCase())}" href="${esc(hd.url || "#")}" target="_blank" rel="noopener noreferrer">
+    <span class="pl-head-t">${esc(hd.title)}</span>
+    <span class="pl-head-s">${esc(hd.src || "")}${hd.date ? ` · ${relTime(hd.date)}` : ""} ↗</span></a>`).join("");
+  paint(el, intro +
+    `<input class="team-search news-search" id="newsSearch" type="search" placeholder="Search headlines…" autocomplete="off" autocapitalize="off" spellcheck="false">` +
+    `<div class="pl-heads" id="newsList">${list}</div>` +
+    `<p class="news-empty" id="newsEmpty" hidden>No headlines match that search.</p>` +
+    `<p class="pulse-foot">Gathered automatically from public news feeds, newest first. Each links out to its source.</p>`);
+  const s = $("#newsSearch", el);
+  if (s) s.oninput = () => {
+    const q = s.value.trim().toLowerCase();
+    let shown = 0;
+    $$("#newsList .pl-head", el).forEach(a => { const hide = !!q && !a.dataset.news.includes(q); a.classList.toggle("news-hide", hide); if (!hide) shown++; });
+    const empty = $("#newsEmpty", el); if (empty) empty.hidden = shown > 0;
+  };
 }
 async function loadBuzz() {
   try { S.buzz = await (await fetch("data/buzz.json?t=" + Date.now(), { cache: "no-store" })).json(); } catch { /* not published yet — keep what we have */ }
@@ -3323,6 +3326,8 @@ async function boot() {
     // a close button or a backdrop (click landing on the <dialog> itself) is handled by the dialog's own
     // close wiring — never let it fall through to an open-handler, or closing would immediately re-open.
     if (e.target.closest("[data-close]") || e.target.tagName === "DIALOG") return;
+    const sh = e.target.closest("[data-styhelp]");   // playing-style metric explainer: toggle its help line
+    if (sh) { e.stopPropagation(); const help = sh.closest(".sty-item")?.querySelector(".sty-help"); if (help) help.hidden = !help.hidden; return; }
     const rf = e.target.closest("[data-refresh]");
     if (rf) { e.stopPropagation(); manualRefresh(); return; }
     const star = e.target.closest("[data-save]");

@@ -274,22 +274,26 @@ function parseRSS(xml, src, wcFeed) {
     if (!title || !link || !/^https?:/.test(link)) return [];
     const codes = codesIn(title);
     if (!wcFeed && !/world cup|wc[\s-]?2026/i.test(title) && !codes.length) return [];
-    return [{ title, src, url: link, ...(codes.length === 1 ? { team: codes[0] } : {}) }];
+    // pubDate (RSS) / dc:date (RDF) / published (Atom) → ISO, for the chronological News tab
+    const dRaw = (it.match(/<pubDate>([\s\S]*?)<\/pubDate>/i) || it.match(/<dc:date>([\s\S]*?)<\/dc:date>/i) || it.match(/<published>([\s\S]*?)<\/published>/i) || [])[1] || "";
+    let date = ""; try { const dt = new Date(dRaw.trim()); if (!isNaN(+dt)) date = dt.toISOString(); } catch { /* leave blank */ }
+    return [{ title, src, url: link, date, ...(codes.length === 1 ? { team: codes[0] } : {}) }];
   });
 }
+// the News tab is a chronological feed: gather every outlet, de-dup by title, sort newest-first. A per-feed cap
+// keeps one prolific desk from flooding the top while still ordering by time.
 async function fetchHeadlines() {
-  const bySrc = [];
+  const all = [];
   for (const [src, url, wcFeed] of FEEDS) {
-    try { bySrc.push(parseRSS(await (await fetch(url, { headers: { "User-Agent": UA } })).text(), src, wcFeed).slice(0, 8)); }
-    catch (e) { console.log("rss skipped", src, e.message); bySrc.push([]); }
+    try { all.push(...parseRSS(await (await fetch(url, { headers: { "User-Agent": UA } })).text(), src, wcFeed).slice(0, 12)); }
+    catch (e) { console.log("rss skipped", src, e.message); }
   }
-  const out = [], seen = new Set();   // round-robin the outlets so no single one dominates the list
-  for (let i = 0; i < 8; i++) for (const list of bySrc) {
-    const h = list[i]; if (!h) continue;
+  const seen = new Set(), out = [];
+  for (const h of all.sort((a, b) => (b.date || "").localeCompare(a.date || ""))) {
     const k = h.title.toLowerCase(); if (seen.has(k)) continue;
     seen.add(k); out.push(h);
   }
-  return out.slice(0, 15);
+  return out.slice(0, 40);
 }
 
 /* ---------------- Phase 3: derived signals ---------------- */
@@ -329,22 +333,27 @@ async function fetchStorylines(headlines, matches) {
 }
 
 /* ---------------- main ---------------- */
-// the shared window every reaction source maps into: last 4 days … next 3h, both teams known
-const recent = fixtures.filter(m => {
-  const hc = m.home?.team, ac = m.away?.team; if (!hc || !ac) return false;
-  const ko = +new Date(m.utc); return ko <= now + 3 * 3600e3 && ko >= now - 4 * 86400e3;
-});
-const bskytok = await bskyToken();
-const [reddit, bsky, masto] = await Promise.all([
-  fetchReactions().catch(e => { console.log("reddit skipped:", e.message); return {}; }),
-  fetchBluesky(recent, bskytok).catch(e => { console.log("bluesky skipped:", e.message); return {}; }),
-  fetchMastodon(recent).catch(e => { console.log("mastodon skipped:", e.message); return {}; }),
-]);
-const matches = mergeSources(reddit, bsky, masto);
-console.log(`reactions: reddit ${Object.keys(reddit).length}, bluesky ${Object.keys(bsky).length}, mastodon ${Object.keys(masto).length} → ${Object.keys(matches).length} merged`);
+// Fan reactions are PARKED — the tab is "News" (headlines only) for now. The whole social pipeline (Reddit /
+// Bluesky / Mastodon + storylines + trending) is kept intact below; flip SOCIAL back to true to re-enable it
+// once there are better sources. While off we skip those fetches entirely, so the Action stays fast.
+const SOCIAL = false;
+let matches = {}, trending = [], storylines = [];
+if (SOCIAL) {
+  const recent = fixtures.filter(m => {
+    const hc = m.home?.team, ac = m.away?.team; if (!hc || !ac) return false;
+    const ko = +new Date(m.utc); return ko <= now + 3 * 3600e3 && ko >= now - 4 * 86400e3;
+  });
+  const bskytok = await bskyToken();
+  const [reddit, bsky, masto] = await Promise.all([
+    fetchReactions().catch(e => { console.log("reddit skipped:", e.message); return {}; }),
+    fetchBluesky(recent, bskytok).catch(e => { console.log("bluesky skipped:", e.message); return {}; }),
+    fetchMastodon(recent).catch(e => { console.log("mastodon skipped:", e.message); return {}; }),
+  ]);
+  matches = mergeSources(reddit, bsky, masto);
+  console.log(`reactions: reddit ${Object.keys(reddit).length}, bluesky ${Object.keys(bsky).length}, mastodon ${Object.keys(masto).length} → ${Object.keys(matches).length} merged`);
+}
 const headlines = await fetchHeadlines().catch(e => { console.log("headlines skipped:", e.message); return []; });
-const trending = computeTrending(headlines, matches);
-const storylines = await fetchStorylines(headlines, matches);
+if (SOCIAL) { trending = computeTrending(headlines, matches); storylines = await fetchStorylines(headlines, matches); }
 const buzz = { updated: new Date().toISOString(), storylines, trending, matches, headlines };
 console.log(`buzz: ${Object.keys(matches).length} match(es) w/reactions, ${headlines.length} headline(s), ${trending.length} trending, ${storylines.length} storyline(s)`);
 if (DRY) console.log(JSON.stringify(buzz, null, 2).slice(0, 2200));
