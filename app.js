@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "240";  // shown in footer; bump with the ?v= asset version
+const BUILD = "241";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -268,6 +268,11 @@ function status(m) {
   // no feed row yet (only before the very first Action run): best-effort from the scheduled time
   return new Date(m.utc) <= new Date() && new Date() - new Date(m.utc) < 3 * 3600e3 ? ST.LIVE : ST.SCHED;
 }
+// FEED-confirmed final: the feed itself says FT and a real scoreline is present. Distinct from status()===FT, which
+// also fires when a LIVE/HT row is stuck past full time (the feed lagged). Standings + qualification math must only
+// fold in feed-final results — never a stale-live score the feed hasn't closed — so the table and the Q/out badges
+// never disagree. UI ("still live?", "upcoming vs past") keeps using status() so a stuck match still drops out of live.
+const isFeedFinal = m => { const r = res(m); return !!r && r.st === ST.FT && r.h != null; };
 // live match clock: exact minute from the feed if present, else an estimate from kickoff
 // (the free feed often only flags "live" with no minute). Estimate allows for a 15′ half-time.
 function clockStr(m, r) {
@@ -393,7 +398,7 @@ function standings(group) {
   }));
   gm.forEach(m => {
     const r = res(m);
-    if (!r || r.st !== ST.FT || r.h == null) return;
+    if (!isFeedFinal(m)) return;
     const H = rows[m.home.team], A = rows[m.away.team];
     if (!H || !A) return;
     H.p++; A.p++; H.gf += r.h; H.ga += r.a; A.gf += r.a; A.ga += r.h;
@@ -1141,8 +1146,8 @@ function winProbBlock(m) {
   const h = slotInfo(m, "home"), a = slotInfo(m, "away");
   const ph = Math.round(wp.h * 100), pd = Math.round(wp.d * 100), pa = 100 - ph - pd;
   const legend = wp.ko && wp.adv
-    ? `<div class="wp-legend"><span class="wp-lh"><b>${Math.round(wp.adv.h * 100)}%</b> ${flag(h.code)} ${esc(h.name)}</span><span class="wp-ld">advance</span><span class="wp-la">${esc(a.name)} ${flag(a.code)} <b>${Math.round(wp.adv.a * 100)}%</b></span></div>`
-    : `<div class="wp-legend"><span class="wp-lh"><b>${ph}%</b> ${flag(h.code)} ${esc(h.name)}</span><span class="wp-ld">Draw <b>${pd}%</b></span><span class="wp-la">${esc(a.name)} ${flag(a.code)} <b>${pa}%</b></span></div>`;
+    ? `<div class="wp-legend"><span class="wp-lh"><b>${Math.round(wp.adv.h * 100)}%</b> ${flag(h.code)} <span class="wp-lname">${esc(h.name)}</span></span><span class="wp-ld">advance</span><span class="wp-la"><span class="wp-lname">${esc(a.name)}</span> ${flag(a.code)} <b>${Math.round(wp.adv.a * 100)}%</b></span></div>`
+    : `<div class="wp-legend"><span class="wp-lh"><b>${ph}%</b> ${flag(h.code)} <span class="wp-lname">${esc(h.name)}</span></span><span class="wp-ld">Draw <b>${pd}%</b></span><span class="wp-la"><span class="wp-lname">${esc(a.name)}</span> ${flag(a.code)} <b>${pa}%</b></span></div>`;
   const xg = wp.xg, ph_ = xg ? Math.round(xg.h) : 0, pa_ = xg ? Math.round(xg.a) : 0;   // projected score = the expected goals rounded — a representative scoreline, not the low-scoring distribution mode
   const score = xg ? `<div class="wp-score"><span class="wp-score-lab">Projected score</span> <b>${ph_}–${pa_}</b> <span class="wp-score-p">(${xg.h.toFixed(1)}–${xg.a.toFixed(1)})</span>${wp.ko && ph_ === pa_ ? ` <span class="wp-score-et">in 90′, then ET/pens</span>` : ""}</div>` : "";
   const why = (wp.reasons || []).length ? `<div class="wp-why"><span class="wp-why-lab">Why</span>${wp.reasons.map((rs, i) => `${i ? `<span class="wp-why-sep">·</span>` : ""}<span class="wp-why-r r-${(rs.dir || "N").toLowerCase()}">${rs.dot ? `<i class="wp-why-dot"></i>` : ""}${esc(rs.text)}</span>`).join("")}</div>` : "";
@@ -1157,10 +1162,10 @@ function winProbBlock(m) {
    Plain-language "what this result means for qualification" on group matches. Pure points-based reasoning over
    every still-possible W/D/L of the group's unfinished matches, so each claim survives goal-difference tiebreaks;
    where the cut IS GD-dependent we don't fake a call — we fall back to the live standing. No new data. */
-function _basePts(g) {                                    // FT-only points — the definite base
+function _basePts(g) {                                    // FT-only points — the definite base (feed-final only)
   const pts = {}; groupTeams(g).forEach(c => pts[c] = 0);
-  for (const m of S.matches) if (m.group === g && status(m) === ST.FT) {
-    const r = res(m); if (!r || r.h == null) continue;
+  for (const m of S.matches) if (m.group === g && isFeedFinal(m)) {
+    const r = res(m);
     if (r.h > r.a) pts[m.home.team] += 3; else if (r.h < r.a) pts[m.away.team] += 3;
     else { pts[m.home.team]++; pts[m.away.team]++; }
   }
@@ -1169,7 +1174,7 @@ function _basePts(g) {                                    // FT-only points — 
 // For team X: over every W/D/L of the group's unfinished matches (optionally fixing match `fixId` to `fixOut`),
 // is X *guaranteed* top-two (≤1 other team can reach its points) and/or *out* of top-two (≥2 teams beat it)?
 function _qualScan(g, X, fixId, fixOut) {
-  const teams = groupTeams(g), rem = S.matches.filter(m => m.group === g && status(m) !== ST.FT);
+  const teams = groupTeams(g), rem = S.matches.filter(m => m.group === g && !isFeedFinal(m));   // a stale-live match is "still to be decided" for guarantees, not folded in as final
   let allTop2 = true, allOut = true;
   const rec = (i, pts) => {
     if (i === rem.length) {
@@ -3496,14 +3501,18 @@ function setFreshness() {
   const el = $("#updatedLabel"); if (!el) return;
   if (!S.lastChecked) { el.textContent = S.results.updated ? "Up to date" : "Schedule loaded"; return; }
   const fmtT = ms => _dtf("en", { hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(ms));   // 24h, matching every kickoff time on screen
+  if (S.offline) { el.textContent = `Offline · last update ${fmtT(S.lastChecked)}`; return; }   // say so, rather than show a frozen "just now"
   // lead with how recently we checked, not the data's age — a quiet stretch with no matches isn't staleness
   if (Date.now() - S.lastChecked > 5 * 60000) { el.textContent = `Last checked ${fmtT(S.lastChecked)}`; return; }
   const live = S.matches.some(m => [ST.LIVE, ST.HT].includes(status(m)));
   el.textContent = `${live ? "Live" : "Up to date"} · checked just now`;
 }
+let _pollFails = 0;
 async function refreshResults() {
   try {
     const r = await fetch("data/results.json?t=" + Date.now(), { cache: "no-store" });
+    _pollFails = 0;                                       // the fetch resolved → the network is reachable
+    if (S.offline) { S.offline = false; setFreshness(); }
     if (!r.ok) return;
     const txt = await r.text();
     S.lastChecked = Date.now();
@@ -3528,7 +3537,11 @@ async function refreshResults() {
       if (scoresChanged && !firstLoad) celebrateGoals(prev, S.results.matches);
     }
     setFreshness();
-  } catch { /* offline or first deploy — schedule still works */ }
+  } catch {
+    // network unreachable (offline / DNS / CORS-less failure). One blip is normal; flag offline only once it's
+    // clearly not transient so the footer can say so instead of silently showing a stale time. self-heals on reconnect.
+    if (!navigator.onLine || ++_pollFails >= 2) { S.offline = true; setFreshness(); }
+  }
 }
 // On a poll, re-render an open match popup in place so its score/minute/timeline/stats/win-prob stay current (it was
 // written once on open and otherwise freezes). Preserve what the user is doing: expanded sections, scroll, and the
@@ -3761,6 +3774,8 @@ async function boot() {
     document.body.classList.toggle("bg-paused", document.hidden);   // park the ambient blobs (animation + GPU promotion) while backgrounded
     if (!document.hidden && Date.now() - (S.lastChecked || 0) > 8000) refreshResults();
   });
+  addEventListener("online", () => refreshResults());                // reconnected → pull immediately and clear the offline label
+  addEventListener("offline", () => { S.offline = true; setFreshness(); });
   setInterval(loadEfi, 5 * 60 * 1000);   // EFI is post-match — refresh every 5 min is plenty
   checkKickoffAlert();
   setInterval(checkKickoffAlert, 60 * 1000); // fire a kickoff reminder for the favourite team (opt-in)
