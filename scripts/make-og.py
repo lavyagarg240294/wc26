@@ -1,51 +1,67 @@
 #!/usr/bin/env python3
-"""Generate the 1200x630 social share card -> assets/og.png. Typographic, no raster emblem."""
+"""Generate the 1200x630 social share card -> assets/og.png.
+Rendered at 2x with the site's real Archivo display font, then downscaled (LANCZOS) for crisp type.
+Palette + centre-circle mark mirror the site's dark theme."""
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
-W, H = 1200, 630
-FB = "/System/Library/Fonts/Supplemental/Arial Bold.ttf"
-FBL = "/System/Library/Fonts/Supplemental/Arial Black.ttf"
-FR = "/System/Library/Fonts/Supplemental/Arial.ttf"
-f = lambda p, s: ImageFont.truetype(p, s)
+S = 2                                  # supersample: render 2x, downscale = sharp text + geometry
+W, H = 1200 * S, 630 * S
+AB = "assets/fonts/archivo-700.woff"   # the site's display weight (woff loads in Pillow's FreeType)
+AR = "assets/fonts/archivo-400.woff"
+fb = lambda s: ImageFont.truetype(AB, int(s * S))
+fr = lambda s: ImageFont.truetype(AR, int(s * S))
+def T(v): return int(v * S)
 
-# base vertical gradient: navy -> deep pitch green
-img = Image.new("RGB", (W, H))
-top, bot = (12, 24, 38), (8, 34, 27)
-row = [tuple(int(top[i] + (bot[i] - top[i]) * (y / H)) for i in range(3)) for y in range(H)]
-px = img.load()
-for x in range(W):
+GOLD = (232, 185, 49)
+
+# vertical gradient: dark ink -> deep pitch green (the site's dark --paper into a pitch tint)
+def vgrad(top, bot):
+    g = Image.new("RGB", (1, H)); p = g.load()
     for y in range(H):
-        px[x, y] = row[y]
+        t = y / H
+        p[0, y] = tuple(int(top[i] + (bot[i] - top[i]) * t) for i in range(3))
+    return g.resize((W, H))
 
-def glow(color, cx, cy, r, alpha, blur=110):
+def glow(img, color, cx, cy, r, alpha, blur):
     ov = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    ImageDraw.Draw(ov).ellipse([cx - r, cy - r, cx + r, cy + r], fill=color + (alpha,))
-    img.paste(ov.filter(ImageFilter.GaussianBlur(blur)), (0, 0), ov.filter(ImageFilter.GaussianBlur(blur)))
+    ImageDraw.Draw(ov).ellipse([T(cx) - T(r), T(cy) - T(r), T(cx) + T(r), T(cy) + T(r)], fill=color + (alpha,))
+    ov = ov.filter(ImageFilter.GaussianBlur(T(blur)))
+    img.paste(ov, (0, 0), ov)
 
-glow((11, 163, 96), 90, 70, 380, 160)      # green top-left
-glow((232, 185, 49), 1130, 590, 420, 140)  # gold bottom-right
-glow((45, 212, 191), 1010, 70, 260, 90)    # teal top-right
+def tracked(d, xy, text, font, fill, track):   # letter-spaced caps for a refined eyebrow / stat line
+    x, y = xy
+    for ch in text:
+        d.text((x, y), ch, font=font, fill=fill)
+        x += d.textlength(ch, font=font) + T(track)
 
-# the site's centre-circle logo mark — halfway line + centre circle + kick-off spot — top-right, off-canvas
-mark = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-md = ImageDraw.Draw(mark)
-mx, my = 1020, 140
-md.ellipse([mx - 320, my - 320, mx + 320, my + 320], outline=(255, 255, 255, 26), width=2)   # faint touch ring
-md.line([(mx - 300, my), (mx + 360, my)], fill=(232, 185, 49, 115), width=9)                 # halfway line
-md.ellipse([mx - 205, my - 205, mx + 205, my + 205], outline=(232, 185, 49, 170), width=9)   # centre circle
-md.ellipse([mx - 14, my - 14, mx + 14, my + 14], fill=(232, 185, 49, 230))                   # kick-off spot
-img.paste(mark, (0, 0), mark)
+# the site's logo: halfway line + centre circle + kick-off spot, off-canvas top-right
+def centre_mark(img, color, alpha, cx, cy, R):
+    m = Image.new("RGBA", (W, H), (0, 0, 0, 0)); md = ImageDraw.Draw(m)
+    a = lambda f: int(alpha * f)
+    md.ellipse([T(cx) - T(R + 115), T(cy) - T(R + 115), T(cx) + T(R + 115), T(cy) + T(R + 115)], outline=color + (a(0.16),), width=T(2))
+    md.line([(T(cx) - T(R + 95), T(cy)), (T(cx) + T(R + 155), T(cy))], fill=color + (a(0.55),), width=T(9))
+    md.ellipse([T(cx) - T(R), T(cy) - T(R), T(cx) + T(R), T(cy) + T(R)], outline=color + (a(0.85),), width=T(9))
+    md.ellipse([T(cx) - T(14), T(cy) - T(14), T(cx) + T(14), T(cy) + T(14)], fill=color + (a(1.0),))
+    img.paste(m, (0, 0), m)
+
+img = vgrad((14, 24, 34), (8, 38, 30))
+glow(img, (11, 163, 96), 70, 60, 360, 150, 110)     # green top-left
+glow(img, GOLD, 1135, 600, 430, 130, 120)           # gold bottom-right
+glow(img, (45, 212, 191), 1015, 60, 240, 80, 100)   # teal top-right
+centre_mark(img, (255, 255, 255), 255, 1035, 150, 205)   # faint white halo under the mark
+centre_mark(img, GOLD, 190, 1035, 150, 205)
 
 d = ImageDraw.Draw(img)
-x = 84
-d.text((x, 96), "JUNE 11 – JULY 19, 2026", font=f(FB, 28), fill=(232, 185, 49))
-d.text((x, 142), "FIFA World Cup", font=f(FB, 82), fill=(255, 255, 255))
-d.text((x, 226), "2026", font=f(FBL, 158), fill=(31, 214, 115))
-tag = f(FR, 31)
-d.text((x, 424), "Live scores, lineups & stats, a win probability and", font=tag, fill=(200, 212, 218))
-d.text((x, 464), "predicted score, plus a bracket you can call to the champion.", font=tag, fill=(200, 212, 218))
-d.rectangle([x, 536, x + 320, 539], fill=(232, 185, 49))
-d.text((x, 552), "104 MATCHES    ·    48 TEAMS    ·    IN YOUR TIMEZONE", font=f(FB, 24), fill=(150, 166, 176))
+x = T(84)
+tracked(d, (x, T(96)), "JUNE 11 – JULY 19, 2026", fb(27), GOLD, 2.2)
+d.text((x, T(140)), "FIFA World Cup", font=fb(80), fill=(233, 238, 242))
+d.text((x, T(220)), "2026", font=fb(156), fill=(38, 222, 140), stroke_width=T(1.4), stroke_fill=(38, 222, 140))
+tag = fr(30)
+d.text((x, T(426)), "Live scores, lineups & stats, a win probability and", font=tag, fill=(179, 192, 203))
+d.text((x, T(466)), "predicted score, plus a bracket you can call to the champion.", font=tag, fill=(179, 192, 203))
+d.rectangle([x, T(538), x + T(300), T(541)], fill=GOLD)
+tracked(d, (x, T(554)), "104 MATCHES    ·    48 TEAMS    ·    IN YOUR TIMEZONE", fb(23), (132, 150, 165), 1.4)
 
+img = img.resize((1200, 630), Image.LANCZOS)
 img.save("assets/og.png")
 print("wrote assets/og.png", img.size)
