@@ -777,8 +777,9 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .champ p{font-size:12.5px;opacity:.85;letter-spacing:.14em;text-transform:uppercase;font-family:var(--disp);font-weight:700;font-stretch:112%}
 
 /* ---------- squad roster ---------- */
-.tname[data-squad]{cursor:pointer}
-.tname[data-squad]:hover{text-decoration:underline;text-decoration-color:var(--acc-text);text-underline-offset:2px}
+.tname-tap{cursor:pointer;border-radius:4px}
+.tname-tap:hover{text-decoration:underline;text-decoration-color:var(--acc-text);text-underline-offset:2px}
+.tname-tap:focus-visible{outline:2px solid var(--acc1);outline-offset:1px}
 #teamSheetTitle{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 #teamSheetTitle .fl{font-size:22px}
 /* team detail sheet — overview line, form, follow CTA, collapsible squad */
@@ -1182,6 +1183,9 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .pl-meta{display:flex;flex-direction:column;gap:3px;min-width:0}
 .pl-name{font-family:var(--disp);font-weight:800;font-stretch:110%;font-size:20px;line-height:1.08}
 .pl-team{font-size:13px;color:var(--ink-soft)}
+.pl-team-link{display:inline-flex;align-items:center;gap:5px;background:none;border:0;padding:1px 3px;margin-left:-3px;font-family:inherit;font-size:13px;color:var(--ink-soft);cursor:pointer;border-radius:5px}
+.pl-team-link:hover{color:var(--acc-text);text-decoration:underline;text-underline-offset:2px}
+.pl-team-link:focus-visible{outline:2px solid var(--acc1);outline-offset:1px}
 .pl-pos{font-family:var(--mono);font-size:11.5px;font-weight:700;color:var(--acc-text);letter-spacing:.02em}
 .pl-bio{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 4px}
 .pl-bio span{display:flex;flex-direction:column;gap:2px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:7px 13px;font-weight:800;font-size:16px;color:var(--ink);line-height:1.15}

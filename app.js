@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "237";  // shown in footer; bump with the ?v= asset version
+const BUILD = "238";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1883,7 +1883,7 @@ function openPlayer(name, code) {
       ${photo ? `<span class="pl-face" style="background-image:url('${photo}')"></span>` : `<span class="pl-face pl-flag">${code ? flag(code) : "·"}</span>`}
       <div class="pl-meta">
         <b class="pl-name">${esc(pName(name, code))}</b>
-        <span class="pl-team">${code ? flag(code) + " " : ""}${esc(team?.name || code || "")}</span>
+        ${code ? `<button type="button" class="pl-team pl-team-link" data-squad="${code}" title="View ${esc(team?.name || code)}">${flag(code)} ${esc(team?.name || code)}</button>` : `<span class="pl-team">${esc(team?.name || "")}</span>`}
         ${(num != null || pos) ? `<span class="pl-pos">${num != null ? "#" + num : ""}${num != null && pos ? " · " : ""}${pos}</span>` : ""}
       </div>
     </div>
@@ -2055,7 +2055,7 @@ function groupTable(g, i) {
   return `<div class="gtable" style="--i:${i}"><h4>Group <span>${g}</span></h4>
     <table>${TABLE_COLS}<thead><tr><th>Team</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GD</th><th>Pts</th></tr></thead><tbody>
     ${rows.map((r, idx) => `<tr class="${idx < 2 ? "q1" : idx === 2 ? "q3" : ""} ${r.code === S.fav ? "is-fav" : ""}" data-g="${g}" data-code="${r.code}">
-      <td class="tname" title="View ${esc(S.teams[r.code].name)}" data-squad="${r.code}" role="button" tabindex="0"><span class="fl">${flag(r.code)}</span>${esc(S.teams[r.code].name)}${qtag(r.code)}</td>
+      <td class="tname"><span class="tname-tap" title="View ${esc(S.teams[r.code].name)}" data-squad="${r.code}" role="button" tabindex="0"><span class="fl">${flag(r.code)}</span>${esc(S.teams[r.code].name)}</span>${qtag(r.code)}</td>
       <td>${r.p}</td><td>${r.w}</td><td>${r.d}</td><td>${r.l}</td><td>${r.gf - r.ga > 0 ? "+" : ""}${r.gf - r.ga}</td><td><b>${r.pts}</b></td></tr>`).join("")}
     </tbody></table></div>`;
 }
@@ -3112,8 +3112,8 @@ function renderStats() {
     ["rankings", "Rankings", statsTab === "rankings" ? fifaRankingPanel() : ""],   // lazy: the 211-row panel is built only when its tab is shown (or on first click, below)
   ];
   if (!sections.some(([k]) => k === statsTab)) statsTab = "overview";
-  const out = `<div class="substat-nav">${sections.map(([k, label]) => `<button class="substat ${k === statsTab ? "is-on" : ""}" data-stat="${k}">${label}</button>`).join("")}</div>`
-    + sections.map(([k, , html]) => `<div class="substat-panel" data-panel="${k}"${k === statsTab ? "" : " hidden"}>${html}</div>`).join("");
+  const out = `<div class="substat-nav" role="tablist" aria-label="Statistics sections">${sections.map(([k, label]) => `<button class="substat ${k === statsTab ? "is-on" : ""}" id="substab-${k}" role="tab" aria-selected="${k === statsTab}" aria-controls="substat-${k}" data-stat="${k}">${label}</button>`).join("")}</div>`
+    + sections.map(([k, , html]) => `<div class="substat-panel" id="substat-${k}" role="tabpanel" aria-labelledby="substab-${k}" data-panel="${k}"${k === statsTab ? "" : " hidden"}>${html}</div>`).join("");
   // a live match rewrites results.json every poll (the minute ticks), which re-renders the active view. If the
   // Stats markup is byte-identical, keep the existing DOM — otherwise a tap mid-poll lands on a freshly-swapped row.
   if (out === _statsHTML && el.firstChild) return;
@@ -3121,7 +3121,7 @@ function renderStats() {
   paint(el, out);
   $$(".substat", el).forEach(b => b.onclick = () => {
     const k = statsTab = b.dataset.stat;
-    $$(".substat", el).forEach(x => x.classList.toggle("is-on", x.dataset.stat === k));
+    $$(".substat", el).forEach(x => { const on = x.dataset.stat === k; x.classList.toggle("is-on", on); x.setAttribute("aria-selected", on); });
     const panel = $(`.substat-panel[data-panel="${k}"]`, el);
     if (k === "rankings" && panel && !panel.firstChild) { panel.innerHTML = fifaRankingPanel(); wireRankings(panel); }   // built lazily on first view → wire its pills + search now
     $$(".substat-panel", el).forEach(p => p.hidden = p.dataset.panel !== k);
