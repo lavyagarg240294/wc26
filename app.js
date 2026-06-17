@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "251";  // shown in footer; bump with the ?v= asset version
+const BUILD = "254";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -3152,7 +3152,7 @@ function renderStats() {
       ${teamLead("Saves", s.teamSaves, perGame)}
     </div>${teamDisc}`],
     ["records", "All-time", recordsPanel(s)],
-    ["rankings", "Rankings", statsTab === "rankings" ? fifaRankingPanel() : ""],   // lazy: the 211-row panel is built only when its tab is shown (or on first click, below)
+    ["rankings", "Ranks", statsTab === "rankings" ? fifaRankingPanel() : ""],   // lazy: the 211-row panel is built only when its tab is shown (or on first click, below)
   ];
   if (!sections.some(([k]) => k === statsTab)) statsTab = "overview";
   const out = `<div class="substat-nav" role="tablist" aria-label="Statistics sections">${sections.map(([k, label]) => `<button class="substat ${k === statsTab ? "is-on" : ""}" id="substab-${k}" role="tab" aria-selected="${k === statsTab}" aria-controls="substat-${k}" data-stat="${k}">${label}</button>`).join("")}</div>`

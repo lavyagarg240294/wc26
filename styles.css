@@ -979,9 +979,9 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .md-goals-col.away{text-align:right}
 .md-goal{font-size:12.5px;color:var(--ink);font-family:var(--mono);font-variant-numeric:tabular-nums}
 /* tournament stats view */
-.substat-nav{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 16px}   /* left-aligned, content-width, wraps — matches the .filters / .tabs rows; a wrapped pill keeps its own width, never stretches */
+.substat-nav{display:flex;flex-wrap:wrap;gap:4px;margin:0 0 16px}   /* left-aligned, content-width; sized so all five fit one row, wrap only as a safety on very narrow screens */
 .substat-nav::-webkit-scrollbar{display:none}
-.substat{flex:0 1 auto;text-align:center;font-family:var(--disp);font-weight:700;font-stretch:106%;font-size:12.5px;letter-spacing:.02em;padding:8px 16px;border-radius:99px;border:1px solid var(--line);background:var(--card);color:var(--ink-soft);white-space:nowrap;transition:background .15s,border-color .15s,color .15s}
+.substat{flex:0 1 auto;text-align:center;font-family:var(--disp);font-weight:700;font-stretch:103%;font-size:11.5px;letter-spacing:0;padding:8px 9px;border-radius:99px;border:1px solid var(--line);background:var(--card);color:var(--ink-soft);white-space:nowrap;transition:background .15s,border-color .15s,color .15s}
 .substat:hover{border-color:color-mix(in srgb,var(--acc1) 40%,var(--line))}
 .substat.is-on{background:var(--acc-deep);border-color:transparent;color:#fff}
 .substat-panel[hidden]{display:none}
