@@ -24,13 +24,13 @@ function toggleSave(id) {
   const md = document.getElementById("matchDialog");
   if (md && md.open && md.dataset.openMid === id) {
     const b = md.querySelector(".md-save"), on = S.saved.has(id);
-    if (b) { b.classList.toggle("is-on", on); b.setAttribute("aria-pressed", on); b.textContent = on ? "★" : "☆"; b.title = on ? "Saved" : "Save match"; b.setAttribute("aria-label", on ? "Remove from saved" : "Save match"); }
+    if (b) { b.classList.toggle("is-on", on); b.setAttribute("aria-pressed", on); b.textContent = on ? "★" : "☆"; b.title = on ? "Remove from saved" : "Save match"; b.setAttribute("aria-label", on ? "Remove from saved" : "Save match"); }
   }
 }
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "243";  // shown in footer; bump with the ?v= asset version
+const BUILD = "245";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -92,8 +92,15 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;",
 // actually changed. Fast-path: byte-identical HTML → do nothing. It deliberately never touches the `open` attribute
 // (so an expanded <details> stays open) nor anything under a [data-keep] node (so loaded commentary survives). Safe
 // because every view interaction is delegated to one document-level listener — morphing nodes never drops a handler.
+// Each top-level view gets a stable, visually-hidden <h2> so the heading outline reads h1 (page) -> h2 (section)
+// instead of jumping straight to the cards' h4. Injected here (every render funnels through paint with its view el)
+// so it survives poll re-renders too. Keyed by section id; non-view paints (cards, popups) are untouched.
+// groups/sim set el.innerHTML directly (not via paint), so they prepend viewH2() themselves.
+const VIEW_H2 = { "view-matches": "Matches", "view-teams": "Teams", "view-groups": "Groups", "view-sim": "Predict", "view-stats": "Statistics", "view-pulse": "News" };
+const viewH2 = id => VIEW_H2[id] ? `<h2 class="vh">${VIEW_H2[id]}</h2>` : "";
 function paint(el, html) {
   if (!el) return;
+  html = viewH2(el.id) + html;            // view sections get a hidden h2; "" for everything else
   if (el.__sig === html) return;          // nothing changed since last paint → no work, no repaint
   el.__sig = html;
   const tpl = document.createElement("template"); tpl.innerHTML = html;
@@ -707,7 +714,7 @@ function matchCard(m, i, opts = {}) {
     ${(() => { const s = matchStakes(m); return s && s.definitive ? `<div class="mcard-stake">${s.lines[0]}</div>` : ""; })()}
     ${opts.sub !== false ? `<div class="mcard-sub"><span class="grp">${esc(stageL)}</span><span>${esc(m.stadium)}</span><span>${esc(m.city)}</span><span class="mcard-go">Details ›</span></div>` : ""}
     </div>
-    <button class="mcard-star ${sv ? "is-on" : ""}" data-save="${m.id}" aria-pressed="${sv}" aria-label="${sv ? "Remove from saved" : "Save match"}" title="${sv ? "Saved" : "Save match"}">${sv ? "★" : "☆"}</button>
+    <button class="mcard-star ${sv ? "is-on" : ""}" data-save="${m.id}" aria-pressed="${sv}" aria-label="${sv ? "Remove from saved" : "Save match"}" title="${sv ? "Remove from saved" : "Save match"}">${sv ? "★" : "☆"}</button>
     ${live ? `<button class="mcard-refresh" data-refresh aria-label="Refresh score now" title="Refresh score now">${REFRESH_SVG}</button>` : ""}
   </div>`;
 }
@@ -1282,7 +1289,7 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
       <div class="md-actions">
         <button class="md-share" data-share-match="${id}" aria-label="Share this match" title="Share this match">${SHARE_SVG}</button>
         ${isFT ? "" : `<button class="md-cal" data-cal="${id}" aria-label="Add to calendar" title="Add this match to your calendar">${CAL_SVG}</button>`}
-        <button class="md-save ${sv ? "is-on" : ""}" data-save="${id}" aria-pressed="${sv}" aria-label="${sv ? "Remove from saved" : "Save match"}" title="${sv ? "Saved" : "Save match"}">${sv ? "★" : "☆"}</button>
+        <button class="md-save ${sv ? "is-on" : ""}" data-save="${id}" aria-pressed="${sv}" aria-label="${sv ? "Remove from saved" : "Save match"}" title="${sv ? "Remove from saved" : "Save match"}">${sv ? "★" : "☆"}</button>
       </div>
     </div>
     <div class="md-teams">${side(h, "home")}<div class="md-mid">${mid}</div>${side(a, "away")}</div>
@@ -1626,7 +1633,7 @@ function myTeamBlock() {
     ${squadSection(S.fav)}
     ${done.length ? `<div class="eyebrow">Played</div>` + done.map((m, i) => matchCard(m, i)).join("") : ""}
     <div class="eyebrow">Fixtures</div>
-    ${upcoming.length ? upcoming.map((m, i) => matchCard(m, i)).join("") : `<div class="empty">No scheduled fixtures. Check the bracket for their knockout path.</div>`}
+    ${upcoming.length ? upcoming.map((m, i) => matchCard(m, i)).join("") : `<div class="empty">No scheduled matches. Check the bracket for their knockout path.</div>`}
     ${group ? `<div class="eyebrow">Group ${group}</div><div class="gwrap">${groupTable(group, 0)}</div>
       <div class="legend"><span class="l1"><i></i>Top 2 advance</span><span class="l3"><i></i>3rd: possible best-8 spot</span></div>` : ""}`;
 }
@@ -2215,7 +2222,7 @@ function renderGroups() {
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const prev = {};                                          // capture row positions for a FLIP when standings reorder
   if (!reduce) el.querySelectorAll("tr[data-code]").forEach(tr => prev[tr.dataset.g + tr.dataset.code] = tr.getBoundingClientRect().top);
-  el.innerHTML = html;
+  el.innerHTML = viewH2("view-groups") + html;
   if (!reduce && Object.keys(prev).length) el.querySelectorAll("tr[data-code]").forEach(tr => {
     const old = prev[tr.dataset.g + tr.dataset.code]; if (old == null) return;
     const dy = old - tr.getBoundingClientRect().top;
@@ -2671,7 +2678,7 @@ function renderSim() {
   // re-renders. The intro + actions sit at the BOTTOM so the steps and bracket get the top of the page.
   const stepOpen = id => firstRender ? id === "simStep3" : openSteps.has(id);
   const step = (id, head, body) => `<details class="sim-step" id="${id}"${stepOpen(id) ? " open" : ""}><summary class="eyebrow">${head}<span class="sim-chev" aria-hidden="true">▾</span></summary><div class="sim-step-body">${body}</div></details>`;
-  el.innerHTML = `
+  el.innerHTML = viewH2("view-sim") + `
     ${champTeaser}
     ${step("simStep1", `<span class="step-n">1</span> Order the groups: top two go through`, `<div class="gwrap">${GROUPS.map(groupCard).join("")}</div>`)}
     ${step("simStep2", `<span class="step-n">2</span> Best third-placed teams <span class="tcount">${S.sim.thirds.length}/8</span>`, `<div class="thirds">${thirdChips}</div>`)}
@@ -3118,7 +3125,7 @@ function renderStats() {
       ${tile("Goals", s.pulse.goals)}${tile("Matches", s.pulse.matches)}
       ${tile("Goals / match", s.pulse.perMatch.toFixed(2))}${tile("Cards", s.pulse.cards)}
     </div>
-      <div class="eyebrow">Records</div>${recordsHtml}
+      <div class="eyebrow">Records so far</div>${recordsHtml}
       ${confHtml}`],
     ["players", "Players", `
       ${s.scorers.length ? `<div class="eyebrow">${ICO.ball} Golden Boot</div><div class="lead-card lead-scorers">${ranked(s.scorers.slice(0, 12), scorerRow, p => p.goals)}</div>` : ""}

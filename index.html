@@ -33,7 +33,7 @@
 <meta name="apple-mobile-web-app-title" content="World Cup 26">
 <meta name="application-name" content="World Cup 26">
 <link rel="stylesheet" href="assets/fonts.css?v=112">
-<link rel="stylesheet" href="styles.css?v=243">
+<link rel="stylesheet" href="styles.css?v=245">
 <link rel="icon" href="assets/mark.svg">
 <link rel="icon" type="image/png" href="assets/icon-32.png" sizes="32x32">
 </head>
@@ -133,13 +133,13 @@
     </button>
     <button class="set-row" id="tzRow">
       <span class="set-ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
-      <span class="set-tx"><b>Time zone</b><small>How kickoff times are shown</small></span>
+      <span class="set-tx"><b>Timezone</b><small>How kickoff times are shown</small></span>
       <span class="set-state" id="tzState">Auto</span>
     </button>
     <div class="set-group">Calendar</div>
     <button class="set-row" id="calSubscribe">
       <span class="set-ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18M12 14v4M10 16h4"/></svg></span>
-      <span class="set-tx"><b>Subscribe to all matches</b><small>Live, auto-updating feed of all 104 fixtures, best on phone</small></span>
+      <span class="set-tx"><b>Subscribe to all matches</b><small>Live, auto-updating feed of all 104 matches, best on phone</small></span>
       <span class="set-state">webcal ›</span>
     </button>
     <button class="set-row" id="calDownload">
@@ -147,7 +147,7 @@
       <span class="set-tx"><b>Download all matches</b><small>A one-time .ics file, works on any device</small></span>
       <span class="set-state">.ics ›</span>
     </button>
-    <p class="set-note">Tip: open a team for just their fixtures, or a match to add a single game.</p>
+    <p class="set-note">Tip: open a team for just their matches, or a match to add a single game.</p>
   </div>
 </dialog>
 
@@ -233,9 +233,9 @@
 
     <div class="eyebrow">Why you'd use it</div>
     <ul class="about-list">
-      <li>All <b>104 matches in your timezone</b>, with a live countdown and a one-tap <b>calendar export</b>, so a kick-off never sneaks past you</li>
-      <li>Browse <b>all 48 nations</b>: squads, form, fixtures and a <b>playing-style</b> read for each, and make one your <b>favourite</b> so the whole app takes on its colours and projected <b>route to the final</b></li>
-      <li>Every fixture carries a <b>win probability and a predicted scoreline</b> from a transparent model, which flags the factors moving the call when they stand out</li>
+      <li>All <b>104 matches in your timezone</b>, with a live countdown and a one-tap <b>calendar export</b>, so a kickoff never sneaks past you</li>
+      <li>Browse <b>all 48 nations</b>: squads, form, matches and a <b>playing-style</b> read for each, and make one your <b>favourite</b> so the whole app takes on its colours and projected <b>route to the final</b></li>
+      <li>Every match carries a <b>win probability and a predicted scoreline</b> from a transparent model, which flags the factors moving the call when they stand out</li>
       <li>Go deep on any match: live <b>goal timeline, line-ups on a formation pitch, stats, reports and commentary</b>, plus <b>FIFA's official deep analysis</b> (expected goals, distance covered, heatmaps)</li>
       <li>A full <b>knockout predictor</b>: order the groups, pick the best third-placed teams, then play the bracket to your champion and watch how your call tracks reality</li>
       <li>The whole <b>qualification picture and tournament stats</b>: live group tables, the best-third race, a projected Round of 32, the <b>Golden Boot</b> and team leaderboards, and the full <b>FIFA World Ranking</b></li>
@@ -246,7 +246,7 @@
     <p class="about-p">Win probabilities come from a <b>Dixon-Coles</b> scoring model. Each side carries a strength rating: an Elo that updates after every result and leans on <b>official expected goals</b>, not just the final score. That gets refined by an <b>attack-versus-defence</b> read of how the two teams actually play, by <b>home advantage</b> for the host nations, and, late in the groups, by <b>what each side still needs to qualify</b>. It's tuned to football's history, never to this tournament's own results, and it surfaces what's behind a call when there's a factor worth flagging.</p>
 
     <div class="eyebrow">How it works</div>
-    <p class="about-p">It's a single static page with no app server. Scores and data are refreshed by automated jobs that publish plain JSON the page reads, so <b>your browser never calls a sports API directly</b> and no keys are ever exposed. Kick-off times convert to your device's clock automatically.</p>
+    <p class="about-p">It's a single static page with no app server. Scores and data are refreshed by automated jobs that publish plain JSON the page reads, so <b>your browser never calls a sports API directly</b> and no keys are ever exposed. Kickoff times convert to your device's clock automatically.</p>
 
     <div class="eyebrow">Your privacy</div>
     <p class="about-p"><b>No tracking, no cookies, no accounts.</b> Analytics are off by default. Your team, timezone and saved predictions stay on your device.</p>
@@ -282,7 +282,7 @@
     <div class="welcome-pts">
       <div class="welcome-pt">
         <span class="welcome-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l3.5 2"/></svg></span>
-        <div class="welcome-pt-tx"><b>In your timezone</b><small>Every kick-off on your local clock, auto-detected as <b id="welcomeTz">your local time</b>.</small></div>
+        <div class="welcome-pt-tx"><b>In your timezone</b><small>Every kickoff on your local clock, auto-detected as <b id="welcomeTz">your local time</b>.</small></div>
       </div>
       <div class="welcome-pt">
         <span class="welcome-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2.6 14.7 8.3 21 9.2 16.5 13.6 17.6 19.8 12 16.9 6.4 19.8 7.5 13.6 3 9.2 9.3 8.3"/></svg></span>
@@ -308,6 +308,6 @@
 <canvas id="confetti" aria-hidden="true"></canvas>
 <audio id="bgm" preload="none"></audio>
 
-<script src="app.js?v=243"></script>
+<script src="app.js?v=245"></script>
 </body>
 </html>
