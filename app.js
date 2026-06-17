@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "217";  // shown in footer; bump with the ?v= asset version
+const BUILD = "218";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -900,47 +900,113 @@ const _dcTau = (x, y, lh, la) =>
   x === 0 && y === 1 ? 1 + lh * DC_RHO :
   x === 1 && y === 0 ? 1 + la * DC_RHO :
   x === 1 && y === 1 ? 1 - DC_RHO : 1;
-function teamRating(code) {
-  const t = S.teams[code]; if (!t) return 1700;
-  // base = seeded World Football Elo; nudge by in-tournament form, bounded so a couple of group games can't
-  // swamp the prior (≈ a dynamic-Elo update of ±100 max — a few points per goal, a few more per result).
-  const base = t.elo || 1700;
-  const g = groupOf(code), r = g ? standings(g).find(x => x.code === code) : null;
-  const form = r ? Math.max(-100, Math.min(100, r.pts * 6 + (r.gf - r.ga) * 5)) : 0;
-  return base + form;
+// a host nation gets its home edge ONLY when playing in its own country (city suffix → team code)
+const HOST_OF = { USA: "US", Mexico: "MX", Canada: "CA" };
+const hostCode = m => HOST_OF[(m.city || "").split(", ").pop()] || null;
+// Sequential, opponent-adjusted Elo updated by each completed result AND its official xG (efi). Walked once over
+// finished matches in kickoff order; memoised on (#FT, #efi). K is kept cool and per-team drift hard-capped so a
+// short group stage — or one blowout — can't swamp a 4-year-seeded prior, and the xG blend tames fluky scorelines.
+// This subsumes the old crude form nudge (xG lives inside the update, so there is NO separate form term to double-count).
+let _eloCache = null, _eloSig = "";
+function eloSeq() {
+  const done = S.matches.filter(m => status(m) === ST.FT && res(m)?.h != null).sort((x, y) => x.utc.localeCompare(y.utc));
+  const sig = done.length + ":" + Object.keys(S.efi || {}).length;
+  if (_eloCache && _eloSig === sig) return _eloCache;
+  const E = {}, seed = c => S.teams[c]?.elo || 1700, get = c => E[c] ?? seed(c);
+  const K = 22, DRIFT = 70, bind = c => { E[c] = seed(c) + Math.max(-DRIFT, Math.min(DRIFT, get(c) - seed(c))); };
+  for (const m of done) {
+    const hc = slotInfo(m, "home").code, ac = slotInfo(m, "away").code, r = res(m);
+    if (!hc || !ac) continue;
+    const host = hostCode(m);
+    const dr = (get(hc) + (host === hc ? 40 : 0)) - (get(ac) + (host === ac ? 40 : 0));
+    const eH = 1 / (1 + Math.pow(10, -dr / 400));
+    const sH = r.h > r.a ? 1 : r.h < r.a ? 0 : 0.5;
+    let seffH = sH; const efi = S.efi?.[m.num];
+    if (efi?.xg) {   // blend official xG into the result signal (0.7 xG / 0.3 goals); align efi orientation to our home/away
+      const xgH = efi.home === hc ? efi.xg[0] : efi.xg[1], xgA = efi.home === hc ? efi.xg[1] : efi.xg[0];
+      seffH = 0.7 * Math.max(0, Math.min(1, 0.5 + (xgH - xgA) / 4)) + 0.3 * sH;
+    }
+    const mg = Math.abs(r.h - r.a), g = mg <= 1 ? 1 : mg === 2 ? 1.5 : mg === 3 ? 1.75 : 1.75 + (mg - 3) / 8;
+    const d = K * g * (seffH - eH);
+    E[hc] = get(hc) + d; E[ac] = get(ac) - d; bind(hc); bind(ac);
+  }
+  return (_eloCache = E, _eloSig = sig, E);
 }
+function teamRating(code) { return eloSeq()[code] ?? (S.teams[code]?.elo || 1700); }
 const liveMinute = (m, r) => r?.st === ST.HT ? 45 : Math.max(1, Math.min(95, Math.round((Date.now() - +new Date(m.utc)) / 60000)));
+// effective reds per side in a live match: a straight red, or an accumulated 2nd yellow. Events carry no shirt
+// number, so the 2nd-yellow match is on the normalised player name within the same side.
+function liveReds(r) {
+  const out = { h: 0, a: 0 }, yc = { h: {}, a: {} };
+  for (const e of (r?.ev || [])) {
+    const s = e.tm === "h" ? "h" : e.tm === "a" ? "a" : null; if (!s) continue;
+    if (e.k === "R") out[s]++;
+    else if (e.k === "Y" && e.p) { const n = normName(e.p); if ((yc[s][n] = (yc[s][n] || 0) + 1) === 2) out[s]++; }
+  }
+  return out;
+}
+// Dixon-Coles bivariate-Poisson outcome + scoreline. Strength enters via Elo→goal-supremacy; host, live red cards
+// and (later) weather enter MULTIPLICATIVELY so they compose without driving a rate negative. The score grid is
+// retained to surface the most-likely scoreline, and each factor's signed supremacy shift is logged for the "why".
 function winProb(m) {
   const hc = slotInfo(m, "home").code, ac = slotInfo(m, "away").code, st = status(m), r = res(m);
-  if (!hc || !ac || st === ST.FT) return null;           // need both teams; the result is already known at FT
-  const live = st === ST.LIVE || st === ST.HT;
-  // Elo gap → goal supremacy. ~300 Elo ≈ a one-goal edge; clamped so blowout priors stay sane. mu = per-side
-  // base rate (≈ half the ~2.7 World Cup goals/game). Neutral venues — no home-advantage term (hosts aside).
-  const sup = Math.max(-2.5, Math.min(2.5, (teamRating(hc) - teamRating(ac)) / 300)), mu = 1.35;
-  const remFrac = live ? Math.max(0.02, 1 - liveMinute(m, r) / 90) : 1;
-  const lamH = Math.max(0.18, mu + sup / 2) * remFrac, lamA = Math.max(0.18, mu - sup / 2) * remFrac;
-  const lead = live && r && r.h != null ? r.h - r.a : 0;
-  let pH = 0, pD = 0, pA = 0;
+  if (!hc || !ac || st === ST.FT) return null;
+  const live = st === ST.LIVE || st === ST.HT, ko = !m.group && m.stage !== "group";
+  const nm = c => { const n = S.teams[c]?.name || c; return n.length > 14 ? n.slice(0, 13) + "…" : n; };
+  const mu = 1.35, eloH = teamRating(hc), eloA = teamRating(ac);
+  const supR = Math.max(-2.5, Math.min(2.5, (eloH - eloA) / 300));
+  let lamH = mu + supR / 2, lamA = mu - supR / 2;
+  const reasons = [];
+  // two movers from strength: the seeded PRIOR, and the in-tournament FORM the sequential-Elo has added on top
+  const seedGap = ((S.teams[hc]?.elo || 1700) - (S.teams[ac]?.elo || 1700)) / 300;
+  const formGap = (eloH - eloA) / 300 - seedGap;
+  if (Math.abs(seedGap) >= 0.04) reasons.push({ key: "elo", dir: seedGap >= 0 ? "H" : "A", mag: Math.abs(seedGap), text: `${nm(seedGap >= 0 ? hc : ac)} stronger on paper` });
+  if (Math.abs(formGap) >= 0.06) reasons.push({ key: "form", dir: formGap >= 0 ? "H" : "A", mag: Math.abs(formGap), text: `${nm(formGap >= 0 ? hc : ac)} in form here` });
+  const host = hostCode(m);   // host home advantage — only a host playing in its own country (else stays neutral)
+  if (host === hc || host === ac) {
+    const hs = host === hc; lamH *= Math.exp(hs ? 0.13 : -0.06); lamA *= Math.exp(hs ? -0.06 : 0.13);
+    reasons.push({ key: "host", dir: hs ? "H" : "A", mag: 0.19, text: `Host edge in ${(m.city || "").split(",")[0]}` });
+  }
+  const remFrac = live ? Math.max(0.02, 1 - liveMinute(m, r) / 90) : 1;   // live: scale remaining goals by time left
+  lamH *= remFrac; lamA *= remFrac;
+  if (live) {   // man-advantage from red cards, scaled by remaining time (a 90'+ red barely moves it)
+    const reds = liveReds(r), f = remFrac;
+    if (reds.h) { lamH *= Math.pow(1 - 0.30 * f, reds.h); lamA *= Math.pow(1 + 0.35 * f, reds.h); }
+    if (reds.a) { lamA *= Math.pow(1 - 0.30 * f, reds.a); lamH *= Math.pow(1 + 0.35 * f, reds.a); }
+    if (reds.h !== reds.a) { const downH = reds.h > reds.a; reasons.push({ key: "redcard", dir: downH ? "A" : "H", mag: 0.6 * f + 0.2, dot: true, text: `${nm(downH ? hc : ac)} down to 10` }); }
+  }
+  lamH = Math.max(0.18, lamH); lamA = Math.max(0.18, lamA);
+  const lead = live && r && r.h != null ? r.h - r.a : 0, baseH = live ? r.h : 0, baseA = live ? r.a : 0;
+  let pH = 0, pD = 0, pA = 0; const cells = [];
   for (let rh = 0; rh < 9; rh++) for (let ra = 0; ra < 9; ra++) {
-    // DC correction applies to the actual final score, so only pre-match (live sums *remaining* goals on top of
-    // the current lead, where the low-score semantics don't hold). Its effect in-play is negligible anyway.
     const p = _pois(rh, lamH) * _pois(ra, lamA) * (live ? 1 : _dcTau(rh, ra, lamH, lamA)), fin = lead + rh - ra;
     if (fin > 0) pH += p; else if (fin < 0) pA += p; else pD += p;
+    cells.push({ h: baseH + rh, a: baseA + ra, p });   // FINAL score (live = current + remaining), for the scoreline
   }
   const tot = pH + pD + pA || 1;
-  return { h: pH / tot, d: pD / tot, a: pA / tot, live };
+  const predicted = cells.sort((x, y) => y.p - x.p).slice(0, 3).map(c => ({ h: c.h, a: c.a, p: c.p / tot }));
+  return { h: pH / tot, d: pD / tot, a: pA / tot, live, ko,
+    adv: ko ? { h: (pH + 0.5 * pD) / tot, a: (pA + 0.5 * pD) / tot } : null,   // KO: a 90' draw → ET/pens, split 50/50
+    predicted, drawMode: predicted[0] && predicted[0].h === predicted[0].a,
+    reasons: reasons.sort((x, y) => y.mag - x.mag).slice(0, 3) };
 }
 function winProbBlock(m) {
   const wp = winProb(m); if (!wp) return "";
   const h = slotInfo(m, "home"), a = slotInfo(m, "away");
   const ph = Math.round(wp.h * 100), pd = Math.round(wp.d * 100), pa = 100 - ph - pd;
+  const f = s => `${s.h}–${s.a}`, pct = p => { const v = Math.round(p * 100); return v < 1 ? "<1%" : v + "%"; };
+  const P = wp.predicted || [];
+  const legend = wp.ko && wp.adv
+    ? `<div class="wp-legend"><span class="wp-lh"><b>${Math.round(wp.adv.h * 100)}%</b> ${flag(h.code)} ${esc(h.name)}</span><span class="wp-ld">advance</span><span class="wp-la">${esc(a.name)} ${flag(a.code)} <b>${Math.round(wp.adv.a * 100)}%</b></span></div>`
+    : `<div class="wp-legend"><span class="wp-lh"><b>${ph}%</b> ${flag(h.code)} ${esc(h.name)}</span><span class="wp-ld">Draw <b>${pd}%</b></span><span class="wp-la">${esc(a.name)} ${flag(a.code)} <b>${pa}%</b></span></div>`;
+  const score = P.length ? `<div class="wp-score"><span class="wp-score-lab">Likely score</span> <b>${f(P[0])}</b> <span class="wp-score-p">${pct(P[0].p)}</span>${wp.ko && wp.drawMode ? ` <span class="wp-score-et">in 90′, then ET/pens</span>` : ""}${P.length > 1 ? `<span class="wp-score-alt">${P.slice(1, 3).map(s => `${f(s)} ${pct(s.p)}`).join(" · ")}</span>` : ""}</div>` : "";
+  const why = (wp.reasons || []).length ? `<div class="wp-why"><span class="wp-why-lab">Why</span>${wp.reasons.map((rs, i) => `${i ? `<span class="wp-why-sep">·</span>` : ""}<span class="wp-why-r r-${(rs.dir || "N").toLowerCase()}">${rs.dot ? `<i class="wp-why-dot"></i>` : ""}${esc(rs.text)}</span>`).join("")}</div>` : "";
+  const note = `<p class="wp-note">Dixon–Coles model from each team's <b>rating</b> (Elo, updated by results &amp; official xG) and a host edge${wp.live ? ", with the live score, minutes left and red cards" : ""}.${wp.ko ? " A 90-minute draw goes to extra time and penalties (split 50/50)." : ""}</p>`;
   return `<div class="eyebrow">Win probability <span class="wp-est">${wp.live ? "live estimate" : "pre-match estimate"}</span></div>
     <div class="wp">
       <div class="wp-bar" role="img" aria-label="${esc(h.name)} ${ph}%, draw ${pd}%, ${esc(a.name)} ${pa}%">
         <span class="wp-h" style="width:${ph}%"></span><span class="wp-d" style="width:${pd}%"></span><span class="wp-a" style="width:${pa}%"></span></div>
-      <div class="wp-legend"><span class="wp-lh"><b>${ph}%</b> ${flag(h.code)} ${esc(h.name)}</span><span class="wp-ld">Draw <b>${pd}%</b></span><span class="wp-la">${esc(a.name)} ${flag(a.code)} <b>${pa}%</b></span></div>
-      <p class="wp-note">A Poisson model from each team's <b>strength rating</b> (World Football Elo) and <b>current-tournament form</b>${wp.live ? ", updated by the live score and minutes left" : ""}, not a betting line.</p>
-    </div>`;
+      ${legend}${score}${why}${note}</div>`;
 }
 /* ---------------- stakes explainer ----------------
    Plain-language "what this result means for qualification" on group matches. Pure points-based reasoning over
