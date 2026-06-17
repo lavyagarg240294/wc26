@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "234";  // shown in footer; bump with the ?v= asset version
+const BUILD = "235";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -582,6 +582,7 @@ function checkKickoffAlert() {
 }
 
 /* ---------------- ticker ---------------- */
+let _tickerSig = "";   // last-built marquee string; renderTicker early-returns when unchanged
 function renderTicker() {
   // Two practical days at once: the PREVIOUS day's final scores + the CURRENT day's matches (kickoff times →
   // live → finals as they play). At each ~10am boundary the window slides forward one day — today's finals become
@@ -607,6 +608,8 @@ function renderTicker() {
   const sep = '<span class="tk-sep">／</span>';
   const track = $("#tickerTrack");
   const built = todays.map(item).join(sep);
+  if (built === _tickerSig && track.firstChild) { wrap.hidden = false; return; }   // byte-identical since last poll → skip the write-read-write-read reflow (it only changes on a goal)
+  _tickerSig = built;
   track.classList.remove("is-static");
   track.innerHTML = built;
   wrap.hidden = false;
@@ -1399,7 +1402,7 @@ function renderMatches() {
         <button type="button" class="fsel tsel-btn" id="stageSelBtn" aria-haspopup="listbox" aria-expanded="false" aria-label="Filter by stage">
           <span class="tsel-cur">${({ all: "All 104 matches", group: "Group stage", ko: "Knockouts" })[f.stage] || "All 104 matches"}</span>
         </button>
-        <div class="tsel-pop" id="stageSelPop" hidden>
+        <div class="tsel-pop" id="stageSelPop" data-keep hidden>
           <div class="tsel-list" role="listbox" aria-label="Stage">
             ${[["all", "All 104 matches"], ["group", "Group stage"], ["ko", "Knockouts"]].map(([k, l]) =>
               `<button type="button" class="tsel-opt${f.stage === k ? " is-sel" : ""}" role="option" aria-selected="${f.stage === k}" data-stage="${k}"><span class="tsel-opt-name">${l}</span>${f.stage === k ? `<span class="tsel-tick" aria-hidden="true">✓</span>` : ""}</button>`).join("")}
@@ -1410,7 +1413,7 @@ function renderMatches() {
         <button type="button" class="fsel tsel-btn" id="teamSelBtn" aria-haspopup="listbox" aria-expanded="false" aria-label="Filter by team">
           ${f.team ? `<span class="fl">${flag(f.team)}</span><span class="tsel-cur">${esc(S.teams[f.team].name)}</span>` : `<span class="tsel-cur">All teams</span>`}
         </button>
-        <div class="tsel-pop" id="teamSelPop" hidden>
+        <div class="tsel-pop" id="teamSelPop" data-keep hidden>
           <input class="tsel-search" id="teamSelSearch" type="search" placeholder="Search 48 teams…" autocomplete="off">
           <div class="tsel-list" id="teamSelList" role="listbox" aria-label="Teams"></div>
         </div>
@@ -2724,7 +2727,12 @@ function championBanner(code, predicted) {
 }
 
 /* ---------------- tournament stats (team + player) ---------------- */
+let _tsCache = null, _tsSig = "";
 function tournamentStats() {
+  // memoise: the ~15 leaderboards depend only on FT scores/events/stats, never the live minute that ticks every poll.
+  // Without this, an open Stats tab rebuilds and re-sorts everything every 30s on a busy matchday for zero visible change.
+  const sig = S.matches.reduce((s, m) => { const r = res(m); return status(m) === ST.FT && r?.h != null ? s + `${m.num}:${r.h}-${r.a}:${(r.ev || []).length}:${r.stats ? 1 : 0};` : s; }, "");
+  if (_tsCache && _tsSig === sig) return _tsCache;
   const fts = S.matches.filter(m => status(m) === ST.FT && res(m)?.h != null);
   const gf = {}, ga = {}, poss = {}, possN = {}, sot = {}, sotN = {}, yel = {}, red = {}, played = {}, scorers = {}, assists = {}, pyel = {}, pred = {}, cs = {}, conf = {}, keepers = {}, tstat = {}, statN = {};
   const TSTAT_KEYS = ["sh", "pass", "passT", "cross", "lball", "tkl", "intc", "clr", "blk", "sv", "off", "fls"];   // richer ESPN team stats → leaderboards + style
@@ -2795,7 +2803,7 @@ function tournamentStats() {
   const perMatch = (tot, n) => Object.keys(tot).map(c => ({ code: c, v: tot[c] / (n[c] || 1) }));
   const pmT = fn => Object.keys(statN).map(c => ({ code: c, v: fn(c) / statN[c] })).sort((a, b) => b.v - a.v);   // per-game over teams with team-stats
   const g = (k, c) => tstat[k]?.[c] || 0;
-  return {
+  const _out = {
     pulse: { goals, matches: fts.length, perMatch: fts.length ? goals / fts.length : 0, cards: totCards },
     records: rec,
     scorers: scorerList, assisters: assistList, booked: bookedList,
@@ -2827,6 +2835,7 @@ function tournamentStats() {
         .sort((a, b) => b.ppg - a.ppg || b.gpg - a.gpg || a.conf.localeCompare(b.conf));
     })(),
   };
+  return (_tsCache = _out, _tsSig = sig, _out);
 }
 let statsTab = "overview";   // active Stats sub-section (persists across re-renders)
 let _statsHTML = "";        // last rendered Stats markup — re-rendered only when it actually changes (see renderStats)
@@ -2875,7 +2884,7 @@ function fifaRankingPanel() {
       <button class="rk-fbtn" data-rkf="q">World Cup · ${qCount}</button>
       <div class="tsel" id="rkConfWrap">
         <button type="button" class="fsel tsel-btn" id="rkConfBtn" aria-haspopup="listbox" aria-expanded="false" aria-label="Filter by confederation"><span class="tsel-cur">Confederation</span></button>
-        <div class="tsel-pop" id="rkConfPop" hidden><div class="tsel-list" role="listbox" aria-label="Confederation">${confOpts}</div></div>
+        <div class="tsel-pop" id="rkConfPop" data-keep hidden><div class="tsel-list" role="listbox" aria-label="Confederation">${confOpts}</div></div>
       </div>
     </div>
     <input class="team-search rk-search" id="rkSearch" type="search" placeholder="Search teams…" autocomplete="off" autocapitalize="off" spellcheck="false">
@@ -3168,12 +3177,13 @@ function renderPulse() {
     `<p class="news-empty" id="newsEmpty" hidden>No headlines match that search.</p>` +
     `<p class="pulse-foot">Gathered automatically from public news feeds, newest first. Each links out to its source.</p>`);
   const s = $("#newsSearch", el);
-  if (s) s.oninput = () => {
-    const q = s.value.trim().toLowerCase();
+  const applyNewsFilter = () => {
+    const q = (s?.value || "").trim().toLowerCase();
     let shown = 0;
     $$("#newsList .pl-head", el).forEach(a => { const hide = !!q && !a.dataset.news.includes(q); a.classList.toggle("news-hide", hide); if (!hide) shown++; });
-    const empty = $("#newsEmpty", el); if (empty) empty.hidden = shown > 0;
+    const empty = $("#newsEmpty", el); if (empty) empty.hidden = !q || shown > 0;
   };
+  if (s) { s.oninput = applyNewsFilter; if (s.value) applyNewsFilter(); }   // re-apply after a 60s poll re-render (the input value survives the morph, the .news-hide classes don't)
 }
 async function loadBuzz() {
   try { S.buzz = await (await fetch("data/buzz.json?t=" + Date.now(), { cache: "no-store" })).json(); } catch { /* not published yet — keep what we have */ }
@@ -3407,13 +3417,13 @@ function bestPhoto(name, code, num, pos) {
   return p ? (teamPhotos(code).get(p.name) || "") : "";
 }
 // manual "refresh scores" controls (footer + hero) — re-fetch the published results.json now
-async function manualRefresh() {
-  const btns = $$("[data-refresh]");
+async function manualRefresh(origin) {
+  const btns = origin ? [origin] : $$("[data-refresh]");   // a tapped per-card/footer button spins only itself, not every refresh icon
   if (btns.some(b => b.classList.contains("spinning"))) return;
-  btns.forEach(b => b.classList.add("spinning"));
+  btns.forEach(b => { b.classList.add("spinning"); b.setAttribute("aria-busy", "true"); b.disabled = true; });
   const t0 = Date.now();
   try { await refreshResults(); }
-  finally { setTimeout(() => $$("[data-refresh]").forEach(b => b.classList.remove("spinning")), Math.max(0, 650 - (Date.now() - t0))); }
+  finally { setTimeout(() => btns.forEach(b => { b.classList.remove("spinning"); b.removeAttribute("aria-busy"); b.disabled = false; }), Math.max(0, 650 - (Date.now() - t0))); }
 }
 // heavy per-match detail (timeline/lineups/stats) lives in its own file so it isn't re-downloaded
 // every 60s — fetched only when scores change (see refreshResults). Tolerates a missing file.
@@ -3466,7 +3476,7 @@ async function refreshResults() {
     const detailChanged = await loadDetails();
     if (scoresChanged) await loadReports();
     if (scoresChanged || detailChanged) {
-      S.commentary = {};            // live commentary may have advanced — drop the per-match cache so popups re-fetch
+      for (const m of S.matches) if ([ST.LIVE, ST.HT].includes(status(m))) delete S.commentary[m.num];   // only live commentary advances — keep finished matches cached
       rebuildMatchData();
       renderTicker();
       // Predict is driven by the user's saved picks, not live results — re-rendering it on a poll would reset their
@@ -3648,7 +3658,7 @@ async function boot() {
     const sh = e.target.closest("[data-styhelp]");   // playing-style metric explainer: toggle its help line
     if (sh) { e.stopPropagation(); const help = sh.closest(".sty-item")?.querySelector(".sty-help"); if (help) help.hidden = !help.hidden; return; }
     const rf = e.target.closest("[data-refresh]");
-    if (rf) { e.stopPropagation(); manualRefresh(); return; }
+    if (rf) { e.stopPropagation(); manualRefresh(rf); return; }
     const star = e.target.closest("[data-save]");
     if (star) { e.stopPropagation(); toggleSave(star.dataset.save); return; }
     const pl = e.target.closest("[data-player]");
