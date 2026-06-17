@@ -893,9 +893,8 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .tp-gold b{color:var(--gold-text)}
 .tp-wide{flex:2 1 130px}
 .tp-wide b{font-size:16px;font-stretch:100%}
-/* best-finish reads "Best finish" first, then the achievement — so "Third place" can't be mistaken for a current standing */
-.tp-finish b{font-size:14px}
-.tp-finish span{font-size:10.5px;color:var(--ink)}
+/* best-finish leads with "Best finish" (the .tp-wide b) over the achievement (the standard uppercase .tp span label),
+   so it reads consistently with the other pedigree tiles — same weight, size and alignment. */
 .ts-coach{display:flex;align-items:center;gap:11px;background:var(--card);border:1px solid var(--line);border-radius:13px;padding:10px 13px;box-shadow:var(--shadow);margin:0 0 6px}
 .ts-coach-badge{flex:0 0 auto;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:color-mix(in srgb,var(--acc1) 13%,var(--card));color:var(--acc-text);font-family:var(--disp);font-weight:800;font-size:13px;letter-spacing:.02em}
 .ts-coach-tx{display:flex;flex-direction:column;gap:1px;min-width:0}

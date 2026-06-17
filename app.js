@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "260";  // shown in footer; bump with the ?v= asset version
+const BUILD = "261";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -828,9 +828,8 @@ function mdStats(r) {
   }
   if (!parts.length) return "";
   // summarize-then-expand: lead the popup with a one-line headline; the full 16-stat panel + performers are one tap deep.
-  // Tease with total passes (a sense of tempo) rather than possession — that already sits in the Key stats above.
-  const passTot = Array.isArray(s.pass) ? s.pass[0] + s.pass[1] : null;
-  const head = passTot != null ? `${passTot.toLocaleString()} passes · ${parts.length} stats` : `${parts.length} stats`;
+  // Tease with each side's passes (home–away, matching the scoreline) rather than possession, which already sits in Key stats.
+  const head = Array.isArray(s.pass) ? `${s.pass[0]}–${s.pass[1]} passes · ${parts.length} stats` : `${parts.length} stats`;
   return `<details class="md-fold"><summary><span>All match stats</span><small>${head}</small></summary>
     <div class="md-fold-body"><div class="md-stats">${parts.join("")}</div>${mdLeaders(r)}</div></details>`;
 }
