@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "229";  // shown in footer; bump with the ?v= asset version
+const BUILD = "230";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -293,6 +293,7 @@ function formChips(code) {
 
 /* ---------------- calendar (.ics) export — client-side, kickoffs in UTC ---------------- */
 const CAL_SVG = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>`;
+const SHARE_SVG = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.85 3.99M15.4 6.51l-6.8 3.98"/></svg>`;
 const REFRESH_SVG = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>`;
 // webcal:// URL to a committed static calendar (data/ics/…) for an auto-updating subscription.
 // Derived from the current page so it works wherever the site is hosted.
@@ -1238,6 +1239,7 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
   // every section as its own piece (each returns "" when it doesn't apply), then ordered per match state below
   const pTop = `<div class="md-tagrow">${statusTag}
       <div class="md-actions">
+        <button class="md-share" data-share-match="${id}" aria-label="Share this match" title="Share this match">${SHARE_SVG}</button>
         <button class="md-cal" data-cal="${id}" aria-label="Add to calendar" title="Add this match to your calendar">${CAL_SVG}</button>
         <button class="md-save ${sv ? "is-on" : ""}" data-save="${id}" aria-pressed="${sv}" aria-label="${sv ? "Remove from saved" : "Save match"}" title="${sv ? "Saved" : "Save match"}">${sv ? "★" : "☆"}</button>
       </div>
@@ -2485,6 +2487,75 @@ async function shareChampionImage(code) {
     setTimeout(() => URL.revokeObjectURL(url), 3000); flashToast("Champion card saved");
   }, "image/png");
 }
+// the canonical share URL for a match: a finished game points at the Action-rendered result-card stub (it unfurls on
+// social); anything else deep-links into the live match view.
+function matchShareLink(m) {
+  const base = (location.origin + location.pathname).replace(/\/(index\.html)?$/, "");
+  return status(m) === ST.FT ? `${base}/share/${m.num}.html` : `${base}/?match=${m.id}`;
+}
+// Share a single match. Finished → hand over the link to the already-rendered result card. Upcoming/live → generate a
+// 1080² PREDICTION card (odds bar + projected score) and share the image with a tap-through link. Web Share files where
+// supported, else copy the link, else download the image.
+async function shareMatchCard(m) {
+  const h = slotInfo(m, "home"), a = slotInfo(m, "away"), r = res(m), st = status(m);
+  const link = matchShareLink(m), hn = h.code ? h.name : slotText(m, "home", h), an = a.code ? a.name : slotText(m, "away", a);
+  const copyLink = async () => { try { await navigator.clipboard.writeText(link); flashToast("Match link copied. Share it!"); } catch { flashToast("Couldn't copy the link"); } };
+  if (st === ST.FT) {   // result card already exists; share its link
+    if (navigator.share) { try { await navigator.share({ title: `${hn} ${r.h}–${r.a} ${an} · WC 2026`, url: link }); return; } catch (err) { if (err?.name === "AbortError") return; } }
+    return copyLink();
+  }
+  try { await document.fonts.ready; } catch { /* fall back to system fonts */ }
+  const W = 1080, H = 1080, c = document.createElement("canvas"); c.width = W; c.height = H; const x = c.getContext("2d");
+  const g = x.createLinearGradient(0, 0, W, H); g.addColorStop(0, "#0c1a28"); g.addColorStop(1, "#08231b"); x.fillStyle = g; x.fillRect(0, 0, W, H);
+  const glow = (cx, cy, rd, col) => { const rg = x.createRadialGradient(cx, cy, 0, cx, cy, rd); rg.addColorStop(0, col); rg.addColorStop(1, "rgba(0,0,0,0)"); x.fillStyle = rg; x.fillRect(0, 0, W, H); };
+  glow(150, 140, 460, "rgba(11,163,96,.30)"); glow(940, 950, 480, "rgba(232,185,49,.22)");
+  x.textAlign = "center";
+  x.fillStyle = "#E8B931"; x.font = "700 34px Archivo, sans-serif"; x.fillText("FIFA WORLD CUP 2026", W / 2, 108);
+  x.fillStyle = "#9fb0bd"; x.font = "600 27px 'Instrument Sans', sans-serif";
+  x.fillText(((m.group ? "Group " + m.group : (m.round || "")) + "  ·  " + fmt(m.utc, { weekday: "short", day: "numeric", month: "short" })).toUpperCase(), W / 2, 160);
+  const fw = 250, fyTop = 235;
+  const team = async (code, name, cx) => {
+    let fh = Math.round(fw * 0.66), im = null;
+    if (code) { im = new Image(); im.src = "assets/flags/" + code + ".svg"; try { await im.decode(); } catch { /* draw blank */ } if (im.naturalWidth) fh = Math.round(fw * im.naturalHeight / im.naturalWidth); }
+    const fx = cx - fw / 2, fy = fyTop;
+    x.save(); rrect(x, fx, fy, fw, fh, 14); x.clip(); x.fillStyle = "#fff"; x.fillRect(fx, fy, fw, fh); if (im && im.naturalWidth) x.drawImage(im, fx, fy, fw, fh); x.restore();
+    x.lineWidth = 2; x.strokeStyle = "rgba(255,255,255,.22)"; rrect(x, fx, fy, fw, fh, 14); x.stroke();
+    const up = name.toUpperCase(); let fs = 40; x.fillStyle = "#fff"; x.font = `800 ${fs}px Archivo, sans-serif`;
+    while (x.measureText(up).width > 400 && fs > 22) { fs -= 2; x.font = `800 ${fs}px Archivo, sans-serif`; }
+    x.fillText(up, cx, fy + fh + 56);
+  };
+  await team(h.code, hn, 300); await team(a.code, an, 780);
+  const scored = r && r.h != null, midY = fyTop + 128;
+  if (scored) { x.fillStyle = "#fff"; x.font = "800 92px Archivo, sans-serif"; x.fillText(`${r.h}–${r.a}`, W / 2, midY); }
+  else { x.fillStyle = "#E8B931"; x.font = "800 56px Archivo, sans-serif"; x.fillText("VS", W / 2, midY - 16); }
+  const wp = winProb(m);
+  if (wp) {
+    const ph = Math.round(wp.h * 100), pd = Math.round(wp.d * 100), pa = 100 - ph - pd;
+    const bx = 130, bw = W - 260, by = 592, bh = 26;
+    x.font = "700 26px 'Instrument Sans', sans-serif";
+    x.textAlign = "left"; x.fillStyle = "#1FD673"; x.fillText(`${ph}%`, bx, by - 16);
+    x.textAlign = "center"; x.fillStyle = "#9fb0bd"; x.fillText(`Draw ${pd}%`, W / 2, by - 16);
+    x.textAlign = "right"; x.fillStyle = "#dbe3ea"; x.fillText(`${pa}%`, bx + bw, by - 16);
+    let sx = bx; x.save(); rrect(x, bx, by, bw, bh, 13); x.clip();
+    for (const [p, col] of [[ph, "#1FD673"], [pd, "#64748b"], [pa, "#dbe3ea"]]) { const sw = bw * p / 100; x.fillStyle = col; x.fillRect(sx, by, sw, bh); sx += sw; }
+    x.restore(); x.textAlign = "center";
+    if (wp.xg) {
+      x.fillStyle = "#7b8894"; x.font = "600 25px 'Instrument Sans', sans-serif"; x.fillText(scored ? "PROJECTED FINAL" : "PROJECTED SCORE", W / 2, by + 96);
+      x.fillStyle = "#fff"; x.font = "800 72px Archivo, sans-serif"; x.fillText(`${Math.round(wp.xg.h)}–${Math.round(wp.xg.a)}`, W / 2, by + 168);
+    }
+  }
+  x.fillStyle = "#7b8894"; x.font = "500 25px 'Spline Sans Mono', monospace"; x.fillText("WC·26 · your World Cup, in one page", W / 2, H - 100);
+  x.fillStyle = "#5b6b7a"; x.font = "500 23px 'Spline Sans Mono', monospace"; x.fillText((location.host + location.pathname).replace(/\/$/, ""), W / 2, H - 54);
+  c.toBlob(async blob => {
+    if (!blob) { flashToast("Couldn't make the image"); return; }
+    const file = new File([blob], `wc26-${h.code || "home"}-${a.code || "away"}.png`, { type: "image/png" });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file], text: `${hn} v ${an} · WC 2026 prediction`, url: link }); return; } catch (err) { if (err?.name === "AbortError") return; }
+    }
+    try { await navigator.clipboard.writeText(link); flashToast("Match link copied. Share it!"); }
+    catch { const u = URL.createObjectURL(blob); const el = document.createElement("a"); el.href = u; el.download = file.name; document.body.appendChild(el); el.click(); el.remove(); setTimeout(() => URL.revokeObjectURL(u), 3000); flashToast("Prediction card saved"); }
+  }, "image/png");
+}
 function renderSim() {
   const el = $("#view-sim");
   // preserve scroll + which step sections are expanded so a re-render (a pick, photos loading, a poll) never
@@ -3519,6 +3590,8 @@ async function boot() {
     if (ic) { e.stopPropagation(); const c = ic.dataset.ics; downloadICS(S.matches.filter(m => matchHasTeam(m, c)).sort((a, b) => a.utc.localeCompare(b.utc)), `${S.teams[c].name} · World Cup 2026`); return; }
     const cal = e.target.closest("[data-cal]");   // add a single match to the calendar (.ics download)
     if (cal) { e.stopPropagation(); const m = S.matches.find(x => x.id === cal.dataset.cal); if (m) { const h = slotInfo(m, "home"), a = slotInfo(m, "away"); downloadICS([m], `${h.code ? h.name : slotText(m, "home", h)} v ${a.code ? a.name : slotText(m, "away", a)}`); } return; }
+    const shm = e.target.closest("[data-share-match]");   // share a match: prediction card (upcoming/live) or result-card link (finished)
+    if (shm) { e.stopPropagation(); const m = S.matches.find(x => x.id === shm.dataset.shareMatch); if (m) shareMatchCard(m); return; }
     const sq = e.target.closest("[data-squad]");
     if (sq && sq.dataset.squad) { openTeam(sq.dataset.squad); return; }
     const ab = e.target.closest("[data-about]");   // "how the format works" → tournament info sheet
