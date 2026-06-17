@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "262";  // shown in footer; bump with the ?v= asset version
+const BUILD = "263";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -819,8 +819,10 @@ const statBar = ([hv, av], label, suf = "") => {
 function mdStats(r) {
   if (!r?.stats) return "";
   const s = r.stats, parts = [];
+  // possession, shots and on target already sit in Key stats just above — don't repeat them here.
+  const inKey = new Set(["poss", "sh", "sot"]);
   for (const [k, label, suf] of STAT_ROWS) {
-    if (!Array.isArray(s[k])) continue;
+    if (inKey.has(k) || !Array.isArray(s[k])) continue;
     parts.push(statBar(s[k], label, suf));
     // derive pass accuracy from the accurate/total counts (ESPN's passPct ships as a 0-1 fraction, so we don't store it)
     if (k === "pass" && Array.isArray(s.passT) && s.passT[0] && s.passT[1])
