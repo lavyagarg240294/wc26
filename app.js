@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "241";  // shown in footer; bump with the ?v= asset version
+const BUILD = "243";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -59,18 +59,22 @@ const showSheet = d => { if (!d) return; document.querySelectorAll("dialog[open]
 // session (sheets swap, not stack); it is popped when the last sheet closes. Routing uses hashchange, not popstate,
 // so the two never collide. Patched on the prototype so every dialog (sheets, settings, search, picker) is covered.
 let _inModal = false, _popClosing = false;
+// Briefly kill card transitions on the dismiss frame: when a centred sheet closes, the cursor can land back on the
+// card it opened from and :hover re-fires — without this its lift would animate in, reading as a flicker.
+let _flickT = 0;
+const _flickGuard = () => { const h = document.documentElement; h.classList.add("sheet-dismiss"); clearTimeout(_flickT); _flickT = setTimeout(() => h.classList.remove("sheet-dismiss"), 240); };
 addEventListener("popstate", () => {
   if (!_inModal) return;
   _inModal = false; _popClosing = true;
   document.querySelectorAll("dialog[open]").forEach(d => d.close());
-  _popClosing = false;
+  _popClosing = false; _flickGuard();
 });
 const _dlgProto = HTMLDialogElement.prototype, _origShowModal = _dlgProto.showModal, _origClose = _dlgProto.close;
 _dlgProto.showModal = function () { _origShowModal.call(this); if (!_inModal) { _inModal = true; history.pushState({ modal: 1 }, ""); } };
 _dlgProto.close = function (v) {
   _origClose.call(this, v);
   if (_popClosing || !_inModal) return;
-  queueMicrotask(() => { if (_inModal && !document.querySelector("dialog[open]")) { _inModal = false; if (history.state && history.state.modal) history.back(); } });
+  queueMicrotask(() => { if (_inModal && !document.querySelector("dialog[open]")) { _inModal = false; _flickGuard(); if (history.state && history.state.modal) history.back(); } });
 };
 // A collapsible section the USER opens off-screen feels like nothing happened — scroll it into view. But a
 // <details open> fires `toggle` on initial render in current Chromium, which would yank a freshly-opened sheet
@@ -704,9 +708,7 @@ function matchCard(m, i, opts = {}) {
     ${opts.sub !== false ? `<div class="mcard-sub"><span class="grp">${esc(stageL)}</span><span>${esc(m.stadium)}</span><span>${esc(m.city)}</span><span class="mcard-go">Details ›</span></div>` : ""}
     </div>
     <button class="mcard-star ${sv ? "is-on" : ""}" data-save="${m.id}" aria-pressed="${sv}" aria-label="${sv ? "Remove from saved" : "Save match"}" title="${sv ? "Saved" : "Save match"}">${sv ? "★" : "☆"}</button>
-    ${live
-      ? `<button class="mcard-refresh" data-refresh aria-label="Refresh score now" title="Refresh score now">${REFRESH_SVG}</button>`
-      : `<button class="mcard-share" data-share-match="${m.id}" aria-label="Share this match" title="Share this match">${SHARE_SVG}</button>`}
+    ${live ? `<button class="mcard-refresh" data-refresh aria-label="Refresh score now" title="Refresh score now">${REFRESH_SVG}</button>` : ""}
   </div>`;
 }
 // split a starting XI into {gk, bands[]} using its formation string (fallback: coarse positions)
@@ -1279,7 +1281,7 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
   const pTop = `<div class="md-tagrow">${statusTag}
       <div class="md-actions">
         <button class="md-share" data-share-match="${id}" aria-label="Share this match" title="Share this match">${SHARE_SVG}</button>
-        <button class="md-cal" data-cal="${id}" aria-label="Add to calendar" title="Add this match to your calendar">${CAL_SVG}</button>
+        ${isFT ? "" : `<button class="md-cal" data-cal="${id}" aria-label="Add to calendar" title="Add this match to your calendar">${CAL_SVG}</button>`}
         <button class="md-save ${sv ? "is-on" : ""}" data-save="${id}" aria-pressed="${sv}" aria-label="${sv ? "Remove from saved" : "Save match"}" title="${sv ? "Saved" : "Save match"}">${sv ? "★" : "☆"}</button>
       </div>
     </div>

@@ -103,7 +103,11 @@ body.bg-paused #bg span{animation-play-state:paused;will-change:auto}
 .topbar{
   position:sticky;top:0;z-index:40;
   display:flex;align-items:center;justify-content:space-between;
-  padding:14px clamp(16px,4vw,32px);
+  /* full-bleed bar, but content aligns with the centered 980px #main on desktop (the gutter term) and clears the
+     notch in landscape (the env term). Below 980px both collapse to the base clamp. */
+  padding-block:14px;
+  padding-left:max(env(safe-area-inset-left),calc(max(0px,(100% - 980px)/2) + clamp(16px,4vw,32px)));
+  padding-right:max(env(safe-area-inset-right),calc(max(0px,(100% - 980px)/2) + clamp(16px,4vw,32px)));
   /* opaque, solid --paper so the installed-app status bar (theme-color = --paper) matches the header
      exactly in both themes. (A translucent bar would pick up the body's colour gradient and never match.) */
   background:var(--paper);
@@ -157,7 +161,9 @@ body.bg-paused #bg span{animation-play-state:paused;will-change:auto}
 .tabs{
   position:sticky;top:var(--h-bar,60px);z-index:39;
   display:flex;gap:2px;justify-content:flex-start;overflow-x:auto;
-  padding:8px clamp(16px,4vw,32px) 0;
+  padding:8px 0 0;   /* horizontal set below so the tab row lines up with the topbar + #main and clears the notch */
+  padding-left:max(env(safe-area-inset-left),calc(max(0px,(100% - 980px)/2) + clamp(16px,4vw,32px)));
+  padding-right:max(env(safe-area-inset-right),calc(max(0px,(100% - 980px)/2) + clamp(16px,4vw,32px)));
   background:color-mix(in srgb,var(--paper) 92%,transparent);
   backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
   border-bottom:1px solid var(--line);
@@ -203,7 +209,8 @@ body.bg-paused #bg span{animation-play-state:paused;will-change:auto}
 @keyframes tick-scroll{to{transform:translateX(var(--tick-x,-50%))}}
 
 /* ---------- main / views ---------- */
-#main{flex:1;width:100%;max-width:980px;margin:0 auto;padding:22px clamp(14px,4vw,32px) 60px}
+#main{flex:1;width:100%;max-width:980px;margin:0 auto;padding:22px clamp(14px,4vw,32px) 60px;
+  padding-left:max(clamp(14px,4vw,32px),env(safe-area-inset-left));padding-right:max(clamp(14px,4vw,32px),env(safe-area-inset-right))}
 .view{animation:viewIn .35s ease both}
 @keyframes viewIn{from{opacity:0;transform:translateY(8px)}}
 
@@ -362,15 +369,13 @@ body.bg-paused #bg span{animation-play-state:paused;will-change:auto}
 .mcard-star:hover{opacity:1;transform:scale(1.22)}
 .mcard-star.is-on{color:var(--gold);opacity:1;text-shadow:0 1px 6px color-mix(in srgb,var(--gold) 55%,transparent)}
 .mcard-star:focus-visible{outline:2px solid var(--acc1);outline-offset:1px;opacity:1}
-.mcard-refresh{position:absolute;top:5px;right:48px;z-index:2;background:none;border:0;cursor:pointer;color:var(--ink-soft);opacity:.5;padding:8px 9px;border-radius:9px;line-height:0;transition:color .2s,opacity .2s,background .2s}
+/* invisible hit-area expanders bring these icon buttons to ~44px without enlarging the glyph; refresh sits at
+   right:54 (was 48) so the expanded star + refresh never overlap on a live card. */
+.mcard-star::before,.mcard-refresh::before{content:"";position:absolute;inset:-6px}
+.mcard-refresh{position:absolute;top:5px;right:54px;z-index:2;background:none;border:0;cursor:pointer;color:var(--ink-soft);opacity:.5;padding:8px 9px;border-radius:9px;line-height:0;transition:color .2s,opacity .2s,background .2s}
 .mcard-refresh:hover{opacity:1;color:var(--acc-text);background:color-mix(in srgb,var(--acc1) 10%,transparent)}
 .mcard-refresh:focus-visible{outline:2px solid var(--acc1);outline-offset:1px;opacity:1}
 .mcard-refresh.spinning svg{animation:spin .7s linear infinite}
-/* Share sits in the same top-right slot as refresh; they're mutually exclusive (live shows refresh, otherwise share). */
-.mcard-share{position:absolute;top:5px;right:48px;z-index:2;background:none;border:0;cursor:pointer;color:var(--ink-soft);opacity:.5;padding:8px 9px;border-radius:9px;line-height:0;transition:color .2s,opacity .2s,background .2s,transform .15s}
-.mcard-share:hover{opacity:1;color:var(--acc-text);background:color-mix(in srgb,var(--acc1) 10%,transparent)}
-.mcard-share:focus-visible{outline:2px solid var(--acc1);outline-offset:1px;opacity:1}
-.mcard-share:active{transform:scale(.9);transition-duration:.08s}
 .mcard-right{padding-right:16px}
 .ics-link{margin-left:auto;color:var(--ink-soft);text-decoration:none;font-size:11.5px;border-bottom:1px dotted var(--line)}
 .ics-link:hover{color:var(--acc-text)}
@@ -393,6 +398,16 @@ body.bg-paused #bg span{animation-play-state:paused;will-change:auto}
 .mcard:active,.teamcard:active,.bm:active{transform:scale(.985);transition-duration:.08s}
 .tr-row:active,.pj-row:active,.sr-row:active,.tsel-opt:active,.atr-row[role]:active{background:color-mix(in srgb,var(--acc1) 14%,transparent)}
 .fbtn:active,.substat:active,.rk-fbtn:active{transform:scale(.96);transition-duration:.08s}
+/* On touch there is no true hover: the emulated hover sticks after a tap, so the lift transform is still applied when
+   a modal opens over the card and then animates as it closes — the "card flickers after I close the modal" symptom.
+   Drop the lift on touch (the :active press already gives tap feedback); keep it on real-pointer devices. */
+@media (hover:none){
+  .motd:hover,.mcard:hover,.teamcard:hover,.bm:hover{transform:none}
+}
+/* Real-pointer devices: when a centred sheet closes, the cursor lands back on the card it opened from and :hover
+   re-fires — without this its lift would animate in (a flicker). Suppress the transition for the dismiss frame so
+   the (correct) hover state simply appears. Toggled by _flickGuard() on the close path. */
+html.sheet-dismiss .mcard,html.sheet-dismiss .teamcard,html.sheet-dismiss .bm,html.sheet-dismiss .motd{transition:none}
 .btn.ghost{background:transparent;color:var(--ink);border:1.5px solid var(--line)}
 .btn.ghost:hover{border-color:var(--acc-text);box-shadow:none}
 .b-sm{display:none}   /* short button labels: shown only on phones (see mobile block) */
@@ -958,9 +973,9 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .md-goals-col.away{text-align:right}
 .md-goal{font-size:12.5px;color:var(--ink);font-family:var(--mono);font-variant-numeric:tabular-nums}
 /* tournament stats view */
-.substat-nav{display:flex;gap:6px;overflow-x:auto;margin:0 0 16px;padding-bottom:2px;scrollbar-width:none}
+.substat-nav{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 16px}   /* wrap instead of hidden-scroll: every sub-tab stays visible (full-width row on desktop, 2 rows on a narrow phone) */
 .substat-nav::-webkit-scrollbar{display:none}
-.substat{flex:1 1 auto;text-align:center;font-family:var(--disp);font-weight:700;font-stretch:106%;font-size:12.5px;letter-spacing:.02em;padding:8px 15px;border-radius:99px;border:1px solid var(--line);background:var(--card);color:var(--ink-soft);white-space:nowrap;transition:background .15s,border-color .15s,color .15s}
+.substat{flex:1 1 auto;min-width:max-content;text-align:center;font-family:var(--disp);font-weight:700;font-stretch:106%;font-size:12.5px;letter-spacing:.02em;padding:8px 15px;border-radius:99px;border:1px solid var(--line);background:var(--card);color:var(--ink-soft);white-space:nowrap;transition:background .15s,border-color .15s,color .15s}
 .substat:hover{border-color:color-mix(in srgb,var(--acc1) 40%,var(--line))}
 .substat.is-on{background:var(--acc-deep);border-color:transparent;color:#fff}
 .substat-panel[hidden]{display:none}
