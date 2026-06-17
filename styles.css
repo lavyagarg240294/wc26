@@ -54,6 +54,7 @@ html:has(dialog[open]),html.modal-open{overflow:hidden}
 body{
   font-family:var(--body);color:var(--ink);
   -webkit-font-smoothing:antialiased;
+  overflow-x:clip;   /* belt-and-suspenders: nothing (a popup, a wide table, a long token) can make the page scroll sideways. clip, not hidden, so sticky chrome keeps working */
   background-color:var(--paper);
   /* layered field: a colourful stadium light bath — green pool, gold + cyan + indigo + rose corners */
   background-image:
@@ -392,7 +393,7 @@ body.bg-paused #bg span{animation-play-state:paused;will-change:auto}
    until the next view paints (and invites double-taps). Mirrors the .btn:active convention. */
 .mcard:active,.teamcard:active,.bm:active{transform:scale(.985);transition-duration:.08s}
 .tr-row:active,.pj-row:active,.sr-row:active,.tsel-opt:active,.atr-row[role]:active{background:color-mix(in srgb,var(--acc1) 14%,transparent)}
-.fbtn:active,.substat:active,.rk-fbtn:active{transform:scale(.96);transition-duration:.08s}
+.fbtn:active,.substat:active{transform:scale(.96);transition-duration:.08s}
 /* On touch there is no true hover: the emulated hover sticks after a tap, so the lift transform is still applied when
    a modal opens over the card and then animates as it closes — the "card flickers after I close the modal" symptom.
    Drop the lift on touch (the :active press already gives tap feedback); keep it on real-pointer devices. */
@@ -526,6 +527,7 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
   background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:0 18px 40px -12px rgba(13,27,42,.32);
   padding:10px;animation:tselIn .16s ease}
 .tsel-pop[hidden]{display:none}
+.tsel-pop-end{left:auto;right:0}   /* a popup whose button sits on the right opens leftward, so it can't bleed past the screen edge */
 @keyframes tselIn{from{opacity:0;transform:translateY(-6px)}}
 .tsel-search{width:100%;box-sizing:border-box;padding:9px 12px;margin-bottom:8px;border:1px solid var(--line);border-radius:10px;font:inherit;font-size:13px;background:var(--paper);color:var(--ink);-webkit-text-fill-color:var(--ink);caret-color:var(--acc-text);outline:none}
 .tsel-search::placeholder{color:var(--ink-soft);-webkit-text-fill-color:var(--ink-soft);opacity:1}
@@ -1025,9 +1027,6 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .rk-flag{flex:0 0 auto;width:26px;height:17px;object-fit:cover;border-radius:2px;box-shadow:0 0 0 1px color-mix(in srgb,var(--line) 70%,transparent);background:var(--line)}
 .rk-conf{flex:0 0 auto;font-family:var(--mono);font-size:9.5px;font-weight:700;letter-spacing:.02em;color:var(--ink-soft);background:color-mix(in srgb,var(--line) 55%,transparent);border-radius:5px;padding:2px 5px}
 .rk-filter{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 11px}
-.rk-fbtn{font-family:inherit;font-size:12px;font-weight:700;padding:7px 14px;border-radius:99px;border:1px solid var(--line);background:var(--card);color:var(--ink-soft);cursor:pointer;transition:background .15s,color .15s,border-color .15s}
-.rk-fbtn:hover{border-color:var(--acc-text);color:var(--ink)}
-.rk-fbtn.is-on{background:var(--acc-deep);color:#fff;border-color:transparent}
 .rk-list.q-only .rk-nq{display:none}
 /* override .team-search's centring margins (defined later in the sheet) so the box spans the full width from the left edge */
 .team-search.rk-search{width:100%;margin:0 0 11px}

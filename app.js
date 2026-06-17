@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "256";  // shown in footer; bump with the ?v= asset version
+const BUILD = "257";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -2938,17 +2938,21 @@ function fifaRankingPanel() {
     <span class="rk-name">${esc(t.name)}</span>
     <span class="rk-conf" title="${CONF_FULL[t.conf] || ""}">${esc(t.conf || "")}</span>
     ${t.q ? `<span class="rk-q" title="Qualified for the 2026 World Cup">WC</span>` : ""}</div>`;
-  // confederations present in the ranking, folded into one dropdown pill (rather than a row of six)
-  const confOpts = ["UEFA", "CONMEBOL", "CONCACAF", "CAF", "AFC", "OFC"]
-    .filter(c => rk.some(t => t.conf === c))
-    .map(c => `<button type="button" class="tsel-opt" role="option" aria-selected="false" data-rkf="${c}"><span class="tsel-opt-name">${c} · ${esc(CONF_FULL[c] || "")}</span></button>`).join("");
+  // two combining dropdown pills: the team set (all / WC qualifiers) and the confederation (with an All option).
+  const opt = (a, v, label, sel) => `<button type="button" class="tsel-opt${sel ? " is-sel" : ""}" role="option" aria-selected="${sel}" data-${a}="${v}"><span class="tsel-opt-name">${label}</span>${sel ? `<span class="tsel-tick" aria-hidden="true">✓</span>` : ""}</button>`;
+  const setOpts = opt("set", "all", `All teams · ${rk.length}`, true) + opt("set", "q", `WC qualifiers · ${qCount}`, false);
+  const confOpts = opt("conf", "all", "All confederations", true)
+    + ["UEFA", "CONMEBOL", "CONCACAF", "CAF", "AFC", "OFC"].filter(c => rk.some(t => t.conf === c))
+        .map(c => opt("conf", c, `${c} · ${esc(CONF_FULL[c] || "")}`, false)).join("");
   return `<div class="eyebrow">FIFA World Ranking · all ${rk.length} teams</div>
     <div class="rk-filter">
-      <button class="rk-fbtn is-on" data-rkf="all">All teams · ${rk.length}</button>
-      <button class="rk-fbtn" data-rkf="q">World Cup · ${qCount}</button>
+      <div class="tsel" id="rkSetWrap">
+        <button type="button" class="fsel tsel-btn" id="rkSetBtn" aria-haspopup="listbox" aria-expanded="false" aria-label="Filter by team set"><span class="tsel-cur">All teams</span></button>
+        <div class="tsel-pop" id="rkSetPop" data-keep hidden><div class="tsel-list" role="listbox" aria-label="Team set">${setOpts}</div></div>
+      </div>
       <div class="tsel" id="rkConfWrap">
         <button type="button" class="fsel tsel-btn" id="rkConfBtn" aria-haspopup="listbox" aria-expanded="false" aria-label="Filter by confederation"><span class="tsel-cur">Confederation</span></button>
-        <div class="tsel-pop" id="rkConfPop" data-keep hidden><div class="tsel-list" role="listbox" aria-label="Confederation">${confOpts}</div></div>
+        <div class="tsel-pop tsel-pop-end" id="rkConfPop" data-keep hidden><div class="tsel-list" role="listbox" aria-label="Confederation">${confOpts}</div></div>
       </div>
     </div>
     <input class="team-search rk-search" id="rkSearch" type="search" placeholder="Search teams…" autocomplete="off" autocapitalize="off" spellcheck="false">
@@ -2960,37 +2964,36 @@ function fifaRankingPanel() {
 function wireRankings(scope) {
   const list = $("#rkList", scope), search = $("#rkSearch", scope);
   if (!list) return;
-  let mode = "all";   // "all" | "q" (World Cup field) | a confederation code
+  let setMode = "all", confMode = "all";   // two independent filters that AND together
   const apply = () => {
     const q = (search?.value || "").trim().toLowerCase();
     $$(".rk-row", list).forEach(r => {
-      const okMode = mode === "all" || (mode === "q" ? r.dataset.q === "1" : r.dataset.conf === mode);
+      const okSet = setMode === "all" || r.dataset.q === "1";
+      const okConf = confMode === "all" || r.dataset.conf === confMode;
       const okSearch = !q || (r.querySelector(".rk-name")?.textContent || "").toLowerCase().includes(q);
-      r.classList.toggle("rk-hide", !(okMode && okSearch));
+      r.classList.toggle("rk-hide", !(okSet && okConf && okSearch));
     });
   };
-  const confWrap = $("#rkConfWrap", scope), confBtn = $("#rkConfBtn", scope), confCur = $(".tsel-cur", confWrap);
-  const setConf = (label, on) => { if (confCur) confCur.textContent = label; confWrap?.classList.toggle("is-on", on); };
-  // All / World Cup pills — picking one clears any confederation selection
-  $$(".rk-fbtn", scope).forEach(b => b.onclick = () => {
-    mode = b.dataset.rkf;
-    $$(".rk-fbtn", scope).forEach(x => x.classList.toggle("is-on", x === b));
-    $$("#rkConfPop .tsel-opt", scope).forEach(x => { x.classList.remove("is-sel"); x.setAttribute("aria-selected", "false"); });
-    setConf("Confederation", false); closeRkConfPop(); apply();
-  });
-  // confederation dropdown: open/close + pick
-  if (confBtn) confBtn.onclick = () => { const p = $("#rkConfPop", scope); if (!p) return; if (p.hidden) { p.hidden = false; confBtn.setAttribute("aria-expanded", "true"); } else closeRkConfPop(); };
-  $$("#rkConfPop .tsel-opt", scope).forEach(o => o.onclick = () => {
-    mode = o.dataset.rkf;
-    $$(".rk-fbtn", scope).forEach(x => x.classList.remove("is-on"));   // clear All / World Cup
-    $$("#rkConfPop .tsel-opt", scope).forEach(x => { x.classList.toggle("is-sel", x === o); x.setAttribute("aria-selected", String(x === o)); });
-    setConf(o.dataset.rkf, true); closeRkConfPop(); apply();
-  });
+  const closeAll = () => $$(".rk-filter .tsel-pop", scope).forEach(p => { p.hidden = true; p.parentElement.querySelector(".tsel-btn")?.setAttribute("aria-expanded", "false"); });
+  // one dropdown pill: toggle its popup (closing any other), pick an option → set the label/state + filter
+  const wireSel = (wrapId, defaultLabel, attr, onPick) => {
+    const wrap = $("#" + wrapId, scope); if (!wrap) return;
+    const btn = wrap.querySelector(".tsel-btn"), pop = wrap.querySelector(".tsel-pop"), cur = wrap.querySelector(".tsel-cur");
+    btn.onclick = e => { e.stopPropagation(); const wasHidden = pop.hidden; closeAll(); if (wasHidden) { pop.hidden = false; btn.setAttribute("aria-expanded", "true"); } };
+    $$(".tsel-opt", pop).forEach(o => o.onclick = () => {
+      const val = o.dataset[attr], isDefault = val === "all";
+      $$(".tsel-opt", pop).forEach(x => { const on = x === o; x.classList.toggle("is-sel", on); x.setAttribute("aria-selected", String(on)); x.querySelector(".tsel-tick")?.remove(); if (on) x.insertAdjacentHTML("beforeend", `<span class="tsel-tick" aria-hidden="true">✓</span>`); });
+      if (cur) cur.textContent = isDefault ? defaultLabel : (o.querySelector(".tsel-opt-name")?.textContent || defaultLabel).replace(/ · .*/, "");
+      wrap.classList.toggle("is-on", !isDefault);
+      closeAll(); onPick(val); apply();
+    });
+  };
+  wireSel("rkSetWrap", "All teams", "set", v => { setMode = v; });
+  wireSel("rkConfWrap", "Confederation", "conf", v => { confMode = v; });
   if (search) search.oninput = apply;
 }
-function closeRkConfPop() {
-  const p = $("#rkConfPop"); if (!p || p.hidden) return;
-  p.hidden = true; $("#rkConfBtn")?.setAttribute("aria-expanded", "false");
+function closeRkPops() {   // both ranking dropdowns — used by the global outside-tap + Escape handlers
+  for (const id of ["rkSetPop", "rkConfPop"]) { const p = $("#" + id); if (p && !p.hidden) { p.hidden = true; $("#" + id.replace("Pop", "Btn"))?.setAttribute("aria-expanded", "false"); } }
 }
 
 // Curated all-time World Cup records (verified historical facts) tracked LIVE against this tournament. Career records
@@ -3008,10 +3011,10 @@ function recordsPanel(s) {
     entries = entries.filter(Boolean).sort((a, b) => b.v - a.v || (b.live ? 1 : 0) - (a.live ? 1 : 0)).slice(0, 6);
     const ranks = compRanks(entries, x => x.v);
     const lead = entries.find(x => x.live && recVal !== Infinity && x.v >= recVal);
-    const head = lead ? (lead.v > recVal ? `<span class="atr-badge is-new">New record</span>` : `<span class="atr-badge is-tied">Tied</span>`) : "";
+    const head = lead && lead.v === recVal ? `<span class="atr-badge is-tied">Tied</span>` : "";
     const rows = entries.map((x, i) => {
       const attr = x.live ? `${opt.team ? `data-squad="${x.code}"` : `data-player="${esc(x.tap || x.name)}|${x.code}"`} role="button" tabindex="0"` : "";   // only 2026 entries tap through; legends aren't in our data
-      const tag = x.live && recVal !== Infinity && x.v >= recVal ? `<span class="atr-badge ${x.v > recVal ? "is-new" : "is-tied"}">${x.v > recVal ? "New" : "Tied"}</span>` : "";
+      const tag = x.live && recVal !== Infinity && x.v === recVal ? `<span class="atr-badge is-tied">Tied</span>` : "";
       return `<div class="atr-row${x.live ? " is-live" : ""}" ${attr}>
         <span class="atr-rank">${ranks[i]}</span><span class="fl">${flag(x.code)}</span>
         <span class="atr-nm">${esc(x.name)}${x.sub ? ` <small>${esc(x.sub)}</small>` : ""}</span>
@@ -3705,8 +3708,8 @@ async function boot() {
   addEventListener("scroll", () => { if (S.view === "matches") requestAnimationFrame(updateJumpNow); }, { passive: true });
   addEventListener("click", e => { if (!e.target.closest("#teamSelWrap")) closeTeamSel(); });   // close team dropdown on outside click
   addEventListener("click", e => { if (!e.target.closest("#stageSelWrap")) closeStagePop(); });  // …and the stage dropdown
-  addEventListener("click", e => { if (!e.target.closest("#rkConfWrap")) closeRkConfPop(); });   // …and the rankings confederation dropdown
-  addEventListener("keydown", e => { if (e.key === "Escape") { closeTeamSel(); closeRkConfPop(); } });
+  addEventListener("click", e => { if (!e.target.closest(".rk-filter .tsel")) closeRkPops(); });   // …and both rankings dropdowns
+  addEventListener("keydown", e => { if (e.key === "Escape") { closeTeamSel(); closeRkPops(); } });
   initMusic();
   $$("[data-close]").forEach(b => b.onclick = () => b.closest("dialog").close());
   $$("dialog").forEach(d => d.onclick = e => { if (e.target === d) d.close(); });
