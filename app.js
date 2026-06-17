@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "218";  // shown in footer; bump with the ?v= asset version
+const BUILD = "219";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -984,9 +984,18 @@ function winProb(m) {
     cells.push({ h: baseH + rh, a: baseA + ra, p });   // FINAL score (live = current + remaining), for the scoreline
   }
   const tot = pH + pD + pA || 1;
+  let probH = pH / tot, probD = pD / tot, probA = pA / tot;
+  // early-tournament calibration (pre-match only): while teams have barely shown form, hedge toward a draw-aware
+  // base — cagey openers draw far more than a confident Elo split implies. Shrink decays to 0 by the knockouts.
+  // A principled uncertainty knob from the research range (15-20%), NOT a fit to results.
+  if (!live) {
+    const pld = c => S.matches.reduce((n, x) => n + (matchHasTeam(x, c) && status(x) === ST.FT ? 1 : 0), 0);
+    const sh = 0.18 * Math.max(0, 1 - (pld(hc) + pld(ac)) / 6);
+    if (sh > 0) { probH = (1 - sh) * probH + sh * 0.35; probD = (1 - sh) * probD + sh * 0.30; probA = (1 - sh) * probA + sh * 0.35; }
+  }
   const predicted = cells.sort((x, y) => y.p - x.p).slice(0, 3).map(c => ({ h: c.h, a: c.a, p: c.p / tot }));
-  return { h: pH / tot, d: pD / tot, a: pA / tot, live, ko,
-    adv: ko ? { h: (pH + 0.5 * pD) / tot, a: (pA + 0.5 * pD) / tot } : null,   // KO: a 90' draw → ET/pens, split 50/50
+  return { h: probH, d: probD, a: probA, live, ko,
+    adv: ko ? { h: probH + 0.5 * probD, a: probA + 0.5 * probD } : null,   // KO: a 90' draw → ET/pens, split 50/50
     predicted, drawMode: predicted[0] && predicted[0].h === predicted[0].a,
     reasons: reasons.sort((x, y) => y.mag - x.mag).slice(0, 3) };
 }
