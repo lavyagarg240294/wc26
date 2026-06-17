@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "224";  // shown in footer; bump with the ?v= asset version
+const BUILD = "225";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -903,34 +903,58 @@ const _dcTau = (x, y, lh, la) =>
 // a host nation gets its home edge ONLY when playing in its own country (city suffix → team code)
 const HOST_OF = { USA: "US", Mexico: "MX", Canada: "CA" };
 const hostCode = m => HOST_OF[(m.city || "").split(", ").pop()] || null;
-// Sequential, opponent-adjusted Elo updated by each completed result AND its official xG (efi). Walked once over
-// finished matches in kickoff order; memoised on (#FT, #efi). K is kept cool and per-team drift hard-capped so a
-// short group stage — or one blowout — can't swamp a 4-year-seeded prior, and the xG blend tames fluky scorelines.
-// This subsumes the old crude form nudge (xG lives inside the update, so there is NO separate form term to double-count).
+// Opponent-adjusted Elo from each completed result AND its official xG (efi); memoised on (#FT, #efi). K is kept cool
+// and per-team drift hard-capped so a short group stage — or one blowout — can't swamp a 4-year-seeded prior, and the
+// xG blend tames fluky scorelines (xG lives inside the update, so there is NO separate form term to double-count).
+// TWO stages: (1) a sequential online walk — the established rating, and the FINAL rating for any one-game team; then
+// (2) a strength-of-schedule refinement (a fixed-point iteration) that re-scores every game against opponents' CURRENT
+// ratings and re-derives each MULTI-game team from its seed. Stage 2 is what lets a result ripple to a NON-playing team
+// through a shared opponent (within a group from matchday 2, across the whole bracket in the knockouts). A one-game team
+// has no common-opponent leverage, so it keeps its online value — which also keeps the ratings identical to the pure
+// online model until a team's 2nd game. Groups only ever connect a team to its own group, so nothing propagates across
+// groups during the group stage by construction (there is no shared-opponent path to carry it).
 let _eloCache = null, _eloSig = "";
 function eloSeq() {
   const done = S.matches.filter(m => status(m) === ST.FT && res(m)?.h != null).sort((x, y) => x.utc.localeCompare(y.utc));
   const sig = done.length + ":" + Object.keys(S.efi || {}).length;
   if (_eloCache && _eloSig === sig) return _eloCache;
-  const E = {}, seed = c => S.teams[c]?.elo || 1700, get = c => E[c] ?? seed(c);
-  const K = 22, DRIFT = 70, bind = c => { E[c] = seed(c) + Math.max(-DRIFT, Math.min(DRIFT, get(c) - seed(c))); };
+  const seed = c => S.teams[c]?.elo || 1700, K = 22, DRIFT = 70;
+  const clamp = (c, v) => seed(c) + Math.max(-DRIFT, Math.min(DRIFT, v - seed(c)));
+  const exp = (rH, rA, host, hc, ac) => 1 / (1 + Math.pow(10, -((rH + (host === hc ? 40 : 0)) - (rA + (host === ac ? 40 : 0))) / 400));
+  // pre-extract each game's order-independent signal: effective home-score share (xG-blended) + margin-of-victory weight
+  const games = [];
   for (const m of done) {
     const hc = slotInfo(m, "home").code, ac = slotInfo(m, "away").code, r = res(m);
     if (!hc || !ac) continue;
-    const host = hostCode(m);
-    const dr = (get(hc) + (host === hc ? 40 : 0)) - (get(ac) + (host === ac ? 40 : 0));
-    const eH = 1 / (1 + Math.pow(10, -dr / 400));
-    const sH = r.h > r.a ? 1 : r.h < r.a ? 0 : 0.5;
-    let seffH = sH; const efi = S.efi?.[m.num];
+    let seffH = r.h > r.a ? 1 : r.h < r.a ? 0 : 0.5; const efi = S.efi?.[m.num];
     if (efi?.xg) {   // blend official xG into the result signal (0.7 xG / 0.3 goals); align efi orientation to our home/away
       const xgH = efi.home === hc ? efi.xg[0] : efi.xg[1], xgA = efi.home === hc ? efi.xg[1] : efi.xg[0];
-      seffH = 0.7 * Math.max(0, Math.min(1, 0.5 + (xgH - xgA) / 4)) + 0.3 * sH;
+      seffH = 0.7 * Math.max(0, Math.min(1, 0.5 + (xgH - xgA) / 4)) + 0.3 * seffH;
     }
     const mg = Math.abs(r.h - r.a), g = mg <= 1 ? 1 : mg === 2 ? 1.5 : mg === 3 ? 1.75 : 1.75 + (mg - 3) / 8;
-    const d = K * g * (seffH - eH);
-    E[hc] = get(hc) + d; E[ac] = get(ac) - d; bind(hc); bind(ac);
+    games.push({ hc, ac, host: hostCode(m), seffH, g });
   }
-  return (_eloCache = E, _eloSig = sig, E);
+  const ng = {}; for (const x of games) { ng[x.hc] = (ng[x.hc] || 0) + 1; ng[x.ac] = (ng[x.ac] || 0) + 1; }
+  // (1) sequential online walk
+  const E0 = {}, g0 = c => E0[c] ?? seed(c);
+  for (const x of games) {
+    const d = K * x.g * (x.seffH - exp(g0(x.hc), g0(x.ac), x.host, x.hc, x.ac));
+    E0[x.hc] = clamp(x.hc, g0(x.hc) + d); E0[x.ac] = clamp(x.ac, g0(x.ac) - d);
+  }
+  // (2) strength-of-schedule refinement — re-derive each multi-game team from its seed against opponents' current
+  // ratings; one-game teams keep their online value. Converges in a few passes (the ±DRIFT clamp keeps it bounded).
+  let R = {}; for (const c in ng) R[c] = E0[c] ?? seed(c);
+  for (let pass = 0; pass < 4; pass++) {
+    const acc = {};
+    for (const x of games) {
+      const d = K * x.g * (x.seffH - exp(R[x.hc], R[x.ac], x.host, x.hc, x.ac));
+      acc[x.hc] = (acc[x.hc] || 0) + d; acc[x.ac] = (acc[x.ac] || 0) - d;
+    }
+    const F = {};
+    for (const c in ng) F[c] = ng[c] < 2 ? (E0[c] ?? seed(c)) : clamp(c, seed(c) + (acc[c] || 0));
+    R = F;
+  }
+  return (_eloCache = R, _eloSig = sig, R);
 }
 function teamRating(code) { return eloSeq()[code] ?? (S.teams[code]?.elo || 1700); }
 const liveMinute = (m, r) => r?.st === ST.HT ? 45 : Math.max(1, Math.min(95, Math.round((Date.now() - +new Date(m.utc)) / 60000)));
