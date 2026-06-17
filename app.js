@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "235";  // shown in footer; bump with the ?v= asset version
+const BUILD = "236";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -51,7 +51,27 @@ const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 // stacked context would otherwise throw InvalidStateError on Safari/Firefox, or silently update the
 // hidden dialog underneath on Chromium). Brings the sheet to the front with its fresh content.
 let _sheetOpenAt = 0;
-const showSheet = d => { if (!d) return; if (d.open) d.close(); d.showModal(); d.querySelectorAll(".sheet-body").forEach(b => b.scrollTop = 0); _sheetOpenAt = Date.now(); };
+// keep at most ONE content sheet open: tapping a player from a match (etc.) swaps the sheet rather than stacking
+// backdrops, so closing always returns to the list the user started from.
+const showSheet = d => { if (!d) return; document.querySelectorAll("dialog[open].sheet").forEach(o => { if (o !== d) o.close(); }); if (d.open) d.close(); d.showModal(); d.querySelectorAll(".sheet-body").forEach(b => b.scrollTop = 0); _sheetOpenAt = Date.now(); };
+// Modal history: make the hardware/gesture Back button DISMISS the open sheet instead of backgrounding/exiting the
+// installed PWA (phones have no Esc, so Back is the instinctive dismiss). One history entry covers the whole modal
+// session (sheets swap, not stack); it is popped when the last sheet closes. Routing uses hashchange, not popstate,
+// so the two never collide. Patched on the prototype so every dialog (sheets, settings, search, picker) is covered.
+let _inModal = false, _popClosing = false;
+addEventListener("popstate", () => {
+  if (!_inModal) return;
+  _inModal = false; _popClosing = true;
+  document.querySelectorAll("dialog[open]").forEach(d => d.close());
+  _popClosing = false;
+});
+const _dlgProto = HTMLDialogElement.prototype, _origShowModal = _dlgProto.showModal, _origClose = _dlgProto.close;
+_dlgProto.showModal = function () { _origShowModal.call(this); if (!_inModal) { _inModal = true; history.pushState({ modal: 1 }, ""); } };
+_dlgProto.close = function (v) {
+  _origClose.call(this, v);
+  if (_popClosing || !_inModal) return;
+  queueMicrotask(() => { if (_inModal && !document.querySelector("dialog[open]")) { _inModal = false; if (history.state && history.state.modal) history.back(); } });
+};
 // A collapsible section the USER opens off-screen feels like nothing happened — scroll it into view. But a
 // <details open> fires `toggle` on initial render in current Chromium, which would yank a freshly-opened sheet
 // down to it (e.g. the live-commentary fold). Suppress the scroll briefly after a sheet opens so only genuine taps move it.
