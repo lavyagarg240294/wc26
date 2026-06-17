@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "219";  // shown in footer; bump with the ?v= asset version
+const BUILD = "220";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -945,6 +945,45 @@ function liveReds(r) {
   }
   return out;
 }
+// Attack/defence "game-character" estimator (v3). The scalar Elo split provably can't move the TOTAL goals (it pins
+// it to 2·mu at every gap), so this overlay reshapes the total (and a small ≤25% slice of the skew) to add the
+// orthogonal "good attack / leaky defence" info Elo's single number can't hold — WITHOUT re-counting the xG already
+// inside the Elo. Per-team estimates are heavily shrunk toward an Elo-implied prior (every team has barely played),
+// and the whole overlay is gated off until a side has ≥2 games, so early-tournament odds are untouched.
+let _adCache = null, _adSig = "";
+function attackDefence() {
+  const done = S.matches.filter(m => status(m) === ST.FT && res(m)?.h != null).sort((x, y) => x.utc.localeCompare(y.utc));
+  const sig = done.length + ":" + Object.keys(S.efi || {}).length;
+  if (_adCache && _adSig === sig) return _adCache;
+  const rec = {};   // code → [{att, def, opp, wt}]: attack = xG/goals FOR, def = conceded; same 0.7xG/0.3goals blend as eloSeq
+  for (const m of done) {
+    const hc = slotInfo(m, "home").code, ac = slotInfo(m, "away").code, r = res(m); if (!hc || !ac) continue;
+    const efi = S.efi?.[m.num]; let xgH, xgA, wt = 1;
+    if (efi?.xg) { xgH = efi.home === hc ? efi.xg[0] : efi.xg[1]; xgA = efi.home === hc ? efi.xg[1] : efi.xg[0]; }
+    else { xgH = r.h; xgA = r.a; wt = 0.6; }   // goals-only fallback, down-weighted (noisier than xG)
+    (rec[hc] ??= []).push({ att: 0.7 * xgH + 0.3 * r.h, def: 0.7 * xgA + 0.3 * r.a, opp: ac, wt });
+    (rec[ac] ??= []).push({ att: 0.7 * xgA + 0.3 * r.a, def: 0.7 * xgH + 0.3 * r.h, opp: hc, wt });
+  }
+  let sw = 0, sa = 0; for (const c in rec) for (const g of rec[c]) { sw += g.wt; sa += g.att * g.wt; }
+  const L = done.length >= 4 && sw ? sa / sw : 1.25;   // league mean goals/side; fallback until enough data
+  const beta = 0.10, zOf = c => ((S.teams[c]?.elo || 1700) - 1786) / 150;   // Elo-implied prior (median seed ≈ 1786)
+  const prior = c => ({ A: Math.exp(0.5 * beta * zOf(c)), D: Math.exp(-0.5 * beta * zOf(c) * 0.8) });   // >1 attack = scores more; >1 defence = concedes more
+  const p1 = {};   // pass 1: raw league-relative, used only as the opponent adjuster
+  for (const c in rec) { let aw = 0, as = 0, ds = 0; for (const g of rec[c]) { aw += g.wt; as += g.att * g.wt; ds += g.def * g.wt; } p1[c] = { A: as / aw / L, D: ds / aw / L }; }
+  const out = {};
+  for (const c in rec) {
+    const n = rec[c].length; let A, D;
+    if (n >= 2) {   // ≥2 distinct opponents by now → normalise each game by who you faced (opponent adjustment)
+      let aw = 0, as = 0, ds = 0;
+      for (const g of rec[c]) { aw += g.wt; as += (g.att / L / (p1[g.opp]?.D || 1)) * g.wt; ds += (g.def / L / (p1[g.opp]?.A || 1)) * g.wt; }
+      A = as / aw; D = ds / aw;
+    } else { A = p1[c].A; D = p1[c].D; }
+    A = Math.max(0.6, Math.min(1.6, A)); D = Math.max(0.6, Math.min(1.6, D));   // clamp raw before shrinkage
+    const pr = prior(c), k = n / (n + 4);   // James-Stein shrink toward the Elo prior (n=1 → 20% data, n=3 → 43%)
+    out[c] = { A: k * A + (1 - k) * pr.A, D: k * D + (1 - k) * pr.D, n };
+  }
+  return (_adCache = out, _adSig = sig, out);
+}
 // Dixon-Coles bivariate-Poisson outcome + scoreline. Strength enters via Elo→goal-supremacy; host, live red cards
 // and (later) weather enter MULTIPLICATIVELY so they compose without driving a rate negative. The score grid is
 // retained to surface the most-likely scoreline, and each factor's signed supremacy shift is logged for the "why".
@@ -953,10 +992,24 @@ function winProb(m) {
   if (!hc || !ac || st === ST.FT) return null;
   const live = st === ST.LIVE || st === ST.HT, ko = !m.group && m.stage !== "group";
   const nm = c => { const n = S.teams[c]?.name || c; return n.length > 14 ? n.slice(0, 13) + "…" : n; };
-  const mu = 1.35, eloH = teamRating(hc), eloA = teamRating(ac);
+  const mu = ko ? 1.25 : 1.35, eloH = teamRating(hc), eloA = teamRating(ac);   // knockouts are played tighter → lower base rate
   const supR = Math.max(-2.5, Math.min(2.5, (eloH - eloA) / 300));
-  let lamH = mu + supR / 2, lamA = mu - supR / 2;
+  const lamH0 = mu + supR / 2, lamA0 = mu - supR / 2;
+  let lamH = lamH0, lamA = lamA0;
   const reasons = [];
+  if (ko) reasons.push({ key: "ko", dir: "N", mag: 0.08, text: "Knockout tie — played tighter" });
+  // attack/defence game-character overlay — dormant until BOTH sides have ≥2 games, so today's odds are unchanged
+  const ad = attackDefence(), adH = ad[hc], adA = ad[ac];
+  const ftN = S.matches.reduce((n, x) => n + (status(x) === ST.FT && res(x)?.h != null ? 1 : 0), 0);
+  const adW = 0.6 * Math.min(1, ftN / 24);   // global trust ramp: 0 before any games, ~0.6 by ~24 played
+  if (adW > 0 && adH && adA && adH.n >= 2 && adA.n >= 2) {
+    const mH = Math.max(0.7, Math.min(1.45, adH.A * adA.D)), mA = Math.max(0.7, Math.min(1.45, adA.A * adH.D));   // my attack × their (leaky=high) defence
+    lamH *= Math.pow(mH, adW); lamA *= Math.pow(mA, adW);
+    const T = lamH + lamA, lnR = 0.75 * Math.log(lamH0 / lamA0) + 0.25 * Math.log(lamH / lamA);   // skew-lock: Elo keeps ≥75% of who-wins; att/def own the total
+    lamH = T / (1 + Math.exp(-lnR)); lamA = T - lamH;
+    if (adH.D > 1.08 && adA.D > 1.08) reasons.push({ key: "matchup", dir: "N", mag: 0.06, text: "Two leaky defences — goals likely" });
+    else if (adH.D < 0.92 && adA.D < 0.92) reasons.push({ key: "matchup", dir: "N", mag: 0.06, text: "Two tight defences — low-scoring" });
+  }
   // two movers from strength: the seeded PRIOR, and the in-tournament FORM the sequential-Elo has added on top
   const seedGap = ((S.teams[hc]?.elo || 1700) - (S.teams[ac]?.elo || 1700)) / 300;
   const formGap = (eloH - eloA) / 300 - seedGap;
