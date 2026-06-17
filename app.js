@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "255";  // shown in footer; bump with the ?v= asset version
+const BUILD = "256";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -192,6 +192,8 @@ const ICO = {
   tap: _ico('<path d="M9 11.2V6a1.5 1.5 0 0 1 3 0v4M12 10V8a1.5 1.5 0 0 1 3 0v2.5M15 10.5v-1a1.5 1.5 0 0 1 3 0V15a5 5 0 0 1-5 5h-.7a4 4 0 0 1-2.9-1.2L7 16a1.45 1.45 0 0 1 2.1-2l.9.9"/>'),
   subs: _ico('<path d="M4 9h12M13 6l3 3-3 3M20 15H8M11 12l-3 3 3 3"/>'),       // two opposing arrows — substitution
   compare: _ico('<path d="M4 20h16M7.5 20v-6M12 20V5M16.5 20v-9"/>'),         // bars — compare two players
+  calendar: _ico('<rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/>'),   // tournament editions (World Cups played)
+  shirt: _ico('<path d="M8 4 4 6.5 6 10.5 8 9.5 8 20 16 20 16 9.5 18 10.5 20 6.5 16 4A6 6 0 0 1 8 4Z"/>'),       // jersey — appearances / caps
 };
 const TROPHY = `<span class="ico-gold">${ICO.trophy}</span>`;   // gold-tinted trophy (replaces the old emoji)
 // Building an Intl.DateTimeFormat is the costly part; reuse one formatter per (locale, zone, options) shape instead of
@@ -3030,11 +3032,11 @@ function recordsPanel(s) {
       e("Just Fontaine", "FR", 13, "1958"), e("Pelé", "BR", 12, "1958–70"), e("Sándor Kocsis", "HU", 11, "1954"),
       lg("Lionel Messi", "AR", 13, /messi/i, "2006"), lg("Kylian Mbappé", "FR", 12, /mbapp/i, "2018"),
     ]),
-    card(ICO.people, "Most World Cup appearances", 26, [
+    card(ICO.shirt, "Most World Cup appearances", 26, [
       e("Lothar Matthäus", "DE", 25, "1982–98"), e("Miroslav Klose", "DE", 24, "2002–14"), e("Paolo Maldini", "IT", 23, "1990–2002"),
       e("Diego Maradona", "AR", 21, "1982–94"), la("Lionel Messi", "AR", 26, /messi/i, "2006"), la("Cristiano Ronaldo", "PT", 22, /ronaldo/i, "2006"),
     ]),
-    card(ICO.trophy, "Most World Cups played", 5, [
+    card(ICO.calendar, "Most World Cups played", 5, [
       e("Antonio Carbajal", "MX", 5, "1950–66"), e("Lothar Matthäus", "DE", 5, "1982–98"), e("Rafael Márquez", "MX", 5, "2002–18"),
       e("Gianluigi Buffon", "IT", 5, "1998–2014"), lt("Lionel Messi", "AR", 5, /messi/i, "2006"), lt("Cristiano Ronaldo", "PT", 5, /ronaldo/i, "2006"),
     ]),
@@ -3043,12 +3045,12 @@ function recordsPanel(s) {
       e("Eusébio", "PT", 9, "1966"), e("Guillermo Stábile", "AR", 8, "1930"),
       boot ? { name: pName(boot.name, boot.code), code: boot.code, v: boot.goals, live: true, tap: boot.name, sub: "2026" } : null,
     ]),
-    card(ICO.spark, "Most goals by a team in one World Cup", 27, [
+    card(ICO.people, "Most goals by a team in one World Cup", 27, [
       e("Hungary", "HU", 27, "1954"), e("West Germany", "DE", 25, "1954"), e("France", "FR", 22, "1958"),
       e("Brazil", "BR", 22, "1950"), e("Argentina", "AR", 18, "1930"),
       tg ? { name: S.teams[tg.code]?.name || tg.code, code: tg.code, v: tg.v, live: true, sub: "2026" } : null,
     ], { team: true }),
-    card(ICO.bolt, "Most goals in a match by a player", 5, [
+    card(ICO.spark, "Most goals in a match by a player", 5, [
       e("Oleg Salenko", "RU", 5, "1994"), e("Emilio Butragueño", "ES", 4, "1986"), e("Eusébio", "PT", 4, "1966"),
       mh ? { name: pName(mh.name, mh.code), code: mh.code, v: mh.v, live: true, tap: mh.name, sub: "2026" } : null,
     ]),
@@ -3117,14 +3119,14 @@ function renderStats() {
   const CONF_LABEL = { UEFA: "Europe", CONMEBOL: "S. America", CONCACAF: "N/C America", AFC: "Asia", CAF: "Africa", OFC: "Oceania" };
   const confHtml = s.confeds.length ? `<div class="eyebrow">By confederation</div>
     <div class="gtable conf-table">
-      <table><colgroup><col class="c-name"><col class="c-n"><col class="c-n"><col class="c-n"><col class="c-n"><col class="c-n"><col class="c-n"><col class="c-pts"></colgroup>
-      <thead><tr><th>Confederation</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GF</th><th>GA</th><th>PPG</th></tr></thead>
+      <table><colgroup><col class="c-name"><col class="c-n"><col class="c-n"><col class="c-n"><col class="c-n"><col class="c-gf"><col class="c-gf"></colgroup>
+      <thead><tr><th>Confederation</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GF</th><th>GA</th></tr></thead>
       <tbody>${s.confeds.map(c => `<tr>
         <td class="conf-tname">${CONF_LABEL[c.conf] || c.conf}<small>${c.conf} · ${c.teams}</small></td>
-        <td>${c.p}</td><td>${c.w}</td><td>${c.d}</td><td>${c.l}</td><td>${c.gf}</td><td>${c.ga}</td><td><b>${c.ppg.toFixed(2)}</b></td>
+        <td>${c.p}</td><td>${c.w}</td><td>${c.d}</td><td>${c.l}</td><td>${c.gf}</td><td>${c.ga}</td>
       </tr>`).join("")}</tbody></table>
     </div>
-    <p class="sim-ko-hint">Combined record of every team in each confederation (P played, GF/GA goals for and against), ranked by points per game.</p>` : "";
+    <p class="sim-ko-hint">Combined record of every team in each confederation (P played, GF/GA goals for and against), ordered by points per game.</p>` : "";
 
   // sections behind a segmented sub-nav so the tab grows down (not into one endless scroll)
   // discipline is split by subject: player bookings/suspensions go under Players, team cards/fair-play under Teams
