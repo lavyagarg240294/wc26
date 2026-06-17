@@ -1067,9 +1067,10 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .atr-badge{font-size:9.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:6px;white-space:nowrap;flex:0 0 auto}
 .atr-badge.is-new{background:color-mix(in srgb,var(--live) 15%,transparent);color:var(--live);border:1px solid color-mix(in srgb,var(--live) 42%,transparent)}
 .atr-badge.is-tied{background:color-mix(in srgb,var(--gold) 18%,transparent);color:var(--gold-text);border:1px solid color-mix(in srgb,var(--gold) 48%,transparent)}
-.atr-row{display:flex;align-items:center;gap:10px;padding:9px 14px;border-top:1px solid color-mix(in srgb,var(--line) 55%,transparent);cursor:pointer;transition:background .15s}
+.atr-row{display:flex;align-items:center;gap:10px;padding:9px 14px;border-top:1px solid color-mix(in srgb,var(--line) 55%,transparent);cursor:default;transition:background .15s}
 .atr-row:first-of-type{border-top:none}
-.atr-row:hover{background:color-mix(in srgb,var(--acc1) 7%,transparent)}
+.atr-row[role]{cursor:pointer}
+.atr-row[role]:hover{background:color-mix(in srgb,var(--acc1) 7%,transparent)}
 .atr-row.is-live{background:color-mix(in srgb,var(--gold) 10%,transparent);box-shadow:inset 3px 0 0 var(--gold)}
 .atr-row.is-live:hover{background:color-mix(in srgb,var(--gold) 15%,transparent)}
 .atr-row.is-live .atr-nm{font-weight:800;color:var(--ink)}
