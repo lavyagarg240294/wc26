@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "225";  // shown in footer; bump with the ?v= asset version
+const BUILD = "226";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -893,7 +893,7 @@ function koPath(m) {
 // carried as a head-start. A clearly-labelled model estimate — not a feed/betting value.
 const _FACT = [1, 1, 2, 6, 24, 120, 720, 5040, 40320, 362880];
 const _pois = (k, l) => Math.exp(-l) * Math.pow(l, k) / _FACT[k];
-const DC_RHO = 0.11;   // Dixon-Coles draw-inflation parameter (their paper lands ~0.13 for low-scoring leagues)
+const DC_RHO = -0.11;   // Dixon-Coles low-score dependence; NEGATIVE for football — inflates the 0-0 & 1-1 correlation real matches show (their paper lands ~-0.13)
 // Dixon-Coles τ: nudges the four low scores independent Poisson gets wrong (mutual caution correlates 0-0/1-1 up).
 const _dcTau = (x, y, lh, la) =>
   x === 0 && y === 0 ? 1 - lh * la * DC_RHO :
@@ -1073,11 +1073,12 @@ function winProb(m) {
   }
   lamH = Math.max(0.18, lamH); lamA = Math.max(0.18, lamA);
   const lead = live && r && r.h != null ? r.h - r.a : 0, baseH = live ? r.h : 0, baseA = live ? r.a : 0;
-  let pH = 0, pD = 0, pA = 0; const cells = [];
+  let pH = 0, pD = 0, pA = 0, exH = 0, exA = 0; const cells = [];
   for (let rh = 0; rh < 9; rh++) for (let ra = 0; ra < 9; ra++) {
     const p = _pois(rh, lamH) * _pois(ra, lamA) * (live ? 1 : _dcTau(rh, ra, lamH, lamA)), fin = lead + rh - ra;
     if (fin > 0) pH += p; else if (fin < 0) pA += p; else pD += p;
     cells.push({ h: baseH + rh, a: baseA + ra, p });   // FINAL score (live = current + remaining), for the scoreline
+    exH += (baseH + rh) * p; exA += (baseA + ra) * p;   // expected goals = the MEAN of the distribution (higher than its mode, which is the "likely score")
   }
   const tot = pH + pD + pA || 1;
   let probH = pH / tot, probD = pD / tot, probA = pA / tot;
@@ -1097,7 +1098,7 @@ function winProb(m) {
   const predicted = cells.sort((x, y) => y.p - x.p).slice(0, 3).map(c => ({ h: c.h, a: c.a, p: c.p / tot }));
   return { h: probH, d: probD, a: probA, live, ko,
     adv: ko ? { h: probH + 0.5 * probD, a: probA + 0.5 * probD } : null,   // KO: a 90' draw → ET/pens, split 50/50
-    predicted, drawMode: predicted[0] && predicted[0].h === predicted[0].a,
+    predicted, drawMode: predicted[0] && predicted[0].h === predicted[0].a, xg: { h: exH / tot, a: exA / tot },
     reasons: reasons.sort((x, y) => y.mag - x.mag).slice(0, 3) };
 }
 function winProbBlock(m) {
@@ -1109,7 +1110,8 @@ function winProbBlock(m) {
   const legend = wp.ko && wp.adv
     ? `<div class="wp-legend"><span class="wp-lh"><b>${Math.round(wp.adv.h * 100)}%</b> ${flag(h.code)} ${esc(h.name)}</span><span class="wp-ld">advance</span><span class="wp-la">${esc(a.name)} ${flag(a.code)} <b>${Math.round(wp.adv.a * 100)}%</b></span></div>`
     : `<div class="wp-legend"><span class="wp-lh"><b>${ph}%</b> ${flag(h.code)} ${esc(h.name)}</span><span class="wp-ld">Draw <b>${pd}%</b></span><span class="wp-la">${esc(a.name)} ${flag(a.code)} <b>${pa}%</b></span></div>`;
-  const score = P.length ? `<div class="wp-score"><span class="wp-score-lab">Likely score</span> <b>${f(P[0])}</b> <span class="wp-score-p">${pct(P[0].p)}</span>${wp.ko && wp.drawMode ? ` <span class="wp-score-et">in 90′, then ET/pens</span>` : ""}${P.length > 1 ? `<span class="wp-score-alt">${P.slice(1, 3).map(s => `${f(s)} ${pct(s.p)}`).join(" · ")}</span>` : ""}</div>` : "";
+  const exTot = wp.xg ? wp.xg.h + wp.xg.a : 0;
+  const score = P.length ? `<div class="wp-score"><span class="wp-score-lab">Likely score</span> <b>${f(P[0])}</b> <span class="wp-score-p">${pct(P[0].p)}</span>${wp.ko && wp.drawMode ? ` <span class="wp-score-et">in 90′, then ET/pens</span>` : ""}${P.length > 1 ? `<span class="wp-score-alt">${P.slice(1, 3).map(s => `${f(s)} ${pct(s.p)}`).join(" · ")}</span>` : ""}${wp.xg ? `<span class="wp-score-exp">Expected goals <b>${exTot.toFixed(1)}</b> · ${wp.xg.h.toFixed(1)}–${wp.xg.a.toFixed(1)}</span>` : ""}</div>` : "";
   const why = (wp.reasons || []).length ? `<div class="wp-why"><span class="wp-why-lab">Why</span>${wp.reasons.map((rs, i) => `${i ? `<span class="wp-why-sep">·</span>` : ""}<span class="wp-why-r r-${(rs.dir || "N").toLowerCase()}">${rs.dot ? `<i class="wp-why-dot"></i>` : ""}${esc(rs.text)}</span>`).join("")}</div>` : "";
   const note = `<p class="wp-note">Dixon–Coles model from each team's <b>rating</b> (Elo, updated by results &amp; official xG)${wp.live ? ", with the live score, minutes left and red cards" : ""}.${wp.ko ? " A 90-minute draw goes to extra time and penalties (split 50/50)." : ""}</p>`;
   return `<div class="eyebrow">Win probability <span class="wp-est">${wp.live ? "live estimate" : "pre-match estimate"}</span></div>

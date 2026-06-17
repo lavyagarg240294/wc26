@@ -51,7 +51,7 @@ function eloIter(games) {
 }
 
 const F = [1, 1, 2, 6, 24, 120, 720, 5040, 40320, 362880];
-const pois = (k, l) => Math.exp(-l) * Math.pow(l, k) / F[k]; const RHO = 0.11;
+const pois = (k, l) => Math.exp(-l) * Math.pow(l, k) / F[k]; const RHO = -0.11;   // Dixon-Coles (negative = football draw-inflation)
 const tau = (x, y, lh, la) => x === 0 && y === 0 ? 1 - lh * la * RHO : x === 0 && y === 1 ? 1 + lh * RHO : x === 1 && y === 0 ? 1 + la * RHO : x === 1 && y === 1 ? 1 - RHO : 1;
 function predict(m, rating, playedH, playedA, shrinkOn) {
   const hc = hc_(m), ac = ac_(m), mu = 1.35; const sup = Math.max(-2.5, Math.min(2.5, (rating(hc) - rating(ac)) / 300));
