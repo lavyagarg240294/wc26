@@ -1,6 +1,6 @@
 # WC·26 — World Cup 2026 Companion
 
-A fast, no-build fan site for the **FIFA World Cup 2026** — every match in your timezone, a **win probability + predicted scoreline** for every game, a favorite team that re-themes the whole UI, and a tournament that fills itself in as games are played.
+A fast, no-build fan site for the **World Cup 2026** — every match in your timezone, a **win probability + predicted scoreline** for every game, a favorite team that re-themes the whole UI, and a tournament that fills itself in as games are played.
 
 **What's inside**
 - **Matches** — every fixture in your timezone with a live hero + countdown, a **Match of the day** marquee pick, and a **Day in review** digest (recap: results · goals · top scorer · biggest result; preview: a "one to watch" pick + the rest of the day's games), navigable by date.
