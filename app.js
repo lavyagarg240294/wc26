@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "230";  // shown in footer; bump with the ?v= asset version
+const BUILD = "231";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -2920,6 +2920,67 @@ function closeRkConfPop() {
   p.hidden = true; $("#rkConfBtn")?.setAttribute("aria-expanded", "false");
 }
 
+// Curated all-time World Cup records (verified historical facts) tracked LIVE against this tournament. Career records
+// carry each active 2026 player's PRE-2026 tally; we add their goals from the feed to get the running all-time total,
+// so a mark being approached, tied or broken right now is flagged. Static curated data, not Action-owned.
+function recordsPanel(s) {
+  const tname = c => esc(S.teams[c]?.name || c);
+  const goalsOf = (code, re) => { const p = s.scorers.find(x => x.code === code && re.test(x.name)); return p ? p.goals : 0; };
+  const inSquad = (code, re) => (S.squads?.[code]?.players || []).some(p => re.test(p.name || ""));
+  const badge = (cur, rec) => cur > rec ? `<span class="atr-badge is-new">New record</span>` : cur === rec ? `<span class="atr-badge is-tied">Tied</span>` : "";
+  const tag = (cur, rec) => cur >= rec ? badge(cur, rec) : `<span class="atr-gap">${rec - cur} to go</span>`;
+  const card = (ic, title, holder, headBadge, rows) => `<div class="atr">
+    <div class="atr-head"><span class="atr-ic">${ic}</span><span class="atr-title">${title}</span>${headBadge}</div>
+    <div class="atr-hold">All-time: ${holder}</div>${rows}</div>`;
+  const row = (attr, code, nm, sub, num, numsub, t) => `<div class="atr-row" ${attr} role="button" tabindex="0">
+    <span class="fl">${flag(code)}</span><span class="atr-nm">${nm}${sub ? ` <small>${sub}</small>` : ""}</span>
+    <span class="atr-num"><b>${num}</b>${numsub ? `<small>${numsub}</small>` : ""}</span>${t}</div>`;
+  const cards = [];
+  // 1) most career World Cup goals — Klose 16
+  {
+    const REC = 16, chasers = [
+      { code: "AR", name: "Lionel Messi", re: /messi/i, pre: 13 }, { code: "FR", name: "Kylian Mbappe", re: /mbapp/i, pre: 12 },
+      { code: "PT", name: "Cristiano Ronaldo", re: /ronaldo/i, pre: 8 }, { code: "BR", name: "Neymar Jr", re: /neymar/i, pre: 8 }, { code: "GB-ENG", name: "Harry Kane", re: /kane/i, pre: 8 },
+    ].map(c => { const now = goalsOf(c.code, c.re); return { ...c, now, total: c.pre + now }; }).sort((a, b) => b.total - a.total);
+    const lead = chasers[0], rows = chasers.slice(0, 3).map(c => row(`data-player="${esc(c.name)}|${c.code}"`, c.code, esc(c.name), "", c.total, c.now ? `${c.pre} + ${c.now}` : "", tag(c.total, REC))).join("");
+    cards.push(card(ICO.ball, "Most career World Cup goals", "<b>Miroslav Klose</b> · 16 · 2002–14", lead.total >= REC ? badge(lead.total, REC) : "", rows));
+  }
+  // 2) most World Cups played by a player — record 5; Messi & Ronaldo reach a 6th
+  {
+    const sixers = [{ code: "AR", name: "Lionel Messi", re: /messi/i }, { code: "PT", name: "Cristiano Ronaldo", re: /ronaldo/i }].filter(c => inSquad(c.code, c.re));
+    const rows = sixers.map(c => row(`data-squad="${c.code}"`, c.code, esc(c.name), "6th World Cup", 6, "", `<span class="atr-badge is-new">New record</span>`)).join("");
+    cards.push(card(ICO.trophy, "Most World Cups played", "5 · Carbajal, Matthäus, Márquez, Messi, Ronaldo", sixers.length ? `<span class="atr-badge is-new">Broken · 6</span>` : "", rows));
+  }
+  // 3) most goals in a single World Cup — Fontaine 13
+  {
+    const b = s.scorers[0];
+    cards.push(card(ICO.net, "Most goals in a single World Cup", "<b>Just Fontaine</b> · 13 · 1958", b && b.goals >= 13 ? badge(b.goals, 13) : "",
+      b ? row(`data-player="${esc(b.name)}|${b.code}"`, b.code, esc(pName(b.name, b.code)), "leads this World Cup", b.goals, "", tag(b.goals, 13)) : ""));
+  }
+  // 4) biggest winning margin — 9
+  {
+    const w = s.records.bigWin;
+    cards.push(card(ICO.spark, "Biggest winning margin", "9 · Hungary &amp; Yugoslavia", w && w.margin >= 9 ? badge(w.margin, 9) : "",
+      w ? row(`data-mid="${w.mid}"`, w.w, `${tname(w.w)} beat ${tname(w.l)}`, "this World Cup", `${w.ws}–${w.ls}`, `+${w.margin}`, tag(w.margin, 9)) : ""));
+  }
+  // 5) most goals by a team in a match — Hungary 10 (1982)
+  {
+    let mx = null;
+    for (const m of S.matches) { const r = res(m); if (!r || r.h == null) continue; const hc = slotInfo(m, "home").code, ac = slotInfo(m, "away").code, hi = r.h >= r.a ? { c: hc, v: r.h, o: ac } : { c: ac, v: r.a, o: hc }; if (!mx || hi.v > mx.v) mx = { ...hi, mid: m.id }; }
+    cards.push(card(ICO.bolt, "Most goals by a team in a match", "<b>Hungary</b> · 10 · 1982", mx && mx.v >= 10 ? badge(mx.v, 10) : "",
+      mx ? row(`data-mid="${mx.mid}"`, mx.c, `${tname(mx.c)} v ${tname(mx.o)}`, "this World Cup", mx.v, "", tag(mx.v, 10)) : ""));
+  }
+  // 6) most World Cup titles — Brazil 5
+  {
+    const titled = Object.entries(S.teams).filter(([, t]) => t.titles > 0).map(([c, t]) => ({ c, n: t.titles })).sort((a, b) => b.n - a.n).slice(0, 4);
+    const rows = titled.map(t => row(`data-squad="${t.c}"`, t.c, tname(t.c), "", t.n, `title${t.n > 1 ? "s" : ""}`, t.c === "BR" ? `<span class="atr-badge is-hold">Record</span>` : "")).join("");
+    cards.push(card(ICO.trophy, "Most World Cup titles", "<b>Brazil</b> · 5 · a 6th with a 2026 win", "", rows));
+  }
+  return `<div class="eyebrow">All-time records</div>
+    <p class="atr-intro">The marks this World Cup could rewrite, tracked live against the record books.</p>
+    ${cards.map((h, i) => h.replace('<div class="atr"', `<div class="atr" style="--i:${i}"`)).join("")}
+    <p class="sim-ko-hint">All-time figures from official records. Tap any row to open the player, team or match.</p>`;
+}
 function renderStats() {
   const el = $("#view-stats"), s = tournamentStats();
   if (!s.pulse.matches) { paint(el, `<div class="rk-pre">Tournament stats (scorers, records, team form) fill in as matches kick off. Until then, here's the field by world ranking.</div>${fifaRankingPanel()}`); return; }
@@ -3008,6 +3069,7 @@ function renderStats() {
       ${teamLead("Crosses", s.teamCrosses, perGame)}
       ${teamLead("Saves", s.teamSaves, perGame)}
     </div>${teamDisc}`],
+    ["records", "Records", recordsPanel(s)],
     ["rankings", "Rankings", statsTab === "rankings" ? fifaRankingPanel() : ""],   // lazy: the 211-row panel is built only when its tab is shown (or on first click, below)
   ];
   if (!sections.some(([k]) => k === statsTab)) statsTab = "overview";
