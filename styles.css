@@ -312,7 +312,10 @@ b{font-weight:600}
   padding:14px 16px;box-shadow:var(--shadow);
   transition:transform .18s,box-shadow .25s,border-color .25s;
 }
-@keyframes rise{from{opacity:0;transform:translateY(14px)}}
+/* entrance is a slide ONLY — never a fade from opacity:0. A fade-from-invisible that gets interrupted
+   (mobile tab-switch, bfcache restore, animation throttling) can leave an element stuck invisible, which
+   reads as a blank, card-height gap in the list. Sliding from a visible offset can never hide content. */
+@keyframes rise{from{transform:translateY(14px)}}
 .mcard:hover{transform:translateY(-2px);box-shadow:0 4px 6px rgba(13,27,42,.06),0 14px 34px -10px rgba(13,27,42,.16);border-color:color-mix(in srgb,var(--acc1) 40%,var(--line))}
 .mcard.is-fav{border-left:5px solid var(--acc1);
   background:linear-gradient(90deg,color-mix(in srgb,var(--acc1) 5%,var(--card)),var(--card) 40%)}
