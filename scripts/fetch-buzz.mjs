@@ -41,6 +41,12 @@ function codesIn(text) {
   const s = String(text || "");
   return Object.keys(teams).filter(c => nameOf[c].some(n => new RegExp("\\b" + esc(n) + "\\b", "i").test(s)));
 }
+// marquee players whose surname in a headline almost certainly means World Cup football, so a player-centric title
+// ("Mbappe breaks scoring record") still gets through even without a team or "World Cup" in it. Curated to be
+// distinctive — deliberately leaving out the ambiguous ones (Salah reads as a name on Al Jazeera, Yamal is a
+// Russian peninsula, Gavi is a health body, Kane/Rice/Son are everyday words). Matched accent-insensitively.
+const _deb = s => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+const STAR_RE = /\b(mbappe|messi|ronaldo|haaland|neymar|bellingham|vinicius|lewandowski|modric|griezmann|musiala|wirtz|kimmich|neuer|tchouameni|saliba|rodrygo|endrick|raphinha|osimhen|kvaratskhelia|gakpo|depay|pulisic|havertz|maignan|dembele|vlahovic|koulibaly|barcola|foden)\b/;
 
 // drop a comment that trips the profanity / slur denylist (kept small + word-bounded to avoid false positives)
 const BLOCK = /\b(f+u+c+k\w*|shit\w*|bitch\w*|cunt\w*|asshole|a-?hole|nigg\w*|fagg?\w*|retard\w*|whore|slut|dick(?:head)?|wank\w*)\b/i;
@@ -273,7 +279,7 @@ function parseRSS(xml, src, wcFeed) {
     const link = (it.match(/<link>([\s\S]*?)<\/link>/i)?.[1] || "").replace(/<!\[CDATA\[|\]\]>/g, "").replace(/&amp;/g, "&").trim();
     if (!title || !link || !/^https?:/.test(link)) return [];
     const codes = codesIn(title);
-    if (!wcFeed && !/world cup|wc[\s-]?2026/i.test(title) && !codes.length) return [];
+    if (!wcFeed && !/world cup|wc[\s-]?2026/i.test(title) && !codes.length && !STAR_RE.test(_deb(title))) return [];
     // pubDate (RSS) / dc:date (RDF) / published (Atom) → ISO, for the chronological News tab
     const dRaw = (it.match(/<pubDate>([\s\S]*?)<\/pubDate>/i) || it.match(/<dc:date>([\s\S]*?)<\/dc:date>/i) || it.match(/<published>([\s\S]*?)<\/published>/i) || [])[1] || "";
     let date = ""; try { const dt = new Date(dRaw.trim()); if (!isNaN(+dt)) date = dt.toISOString(); } catch { /* leave blank */ }
