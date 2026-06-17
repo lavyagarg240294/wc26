@@ -591,6 +591,11 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .sim-intro-foot{margin-top:18px}                       /* intro + actions now sit at the bottom, after the steps */
 .sim-intro-foot>h2{font-size:clamp(18px,4.2vw,22px)}   /* a touch smaller down here — a recap, not a hero */
 .sim-goal{margin-bottom:14px}                          /* breathing room between the champion teaser and step 1 */
+/* first-visit orienting strip — explains the 3-step flow + that the bracket is pre-filled; only rendered on the very
+   first paint (firstRender), so it disappears the moment the user makes any pick. */
+.sim-firsthint{margin:0 0 12px;padding:12px 15px;border-radius:13px;background:color-mix(in srgb,var(--acc1) 7%,var(--card));border:1px solid color-mix(in srgb,var(--acc1) 22%,var(--line));font-size:13px;line-height:1.5;color:var(--ink-soft)}
+.sim-firsthint b{color:var(--ink);font-weight:700}
+.sim-firsthint svg{vertical-align:-2px;margin-right:2px}
 .sim-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
 .step-n{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--acc-deep);color:#fff;font-family:var(--mono);font-size:11.5px;font-weight:700;flex:0 0 22px}
 /* collapsible Predict steps — each step is its own tappable section, collapsed by default so the whole flow

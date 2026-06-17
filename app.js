@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "246";  // shown in footer; bump with the ?v= asset version
+const BUILD = "247";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -2680,6 +2680,7 @@ function renderSim() {
   const step = (id, head, body) => `<details class="sim-step" id="${id}"${stepOpen(id) ? " open" : ""}><summary class="eyebrow">${head}<span class="sim-chev" aria-hidden="true">▾</span></summary><div class="sim-step-body">${body}</div></details>`;
   el.innerHTML = viewH2("view-sim") + `
     ${champTeaser}
+    ${firstRender ? `<p class="sim-firsthint">${ICO.spark} <b>New here?</b> The three steps below build your bracket: <b>order each group</b>, <b>pick the best thirds</b>, then <b>tap winners</b> to a champion. It's pre-filled from the live tables, so you can dive straight into the bracket too. Saved on this device.</p>` : ""}
     ${step("simStep1", `<span class="step-n">1</span> Order the groups: top two go through`, `<div class="gwrap">${GROUPS.map(groupCard).join("")}</div>`)}
     ${step("simStep2", `<span class="step-n">2</span> Best third-placed teams <span class="tcount">${S.sim.thirds.length}/8</span>`, `<div class="thirds">${thirdChips}</div>`)}
     ${step("simStep3", `<span class="step-n">3</span> Tap winners to crown your champion ${TROPHY}`, `${thirdsDone && alloc !== "impossible" ? `<p class="sim-ko-hint">${ICO.tap} Tap a team in any tie to send them through. Winners flow left → right to the final.</p>` : ""}${simBracket}`)}
