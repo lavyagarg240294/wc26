@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "247";  // shown in footer; bump with the ?v= asset version
+const BUILD = "248";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1560,7 +1560,9 @@ function closeStagePop() {
 function jumpTarget() {
   const v = $("#view-matches"); if (!v || S.view !== "matches") return null;
   const liveM = S.matches.find(m => [ST.LIVE, ST.HT].includes(status(m)));
-  if (liveM) { const c = v.querySelector(`.mcard[data-mid="${liveM.id}"]`); if (c) return { el: c, head: null, live: true }; }
+  // a sticky day banner sits above the live card too — pass a visible dayhead (they're all one height) so scrollToNow
+  // lands the card *below* the banner instead of behind it. (Was head:null, which let the banner cover the card top.)
+  if (liveM) { const c = v.querySelector(`.mcard[data-mid="${liveM.id}"]`); if (c) return { el: c, head: [...v.querySelectorAll(".dayhead")].find(h => h.offsetHeight > 0) || null, live: true }; }
   // there can be two "today" headers — one inside the collapsed "Earlier results" <details> and one in
   // the upcoming list. Target the upcoming (visible) one, never the collapsed one.
   const heads = [...v.querySelectorAll(".dayhead.is-today")];
