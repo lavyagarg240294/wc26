@@ -1083,19 +1083,12 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .lead-scorers .lead-top .lead-rank{color:var(--gold-text)}
 .lead-scorers .lead-top .lead-v{color:var(--gold-text)}
 .lead-fair-top .lead-rank,.lead-fair-top .lead-v{color:var(--pitch)}
-/* confederation breakdown rows */
-.conf-row{display:flex;align-items:center;gap:11px;padding:11px 14px;border-top:1px solid color-mix(in srgb,var(--line) 55%,transparent)}
-.conf-card .conf-row:first-child{border-top:none}
-.conf-rank{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--ink-soft);width:15px;text-align:center;flex:0 0 15px;font-variant-numeric:tabular-nums}
-.conf-name{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.2;font-weight:700;font-size:14px}
-.conf-name small{font-weight:500;font-size:10.5px;color:var(--ink-soft);letter-spacing:.01em}
-.conf-rec{font-family:var(--mono);font-size:13px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap}
-.conf-rec i{font-style:normal;font-size:9px;color:var(--ink-soft);margin:0 4px 0 1px}
-.conf-gd{font-family:var(--mono);color:var(--ink-soft);font-variant-numeric:tabular-nums;display:flex;flex-direction:column;align-items:flex-end;line-height:1.1;flex:0 0 auto}
-.conf-gd b{font-weight:600;font-size:12.5px;white-space:nowrap}
-.conf-gd small{font-weight:500;font-size:9px;text-transform:uppercase;letter-spacing:.02em;color:var(--ink-soft);margin-top:1px}
-.conf-ppg{font-family:var(--mono);font-weight:700;font-size:15px;font-variant-numeric:tabular-nums;display:flex;flex-direction:column;align-items:flex-end;line-height:1;flex:0 0 auto}
-.conf-ppg small{font-weight:500;font-size:9px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.03em}
+/* confederation league table — reuses the generic table chrome (.gtable + table/th/td) for an 8th column and a
+   two-line name cell, so its columns line up exactly like the group standings. */
+.conf-table col.c-n{width:27px}
+.conf-table td.conf-tname{text-align:left;padding:7px 4px 7px 14px;font-family:var(--body);line-height:1.2;white-space:normal}
+.conf-table .conf-tname{font-weight:700;font-size:13px;color:var(--ink)}
+.conf-table .conf-tname small{display:block;font-family:var(--mono);font-weight:500;font-size:9.5px;letter-spacing:.02em;color:var(--ink-soft);margin-top:2px}
 /* records / superlatives — icon · label+detail · value, each row taps to its match or player */
 .rec-row{display:flex;align-items:center;gap:12px;padding:13px 14px;border-top:1px solid color-mix(in srgb,var(--line) 55%,transparent);cursor:pointer;transition:background .15s}
 .rec-card .rec-row:first-of-type{border-top:none}

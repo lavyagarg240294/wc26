@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "254";  // shown in footer; bump with the ?v= asset version
+const BUILD = "255";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -3112,15 +3112,19 @@ function renderStats() {
     : `<div class="empty">Records fill in as matches are played.</div>`;
 
   // confederation breakdown — each confederation's collective record, ranked by points per game
-  const CONF_LABEL = { UEFA: "Europe", CONMEBOL: "South America", CONCACAF: "N. & C. America", AFC: "Asia", CAF: "Africa", OFC: "Oceania" };
+  // A proper standings table (same chrome + column rhythm as the group tables): one header row of stat names,
+  // numbers aligned in fixed columns beneath. Names abbreviated so every column lines up on a phone.
+  const CONF_LABEL = { UEFA: "Europe", CONMEBOL: "S. America", CONCACAF: "N/C America", AFC: "Asia", CAF: "Africa", OFC: "Oceania" };
   const confHtml = s.confeds.length ? `<div class="eyebrow">By confederation</div>
-    <div class="lead-card conf-card">${ranked(s.confeds, (c, rank) => `<div class="conf-row">
-      <span class="conf-rank">${rank}</span>
-      <span class="conf-name">${CONF_LABEL[c.conf] || c.conf}<small>${c.conf} · ${c.teams} team${c.teams > 1 ? "s" : ""}</small></span>
-      <span class="conf-rec">${c.w}<i>W</i> ${c.d}<i>D</i> ${c.l}<i>L</i></span>
-      <span class="conf-gd"><b>${c.gf}–${c.ga}</b><small>for–ag.</small></span>
-      <span class="conf-ppg">${c.ppg.toFixed(2)}<small>pts/gm</small></span></div>`, c => c.ppg.toFixed(2))}</div>
-    <p class="sim-ko-hint">Combined record of each confederation's teams, ranked by points per game.</p>` : "";
+    <div class="gtable conf-table">
+      <table><colgroup><col class="c-name"><col class="c-n"><col class="c-n"><col class="c-n"><col class="c-n"><col class="c-n"><col class="c-n"><col class="c-pts"></colgroup>
+      <thead><tr><th>Confederation</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GF</th><th>GA</th><th>PPG</th></tr></thead>
+      <tbody>${s.confeds.map(c => `<tr>
+        <td class="conf-tname">${CONF_LABEL[c.conf] || c.conf}<small>${c.conf} · ${c.teams}</small></td>
+        <td>${c.p}</td><td>${c.w}</td><td>${c.d}</td><td>${c.l}</td><td>${c.gf}</td><td>${c.ga}</td><td><b>${c.ppg.toFixed(2)}</b></td>
+      </tr>`).join("")}</tbody></table>
+    </div>
+    <p class="sim-ko-hint">Combined record of every team in each confederation (P played, GF/GA goals for and against), ranked by points per game.</p>` : "";
 
   // sections behind a segmented sub-nav so the tab grows down (not into one endless scroll)
   // discipline is split by subject: player bookings/suspensions go under Players, team cards/fair-play under Teams
@@ -3152,7 +3156,7 @@ function renderStats() {
       ${teamLead("Saves", s.teamSaves, perGame)}
     </div>${teamDisc}`],
     ["records", "All-time", recordsPanel(s)],
-    ["rankings", "Ranks", statsTab === "rankings" ? fifaRankingPanel() : ""],   // lazy: the 211-row panel is built only when its tab is shown (or on first click, below)
+    ["rankings", "Ranking", statsTab === "rankings" ? fifaRankingPanel() : ""],   // lazy: the 211-row panel is built only when its tab is shown (or on first click, below)
   ];
   if (!sections.some(([k]) => k === statsTab)) statsTab = "overview";
   const out = `<div class="substat-nav" role="tablist" aria-label="Statistics sections">${sections.map(([k, label]) => `<button class="substat ${k === statsTab ? "is-on" : ""}" id="substab-${k}" role="tab" aria-selected="${k === statsTab}" aria-controls="substat-${k}" data-stat="${k}">${label}</button>`).join("")}</div>`
