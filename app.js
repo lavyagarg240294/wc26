@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "270";  // shown in footer; bump with the ?v= asset version
+const BUILD = "271";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -2850,8 +2850,8 @@ function tournamentStats() {
   const fts = S.matches.filter(m => status(m) === ST.FT && res(m)?.h != null);
   const gf = {}, ga = {}, poss = {}, possN = {}, sot = {}, sotN = {}, yel = {}, red = {}, played = {}, scorers = {}, assists = {}, pyel = {}, pred = {}, cs = {}, conf = {}, keepers = {}, tstat = {}, statN = {};
   const TSTAT_KEYS = ["sh", "pass", "passT", "cross", "lball", "tkl", "intc", "clr", "blk", "sv", "off", "fls"];   // richer ESPN team stats → leaderboards + style
-  let goals = 0, totCards = 0;
-  const rec = { bigWin: null, hiScore: null, fastG: null, lateG: null };   // superlatives
+  let goals = 0, totYellow = 0, totRed = 0;
+  const rec = { bigWin: null, hiScore: null, fastG: null, lateG: null, hiDraw: null, topMatch: null, mostCards: null };
   const add = (o, k, n = 1) => { if (k) o[k] = (o[k] || 0) + n; };
   const addConf = (code, gfv, gav, diff) => {   // a team's match folded into its confederation's collective record
     const k = S.teams[code]?.conf; if (!k) return;
@@ -2881,21 +2881,36 @@ function tournamentStats() {
       rec.bigWin = { mid: m.id, num: m.num, total, margin, ...win };
     if (total > 0 && (!rec.hiScore || total > rec.hiScore.total))
       rec.hiScore = { mid: m.id, num: m.num, total, hc, ac, h: r.h, a: r.a };
+    const matchGoals = {};
+    let mYellow = 0, mRed = 0;
     for (const e of (r.ev || [])) {
       const tc = e.tm === "h" ? hc : ac;
       if ((e.k === "G" || e.k === "P") && e.p) {
         // resolve to the full squad name using the API jersey (e.n) when present, else "out" = an outfielder (never the same-surname keeper)
         const sc = resolvePlayer(e.p, tc, e.n, "out")?.name || e.p;
         add(scorers, sc + "\t" + tc); if (e.a) add(assists, (resolvePlayer(e.a, tc, e.an, "out")?.name || e.a) + "\t" + tc);   // own goals excluded from the Boot
+        const mk = sc + "\t" + tc; matchGoals[mk] = (matchGoals[mk] || 0) + 1;
         const mn = evMin(e.t);   // fastest / latest goal of the tournament (by the player who scored it)
         if (mn >= 1) {
           if (!rec.fastG || mn < rec.fastG.mn) rec.fastG = { name: sc, code: tc, t: e.t, mn, mid: m.id };
           if (!rec.lateG || mn > rec.lateG.mn) rec.lateG = { name: sc, code: tc, t: e.t, mn, mid: m.id };
         }
       }
-      if (e.k === "Y") { add(yel, tc); totCards++; if (e.p) add(pyel, (resolvePlayer(e.p, tc, e.n)?.name || e.p) + "\t" + tc); }
-      else if (e.k === "R") { add(red, tc); totCards++; if (e.p) add(pred, (resolvePlayer(e.p, tc, e.n)?.name || e.p) + "\t" + tc); }
+      if (e.k === "Y") { add(yel, tc); totYellow++; mYellow++; if (e.p) add(pyel, (resolvePlayer(e.p, tc, e.n)?.name || e.p) + "\t" + tc); }
+      else if (e.k === "R") { add(red, tc); totRed++; mRed++; if (e.p) add(pred, (resolvePlayer(e.p, tc, e.n)?.name || e.p) + "\t" + tc); }
     }
+    // per-match superlatives
+    if (r.h === r.a && (r.h + r.a) > 0 && (!rec.hiDraw || (r.h + r.a) > rec.hiDraw.total))
+      rec.hiDraw = { mid: m.id, hc, ac, h: r.h, a: r.a, total: r.h + r.a };
+    for (const [mk, cnt] of Object.entries(matchGoals)) {
+      if (cnt >= 2 && (!rec.topMatch || cnt > rec.topMatch.v)) {
+        const ti = mk.indexOf("\t"); const tc2 = mk.slice(ti + 1);
+        rec.topMatch = { name: mk.slice(0, ti), code: tc2, opp: tc2 === hc ? ac : hc, v: cnt, mid: m.id };
+      }
+    }
+    const mCards = mYellow + mRed;
+    if (mCards > 0 && (!rec.mostCards || mCards > rec.mostCards.total))
+      rec.mostCards = { mid: m.id, hc, ac, y: mYellow, r: mRed, total: mCards };
     if (r.stats?.poss) { add(poss, hc, r.stats.poss[0]); add(possN, hc); add(poss, ac, r.stats.poss[1]); add(possN, ac); }
     if (r.stats?.sot) { add(sot, hc, r.stats.sot[0]); add(sotN, hc); add(sot, ac, r.stats.sot[1]); add(sotN, ac); }
     if (r.stats) {   // accumulate the richer team stats (per-match averaged later, like FotMob)
@@ -2918,7 +2933,7 @@ function tournamentStats() {
   const pmT = fn => Object.keys(statN).map(c => ({ code: c, v: fn(c) / statN[c] })).sort((a, b) => b.v - a.v);   // per-game over teams with team-stats
   const g = (k, c) => tstat[k]?.[c] || 0;
   const _out = {
-    pulse: { goals, matches: fts.length, perMatch: fts.length ? goals / fts.length : 0, cards: totCards },
+    pulse: { goals, matches: fts.length, perMatch: fts.length ? goals / fts.length : 0, yellows: totYellow, reds: totRed },
     records: rec,
     scorers: scorerList, assisters: assistList, booked: bookedList,
     teamCards: cardList,
@@ -3113,7 +3128,6 @@ function recordsPanel(s) {
     ].map(t => ({ ...t, live: !!S.teams[t.code] })), { team: true }),
   ];
   return `<div class="eyebrow">All-time records</div>
-    <p class="atr-intro">The all-time World Cup leaderboards. Rows marked <span class="atr-legend">like this</span> are players and teams playing in this World Cup, with their totals updating live.</p>
     ${cards.map((h, i) => h.replace('<div class="atr"', `<div class="atr" style="--i:${i}"`)).join("")}
     <p class="sim-ko-hint">All-time figures from official records. Tap a row to open the player or team.</p>`;
 }
@@ -3159,11 +3173,14 @@ function renderStats() {
     <span class="rec-ic">${ic}</span><span class="rec-tx"><b>${label}</b><small>${sub}</small></span><span class="rec-v">${val}</span></div>`;
   const recItems = [];
   if (rc.bigWin) { const r = rc.bigWin; recItems.push(recRow(ICO.spark, "Biggest win", `${flag(r.w)} ${tname(r.w)} beat ${flag(r.l)} ${tname(r.l)}`, `${r.ws}–${r.ls}`, `data-mid="${r.mid}"`)); }
-  if (rc.hiScore) { const r = rc.hiScore; recItems.push(recRow(ICO.net, "Most goals in a match", `${flag(r.hc)} ${tname(r.hc)} v ${flag(r.ac)} ${tname(r.ac)}`, `${r.h}–${r.a}<small>${r.total} goals</small>`, `data-mid="${r.mid}"`)); }
+  if (rc.hiScore) { const r = rc.hiScore; recItems.push(recRow(ICO.net, "Highest-scoring match", `${flag(r.hc)} ${tname(r.hc)} v ${flag(r.ac)} ${tname(r.ac)}`, `${r.h}–${r.a}<small>${r.total} goals</small>`, `data-mid="${r.mid}"`)); }
+  if (rc.hiDraw) { const r = rc.hiDraw; recItems.push(recRow(ICO.net, "Highest-scoring draw", `${flag(r.hc)} ${tname(r.hc)} v ${flag(r.ac)} ${tname(r.ac)}`, `${r.h}–${r.a}`, `data-mid="${r.mid}"`)); }
+  if (rc.topMatch) { const r = rc.topMatch; recItems.push(recRow(ICO.ball, "Best individual haul", `${flag(r.code)} ${esc(r.name)}${r.opp ? ` vs ${flag(r.opp)} ${tname(r.opp)}` : ""}`, `${r.v} goals`, `data-player="${esc(r.name)}|${r.code}"`)); }
   if (rc.fastG) { const r = rc.fastG; recItems.push(recRow(ICO.bolt, "Fastest goal", `${flag(r.code)} ${esc(r.name)}`, esc(r.t), `data-player="${esc(r.name)}|${r.code}"`)); }
   if (rc.lateG) { const r = rc.lateG; recItems.push(recRow(ICO.clock, "Latest goal", `${flag(r.code)} ${esc(r.name)}`, esc(r.t), `data-player="${esc(r.name)}|${r.code}"`)); }
+  if (rc.mostCards) { const r = rc.mostCards; recItems.push(recRow(ICO.spark, "Most cards in a match", `${flag(r.hc)} ${tname(r.hc)} v ${flag(r.ac)} ${tname(r.ac)}`, `<span class="card-tally"><span class="ct ct-y">${r.y}</span>${r.r ? `<span class="ct ct-r">${r.r}</span>` : ""}</span>`, `data-mid="${r.mid}"`)); }
   const recordsHtml = recItems.length
-    ? `<div class="lead-card rec-card">${recItems.join("")}</div><p class="sim-ko-hint">Tap a record to jump to the match or player.</p>`
+    ? `<div class="lead-card rec-card">${recItems.join("")}</div><p class="sim-ko-hint">Tap a record to open the match or player.</p>`
     : `<div class="empty">Records fill in as matches are played.</div>`;
 
   // confederation breakdown — each confederation's collective record, ranked by points per game
@@ -3189,7 +3206,8 @@ function renderStats() {
   const sections = [
     ["overview", "Overview", `<div class="eyebrow">Tournament so far</div><div class="stat-tiles">
       ${tile("Goals", s.pulse.goals)}${tile("Matches", s.pulse.matches)}
-      ${tile("Goals / match", s.pulse.perMatch.toFixed(2))}${tile("Cards", s.pulse.cards)}
+      ${tile("Goals / match", s.pulse.perMatch.toFixed(2))}
+      <div class="stat-tile"><span class="stat-val card-tally"><span class="ct ct-y">${s.pulse.yellows}</span><span class="ct ct-r">${s.pulse.reds}</span></span><span class="stat-lbl">Cards</span></div>
     </div>
       <div class="eyebrow">Records so far</div>${recordsHtml}
       ${confHtml}`],
@@ -3200,15 +3218,12 @@ function renderStats() {
       ${playerDisc}
       ${!s.scorers.length && !s.assisters.length ? `<div class="empty">No goals yet. The Golden Boot race starts with the first goal.</div>` : ""}`],
     ["teams", "Teams", `<div class="eyebrow">Team leaderboards</div><div class="lead-grid">
-      ${teamLead("Attack", s.teamScored, perGame)}
-      ${teamLead("Defence", s.teamConceded, perGame)}
-      ${teamLead("Clean sheets", s.cleanSheets, x => x.v)}
       ${teamLead("Possession", s.possession, x => x.v.toFixed(1) + "%")}
-      ${teamLead("Shots on target", s.teamSot, perGame)}
       ${teamLead("Pass accuracy", s.teamPassAcc, x => x.v.toFixed(0) + "%")}
-      ${teamLead("Defensive actions", s.teamDef, perGame)}
-      ${teamLead("Crosses", s.teamCrosses, perGame)}
       ${teamLead("Saves", s.teamSaves, perGame)}
+      ${teamLead("Defensive actions", s.teamDef, perGame)}
+      ${teamLead("Shots on target", s.teamSot, perGame)}
+      ${teamLead("Crosses", s.teamCrosses, perGame)}
     </div>${teamDisc}`],
     ["records", "All-time", recordsPanel(s)],
     ["rankings", "Ranking", statsTab === "rankings" ? fifaRankingPanel() : ""],   // lazy: the 211-row panel is built only when its tab is shown (or on first click, below)
