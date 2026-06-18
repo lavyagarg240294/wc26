@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "265";  // shown in footer; bump with the ?v= asset version
+const BUILD = "266";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -673,7 +673,7 @@ function renderTicker() {
       : st === ST.FT ? (r?.h != null ? `<b>${r.h}–${r.a}</b> FT` : `<b>FT</b>`)
       : `<span class="tk-acc">${timeStr(m.utc)}</span>`;
     const nm = s => s.code ? `${flag(s.code)} ${esc(S.teams[s.code]?.name || s.code)}` : "TBD";
-    return `<span class="ticker-item">${nm(h)} ${mid} ${nm(a)}</span>`;
+    return `<span class="ticker-item" data-mid="${m.id}">${nm(h)} ${mid} ${nm(a)}</span>`;
   };
   const sep = '<span class="tk-sep">／</span>';
   const track = $("#tickerTrack");
@@ -1200,12 +1200,11 @@ function winProbBlock(m) {
     : `<div class="wp-legend"><span class="wp-lh"><b>${ph}%</b> ${flag(h.code)} <span class="wp-lname">${esc(h.name)}</span></span><span class="wp-ld">Draw <b>${pd}%</b></span><span class="wp-la"><span class="wp-lname">${esc(a.name)}</span> ${flag(a.code)} <b>${pa}%</b></span></div>`;
   const xg = wp.xg, ph_ = xg ? Math.round(xg.h) : 0, pa_ = xg ? Math.round(xg.a) : 0;   // projected score = the expected goals rounded — a representative scoreline, not the low-scoring distribution mode
   const score = xg ? `<div class="wp-score"><span class="wp-score-lab">Projected score</span> <b>${ph_}–${pa_}</b> <span class="wp-score-p">(${xg.h.toFixed(1)}–${xg.a.toFixed(1)})</span>${wp.ko && ph_ === pa_ ? ` <span class="wp-score-et">in 90′, then ET/pens</span>` : ""}</div>` : "";
-  const note = `<p class="wp-note">Dixon-Coles model from each team's <b>rating</b> (Elo, updated by results &amp; official xG)${wp.live ? ", with the live score, minutes left and red cards" : ""}.${wp.ko ? " A 90-minute draw goes to extra time and penalties (split 50/50)." : ""}</p>`;
   return `<div class="eyebrow">Win probability <span class="wp-est">${wp.live ? "live estimate" : "pre-match estimate"}</span></div>
     <div class="wp">
       <div class="wp-bar" role="img" aria-label="${esc(h.name)} ${ph}%, draw ${pd}%, ${esc(a.name)} ${pa}%">
         <span class="wp-h" style="width:${ph}%"></span><span class="wp-d" style="width:${pd}%"></span><span class="wp-a" style="width:${pa}%"></span></div>
-      ${legend}${score}${note}</div>`;
+      ${legend}${score}</div>`;
 }
 /* ---------------- stakes explainer ----------------
    Plain-language "what this result means for qualification" on group matches. Pure points-based reasoning over
@@ -1340,7 +1339,7 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
   const pReport = mdReport(m), pComm = mdCommentaryShell(m), pWinProb = winProbBlock(m), pStakes = stakesBlock(m);
   const pXiInline = r?.xi ? `<div class="eyebrow">${liveNow ? "Line-ups" : "Starting XI"}</div>${xiPanel(r.xi, h, a)}` : "";
   const pXiFold = r?.xi ? `<details class="md-fold"><summary><span>Starting XI</span><small>${esc([r.xi.h?.f, r.xi.a?.f].filter(Boolean).join(" v ")) || "line-ups & formations"}</small></summary><div class="md-fold-body">${xiPanel(r.xi, h, a)}</div></details>` : "";
-  const pXiNote = (!r?.xi && st === ST.SCHED) ? `<p class="md-xi-note">Confirmed line-ups are usually available closer to kickoff.</p>` : "";
+
   const pMeta = `<div class="md-meta">
       <span>${fmt(m.utc, { weekday: "long", day: "numeric", month: "long" })}</span>
       <span>${timeStr(m.utc)}</span>
@@ -1355,7 +1354,7 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
     ? [pTimeline, pXiInline, pComm, pKeyStats, pStats, pEfi, pWinProb, pStakes]
     : isFT
     ? [pTimeline, pKeyStats, pStats, pXiInline, pReport, pEfi, pWinProb, pStakes]
-    : [pStakes, pWinProb, pXiInline, pXiNote];   // upcoming: stakes + odds + (announced) line-ups
+    : [pStakes, pWinProb, pXiInline];   // upcoming: stakes + odds + (announced) line-ups
   const _body = pTop + middle.join("") + pMeta;
   const mb = $("#matchBody");
   if (reuse) paint(mb, _body);                       // live poll: morph the body in place — score/minute/timeline/stats update while expanded folds, scroll & loaded commentary survive
