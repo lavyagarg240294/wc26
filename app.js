@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "267";  // shown in footer; bump with the ?v= asset version
+const BUILD = "268";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -3408,27 +3408,13 @@ function eggToast(msg) {
 function eggUnlock() {
   const firstTime = !localStorage.getItem("wc26.egg");
   localStorage.setItem("wc26.egg", "1");
-  initUnlockedSettings();      // reveal settings rows
-  openChampOverlay(firstTime); // open the overlay (first time = show a welcome note)
+  initUnlockedSettings();
+  if (firstTime) eggToast("Expert view unlocked – check Settings.");
+  openChampOverlay();
 }
 
-/* ---------------- stadium mode + expert view ---------------- */
+/* ---------------- expert view ---------------- */
 function currentTheme() { return document.documentElement.dataset.theme || "light"; }
-function setStadium(on) {
-  if (on) {
-    document.documentElement.dataset.theme = "stadium";
-    localStorage.setItem("wc26.stadium", "on");
-    localStorage.setItem("wc26.theme", "light"); // so dark toggle resets cleanly when stadium goes off
-    $('meta[name="theme-color"]')?.setAttribute("content", "#08091A");
-  } else {
-    localStorage.setItem("wc26.stadium", "off");
-    const dark = localStorage.getItem("wc26.theme") === "dark";
-    document.documentElement.dataset.theme = dark ? "dark" : "light";
-    $('meta[name="theme-color"]')?.setAttribute("content", dark ? "#0E1822" : "#0BA360");
-  }
-  const st = $("#stadiumState"); if (st) st.textContent = on ? "On" : "Off";
-  $("#stadiumToggle")?.setAttribute("aria-pressed", String(on));
-}
 function setExpert(on) {
   document.body.classList.toggle("expert", on);
   localStorage.setItem("wc26.expert", on ? "on" : "off");
@@ -3438,18 +3424,13 @@ function setExpert(on) {
 }
 function initUnlockedSettings() {
   if (!localStorage.getItem("wc26.egg")) return;
-  ["unlockedGroup", "stadiumToggle", "expertToggle"].forEach(id => {
+  ["unlockedGroup", "expertToggle"].forEach(id => {
     const el = document.getElementById(id); if (el) el.hidden = false;
   });
-  const stadiumOn = localStorage.getItem("wc26.stadium") === "on";
-  const expertOn  = localStorage.getItem("wc26.expert")  === "on";
-  const st = $("#stadiumState"); if (st) st.textContent = stadiumOn ? "On" : "Off";
-  const ex = $("#expertState");  if (ex)  ex.textContent = expertOn  ? "On" : "Off";
-  $("#stadiumToggle")?.setAttribute("aria-pressed", String(stadiumOn));
+  const expertOn = localStorage.getItem("wc26.expert") === "on";
+  const ex = $("#expertState"); if (ex) ex.textContent = expertOn ? "On" : "Off";
   $("#expertToggle")?.setAttribute("aria-pressed", String(expertOn));
-  const stBtn = document.getElementById("stadiumToggle");
   const exBtn = document.getElementById("expertToggle");
-  if (stBtn && !stBtn._wired) { stBtn._wired = true; stBtn.onclick = () => setStadium(currentTheme() !== "stadium"); }
   if (exBtn && !exBtn._wired) { exBtn._wired = true; exBtn.onclick = () => setExpert(!document.body.classList.contains("expert")); }
 }
 
@@ -3462,7 +3443,7 @@ function champProbs() {
     .sort((a, b) => b.p - a.p)
     .map((item, _, arr) => ({ ...item, p: item.p / arr.reduce((s, x) => s + x.p, 0) }));
 }
-function openChampOverlay(firstTime) {
+function openChampOverlay() {
   let ov = document.getElementById("champOv");
   if (!ov) {
     ov = document.createElement("div");
@@ -3479,30 +3460,6 @@ function openChampOverlay(firstTime) {
         </div>
         <button class="champ-x" aria-label="Close">&#x2715;</button>
       </div>
-      <div class="champ-unlock" id="champUnlock" hidden>
-        <p class="champ-unlock-hdr">Unlocked</p>
-        <div class="champ-unlock-row">
-          <div class="champ-unlock-info">
-            <span class="champ-unlock-label">Championship odds</span>
-            <span class="champ-unlock-desc">Model estimate for all 48 teams</span>
-          </div>
-          <span class="champ-unlock-tag">below</span>
-        </div>
-        <div class="champ-unlock-row">
-          <div class="champ-unlock-info">
-            <span class="champ-unlock-label">Stadium mode</span>
-            <span class="champ-unlock-desc">Deep navy + gold theme</span>
-          </div>
-          <button class="champ-unlock-tag champ-to-settings">Settings</button>
-        </div>
-        <div class="champ-unlock-row">
-          <div class="champ-unlock-info">
-            <span class="champ-unlock-label">Expert view</span>
-            <span class="champ-unlock-desc">Elo ratings + win odds on cards</span>
-          </div>
-          <button class="champ-unlock-tag champ-to-settings">Settings</button>
-        </div>
-      </div>
       <ol class="champ-list" id="champList"></ol>
       <p class="champ-note">Relative strength from current ratings · tap build number 7x to reopen</p>
     </div>`;
@@ -3512,16 +3469,7 @@ function openChampOverlay(firstTime) {
       setTimeout(() => { ov.hidden = true; }, 380);
     };
     ov.addEventListener("click", e => { if (e.target === ov) ov.querySelector(".champ-x").click(); });
-    ov.querySelectorAll(".champ-to-settings").forEach(btn => {
-      btn.onclick = () => {
-        ov.querySelector(".champ-x").click();
-        setTimeout(() => document.getElementById("settingsChip")?.click(), 420);
-      };
-    });
   }
-  // Show unlock section only on first-ever trigger
-  const unlockEl = document.getElementById("champUnlock");
-  if (unlockEl) unlockEl.hidden = !firstTime;
   // populate list fresh each open (ratings may have updated)
   const probs = champProbs();
   const top = probs[0].p;
@@ -3905,7 +3853,7 @@ async function boot() {
   const _isDark = currentTheme() === "dark";
   $("#themeState").textContent = _isDark ? "On" : "Off";
   $("#themeToggle").setAttribute("aria-pressed", String(_isDark));
-  $("#themeToggle").onclick = () => { setStadium(false); setDark(currentTheme() !== "dark"); };
+  $("#themeToggle").onclick = () => setDark(currentTheme() !== "dark");
   initUnlockedSettings();
   const hornOn = localStorage.getItem("wc26.horn") === "on";
   $("#hornState").textContent = hornOn ? "On" : "Off";
