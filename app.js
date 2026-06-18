@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "269";  // shown in footer; bump with the ?v= asset version
+const BUILD = "270";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -3061,10 +3061,10 @@ function recordsPanel(s) {
     entries = entries.filter(Boolean).sort((a, b) => b.v - a.v || (b.live ? 1 : 0) - (a.live ? 1 : 0)).slice(0, 6);
     const ranks = compRanks(entries, x => x.v);
     const lead = entries.find(x => x.live && recVal !== Infinity && x.v >= recVal);
-    const head = lead && lead.v === recVal ? `<span class="atr-badge is-tied">Tied</span>` : "";
+    const head = lead && lead.v > recVal ? `<span class="atr-badge is-record">New record</span>` : "";
     const rows = entries.map((x, i) => {
       const attr = x.live ? `${opt.team ? `data-squad="${x.code}"` : `data-player="${esc(x.tap || x.name)}|${x.code}"`} role="button" tabindex="0"` : "";   // only 2026 entries tap through; legends aren't in our data
-      const tag = x.live && recVal !== Infinity && x.v === recVal ? `<span class="atr-badge is-tied">Tied</span>` : "";
+      const tag = "";
       return `<div class="atr-row${x.live ? " is-live" : ""}" ${attr}>
         <span class="atr-rank">${ranks[i]}</span><span class="fl">${flag(x.code)}</span>
         <span class="atr-nm">${esc(x.name)}${x.sub ? ` <small>${esc(x.sub)}</small>` : ""}</span>
@@ -3095,12 +3095,12 @@ function recordsPanel(s) {
     ]),
     card(ICO.net, "Most goals in a single World Cup", 13, [
       e("Just Fontaine", "FR", 13, "1958"), e("Sándor Kocsis", "HU", 11, "1954"), e("Gerd Müller", "DE", 10, "1970"),
-      e("Eusébio", "PT", 9, "1966"), e("Guillermo Stábile", "AR", 8, "1930"),
+      e("Ademir", "BR", 9, "1950"), e("Eusébio", "PT", 9, "1966"),
       boot ? { name: pName(boot.name, boot.code), code: boot.code, v: boot.goals, live: true, tap: boot.name, sub: "2026" } : null,
     ]),
     card(ICO.people, "Most goals by a team in one World Cup", 27, [
-      e("Hungary", "HU", 27, "1954"), e("West Germany", "DE", 25, "1954"), e("France", "FR", 22, "1958"),
-      e("Brazil", "BR", 22, "1950"), e("Argentina", "AR", 18, "1930"),
+      e("Hungary", "HU", 27, "1954"), e("West Germany", "DE", 25, "1954"), e("France", "FR", 23, "1958"),
+      e("Brazil", "BR", 22, "1950"), e("Brazil", "BR", 19, "1970"),
       tg ? { name: S.teams[tg.code]?.name || tg.code, code: tg.code, v: tg.v, live: true, sub: "2026" } : null,
     ], { team: true }),
     card(ICO.spark, "Most goals in a match by a player", 5, [
