@@ -1100,8 +1100,9 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .cm-yellow .cm-t{color:var(--gold-text)}
 .cm-sub{box-shadow:inset 3px 0 color-mix(in srgb,var(--ink-soft) 45%,transparent)}
 /* cards leaderboard: yellow + red side by side, each a little card chip + count */
-.lead-v.card-tally{flex-direction:row;align-items:center;gap:11px}
-.ct{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-weight:700;font-size:14px}
+.card-tally{display:inline-flex;align-items:center;gap:8px}
+.lead-v.card-tally{flex-direction:row;gap:11px}
+.ct{display:inline-flex;align-items:center;gap:3px;font-family:var(--mono);font-weight:700;font-size:14px}
 .ct::before{content:"";width:11px;height:15px;border-radius:2.5px;flex:none;box-shadow:0 1px 2px rgba(13,27,42,.25)}
 .ct-y::before{background:var(--gold)}
 .ct-r::before{background:var(--live)}
