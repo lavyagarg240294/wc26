@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "268";  // shown in footer; bump with the ?v= asset version
+const BUILD = "269";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -672,8 +672,9 @@ function renderTicker() {
       ? `<span class="tk-live">● ${r?.h ?? 0}–${r?.a ?? 0}</span>`
       : st === ST.FT ? (r?.h != null ? `<b>${r.h}–${r.a}</b> FT` : `<b>FT</b>`)
       : `<span class="tk-acc">${timeStr(m.utc)}</span>`;
-    const nm = s => s.code ? `${flag(s.code)} ${esc(S.teams[s.code]?.name || s.code)}` : "TBD";
-    return `<span class="ticker-item" data-mid="${m.id}">${nm(h)} ${mid} ${nm(a)}</span>`;
+    const nmH = s => s.code ? `${esc(S.teams[s.code]?.name || s.code)} ${flag(s.code)}` : "TBD";
+    const nmA = s => s.code ? `${flag(s.code)} ${esc(S.teams[s.code]?.name || s.code)}` : "TBD";
+    return `<span class="ticker-item" data-mid="${m.id}">${nmH(h)} ${mid} ${nmA(a)}</span>`;
   };
   const sep = '<span class="tk-sep">／</span>';
   const track = $("#tickerTrack");
@@ -710,7 +711,7 @@ function matchCard(m, i, opts = {}) {
   const h = slotInfo(m, "home"), a = slotInfo(m, "away");
   const r = res(m), st = status(m);
   const fav = isFavMatch(m);
-  const stageL = m.group ? `Group ${m.group}` : m.round;
+  const stageL = m.group ? `Group ${m.group}` : m.stage === "third" ? "3rd place" : m.round;
   const live = st === ST.LIVE || st === ST.HT;
   const score = r && r.h != null;   // a real, feed-reported scoreline
   const sh = r?.h ?? 0, sa = r?.a ?? 0;   // display score — a live match with no goal data shows 0–0
@@ -1305,7 +1306,7 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
   const h = slotInfo(m, "home"), a = slotInfo(m, "away"), r = res(m), st = status(m);
   const live = st === ST.LIVE || st === ST.HT;
   const score = r && r.h != null;
-  const stageL = m.group ? `Group ${m.group}` : m.round;
+  const stageL = m.group ? `Group ${m.group}` : m.stage === "third" ? "3rd place" : m.round;
   const sv = isSaved(id);
   const statusTag = st === ST.LIVE ? `<span class="md-tag live">● Live ${clockStr(m, r)}</span>`
     : st === ST.HT ? `<span class="md-tag live">Half-time</span>`
@@ -1688,11 +1689,10 @@ function renderTeams() {
         <span class="big">Who are you backing?</span>
         <span style="color:var(--ink-soft);font-size:13.5px;max-width:300px">Pick a team: the site takes their colors, pins their matches and tracks their road to the final.</span>
         <button class="btn" id="ctaPick">Choose your team</button></div>`;
-  const _expGrid = document.body.classList.contains("expert"), _eloGrid = _expGrid ? eloSeq() : null;
   const grid = Object.keys(S.teams)
     .sort((a, b) => S.teams[a].name.localeCompare(S.teams[b].name))
     .map(c => `<button class="teamcard ${c === S.fav ? "is-fav" : ""}" data-squad="${c}" title="${esc(S.teams[c].name)}${S.teams[c].titles ? `, ${S.teams[c].titles}× World Cup champion` : ""}">
-      <span class="fl">${flag(c)}</span><span class="tc-name">${esc(S.teams[c].name)}</span>${S.teams[c].titles ? `<span class="tc-cup" aria-label="${S.teams[c].titles} World Cup titles">${TROPHY} ${S.teams[c].titles}</span>` : ""}<span class="tc-grp">${groupOf(c) || ""}</span>${_expGrid ? `<span class="tc-elo">${Math.round(_eloGrid[c] ?? S.teams[c]?.elo ?? 1700)}</span>` : ""}</button>`).join("");
+      <span class="fl">${flag(c)}</span><span class="tc-name">${esc(S.teams[c].name)}</span>${S.teams[c].titles ? `<span class="tc-cup" aria-label="${S.teams[c].titles} World Cup titles">${TROPHY} ${S.teams[c].titles}</span>` : ""}<span class="tc-grp">${groupOf(c) || ""}</span></button>`).join("");
   paint(el, head + `<div class="eyebrow">All teams <span style="color:var(--ink-soft);font-weight:600">, tap for detail</span></div><div class="teamsgrid">${grid}</div>`);
   const cta = $("#ctaPick", el); if (cta) cta.onclick = () => $("#teamDialog").showModal();
   const chg = $("#ctaChange", el); if (chg) chg.onclick = () => $("#teamDialog").showModal();
@@ -3435,10 +3435,20 @@ function initUnlockedSettings() {
 }
 
 /* ---------------- championship odds overlay ---------------- */
+function isStillIn(code) {
+  // A team is still competing if they have at least one confirmed non-FT appearance remaining
+  return S.matches.some(m => {
+    if (status(m) === ST.FT) return false;
+    const h = slotInfo(m, "home"), a = slotInfo(m, "away");
+    return h.code === code || a.code === code;
+  });
+}
 function champProbs() {
   const R = eloSeq();
-  return Object.keys(S.teams)
-    .filter(c => S.teams[c])
+  const alive = Object.keys(S.teams).filter(c => S.teams[c] && isStillIn(c));
+  // Fall back to all teams if no live/upcoming matches found (e.g. pre-tournament)
+  const pool = alive.length ? alive : Object.keys(S.teams).filter(c => S.teams[c]);
+  return pool
     .map(c => ({ code: c, p: Math.exp(((R[c] ?? S.teams[c]?.elo ?? 1700) - 1700) / 600) }))
     .sort((a, b) => b.p - a.p)
     .map((item, _, arr) => ({ ...item, p: item.p / arr.reduce((s, x) => s + x.p, 0) }));
