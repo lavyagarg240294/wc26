@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "271";  // shown in footer; bump with the ?v= asset version
+const BUILD = "272";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -3017,7 +3017,7 @@ function fifaRankingPanel() {
       </div>
       <div class="tsel" id="rkConfWrap">
         <button type="button" class="fsel tsel-btn" id="rkConfBtn" aria-haspopup="listbox" aria-expanded="false" aria-label="Filter by confederation"><span class="tsel-cur">Confederation</span></button>
-        <div class="tsel-pop tsel-pop-end" id="rkConfPop" data-keep hidden><div class="tsel-list" role="listbox" aria-label="Confederation">${confOpts}</div></div>
+        <div class="tsel-pop" id="rkConfPop" data-keep hidden><div class="tsel-list" role="listbox" aria-label="Confederation">${confOpts}</div></div>
       </div>
     </div>
     <input class="team-search rk-search" id="rkSearch" type="search" placeholder="Search teams…" autocomplete="off" autocapitalize="off" spellcheck="false">
@@ -3073,7 +3073,7 @@ function recordsPanel(s) {
   // can't move yet). Entries flagged `live` are 2026 players/teams: highlighted, sorted to the top of any tie, and
   // their value is computed live by the caller. Shows the real leaderboard, not just the chasers.
   const card = (ic, title, recVal, entries, opt = {}) => {
-    entries = entries.filter(Boolean).sort((a, b) => b.v - a.v || (b.live ? 1 : 0) - (a.live ? 1 : 0)).slice(0, 6);
+    entries = entries.filter(Boolean).sort((a, b) => b.v - a.v || (b.live ? 1 : 0) - (a.live ? 1 : 0)).slice(0, 8);
     const ranks = compRanks(entries, x => x.v);
     const lead = entries.find(x => x.live && recVal !== Infinity && x.v >= recVal);
     const head = lead && lead.v > recVal ? `<span class="atr-badge is-record">New record</span>` : "";
@@ -3111,11 +3111,13 @@ function recordsPanel(s) {
     card(ICO.net, "Most goals in a single World Cup", 13, [
       e("Just Fontaine", "FR", 13, "1958"), e("Sándor Kocsis", "HU", 11, "1954"), e("Gerd Müller", "DE", 10, "1970"),
       e("Ademir", "BR", 9, "1950"), e("Eusébio", "PT", 9, "1966"),
+      e("Ronaldo", "BR", 8, "2002"), e("Kylian Mbappé", "FR", 8, "2022"), e("Guillermo Stábile", "AR", 8, "1930"),
       boot ? { name: pName(boot.name, boot.code), code: boot.code, v: boot.goals, live: true, tap: boot.name, sub: "2026" } : null,
     ]),
     card(ICO.people, "Most goals by a team in one World Cup", 27, [
       e("Hungary", "HU", 27, "1954"), e("West Germany", "DE", 25, "1954"), e("France", "FR", 23, "1958"),
       e("Brazil", "BR", 22, "1950"), e("Brazil", "BR", 19, "1970"),
+      e("Germany", "DE", 18, "2014"), e("Brazil", "BR", 18, "2002"), e("Argentina", "AR", 18, "1930"),
       tg ? { name: S.teams[tg.code]?.name || tg.code, code: tg.code, v: tg.v, live: true, sub: "2026" } : null,
     ], { team: true }),
     card(ICO.spark, "Most goals in a match by a player", 5, [
