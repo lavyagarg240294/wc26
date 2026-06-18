@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "274";  // shown in footer; bump with the ?v= asset version
+const BUILD = "275";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -3912,7 +3912,6 @@ async function boot() {
   $("#themeState").textContent = _isDark ? "On" : "Off";
   $("#themeToggle").setAttribute("aria-pressed", String(_isDark));
   $("#themeToggle").onclick = () => setDark(currentTheme() !== "dark");
-  initUnlockedSettings();
   const hornOn = localStorage.getItem("wc26.horn") === "on";
   $("#hornState").textContent = hornOn ? "On" : "Off";
   $("#hornToggle").setAttribute("aria-pressed", String(hornOn));
