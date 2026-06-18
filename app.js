@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "273";  // shown in footer; bump with the ?v= asset version
+const BUILD = "274";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1739,6 +1739,57 @@ function teamOverview(code) {
   return `<div class="ts-ped">${tiles}</div>
     ${coach ? `<div class="ts-coach"><span class="ts-coach-badge">${esc(initials(coach))}</span><span class="ts-coach-tx"><i>Head coach</i><b>${esc(coach)}</b></span></div>` : ""}`;
 }
+// Static WC results 2002–2022. Keys: W=winner, F=finalist, 3rd=third, 4th=fourth, QF/R16/GS=round. Missing year = did not qualify.
+const WC_HIST = {
+  AR:{2002:"GS",2006:"QF",2010:"QF",2014:"F",2018:"R16",2022:"W"},
+  AU:{2006:"R16",2010:"GS",2014:"GS",2018:"GS",2022:"R16"},
+  BA:{2014:"GS"},
+  BE:{2002:"R16",2014:"QF",2018:"3rd",2022:"GS"},
+  BR:{2002:"W",2006:"QF",2010:"QF",2014:"4th",2018:"QF",2022:"QF"},
+  CA:{2022:"GS"},
+  CH:{2006:"R16",2010:"GS",2014:"R16",2018:"R16",2022:"R16"},
+  CI:{2006:"GS",2010:"GS",2014:"GS"},
+  CO:{2014:"QF",2018:"R16"},
+  CZ:{2006:"GS"},
+  DE:{2002:"F",2006:"3rd",2010:"3rd",2014:"W",2018:"GS",2022:"GS"},
+  DZ:{2010:"GS",2014:"R16"},
+  EC:{2002:"GS",2006:"R16",2014:"GS",2022:"GS"},
+  EG:{2018:"GS"},
+  ES:{2002:"QF",2006:"R16",2010:"W",2014:"GS",2018:"R16",2022:"R16"},
+  FR:{2002:"GS",2006:"F",2010:"GS",2014:"QF",2018:"W",2022:"F"},
+  "GB-ENG":{2002:"QF",2006:"QF",2010:"R16",2014:"GS",2018:"4th",2022:"QF"},
+  GH:{2006:"R16",2010:"QF",2014:"GS",2022:"GS"},
+  HR:{2002:"GS",2006:"GS",2014:"GS",2018:"F",2022:"3rd"},
+  IR:{2006:"GS",2014:"GS",2018:"GS",2022:"GS"},
+  JP:{2002:"R16",2006:"GS",2010:"R16",2014:"GS",2018:"R16",2022:"R16"},
+  KR:{2002:"4th",2006:"GS",2010:"R16",2014:"GS",2018:"GS",2022:"R16"},
+  MA:{2018:"GS",2022:"4th"},
+  MX:{2002:"R16",2006:"R16",2010:"R16",2014:"R16",2018:"R16",2022:"GS"},
+  NL:{2006:"R16",2010:"F",2014:"3rd",2022:"QF"},
+  NZ:{2010:"GS"},
+  PA:{2018:"GS"},
+  PT:{2002:"GS",2006:"4th",2010:"R16",2014:"GS",2018:"R16",2022:"QF"},
+  PY:{2002:"R16",2006:"GS",2010:"QF"},
+  QA:{2022:"GS"},
+  SA:{2002:"GS",2006:"GS",2018:"GS",2022:"GS"},
+  SE:{2002:"R16",2006:"R16",2018:"QF"},
+  SN:{2002:"QF",2018:"GS",2022:"R16"},
+  TN:{2002:"GS",2006:"GS",2018:"GS",2022:"GS"},
+  TR:{2002:"3rd"},
+  US:{2002:"QF",2006:"GS",2010:"R16",2014:"R16",2022:"R16"},
+  UY:{2002:"GS",2010:"4th",2014:"R16",2018:"QF",2022:"GS"},
+  ZA:{2002:"GS",2010:"GS"},
+};
+function wcHistory(code) {
+  const YEARS = [2002, 2006, 2010, 2014, 2018, 2022];
+  const hist = WC_HIST[code] || {};
+  if (!YEARS.some(y => hist[y])) return "";
+  const chips = YEARS.map(y => {
+    const r = hist[y] || null;
+    return `<div class="wch-chip" data-r="${r || '-'}"><span class="wch-yr">’${String(y).slice(2)}</span><span class="wch-res">${r || "–"}</span></div>`;
+  }).join("");
+  return `<div class="eyebrow">World Cup since 2002</div><div class="wch-grid">${chips}</div>`;
+}
 // a player's record at THIS World Cup — counted from the team's played matches (tolerant name match vs feed names)
 function playerWC(name, code) {
   let g = 0, a = 0, y = 0, rc = 0, apps = 0, starts = 0, cs = 0, ga = 0;
@@ -1878,6 +1929,7 @@ function openTeam(code) {
   $("#teamSheetBody").innerHTML = `
     <div class="ts-meta">${t.conf ? esc(t.conf) : ""}${group ? ` · Group ${group}` : ""}${played ? ` · <b>${ordinal(pos)}</b> after ${played} match${played > 1 ? "es" : ""}` : ""}</div>
     ${teamOverview(code)}
+    ${wcHistory(code)}
     ${isFav
       ? `<div class="ts-fav-tag">★ Your team</div>`
       : `<button class="ts-setfav" data-follow="${code}">★ Make ${esc(t.name)} my team</button>`}

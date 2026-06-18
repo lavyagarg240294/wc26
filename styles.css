@@ -909,6 +909,26 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .ts-coach-tx{display:flex;flex-direction:column;gap:1px;min-width:0}
 .ts-coach-tx i{font-style:normal;font-size:9.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);font-weight:600}
 .ts-coach-tx b{font-weight:700;font-size:14px}
+/* WC history chips (2002–2022) */
+.wch-grid{display:flex;gap:5px;flex-wrap:wrap;margin:2px 0 10px}
+.wch-chip{display:flex;flex-direction:column;align-items:center;gap:3px;padding:7px 6px;border-radius:9px;flex:1;min-width:42px;text-align:center;background:var(--line)}
+.wch-yr{font:700 9px/1 var(--mono);color:var(--ink-soft);letter-spacing:.05em}
+.wch-res{font:800 11.5px/1 var(--body)}
+.wch-chip[data-r="-"]{background:transparent;border:1px solid var(--line);opacity:.45}
+.wch-chip[data-r="-"] .wch-res{color:var(--ink-soft)}
+.wch-chip[data-r="GS"] .wch-res{color:var(--ink-soft)}
+.wch-chip[data-r="R16"]{background:color-mix(in srgb,var(--pitch) 12%,var(--card))}
+.wch-chip[data-r="R16"] .wch-res{color:var(--acc-text)}
+.wch-chip[data-r="QF"]{background:color-mix(in srgb,var(--pitch) 20%,var(--card))}
+.wch-chip[data-r="QF"] .wch-res{color:var(--acc-text)}
+.wch-chip[data-r="4th"]{background:color-mix(in srgb,var(--pitch) 28%,var(--card))}
+.wch-chip[data-r="4th"] .wch-res{color:var(--acc-text)}
+.wch-chip[data-r="3rd"]{background:color-mix(in srgb,var(--pitch) 38%,var(--card))}
+.wch-chip[data-r="3rd"] .wch-res{color:var(--acc-text)}
+.wch-chip[data-r="F"]{background:color-mix(in srgb,var(--ink-soft) 18%,var(--card))}
+.wch-chip[data-r="F"] .wch-res{color:var(--ink)}
+.wch-chip[data-r="W"]{background:color-mix(in srgb,var(--gold) 30%,var(--card))}
+.wch-chip[data-r="W"] .wch-res{color:var(--gold-text)}
 /* player — this-World-Cup record tiles */
 .pl-wc{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin:0 0 6px}
 .pl-wc .pw{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 4px;text-align:center;box-shadow:var(--shadow)}
