@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "272";  // shown in footer; bump with the ?v= asset version
+const BUILD = "273";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -3423,33 +3423,12 @@ function eggToast(msg) {
   t._t = setTimeout(() => t.classList.remove("egg-show"), 1500);
 }
 function eggUnlock() {
-  const firstTime = !localStorage.getItem("wc26.egg");
   localStorage.setItem("wc26.egg", "1");
-  initUnlockedSettings();
-  if (firstTime) eggToast("Expert view unlocked – check Settings.");
   openChampOverlay();
 }
 
 /* ---------------- expert view ---------------- */
 function currentTheme() { return document.documentElement.dataset.theme || "light"; }
-function setExpert(on) {
-  document.body.classList.toggle("expert", on);
-  localStorage.setItem("wc26.expert", on ? "on" : "off");
-  const st = $("#expertState"); if (st) st.textContent = on ? "On" : "Off";
-  $("#expertToggle")?.setAttribute("aria-pressed", String(on));
-  RENDER[S.nav]?.();   // re-render current view so cards update immediately
-}
-function initUnlockedSettings() {
-  if (!localStorage.getItem("wc26.egg")) return;
-  ["unlockedGroup", "expertToggle"].forEach(id => {
-    const el = document.getElementById(id); if (el) el.hidden = false;
-  });
-  const expertOn = localStorage.getItem("wc26.expert") === "on";
-  const ex = $("#expertState"); if (ex) ex.textContent = expertOn ? "On" : "Off";
-  $("#expertToggle")?.setAttribute("aria-pressed", String(expertOn));
-  const exBtn = document.getElementById("expertToggle");
-  if (exBtn && !exBtn._wired) { exBtn._wired = true; exBtn.onclick = () => setExpert(!document.body.classList.contains("expert")); }
-}
 
 /* ---------------- championship odds overlay ---------------- */
 function isStillIn(code) {
