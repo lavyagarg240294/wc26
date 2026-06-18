@@ -19,7 +19,7 @@
 <meta name="twitter:description" content="Live scores, lineups & stats, a win probability and predicted scoreline for every match, group tables, the Golden Boot race, and a bracket you can call to the champion. All 104 matches in your timezone, free, no sign-up.">
 <meta name="twitter:image" content="https://lavyagarg240294.github.io/wc26/assets/og.png?v=145">
 <meta name="theme-color" content="#FAFBF9">
-<script>try{var t=localStorage.getItem('wc26.theme');if(t==='dark'||(!t&&matchMedia('(prefers-color-scheme:dark)').matches)){document.documentElement.dataset.theme='dark';var m=document.querySelector('meta[name=theme-color]');if(m)m.content='#0E1822';}}catch(e){}try{document.documentElement.classList.add('booting');setTimeout(function(){document.documentElement.classList.remove('booting');},1600);}catch(e){}</script>
+<script>try{var _st=localStorage.getItem('wc26.stadium'),_dk=localStorage.getItem('wc26.theme'),_th=_st==='on'?'stadium':(_dk==='dark'||(!_dk&&matchMedia('(prefers-color-scheme:dark)').matches)?'dark':'light');document.documentElement.dataset.theme=_th;var m=document.querySelector('meta[name=theme-color]');if(m)m.content=_th==='stadium'?'#08091A':_th==='dark'?'#0E1822':'#0BA360';}catch(e){}try{if(localStorage.getItem('wc26.expert')==='on')document.body.classList.add('expert');}catch(e){}try{document.documentElement.classList.add('booting');setTimeout(function(){document.documentElement.classList.remove('booting');},1600);}catch(e){}</script>
 <!-- Privacy-friendly, cookieless analytics (GoatCounter) — OFF by default (no third-party request, no tracking).
      To enable: create a free GoatCounter site and set ANALYTICS_URL to its /count endpoint. No cookies, no PII. -->
 <script>
@@ -33,7 +33,7 @@
 <meta name="apple-mobile-web-app-title" content="World Cup 26">
 <meta name="application-name" content="World Cup 26">
 <link rel="stylesheet" href="assets/fonts.css?v=112">
-<link rel="stylesheet" href="styles.css?v=264">
+<link rel="stylesheet" href="styles.css?v=265">
 <link rel="icon" href="assets/mark.svg">
 <link rel="icon" type="image/png" href="assets/icon-32.png" sizes="32x32">
 </head>
@@ -148,6 +148,17 @@
       <span class="set-state">.ics ›</span>
     </button>
     <p class="set-note">Tip: open a team for just their matches, or a match to add a single game.</p>
+    <div class="set-group set-unlocked-hdr" id="unlockedGroup" hidden>Unlocked</div>
+    <button class="set-row" id="stadiumToggle" aria-pressed="false" hidden>
+      <span class="set-ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/><path d="M12 8l1.5 3h3l-2.5 1.8.9 3-2.9-2-2.9 2 .9-3L7.5 11h3z"/></svg></span>
+      <span class="set-tx"><b>Stadium mode</b><small>Deep navy and gold. The floodlit look.</small></span>
+      <span class="set-state" id="stadiumState">Off</span>
+    </button>
+    <button class="set-row" id="expertToggle" aria-pressed="false" hidden>
+      <span class="set-ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></span>
+      <span class="set-tx"><b>Expert view</b><small>Elo ratings and win odds on every card</small></span>
+      <span class="set-state" id="expertState">Off</span>
+    </button>
   </div>
 </dialog>
 
@@ -308,6 +319,6 @@
 <canvas id="confetti" aria-hidden="true"></canvas>
 <audio id="bgm" preload="none"></audio>
 
-<script src="app.js?v=264"></script>
+<script src="app.js?v=265"></script>
 </body>
 </html>

@@ -30,7 +30,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "264";  // shown in footer; bump with the ?v= asset version
+const BUILD = "265";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -738,6 +738,7 @@ function matchCard(m, i, opts = {}) {
     </div>
     ${(() => { const s = matchStakes(m); return s && s.definitive ? `<div class="mcard-stake">${s.lines[0]}</div>` : ""; })()}
     ${opts.sub !== false ? `<div class="mcard-sub"><span class="grp">${esc(stageL)}</span><span>${esc(m.stadium)}</span><span>${esc(m.city)}</span><span class="mcard-go">Details ›</span></div>` : ""}
+    ${(() => { if (!document.body.classList.contains("expert") || st === ST.FT) return ""; const wp = winProb(m); if (!wp) return ""; const ph = Math.round(wp.h*100), pd = Math.round(wp.d*100), pa = 100-ph-pd; return `<div class="mcard-wp"><span class="mcard-wp-bar"><span class="mcard-wp-h" style="width:${ph}%"></span><span class="mcard-wp-d" style="width:${pd}%"></span></span><span class="mcard-wp-tx">${ph}% · D ${pd}% · ${pa}%</span></div>`; })()}
     </div>
     <button class="mcard-star ${sv ? "is-on" : ""}" data-save="${m.id}" aria-pressed="${sv}" aria-label="${sv ? "Remove from saved" : "Save match"}" title="${sv ? "Remove from saved" : "Save match"}">${sv ? "★" : "☆"}</button>
   </div>`;
@@ -1199,13 +1200,12 @@ function winProbBlock(m) {
     : `<div class="wp-legend"><span class="wp-lh"><b>${ph}%</b> ${flag(h.code)} <span class="wp-lname">${esc(h.name)}</span></span><span class="wp-ld">Draw <b>${pd}%</b></span><span class="wp-la"><span class="wp-lname">${esc(a.name)}</span> ${flag(a.code)} <b>${pa}%</b></span></div>`;
   const xg = wp.xg, ph_ = xg ? Math.round(xg.h) : 0, pa_ = xg ? Math.round(xg.a) : 0;   // projected score = the expected goals rounded — a representative scoreline, not the low-scoring distribution mode
   const score = xg ? `<div class="wp-score"><span class="wp-score-lab">Projected score</span> <b>${ph_}–${pa_}</b> <span class="wp-score-p">(${xg.h.toFixed(1)}–${xg.a.toFixed(1)})</span>${wp.ko && ph_ === pa_ ? ` <span class="wp-score-et">in 90′, then ET/pens</span>` : ""}</div>` : "";
-  const why = (wp.reasons || []).length ? `<div class="wp-why"><span class="wp-why-lab">Why</span>${wp.reasons.map((rs, i) => `${i ? `<span class="wp-why-sep">·</span>` : ""}<span class="wp-why-r r-${(rs.dir || "N").toLowerCase()}">${rs.dot ? `<i class="wp-why-dot"></i>` : ""}${esc(rs.text)}</span>`).join("")}</div>` : "";
   const note = `<p class="wp-note">Dixon-Coles model from each team's <b>rating</b> (Elo, updated by results &amp; official xG)${wp.live ? ", with the live score, minutes left and red cards" : ""}.${wp.ko ? " A 90-minute draw goes to extra time and penalties (split 50/50)." : ""}</p>`;
   return `<div class="eyebrow">Win probability <span class="wp-est">${wp.live ? "live estimate" : "pre-match estimate"}</span></div>
     <div class="wp">
       <div class="wp-bar" role="img" aria-label="${esc(h.name)} ${ph}%, draw ${pd}%, ${esc(a.name)} ${pa}%">
         <span class="wp-h" style="width:${ph}%"></span><span class="wp-d" style="width:${pd}%"></span><span class="wp-a" style="width:${pa}%"></span></div>
-      ${legend}${score}${why}${note}</div>`;
+      ${legend}${score}${note}</div>`;
 }
 /* ---------------- stakes explainer ----------------
    Plain-language "what this result means for qualification" on group matches. Pure points-based reasoning over
@@ -1689,10 +1689,11 @@ function renderTeams() {
         <span class="big">Who are you backing?</span>
         <span style="color:var(--ink-soft);font-size:13.5px;max-width:300px">Pick a team: the site takes their colors, pins their matches and tracks their road to the final.</span>
         <button class="btn" id="ctaPick">Choose your team</button></div>`;
+  const _expGrid = document.body.classList.contains("expert"), _eloGrid = _expGrid ? eloSeq() : null;
   const grid = Object.keys(S.teams)
     .sort((a, b) => S.teams[a].name.localeCompare(S.teams[b].name))
     .map(c => `<button class="teamcard ${c === S.fav ? "is-fav" : ""}" data-squad="${c}" title="${esc(S.teams[c].name)}${S.teams[c].titles ? `, ${S.teams[c].titles}× World Cup champion` : ""}">
-      <span class="fl">${flag(c)}</span><span class="tc-name">${esc(S.teams[c].name)}</span>${S.teams[c].titles ? `<span class="tc-cup" aria-label="${S.teams[c].titles} World Cup titles">${TROPHY} ${S.teams[c].titles}</span>` : ""}<span class="tc-grp">${groupOf(c) || ""}</span></button>`).join("");
+      <span class="fl">${flag(c)}</span><span class="tc-name">${esc(S.teams[c].name)}</span>${S.teams[c].titles ? `<span class="tc-cup" aria-label="${S.teams[c].titles} World Cup titles">${TROPHY} ${S.teams[c].titles}</span>` : ""}<span class="tc-grp">${groupOf(c) || ""}</span>${_expGrid ? `<span class="tc-elo">${Math.round(_eloGrid[c] ?? S.teams[c]?.elo ?? 1700)}</span>` : ""}</button>`).join("");
   paint(el, head + `<div class="eyebrow">All teams <span style="color:var(--ink-soft);font-weight:600">, tap for detail</span></div><div class="teamsgrid">${grid}</div>`);
   const cta = $("#ctaPick", el); if (cta) cta.onclick = () => $("#teamDialog").showModal();
   const chg = $("#ctaChange", el); if (chg) chg.onclick = () => $("#teamDialog").showModal();
@@ -3375,8 +3376,170 @@ function buildPickers() {
 function syncTzLabels() {
   const tzl = $("#tzState"); if (tzl) tzl.textContent = `${tzCity().split(",")[0].trim()} · ${tzShort()}`;  // compact: City · GMT±N (no country / "auto" clutter)
   $("#footTz").textContent = `${tzCity()} · ${tzShort()}`;
-  const bt = $("#buildTag"); if (bt) bt.textContent = "build " + BUILD;
+  const bt = $("#buildTag");
+  if (bt) {
+    bt.textContent = "build " + BUILD;
+    if (!bt._egg) {
+      bt._egg = true;
+      let taps = 0, tapTimer;
+      bt.addEventListener("click", () => {
+        clearTimeout(tapTimer);
+        taps++;
+        bt.classList.remove("egg-tap");
+        void bt.offsetWidth;
+        bt.classList.add("egg-tap");
+        setTimeout(() => bt.classList.remove("egg-tap"), 500);
+        const left = 7 - taps;
+        if (taps >= 3 && taps < 7) eggToast(left + " more tap" + (left === 1 ? "" : "s") + "...");
+        if (taps >= 7) { taps = 0; eggUnlock(); }
+        else tapTimer = setTimeout(() => { taps = 0; }, 2200);
+      });
+    }
+  }
   setFreshness();   // re-render the "scores from / checked" times in the new timezone
+}
+function eggToast(msg) {
+  let t = document.getElementById("eggToast");
+  if (!t) { t = document.createElement("div"); t.id = "eggToast"; document.body.appendChild(t); }
+  t.textContent = msg;
+  t.classList.add("egg-show");
+  clearTimeout(t._t);
+  t._t = setTimeout(() => t.classList.remove("egg-show"), 1500);
+}
+function eggUnlock() {
+  const firstTime = !localStorage.getItem("wc26.egg");
+  localStorage.setItem("wc26.egg", "1");
+  initUnlockedSettings();      // reveal settings rows
+  openChampOverlay(firstTime); // open the overlay (first time = show a welcome note)
+}
+
+/* ---------------- stadium mode + expert view ---------------- */
+function currentTheme() { return document.documentElement.dataset.theme || "light"; }
+function setStadium(on) {
+  if (on) {
+    document.documentElement.dataset.theme = "stadium";
+    localStorage.setItem("wc26.stadium", "on");
+    localStorage.setItem("wc26.theme", "light"); // so dark toggle resets cleanly when stadium goes off
+    $('meta[name="theme-color"]')?.setAttribute("content", "#08091A");
+  } else {
+    localStorage.setItem("wc26.stadium", "off");
+    const dark = localStorage.getItem("wc26.theme") === "dark";
+    document.documentElement.dataset.theme = dark ? "dark" : "light";
+    $('meta[name="theme-color"]')?.setAttribute("content", dark ? "#0E1822" : "#0BA360");
+  }
+  const st = $("#stadiumState"); if (st) st.textContent = on ? "On" : "Off";
+  $("#stadiumToggle")?.setAttribute("aria-pressed", String(on));
+}
+function setExpert(on) {
+  document.body.classList.toggle("expert", on);
+  localStorage.setItem("wc26.expert", on ? "on" : "off");
+  const st = $("#expertState"); if (st) st.textContent = on ? "On" : "Off";
+  $("#expertToggle")?.setAttribute("aria-pressed", String(on));
+  RENDER[S.nav]?.();   // re-render current view so cards update immediately
+}
+function initUnlockedSettings() {
+  if (!localStorage.getItem("wc26.egg")) return;
+  ["unlockedGroup", "stadiumToggle", "expertToggle"].forEach(id => {
+    const el = document.getElementById(id); if (el) el.hidden = false;
+  });
+  const stadiumOn = localStorage.getItem("wc26.stadium") === "on";
+  const expertOn  = localStorage.getItem("wc26.expert")  === "on";
+  const st = $("#stadiumState"); if (st) st.textContent = stadiumOn ? "On" : "Off";
+  const ex = $("#expertState");  if (ex)  ex.textContent = expertOn  ? "On" : "Off";
+  $("#stadiumToggle")?.setAttribute("aria-pressed", String(stadiumOn));
+  $("#expertToggle")?.setAttribute("aria-pressed", String(expertOn));
+  const stBtn = document.getElementById("stadiumToggle");
+  const exBtn = document.getElementById("expertToggle");
+  if (stBtn && !stBtn._wired) { stBtn._wired = true; stBtn.onclick = () => setStadium(currentTheme() !== "stadium"); }
+  if (exBtn && !exBtn._wired) { exBtn._wired = true; exBtn.onclick = () => setExpert(!document.body.classList.contains("expert")); }
+}
+
+/* ---------------- championship odds overlay ---------------- */
+function champProbs() {
+  const R = eloSeq();
+  return Object.keys(S.teams)
+    .filter(c => S.teams[c])
+    .map(c => ({ code: c, p: Math.exp(((R[c] ?? S.teams[c]?.elo ?? 1700) - 1700) / 600) }))
+    .sort((a, b) => b.p - a.p)
+    .map((item, _, arr) => ({ ...item, p: item.p / arr.reduce((s, x) => s + x.p, 0) }));
+}
+function openChampOverlay(firstTime) {
+  let ov = document.getElementById("champOv");
+  if (!ov) {
+    ov = document.createElement("div");
+    ov.id = "champOv";
+    ov.className = "champ-ov";
+    ov.setAttribute("role", "dialog");
+    ov.setAttribute("aria-modal", "true");
+    ov.setAttribute("aria-label", "Championship odds");
+    ov.innerHTML = `<div class="champ-panel">
+      <div class="champ-ph">
+        <div class="champ-titles">
+          <p class="champ-eye">Model estimate</p>
+          <h2 class="champ-head">Championship odds</h2>
+        </div>
+        <button class="champ-x" aria-label="Close">&#x2715;</button>
+      </div>
+      <div class="champ-unlock" id="champUnlock" hidden>
+        <p class="champ-unlock-hdr">Unlocked</p>
+        <div class="champ-unlock-row">
+          <div class="champ-unlock-info">
+            <span class="champ-unlock-label">Championship odds</span>
+            <span class="champ-unlock-desc">Model estimate for all 48 teams</span>
+          </div>
+          <span class="champ-unlock-tag">below</span>
+        </div>
+        <div class="champ-unlock-row">
+          <div class="champ-unlock-info">
+            <span class="champ-unlock-label">Stadium mode</span>
+            <span class="champ-unlock-desc">Deep navy + gold theme</span>
+          </div>
+          <button class="champ-unlock-tag champ-to-settings">Settings</button>
+        </div>
+        <div class="champ-unlock-row">
+          <div class="champ-unlock-info">
+            <span class="champ-unlock-label">Expert view</span>
+            <span class="champ-unlock-desc">Elo ratings + win odds on cards</span>
+          </div>
+          <button class="champ-unlock-tag champ-to-settings">Settings</button>
+        </div>
+      </div>
+      <ol class="champ-list" id="champList"></ol>
+      <p class="champ-note">Relative strength from current ratings · tap build number 7x to reopen</p>
+    </div>`;
+    document.body.appendChild(ov);
+    ov.querySelector(".champ-x").onclick = () => {
+      ov.classList.remove("is-open");
+      setTimeout(() => { ov.hidden = true; }, 380);
+    };
+    ov.addEventListener("click", e => { if (e.target === ov) ov.querySelector(".champ-x").click(); });
+    ov.querySelectorAll(".champ-to-settings").forEach(btn => {
+      btn.onclick = () => {
+        ov.querySelector(".champ-x").click();
+        setTimeout(() => document.getElementById("settingsChip")?.click(), 420);
+      };
+    });
+  }
+  // Show unlock section only on first-ever trigger
+  const unlockEl = document.getElementById("champUnlock");
+  if (unlockEl) unlockEl.hidden = !firstTime;
+  // populate list fresh each open (ratings may have updated)
+  const probs = champProbs();
+  const top = probs[0].p;
+  document.getElementById("champList").innerHTML = probs.map((item, i) => {
+    const t = S.teams[item.code];
+    const pct = (item.p * 100).toFixed(1);
+    const barW = Math.round(item.p / top * 100);
+    return `<li class="champ-row" style="--d:${Math.min(i * 18, 500)}ms">
+      <span class="champ-rank">${i + 1}</span>
+      <span class="champ-fl">${flag(item.code)}</span>
+      <span class="champ-name">${esc(t.name)}</span>
+      <span class="champ-bar"><span class="champ-bar-fill" style="--d:${Math.min(i * 18, 500)}ms;width:${barW}%"></span></span>
+      <span class="champ-pct">${pct}%</span>
+    </li>`;
+  }).join("");
+  ov.hidden = false;
+  requestAnimationFrame(() => requestAnimationFrame(() => ov.classList.add("is-open")));
 }
 
 /* ---------------- background music (off by default) ---------------- */
@@ -3740,9 +3903,11 @@ async function boot() {
     else if (e.key === "/" && !$("#searchDialog").open && !/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || "")) { e.preventDefault(); openSearch(); }
   });
   // dark mode + goal horn (live in the Settings sheet)
-  $("#themeState").textContent = currentDark() ? "On" : "Off";
-  $("#themeToggle").setAttribute("aria-pressed", String(currentDark()));
-  $("#themeToggle").onclick = () => setDark(!currentDark());
+  const _isDark = currentTheme() === "dark";
+  $("#themeState").textContent = _isDark ? "On" : "Off";
+  $("#themeToggle").setAttribute("aria-pressed", String(_isDark));
+  $("#themeToggle").onclick = () => { setStadium(false); setDark(currentTheme() !== "dark"); };
+  initUnlockedSettings();
   const hornOn = localStorage.getItem("wc26.horn") === "on";
   $("#hornState").textContent = hornOn ? "On" : "Off";
   $("#hornToggle").setAttribute("aria-pressed", String(hornOn));

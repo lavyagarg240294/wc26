@@ -1328,6 +1328,9 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .sheet.is-stack-behind::backdrop{background:transparent}
 .sheet[open]{animation:sheetIn .3s cubic-bezier(.21,.9,.35,1)}
 @keyframes sheetIn{from{opacity:0;transform:translateY(20px) scale(.97)}}
+#searchDialog{margin:max(env(safe-area-inset-top,0px) + 12px,12px) auto auto}
+#searchDialog[open]{animation:searchSheetIn .28s cubic-bezier(.21,.9,.35,1)}
+@keyframes searchSheetIn{from{opacity:0;transform:translateY(-14px) scale(.97)}}
 .sheet-head{display:flex;justify-content:space-between;align-items:center;padding:18px 20px 12px}
 .sheet-head h3{font-family:var(--disp);font-weight:800;font-stretch:112%;font-size:17px}
 .sheet-x{color:var(--ink-soft);font-size:15px;min-width:44px;min-height:44px;display:inline-grid;place-items:center;border-radius:8px}
@@ -1546,6 +1549,76 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
   .topbar-right{gap:5px}
   #teamChipName{max-width:54px}
 }
+/* ── stadium mode ────────────────────────────────────── */
+:root[data-theme="stadium"]{
+  --paper:#08091A;
+  --card:#0E1028;
+  --ink:#DDE0F0;
+  --ink-soft:#6070A0;
+  --line:#161A38;
+  --pitch:#D4A800;
+  --acc1:#D4A800;
+  --acc-text:#C49600;
+  --acc-deep:#B08200;
+  --acc2:#060712;
+  --gold-text:var(--gold);
+  --focus:color-mix(in srgb,#D4A800 60%,#fff);
+  --shadow:0 1px 3px rgba(0,0,0,.65),0 8px 28px -10px rgba(0,0,0,.75);
+}
+:root[data-theme="stadium"] .ticker{background:#04050E;color:#DDE0F0}
+:root[data-theme="stadium"] .ticker::before{background:linear-gradient(90deg,#04050E,transparent)}
+:root[data-theme="stadium"] .ticker::after{background:linear-gradient(-90deg,#04050E,transparent)}
+
+/* ── expert mode indicators ──────────────────────────── */
+.tc-elo{display:block;font-size:10px;font-weight:600;color:var(--ink-soft);letter-spacing:.02em;margin-top:2px;font-family:var(--mono)}
+.mcard-wp{display:flex;align-items:center;gap:8px;padding:6px 12px 8px;border-top:1px solid var(--line)}
+.mcard-wp-bar{flex:1;height:3px;border-radius:2px;background:var(--line);overflow:hidden;display:flex}
+.mcard-wp-h{background:var(--acc1);height:100%}
+.mcard-wp-d{background:var(--ink-soft);height:100%;opacity:.5}
+.mcard-wp-tx{font-size:11px;color:var(--ink-soft);white-space:nowrap;font-variant-numeric:tabular-nums}
+
+/* ── championship odds overlay ───────────────────────── */
+.champ-ov{position:fixed;inset:0;background:rgba(4,5,18,.96);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);z-index:800;display:flex;align-items:flex-end;opacity:0;transition:opacity .3s ease;pointer-events:none}
+.champ-ov.is-open{opacity:1;pointer-events:auto}
+.champ-panel{width:100%;max-width:540px;margin:0 auto;max-height:92vh;background:#0C0E22;border-radius:24px 24px 0 0;border:1px solid rgba(255,255,255,.08);border-bottom:none;display:flex;flex-direction:column;transform:translateY(100%);transition:transform .4s cubic-bezier(.16,1,.3,1)}
+.champ-ov.is-open .champ-panel{transform:none}
+.champ-ph{padding:18px 20px 0;display:flex;justify-content:space-between;align-items:flex-start;flex-shrink:0}
+.champ-titles{display:flex;flex-direction:column;gap:4px}
+.champ-eye{font-size:11px;color:rgba(212,168,0,.7);letter-spacing:.07em;text-transform:uppercase;font-weight:600}
+.champ-head{font-size:22px;font-weight:600;color:#DDE0F0;line-height:1.2}
+.champ-sub{font-size:12px;color:rgba(220,225,240,.4);margin-top:2px}
+.champ-x{width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.08);border:none;color:rgba(220,225,240,.6);font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .15s}
+.champ-x:hover{background:rgba(255,255,255,.14)}
+.champ-list{list-style:none;overflow-y:auto;padding:12px 20px 24px;flex:1;display:flex;flex-direction:column;gap:4px}
+.champ-row{display:flex;align-items:center;gap:10px;padding:7px 0;opacity:0;transform:translateY(8px);transition:opacity .3s ease,transform .35s cubic-bezier(.16,1,.3,1);transition-delay:var(--d,0ms)}
+.champ-ov.is-open .champ-row{opacity:1;transform:none}
+.champ-rank{font-size:11px;color:rgba(220,225,240,.3);width:20px;text-align:right;flex-shrink:0;font-variant-numeric:tabular-nums}
+.champ-fl{font-size:18px;flex-shrink:0;line-height:1}
+.champ-name{font-size:13px;color:#DDE0F0;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.champ-bar{flex:0 0 80px;height:4px;background:rgba(255,255,255,.08);border-radius:2px;overflow:hidden}
+.champ-bar-fill{height:100%;background:linear-gradient(90deg,#D4A800,#E8C040);border-radius:2px;width:0;transition:width .6s cubic-bezier(.16,1,.3,1);transition-delay:var(--d,0ms)}
+.champ-pct{font-size:12px;color:rgba(212,168,0,.9);width:40px;text-align:right;flex-shrink:0;font-variant-numeric:tabular-nums;font-weight:600}
+.champ-note{padding:0 20px 20px;font-size:11px;color:rgba(220,225,240,.25);flex-shrink:0}
+@media(min-width:540px){.champ-panel{border-radius:24px;margin:auto;max-height:85vh;border-bottom:1px solid rgba(255,255,255,.08)}}
+/* ── unlock section inside champ overlay ─────────────── */
+.champ-unlock{margin:10px 20px 0;border:1px solid rgba(212,168,0,.18);border-radius:12px;overflow:hidden;flex-shrink:0}
+.champ-unlock-hdr{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:rgba(212,168,0,.65);font-weight:700;padding:9px 14px 8px;background:rgba(212,168,0,.06);border-bottom:1px solid rgba(212,168,0,.1)}
+.champ-unlock-row{display:flex;align-items:center;gap:10px;padding:9px 14px;border-top:1px solid rgba(255,255,255,.05)}
+.champ-unlock-row:first-of-type{border-top:none}
+.champ-unlock-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.champ-unlock-label{font-size:13px;font-weight:500;color:#DDE0F0}
+.champ-unlock-desc{font-size:11px;color:rgba(220,225,240,.4)}
+.champ-unlock-tag{font-size:11px;font-weight:600;color:rgba(212,168,0,.75);background:rgba(212,168,0,.1);border:1px solid rgba(212,168,0,.18);border-radius:100px;padding:3px 10px;white-space:nowrap;flex-shrink:0}
+button.champ-unlock-tag{cursor:pointer;transition:background .15s,color .15s}
+button.champ-unlock-tag:hover{background:rgba(212,168,0,.22);color:rgba(212,168,0,1)}
+/* ── build-tag easter egg ─────────────────────────────── */
+#buildTag{cursor:pointer;transition:color .45s ease}
+#buildTag.egg-tap{color:#D4A800;transition:color .05s ease}
+#eggToast{position:fixed;bottom:72px;left:50%;transform:translateX(-50%) translateY(6px);background:rgba(10,12,24,.88);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);color:#fff;font-size:13px;font-weight:500;padding:8px 18px;border-radius:100px;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;z-index:9999;white-space:nowrap}
+#eggToast.egg-show{opacity:1;transform:translateX(-50%) translateY(0)}
+.egg-p{position:fixed;font-size:20px;pointer-events:none;z-index:9999;animation:eggFly .95s cubic-bezier(.2,.8,.3,1) forwards}
+@keyframes eggFly{0%{transform:translate(0,0) rotate(0deg) scale(1.3);opacity:1}100%{transform:translate(var(--dx),var(--dy)) rotate(var(--rot)) scale(0);opacity:0}}
+
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation:none!important;transition:none!important}
   html{scroll-behavior:auto}
