@@ -758,6 +758,7 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .welcome-pt-tx small{font-size:12px;color:var(--ink-soft);line-height:1.4}
 .welcome-pt-tx small b{color:var(--ink);font-weight:700}
 .welcome-foot{margin:9px 0 2px;font-size:11px;color:var(--ink-soft);opacity:.72;letter-spacing:.02em}
+.welcome-hint{font-style:italic;opacity:.6}
 .welcome-actions{display:flex;flex-direction:column;gap:9px}
 .welcome-actions .btn{width:100%;justify-content:center}
 .foot-about{font:inherit;color:var(--ink-soft);text-decoration:underline;text-decoration-color:color-mix(in srgb,var(--acc1) 45%,transparent);text-underline-offset:2px;cursor:pointer}
