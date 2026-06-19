@@ -57,7 +57,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "278";  // shown in footer; bump with the ?v= asset version
+const BUILD = "279";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1957,9 +1957,12 @@ function openTeam(code) {
     <div class="ts-meta">${t.conf ? esc(t.conf) : ""}${group ? ` · Group ${group}` : ""}${played ? ` · <b>${ordinal(pos)}</b> after ${played} match${played > 1 ? "es" : ""}` : ""}</div>
     ${teamOverview(code)}
     ${wcHistory(code)}
-    ${isFav
-      ? `<div class="ts-fav-tag">★ Your team</div>`
-      : `<button class="ts-setfav" data-follow="${code}">★ Make ${esc(t.name)} my team</button>`}
+    <div class="ts-actrow">
+      ${isFav
+        ? `<div class="ts-fav-tag">★ Your team</div>`
+        : `<button class="ts-setfav" data-follow="${code}">★ Make ${esc(t.name)} my team</button>`}
+      <button class="ts-compare" data-compare-team="${code}">${ICO.compare} Compare</button>
+    </div>
     ${styleSection(code)}
     ${tmsHtml}
     ${sq ? `<details class="ts-squad" open><summary><span>Squad</span><small>${sq.players.length} players${teamCoach(code) ? ` · ${esc(teamCoach(code))}` : ""}</small></summary>${rosterMarkup(sq, code)}</details>`
@@ -2093,8 +2096,10 @@ function buildSearchIndex() {
   return { teams, players, matches };
 }
 let compareSeed = null;   // when set, the search overlay is in "pick a player to compare" mode
-function openSearch() { compareSeed = null; openSearchOverlay(); }
-function openCompareSearch(seed) { compareSeed = seed; openSearchOverlay(); }
+let compareTeamSeed = null;   // when set (a team code), the search overlay is in "pick a team to compare" mode
+function openSearch() { compareSeed = null; compareTeamSeed = null; openSearchOverlay(); }
+function openCompareSearch(seed) { compareSeed = seed; compareTeamSeed = null; openSearchOverlay(); }
+function openTeamCompareSearch(code) { compareTeamSeed = code; compareSeed = null; openSearchOverlay(); }
 // a gentle roll of example queries that stands in for a static placeholder on the main search
 const SEARCH_ROLL = ["Brazil", "Mbappé", "Miami", "Argentina", "Mexico", "Spain", "Senegal", "Boston"];
 let _rollTimer = null, _rollIdx = 0;
@@ -2122,12 +2127,15 @@ function openSearchOverlay() {
   const inp = $("#searchInput"), roll = $("#searchRoll");
   inp.value = "";
   if (compareSeed) { inp.placeholder = `Compare ${pName(compareSeed.name, compareSeed.code)} with…`; stopSearchRoll(); if (roll) roll.classList.add("is-hidden"); }
+  else if (compareTeamSeed) { inp.placeholder = `Compare ${esc(S.teams[compareTeamSeed]?.name || compareTeamSeed)} with…`; stopSearchRoll(); if (roll) roll.classList.add("is-hidden"); }
   else { inp.placeholder = ""; startSearchRoll(); }
   renderSearch("");
   showSheet($("#searchDialog"));
   $("#searchResults").onclick = e => {              // close, then let the doc handler open the target…
     const cmp = e.target.closest("[data-compare]");  // …unless we're in compare mode and a player was picked
     if (cmp) { const [n, c] = cmp.dataset.compare.split("|"); const seed = compareSeed; compareSeed = null; $("#searchDialog").close(); openCompare(seed, { name: n, code: c }); return; }
+    const cmpT = e.target.closest("[data-compare-pick]");   // team-compare mode: a second team was picked
+    if (cmpT) { const seed = compareTeamSeed; compareTeamSeed = null; $("#searchDialog").close(); openTeamCompare(seed, cmpT.dataset.comparePick); return; }
     $("#searchDialog").close();
   };
   setTimeout(() => inp.focus(), 60);
@@ -2135,6 +2143,15 @@ function openSearchOverlay() {
 function renderSearch(raw) {
   const q = raw.trim().toLowerCase(), res = $("#searchResults"), cmp = !!compareSeed;
   const tname = c => esc(S.teams[c]?.name || c);
+  if (compareTeamSeed) {   // team-compare mode: teams only, tapping picks the second team
+    if (!q) { res.innerHTML = ""; return; }
+    const ts = SIDX.teams.filter(t => ((t.name || "").toLowerCase().includes(q) || t.code.toLowerCase() === q || (t.conf || "").toLowerCase().includes(q)) && t.code !== compareTeamSeed)
+      .sort((a, b) => a.name.localeCompare(b.name)).slice(0, 10);
+    res.innerHTML = ts.length ? `<div class="sr-label">Compare with…</div>` + ts.map(t =>
+      `<button class="sr-row" data-compare-pick="${t.code}"><span class="fl">${flag(t.code)}</span><span class="sr-name">${esc(t.name)}<small>${esc(t.conf)}</small></span></button>`).join("")
+      : `<div class="sr-hint">No teams match “${esc(raw.trim())}”.</div>`;
+    return;
+  }
   if (!q) { res.innerHTML = ""; return; }   // empty state: the placeholder (rolling suggestions, or "Compare X with…") says it all
   const has = s => (s || "").toLowerCase().includes(q);
   // relevance: a word that *starts* with the query beats a mid-word hit (so "mess" → Messi, not a club coincidence)
@@ -2210,6 +2227,108 @@ function openCompare(a, b) {
     <button class="pl-compare" data-recompare="${esc(a.name)}|${a.code}">${ICO.compare} Compare ${esc(a.name)} with someone else</button></div>`;
   const re = $("#playerBody [data-recompare]");
   if (re) re.onclick = () => { const [n, c] = re.dataset.recompare.split("|"); $("#playerDialog").close(); openCompareSearch({ name: n, code: c }); };
+  showSheet($("#playerDialog"));
+}
+// neutral-venue model win-probability + expected score between any two teams (same bivariate-Poisson core as winProb,
+// minus match context — no host edge, group base rate). Powers the "if they met now" line in team comparison.
+function h2hProb(aCode, bCode) {
+  const ea = teamRating(aCode), eb = teamRating(bCode);
+  const mu = 1.35, sup = Math.max(-2.5, Math.min(2.5, (ea - eb) / 300));
+  const la = Math.max(0.18, mu + sup / 2), lb = Math.max(0.18, mu - sup / 2);
+  let pa = 0, pd = 0, pb = 0, xa = 0, xb = 0;
+  for (let x = 0; x < 9; x++) for (let y = 0; y < 9; y++) {
+    const p = _pois(x, la) * _pois(y, lb) * _dcTau(x, y, la, lb);
+    if (x > y) pa += p; else if (x < y) pb += p; else pd += p;
+    xa += x * p; xb += y * p;
+  }
+  const tot = pa + pd + pb || 1;
+  return { a: pa / tot, d: pd / tot, b: pb / tot, xa: xa / tot, xb: xb / tot };
+}
+// every comparable datum for one team, gathered from the live tables, the strength model and the static meta
+function teamCompareData(code) {
+  const t = S.teams[code] || {};
+  const g = groupOf(code), tbl = g ? standings(g) : [];
+  const r = tbl.find(x => x.code === code) || {};
+  const tms = teamMatchStats(code);
+  const avg = key => { const vs = tms.map(x => x[key]).filter(v => v != null); return vs.length ? vs.reduce((s, v) => s + v, 0) / vs.length : null; };
+  const style = (tournamentStats().style || []).find(x => x.code === code) || null;
+  return {
+    code, name: t.name || code, conf: t.conf || "", c1: t.c1 || "var(--ink-soft)",
+    rank: fifaRankOf(code), elo: Math.round(teamRating(code)), titles: t.titles || 0, apps: t.apps,
+    best: t.best || "",
+    played: r.p || 0, w: r.w || 0, d: r.d || 0, l: r.l || 0, gf: r.gf || 0, ga: r.ga || 0,
+    gd: (r.gf || 0) - (r.ga || 0), pts: r.pts || 0, style,
+  };
+}
+// head-to-head comparison of two TEAMS (reuses the player dialog shell). Mirrors the player-compare layout but
+// richer: a model win-probability centrepiece, tournament vs-bars, strength rows, mirrored style bars, pedigree.
+function openTeamCompare(aCode, bCode) {
+  if (!aCode || !bCode || !S.teams[aCode] || !S.teams[bCode]) return;
+  const A = teamCompareData(aCode), B = teamCompareData(bCode);
+  const wp = h2hProb(aCode, bCode);
+  const pa = Math.round(wp.a * 100), pd = Math.round(wp.d * 100), pb = 100 - pa - pd;
+  const styleList = tournamentStats().style || [];
+  const pctOf = (key, val) => { const vs = styleList.map(x => x[key]); const lo = Math.min(...vs), hi = Math.max(...vs); return hi > lo ? Math.round((val - lo) / (hi - lo) * 100) : 50; };
+  const head = T => `<div class="cmp-p cmp-team">
+    <span class="cmp-crest">${flag(T.code)}</span>
+    <b>${esc(T.name)}</b><span>${esc(T.conf)}${T.rank ? ` · #${T.rank}` : ""}</span></div>`;
+  const row = (label, av, bv, higherWins = true) => {
+    const an = av == null ? null : parseFloat(av), bn = bv == null ? null : parseFloat(bv);
+    const aWin = an != null && bn != null && an !== bn && (higherWins ? an > bn : an < bn);
+    const bWin = an != null && bn != null && an !== bn && (higherWins ? bn > an : bn < an);
+    return `<div class="cmp-row"><span class="cmp-a ${aWin ? "win" : ""}">${av ?? "–"}</span><span class="cmp-lbl">${label}</span><span class="cmp-b ${bWin ? "win" : ""}">${bv ?? "–"}</span></div>`;
+  };
+  const axis = (label, aPct, bPct, aVal, bVal) => `<div class="cmpx">
+    <span class="cmpx-v cmpx-va">${aVal}</span>
+    <span class="cmpx-tk cmpx-l"><i style="width:${aPct}%;background:${A.c1}"></i></span>
+    <span class="cmpx-lbl">${label}</span>
+    <span class="cmpx-tk cmpx-r"><i style="width:${bPct}%;background:${B.c1}"></i></span>
+    <span class="cmpx-v cmpx-vb">${bVal}</span></div>`;
+  const hasPlayed = A.played || B.played;
+  const styleRows = (A.style && B.style) ? [
+    ["poss", "Possession", v => v.toFixed(0) + "%"],
+    ["passAcc", "Passing", v => v.toFixed(0) + "%"],
+    ["directness", "Direct play", v => v.toFixed(0) + "%"],
+    ["pressPg", "Pressing", v => v.toFixed(0)],
+    ["shotsPg", "Attacking", v => v.toFixed(1)],
+  ].map(([k, lbl, f]) => axis(lbl, pctOf(k, A.style[k]), pctOf(k, B.style[k]), f(A.style[k]), f(B.style[k]))).join("") : "";
+  const histStrip = T => { const h = WC_HIST[T.code]; if (!h) return ""; return [2002, 2006, 2010, 2014, 2018, 2022].map(y =>
+    `<div class="wch-chip" data-r="${h[y] || '-'}"><span class="wch-yr">’${String(y).slice(2)}</span><span class="wch-res">${h[y] || "–"}</span></div>`).join(""); };
+  const hA = histStrip(A), hB = histStrip(B);
+  const sign = n => (n > 0 ? "+" : "") + n;
+  $("#playerTitle").textContent = "Compare teams";
+  $("#playerBody").innerHTML = `<div class="cmp cmp-teams">
+    <div class="cmp-head">${head(A)}<span class="cmp-vs">vs</span>${head(B)}</div>
+    <div class="eyebrow">If they met now <span class="wp-est">model estimate</span></div>
+    <div class="wp">
+      <div class="wp-bar" role="img" aria-label="${esc(A.name)} ${pa}%, draw ${pd}%, ${esc(B.name)} ${pb}%"><span class="wp-h" style="width:${pa}%"></span><span class="wp-d" style="width:${pd}%"></span><span class="wp-a" style="width:${pb}%"></span></div>
+      <div class="wp-legend"><span class="wp-lh"><b>${pa}%</b> ${flag(A.code)} <span class="wp-lname">${esc(A.name)}</span></span><span class="wp-ld">Draw <b>${pd}%</b></span><span class="wp-la"><span class="wp-lname">${esc(B.name)}</span> ${flag(B.code)} <b>${pb}%</b></span></div>
+      <div class="wp-score"><span class="wp-score-lab">Projected score</span> <b>${Math.round(wp.xa)}–${Math.round(wp.xb)}</b> <span class="wp-score-p">(${wp.xa.toFixed(1)}–${wp.xb.toFixed(1)})</span></div>
+    </div>
+    ${hasPlayed ? `<div class="eyebrow">This tournament</div><div class="cmp-rows">
+      ${row("Points", A.pts, B.pts)}
+      <div class="cmp-row"><span class="cmp-a">${A.w}-${A.d}-${A.l}</span><span class="cmp-lbl">W-D-L</span><span class="cmp-b">${B.w}-${B.d}-${B.l}</span></div>
+      ${row("Goals for", A.gf, B.gf)}
+      ${row("Goals against", A.ga, B.ga, false)}
+      ${row("Goal difference", sign(A.gd), sign(B.gd))}
+    </div>` : ""}
+    <div class="eyebrow">Strength &amp; ranking</div><div class="cmp-rows">
+      ${row("Elo rating", A.elo, B.elo)}
+      ${row("FIFA world rank", A.rank ? "#" + A.rank : null, B.rank ? "#" + B.rank : null, false)}
+    </div>
+    ${styleRows ? `<div class="eyebrow">Playing style <span class="wp-est">vs the field</span></div><div class="cmpx-card">${styleRows}</div>` : ""}
+    <div class="eyebrow">Pedigree</div><div class="cmp-rows">
+      ${row("World Cup titles", A.titles, B.titles)}
+      ${row("World Cups played", A.apps, B.apps)}
+      <div class="cmp-row"><span class="cmp-a cmp-txt">${A.best ? esc(A.best.split(" · ")[0]) : "–"}</span><span class="cmp-lbl">Best finish</span><span class="cmp-b cmp-txt">${B.best ? esc(B.best.split(" · ")[0]) : "–"}</span></div>
+    </div>
+    ${(hA || hB) ? `<div class="eyebrow">World Cup since 2002</div>
+      <div class="cmp-hist"><span class="cmp-hist-fl">${flag(A.code)}</span><div class="wch-grid">${hA || `<span class="cmp-hist-none">No appearances</span>`}</div></div>
+      <div class="cmp-hist"><span class="cmp-hist-fl">${flag(B.code)}</span><div class="wch-grid">${hB || `<span class="cmp-hist-none">No appearances</span>`}</div></div>` : ""}
+    <button class="pl-compare" data-recompare-team="${A.code}">${ICO.compare} Compare ${esc(A.name)} with another team</button>
+  </div>`;
+  const re = $("#playerBody [data-recompare-team]");
+  if (re) re.onclick = () => { $("#playerDialog").close(); openTeamCompareSearch(re.dataset.recompareTeam); };
   showSheet($("#playerDialog"));
 }
 
@@ -4104,6 +4223,8 @@ async function boot() {
     if (cal) { e.stopPropagation(); const m = S.matches.find(x => x.id === cal.dataset.cal); if (m) { const h = slotInfo(m, "home"), a = slotInfo(m, "away"); downloadICS([m], `${h.code ? h.name : slotText(m, "home", h)} v ${a.code ? a.name : slotText(m, "away", a)}`); } return; }
     const shm = e.target.closest("[data-share-match]");   // share a match: prediction card (upcoming/live) or result-card link (finished)
     if (shm) { e.stopPropagation(); const m = S.matches.find(x => x.id === shm.dataset.shareMatch); if (m) shareMatchCard(m); return; }
+    const cmt = e.target.closest("[data-compare-team]");   // "Compare" from inside the team sheet → pick a second team
+    if (cmt) { e.stopPropagation(); $("#teamSheet").close(); openTeamCompareSearch(cmt.dataset.compareTeam); return; }
     const sq = e.target.closest("[data-squad]");
     if (sq && sq.dataset.squad) { openTeam(sq.dataset.squad); return; }
     const ab = e.target.closest("[data-about]");   // "how the format works" → tournament info sheet

@@ -1343,6 +1343,28 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .cmp-a.win,.cmp-b.win{color:var(--acc-text)}
 .cmp-a.cmp-txt,.cmp-b.cmp-txt{font-family:var(--body);font-size:12.5px;font-weight:600;color:var(--ink-soft)}
 .cmp-lbl{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);font-weight:600;padding:0 8px;white-space:nowrap;text-align:center}
+/* team comparison: action row in the team sheet + the team-compare view */
+.ts-actrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:10px 0 2px}
+.ts-actrow .ts-setfav,.ts-actrow .ts-fav-tag{margin:0}
+.ts-compare{display:inline-flex;align-items:center;gap:6px;padding:7px 13px;border-radius:999px;font-weight:600;font-size:12.5px;cursor:pointer;border:1px solid var(--line);background:transparent;color:var(--ink-soft);transition:color .15s,border-color .15s,background .15s}
+.ts-compare svg{width:15px;height:15px}
+.ts-compare:hover{color:var(--acc-text);border-color:color-mix(in srgb,var(--acc1) 45%,var(--line));background:color-mix(in srgb,var(--acc1) 6%,transparent)}
+.cmp-team .cmp-crest{font-size:46px;line-height:1;filter:drop-shadow(0 3px 6px rgba(13,27,42,.18))}
+.cmp-team b{margin-top:6px}
+/* mirrored vs-bars (team-coloured, grow from the centre label outward) */
+.cmpx-card{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:4px 14px}
+.cmpx{display:grid;grid-template-columns:30px 1fr auto 1fr 30px;align-items:center;gap:8px;padding:9px 0;border-top:1px solid color-mix(in srgb,var(--line) 55%,transparent)}
+.cmpx:first-child{border-top:none}
+.cmpx-v{font-family:var(--mono);font-weight:700;font-size:12px;color:var(--ink);font-variant-numeric:tabular-nums}
+.cmpx-va{text-align:right}.cmpx-vb{text-align:left}
+.cmpx-tk{height:8px;border-radius:99px;background:color-mix(in srgb,var(--ink) 7%,var(--card));overflow:hidden;display:flex}
+.cmpx-tk i{height:100%;border-radius:99px;transition:width .5s cubic-bezier(.2,.8,.2,1)}
+.cmpx-l{justify-content:flex-end}.cmpx-l i{margin-left:auto}
+.cmpx-lbl{font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);font-weight:600;white-space:nowrap;text-align:center}
+.cmp-hist{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.cmp-hist .cmp-hist-fl{font-size:20px;flex:0 0 auto}
+.cmp-hist .wch-grid{margin:0;flex:1}
+.cmp-hist-none{font-size:11.5px;color:var(--ink-soft);padding:7px 2px}
 /* recent-form chips (W/D/L) */
 .form{display:inline-flex;gap:3px;vertical-align:middle}
 .form-d{display:inline-block;width:17px;height:17px;border-radius:5px;font-family:var(--disp);font-weight:800;font-size:10px;line-height:17px;text-align:center;color:#fff}
