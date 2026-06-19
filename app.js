@@ -15,12 +15,13 @@ const S = {
   _lastResults: null, _lastDetails: null, lastChecked: null,
 };
 const SIM_SLOTS = 3;
-const SIM_SLOT_NAMES = ["Bracket A", "Bracket B", "Bracket C"];
-// the three saved brackets, with one-time migration from the legacy single-bracket key (wc26.sim).
+const SIM_SLOT_NAMES = ["Scenario A", "Scenario B", "Scenario C"];
+const SIM_OLD_NAMES = ["Bracket A", "Bracket B", "Bracket C"];   // migrate the previous default names so existing users see "Scenario"
+// the three saved scenarios, with one-time migration from the legacy single-bracket key (wc26.sim).
 function loadSimBox() {
-  const blank = i => ({ name: SIM_SLOT_NAMES[i] || ("Bracket " + (i + 1)), order: {}, thirds: [], ko: {} });
+  const blank = i => ({ name: SIM_SLOT_NAMES[i] || ("Scenario " + (i + 1)), order: {}, thirds: [], ko: {} });
   const clean = (s, i) => ({
-    name: typeof s?.name === "string" && s.name.trim() ? s.name.slice(0, 24) : (SIM_SLOT_NAMES[i] || "Bracket " + (i + 1)),
+    name: typeof s?.name === "string" && s.name.trim() && SIM_OLD_NAMES.indexOf(s.name.trim()) < 0 ? s.name.slice(0, 24) : (SIM_SLOT_NAMES[i] || "Scenario " + (i + 1)),
     order: s?.order && typeof s.order === "object" ? s.order : {},
     thirds: Array.isArray(s?.thirds) ? s.thirds : [],
     ko: s?.ko && typeof s.ko === "object" ? s.ko : {},
@@ -57,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "285";  // shown in footer; bump with the ?v= asset version
+const BUILD = "286";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1418,11 +1419,11 @@ function heroStack(liveMatches, nextM) {
 }
 function heroBlock(heroM, isLive) {
   const h = slotInfo(heroM, "home"), a = slotInfo(heroM, "away"), r = res(heroM);
-  return `<div class="hero" data-mid="${heroM.id}" role="button" tabindex="0" aria-label="Match details">
+  return `<div class="hero" data-hero-live="${heroM.id}" role="button" tabindex="0" aria-label="Follow ${esc(h.name)} v ${esc(a.name)} in the Live tab">
     <div class="hero-tag ${isLive ? "is-live" : ""}">
       ${isLive ? `${ballSVG("live-ball")} Live now` : `${isFavMatch(heroM) ? "Your team · " : ""}Next kickoff`}<span style="color:var(--ink-soft);font-weight:600"> · ${esc(heroM.group ? "Group " + heroM.group : heroM.round)}</span>
       <span class="hero-actions">
-        <span class="hero-go">Details ›</span>
+        <span class="hero-go">Follow ›</span>
       </span>
     </div>
     <div class="hero-teams">
@@ -1433,11 +1434,11 @@ function heroBlock(heroM, isLive) {
       <div class="hero-side"><span class="hero-flag">${a.code ? flag(a.code) : TBD_FLAG}</span><span class="hero-name">${esc(a.name)}</span></div>
     </div>
     ${(() => { const s = matchStakes(heroM); return s ? `<div class="hero-stakes">${s.lines[0]}</div>` : ""; })()}
-    ${(() => { const wp = winProb(heroM); if (!wp) return "";
+    ${!isLive ? (() => { const wp = winProb(heroM); if (!wp) return "";   // pre-match only — odds matter less once the game is under way
       if (wp.ko && wp.adv) { const ph = Math.round(wp.adv.h * 100), pa = 100 - ph;   // knockout: show advance % (a 90' draw goes to ET/pens), no "draw" segment
         return `<div class="hero-wp" aria-label="${esc(h.name)} ${ph}% to advance, ${esc(a.name)} ${pa}%"><span class="hero-wp-bar"><i class="wp-h" style="width:${ph}%"></i><i class="wp-a" style="width:${pa}%"></i></span><span class="hero-wp-tx"><b>${ph}%</b><span>to advance</span><b>${pa}%</b></span></div>`; }
       const ph = Math.round(wp.h * 100), pd = Math.round(wp.d * 100), pa = 100 - ph - pd;
-      return `<div class="hero-wp" aria-label="${esc(h.name)} ${ph}%, draw ${pd}%, ${esc(a.name)} ${pa}%"><span class="hero-wp-bar"><i class="wp-h" style="width:${ph}%"></i><i class="wp-d" style="width:${pd}%"></i><i class="wp-a" style="width:${pa}%"></i></span><span class="hero-wp-tx"><b>${ph}%</b><span>draw ${pd}%</span><b>${pa}%</b></span></div>`; })()}
+      return `<div class="hero-wp" aria-label="${esc(h.name)} ${ph}%, draw ${pd}%, ${esc(a.name)} ${pa}%"><span class="hero-wp-bar"><i class="wp-h" style="width:${ph}%"></i><i class="wp-d" style="width:${pd}%"></i><i class="wp-a" style="width:${pa}%"></i></span><span class="hero-wp-tx"><b>${ph}%</b><span>draw ${pd}%</span><b>${pa}%</b></span></div>`; })() : ""}
     ${!isLive ? `<div class="countdown" id="cd" data-utc="${heroM.utc}">
       ${["h", "m"].map((k, i) => `${i ? `<span class="cd-sep" aria-hidden="true">:</span>` : ""}<div class="cd-cell"><span class="cd-num" data-k="${k}">–</span><span class="cd-lab">${{ h: "hrs", m: "min" }[k]}</span></div>`).join("")}
     </div>` : ""}
@@ -1518,8 +1519,7 @@ function liveHero(m) {
     ? `<div class="lh-score">${r.h ?? 0}<span>–</span>${r.a ?? 0}</div>${r.hp != null ? `<div class="lh-pens">${r.hp}–${r.ap} pens</div>` : ""}`
     : `<div class="lh-cd" data-utc="${m.utc}">${["d", "h", "m"].map(k => `<span class="lh-cd-cell"><b data-k="${k}">–</b><i>${{ d: "days", h: "hrs", m: "min" }[k]}</i></span>`).join("")}</div>`;
   return `<div class="live-hero" style="--lha:${c1};--lhb:${c2}">
-    <div class="lh-top">${statusEl}<span class="lh-stage">${esc(stage)}</span>
-      <button class="lh-open" data-mid="${m.id}">Full details ›</button></div>
+    <div class="lh-top">${statusEl}<span class="lh-stage">${esc(stage)}</span></div>
     <div class="lh-teams">${side(h, "home")}<div class="lh-mid">${mid}</div>${side(a, "away")}</div>
     <div class="lh-meta"><span>${esc(m.stadium)}</span><span>${esc(m.city)}</span>${r?.facts?.att ? `<span>${ICO.people} ${(+r.facts.att).toLocaleString()}</span>` : ""}</div>
   </div>`;
@@ -1623,8 +1623,7 @@ function renderLive() {
     : ft
     ? [liveStars(m), mdFlow(r, h, a), mdTimeline(r, h.code, a.code), mdKeyStats(r, m), mdStats(r, true), pXi, mdReport(m), mdEfi(m, true), wpSection]
     : [liveStars(m), liveContext(m), wpSection, stakesBlock(m), pXi];
-  el.innerHTML = viewH2("view-live") + liveSwitcher(pool, m.id) + liveHero(m) + sections.filter(Boolean).join("") + koPath(m);
-  $$("[data-focus]", el).forEach(b => b.onclick = () => { _liveFocus = b.dataset.focus; renderLive(); });
+  el.innerHTML = viewH2("view-live") + liveHero(m) + sections.filter(Boolean).join("") + koPath(m);
   startLiveCd();
   if (!el.hidden) window.scrollTo(0, keepY);
 }
@@ -1855,7 +1854,7 @@ function myTeamBlock() {
     ${squadSection(S.fav)}
     ${done.length ? `<div class="eyebrow">Played</div>` + done.map((m, i) => matchCard(m, i)).join("") : ""}
     <div class="eyebrow">Fixtures</div>
-    ${upcoming.length ? upcoming.map((m, i) => matchCard(m, i)).join("") : `<div class="empty">No scheduled matches. Check the bracket for their knockout path.</div>`}
+    ${upcoming.length ? upcoming.map((m, i) => matchCard(m, i)).join("") : `<div class="empty">No scheduled matches. Check Predict for their knockout path.</div>`}
     ${group ? `<div class="eyebrow">Group ${group}</div><div class="gwrap">${groupTable(group, 0)}</div>
       <div class="legend"><span class="l1"><i></i>Top 2 advance</span><span class="l3"><i></i>3rd: possible best-8 spot</span></div>` : ""}`;
 }
@@ -3062,12 +3061,12 @@ function renderSimDash() {
     </div>`;
   };
   el.innerHTML = viewH2("view-sim") + `
-    <p class="pdash-intro">${ICO.spark} Keep up to three brackets — a gut pick, the chalk, a wildcard. Tap one to build it, all the way to a champion. Saved on this device.</p>
+    <p class="pdash-intro">${ICO.spark} Keep up to three scenarios — a gut pick, the chalk, a wildcard. Tap one to build it, all the way to a champion. Saved on this device.</p>
     <div class="pdash">${S.simBox.slots.map(card).join("")}</div>`;
   $$("[data-slot-open]", el).forEach(b => b.onclick = () => { setActiveSlot(+b.dataset.slotOpen); S.simView = "edit"; renderSim(); });
   $$("[data-slot-rename]", el).forEach(b => b.onclick = () => {
     const i = +b.dataset.slotRename, cur = S.simBox.slots[i];
-    const name = prompt("Name this bracket:", cur.name);
+    const name = prompt("Name this scenario:", cur.name);
     if (name && name.trim()) { cur.name = name.trim().slice(0, 24); saveSim(); renderSim(); }
   });
   $$("[data-slot-fill]", el).forEach(b => b.onclick = () => { fillSlotFromStandings(+b.dataset.slotFill); renderSim(); flashToast("Filled from current standings"); });
@@ -3111,7 +3110,7 @@ function renderSimEditor() {
   const cols = [["r32", "Round of 32"], ["r16", "Round of 16"], ["qf", "Quarter-finals"], ["sf", "Semi-finals"], ["final", "Final"]];
   const third = S.matches.find(m => m.stage === "third");
   const need = 8 - S.sim.thirds.length;
-  const simBracket = !thirdsDone ? `<div class="empty">Pick ${need} more third-placed team${need === 1 ? "" : "s"} above and your knockout bracket appears here, then tap your way to a champion.</div>`
+  const simBracket = !thirdsDone ? `<div class="empty">Pick ${need} more third-placed team${need === 1 ? "" : "s"} above and your knockout path appears here, then tap your way to a champion.</div>`
     : alloc === "impossible" ? `<div class="empty">That combination of thirds can't fill the slots. Swap one and try again.</div>`
     : `<div class="bracket-scroll"><div class="bracket"><svg class="bracket-lines" aria-hidden="true"></svg>
         ${cols.map(([st, title]) => {
@@ -3127,7 +3126,7 @@ function renderSimEditor() {
   const champTeaser = `<button class="sim-goal ${champ ? "is-set" : ""}" id="simGoal" type="button">
     <span class="sg-cup">${TROPHY}</span>
     ${champ
-      ? `<span class="sg-fl">${flag(champ)}</span><span class="sg-tx"><b>${esc(S.teams[champ].name)}</b><small>Your predicted world champions · tap to edit the bracket</small></span>`
+      ? `<span class="sg-fl">${flag(champ)}</span><span class="sg-tx"><b>${esc(S.teams[champ].name)}</b><small>Your predicted world champions · tap to edit your scenario</small></span>`
       : `<span class="sg-tx"><b>Crown your champion</b><small>Tap a winner in each knockout tie, all the way to the final →</small></span>`}
     <span class="sg-prog" aria-label="${koPicked} of ${koMatches.length} ties picked">${koPicked}<i>/${koMatches.length}</i></span>
   </button>`;
@@ -3141,11 +3140,11 @@ function renderSimEditor() {
   const step = (id, head, body) => `<details class="sim-step" id="${id}"${stepOpen(id) ? " open" : ""}><summary class="eyebrow">${head}<span class="sim-chev" aria-hidden="true">▾</span></summary><div class="sim-step-body">${body}</div></details>`;
   el.innerHTML = viewH2("view-sim") + `
     <div class="sim-edhead">
-      <button class="sim-back" id="simBack" aria-label="Back to your brackets">‹ Brackets</button>
+      <button class="sim-back" id="simBack" aria-label="Back to your scenarios">‹ Scenarios</button>
       <span class="sim-edname">${esc(S.simBox.slots[S.simBox.active].name)}</span>
     </div>
     ${champTeaser}
-    ${firstRender && Object.keys(S.sim.ko).length === 0 ? `<p class="sim-firsthint">${ICO.spark} <b>New here?</b> The three steps below build your bracket: <b>order each group</b>, <b>pick the best thirds</b>, then <b>tap winners</b> to a champion. It's pre-filled from the live tables, so you can dive straight into the bracket too. Saved on this device.</p>` : ""}
+    ${firstRender && Object.keys(S.sim.ko).length === 0 ? `<p class="sim-firsthint">${ICO.spark} <b>New here?</b> The three steps below build your scenario: <b>order each group</b>, <b>pick the best thirds</b>, then <b>tap winners</b> to a champion. It's pre-filled from the live tables, so you can dive straight into the knockouts too. Saved on this device.</p>` : ""}
     ${step("simStep1", `<span class="step-n">1</span> Order the groups: top two go through`, `<div class="gwrap">${GROUPS.map(groupCard).join("")}</div>`)}
     ${step("simStep2", `<span class="step-n">2</span> Best third-placed teams <span class="tcount">${S.sim.thirds.length}/8</span>`, `<div class="thirds">${thirdChips}</div>`)}
     ${step("simStep3", `<span class="step-n">3</span> Tap winners to crown your champion ${TROPHY}`, `${thirdsDone && alloc !== "impossible" ? `<p class="sim-ko-hint">${ICO.tap} Tap a team in any tie to send them through. Winners flow left → right to the final.</p>` : ""}${simBracket}`)}
@@ -3487,8 +3486,6 @@ function recordsPanel(s) {
   const card = (ic, title, recVal, entries, opt = {}) => {
     entries = entries.filter(Boolean).sort((a, b) => b.v - a.v || (b.live ? 1 : 0) - (a.live ? 1 : 0)).slice(0, 8);
     const ranks = compRanks(entries, x => x.v);
-    const lead = entries.find(x => x.live && recVal !== Infinity && x.v >= recVal);
-    const head = lead && lead.v > recVal ? `<span class="atr-badge is-record">New record</span>` : "";
     const rows = entries.map((x, i) => {
       const attr = x.live ? `${opt.team ? `data-squad="${x.code}"` : `data-player="${esc(x.tap || x.name)}|${x.code}"`} role="button" tabindex="0"` : "";   // only 2026 entries tap through; legends aren't in our data
       const tag = "";
@@ -3497,7 +3494,7 @@ function recordsPanel(s) {
         <span class="atr-nm">${esc(x.name)}${x.sub ? ` <small>${esc(x.sub)}</small>` : ""}</span>
         ${tag}<span class="atr-num">${x.v}</span></div>`;
     }).join("");
-    return `<div class="atr"><div class="atr-head"><span class="atr-ic">${ic}</span><span class="atr-title">${title}</span>${head}</div>${rows}</div>`;
+    return `<div class="atr"><div class="atr-head"><span class="atr-ic">${ic}</span><span class="atr-title">${title}</span></div>${rows}</div>`;
   };
   // live entries: career goals (pre-2026 + this WC), appearances, World Cups played, the live single-WC leader, a title-holding team
   const lg = (name, code, pre, re, yr) => ({ name, code, v: pre + goalsOf(code, re), live: true, tap: name, sub: `${yr}–` });
@@ -4384,6 +4381,8 @@ async function boot() {
     if (sq && sq.dataset.squad) { openTeam(sq.dataset.squad); return; }
     const ab = e.target.closest("[data-about]");   // "how the format works" → tournament info sheet
     if (ab) { showSheet($("#aboutDialog")); return; }
+    const hl = e.target.closest("[data-hero-live]");   // the Matches hero → follow this match in the Live tab
+    if (hl) { _liveFocus = hl.dataset.heroLive; nav("live"); return; }
     const mid = e.target.closest("[data-mid]");   // hero, match card, or a record row (never a dialog)
     if (mid && mid.tagName !== "DIALOG") { openMatch(mid.dataset.mid); }
   });
