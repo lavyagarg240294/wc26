@@ -57,7 +57,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "282";  // shown in footer; bump with the ?v= asset version
+const BUILD = "283";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1548,6 +1548,37 @@ function liveContext(m) {
   const row = (s, f) => `<div class="lc-row"><span class="fl">${flag(s.code)}</span><span class="lc-nm">${esc(s.name)}</span>${f || `<span class="lc-none">No recent games</span>`}</div>`;
   return `<div class="eyebrow">Recent form</div><div class="lc-form">${row(h, fh)}${row(a, fa)}</div>`;
 }
+// "Match stars" — large portrait cards of the goalscorers (live/FT), else each side's leading scorer (upcoming).
+// Photo-led: a player with no headshot is skipped, and the whole section drops in data-saver (bestPhoto returns "").
+function liveStars(m) {
+  const h = slotInfo(m, "home"), a = slotInfo(m, "away"), r = res(m) || {};
+  if (!h.code || !a.code) return "";
+  let stars = [], label = "Match stars";
+  const tally = new Map();
+  for (const e of (r.ev || [])) {            // goalscorers in THIS match (own goals credit the opponent, so skip)
+    if (!["G", "P"].includes(e.k) || !e.p) continue;
+    const code = e.tm === "h" ? h.code : a.code, key = e.p + "|" + code;
+    const t = tally.get(key) || { name: e.p, code, goals: 0, mins: [] };
+    t.goals++; if (e.t) t.mins.push(e.t); tally.set(key, t);
+  }
+  if (tally.size) stars = [...tally.values()].sort((x, y) => y.goals - x.goals).slice(0, 6);
+  else {                                     // no goals yet → each side's leading tournament scorer
+    const sc = tournamentStats().scorers, pick = c => sc.filter(p => p.code === c && p.goals > 0).sort((x, y) => y.goals - x.goals)[0];
+    stars = [pick(h.code), pick(a.code)].filter(Boolean);
+    label = "Ones to watch";
+  }
+  if (!stars.length) return "";
+  const card = s => {
+    const photo = bestPhoto(s.name, s.code); if (!photo) return "";
+    const big = atWidth(photo, 400) || photo, c1 = S.teams[s.code]?.c1 || "var(--pitch)";
+    const sub = s.mins ? `${s.goals} goal${s.goals > 1 ? "s" : ""}${s.mins.length ? " · " + s.mins.join(", ") : ""}` : `${s.goals} goal${s.goals > 1 ? "s" : ""} so far`;
+    return `<button class="star-card" data-player="${esc(s.name)}|${s.code}" style="--sc:${c1}" aria-label="${esc(pName(s.name, s.code))}">
+      <span class="star-photo" style="background-image:url('${big}')"></span>
+      <span class="star-info"><span class="star-top"><span class="fl">${flag(s.code)}</span><b>${esc(pName(s.name, s.code))}</b></span><span class="star-sub">${sub}</span></span></button>`;
+  };
+  const cards = stars.map(card).filter(Boolean).join("");
+  return cards ? `<div class="eyebrow">${label}</div><div class="star-row">${cards}</div>` : "";
+}
 // the rail of switchable matches (live, next up, recent) above the hero
 function liveSwitcher(pool, focusId) {
   if (pool.pool.length < 2) return "";
@@ -1588,10 +1619,10 @@ function renderLive() {
   const sections = live
     // stats/EFI render EXPANDED here (not folds): the Live tab is "show everything", and the 30s poll re-renders
     // the whole view, which would otherwise collapse any fold the user opened mid-match.
-    ? [mdFlow(r, h, a), mdTimeline(r, h.code, a.code), pXi, mdKeyStats(r, m), mdStats(r, true), mdEfi(m, true), wpSection, stakesBlock(m)]
+    ? [liveStars(m), mdFlow(r, h, a), mdTimeline(r, h.code, a.code), pXi, mdKeyStats(r, m), mdStats(r, true), mdEfi(m, true), wpSection, stakesBlock(m)]
     : ft
-    ? [mdFlow(r, h, a), mdTimeline(r, h.code, a.code), mdKeyStats(r, m), mdStats(r, true), pXi, mdReport(m), mdEfi(m, true), wpSection]
-    : [liveContext(m), wpSection, stakesBlock(m), pXi];
+    ? [liveStars(m), mdFlow(r, h, a), mdTimeline(r, h.code, a.code), mdKeyStats(r, m), mdStats(r, true), pXi, mdReport(m), mdEfi(m, true), wpSection]
+    : [liveStars(m), liveContext(m), wpSection, stakesBlock(m), pXi];
   el.innerHTML = viewH2("view-live") + liveSwitcher(pool, m.id) + liveHero(m) + sections.filter(Boolean).join("") + koPath(m);
   $$("[data-focus]", el).forEach(b => b.onclick = () => { _liveFocus = b.dataset.focus; renderLive(); });
   startLiveCd();

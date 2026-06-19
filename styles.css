@@ -344,6 +344,19 @@ body.bg-paused #bg span{animation-play-state:paused;will-change:auto}
 .sl-tile i{font-style:normal;font-family:var(--mono);font-size:11px;color:var(--ink-soft)}
 .sl-tile.sl-top{border-color:color-mix(in srgb,var(--acc1) 45%,var(--line));background:color-mix(in srgb,var(--acc1) 7%,var(--card))}
 .sl-tile.sl-top i{color:var(--acc-text);font-weight:700}
+/* match stars — large player-portrait cards (goalscorers / ones to watch) */
+.star-row{display:flex;gap:10px;overflow-x:auto;padding:2px 0 12px;margin:0 -2px;scrollbar-width:none}
+.star-row::-webkit-scrollbar{display:none}
+.star-card{position:relative;flex:0 0 auto;width:150px;height:198px;border-radius:var(--r-sm);overflow:hidden;border:1px solid var(--line);background:var(--card);cursor:pointer;box-shadow:var(--shadow);transition:transform .15s,box-shadow .15s}
+.star-card:hover{transform:translateY(-3px);box-shadow:var(--shadow-hover)}
+.star-card::before{content:"";position:absolute;inset:0 0 auto;height:4px;background:var(--sc);z-index:3}
+.star-photo{position:absolute;inset:0;background-size:cover;background-position:50% 10%;background-repeat:no-repeat;background-color:color-mix(in srgb,var(--sc) 16%,var(--card))}
+.star-card::after{content:"";position:absolute;inset:0;z-index:1;background:linear-gradient(to top,rgba(11,20,30,.92) 4%,rgba(11,20,30,.55) 26%,rgba(11,20,30,0) 50%)}
+.star-info{position:absolute;left:0;right:0;bottom:0;z-index:2;padding:10px 11px;display:flex;flex-direction:column;gap:2px;text-align:left}
+.star-top{display:flex;align-items:center;gap:6px}
+.star-top .fl{font-size:15px;flex:0 0 auto}
+.star-top b{font-family:var(--disp);font-weight:800;font-stretch:106%;font-size:13.5px;line-height:1.12;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.55)}
+.star-sub{font-family:var(--mono);font-size:10px;color:rgba(255,255,255,.88);text-shadow:0 1px 3px rgba(0,0,0,.6);letter-spacing:.01em}
 /* recent-form context (upcoming) */
 .lc-form{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden}
 .lc-row{display:flex;align-items:center;gap:9px;padding:11px 14px;border-top:1px solid color-mix(in srgb,var(--line) 55%,transparent)}
