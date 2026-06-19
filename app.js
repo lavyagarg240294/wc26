@@ -57,7 +57,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "280";  // shown in footer; bump with the ?v= asset version
+const BUILD = "281";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1364,7 +1364,8 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
       <div class="md-goals-col away">${(r.ga || []).map(g => `<div class="md-goal">${esc(g)} ${ICO.ball}</div>`).join("")}</div>
     </div>` : "";
   const pKeyStats = mdKeyStats(r, m), pStats = mdStats(r, isFT), pEfi = mdEfi(m, isFT);
-  const pReport = mdReport(m), pComm = mdCommentaryShell(m), pWinProb = winProbBlock(m), pStakes = stakesBlock(m);
+  const _wp = winProb(m);   // surface the model's discarded "why" drivers + top-3 scorelines alongside the bar
+  const pReport = mdReport(m), pComm = mdCommentaryShell(m), pWinProb = winProbBlock(m) + liveWhyChips(_wp) + liveScorelines(_wp), pStakes = stakesBlock(m);
   const pXiInline = r?.xi ? `<div class="eyebrow">${liveNow ? "Line-ups" : "Starting XI"}</div>${xiPanel(r.xi, h, a)}` : "";
   const pXiFold = r?.xi ? `<details class="md-fold"><summary><span>Starting XI</span><small>${esc([r.xi.h?.f, r.xi.a?.f].filter(Boolean).join(" v ")) || "line-ups & formations"}</small></summary><div class="md-fold-body">${xiPanel(r.xi, h, a)}</div></details>` : "";
 
@@ -1432,6 +1433,8 @@ function heroBlock(heroM, isLive) {
       <div class="hero-side"><span class="hero-flag">${a.code ? flag(a.code) : TBD_FLAG}</span><span class="hero-name">${esc(a.name)}</span></div>
     </div>
     ${(() => { const s = matchStakes(heroM); return s ? `<div class="hero-stakes">${s.lines[0]}</div>` : ""; })()}
+    ${(() => { const wp = winProb(heroM); if (!wp) return ""; const ph = Math.round(wp.h * 100), pd = Math.round(wp.d * 100), pa = 100 - ph - pd;
+      return `<div class="hero-wp" aria-label="${esc(h.name)} ${ph}%, draw ${pd}%, ${esc(a.name)} ${pa}%"><span class="hero-wp-bar"><i class="wp-h" style="width:${ph}%"></i><i class="wp-d" style="width:${pd}%"></i><i class="wp-a" style="width:${pa}%"></i></span><span class="hero-wp-tx"><b>${ph}%</b><span>draw ${pd}%</span><b>${pa}%</b></span></div>`; })()}
     ${!isLive ? `<div class="countdown" id="cd" data-utc="${heroM.utc}">
       ${["h", "m"].map((k, i) => `${i ? `<span class="cd-sep" aria-hidden="true">:</span>` : ""}<div class="cd-cell"><span class="cd-num" data-k="${k}">–</span><span class="cd-lab">${{ h: "hrs", m: "min" }[k]}</span></div>`).join("")}
     </div>` : ""}
@@ -4205,6 +4208,7 @@ async function boot() {
   $("#calDownload").onclick = () => downloadICS(S.matches.slice().sort((a, b) => a.utc.localeCompare(b.utc)), "FIFA World Cup 2026");
   $("#aboutBtn").onclick = () => showSheet($("#aboutDialog"));
   $("#aboutSiteBtn").onclick = () => showSheet($("#aboutSiteDialog"));
+  const _footTz = $("#footTz"); if (_footTz) _footTz.onclick = () => $("#tzDialog").showModal();   // the "in your timezone" promise is now one tap from the footer
   $("#teamChip").onclick = () => $("#teamDialog").showModal();
   // first-launch onboarding — a short, skippable welcome shown once (any dismissal marks it seen)
   if (!localStorage.getItem("wc26.seen")) {
