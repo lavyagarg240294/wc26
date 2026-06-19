@@ -11,9 +11,36 @@ const S = {
   view: null,   // set by boot's nav() — null until then so the pre-first-paint refreshResults() doesn't double-render
   filters: { stage: "all", team: "", saved: false },
   saved: new Set(JSON.parse(localStorage.getItem("wc26.saved") || "[]")),
-  sim: JSON.parse(localStorage.getItem("wc26.sim") || "null") || { order: {}, thirds: [], ko: {} },
+  simBox: null, sim: null, simView: "dash",   // simBox = the 3 saved brackets; sim points at the active one; simView = dash|edit
   _lastResults: null, _lastDetails: null, lastChecked: null,
 };
+const SIM_SLOTS = 3;
+const SIM_SLOT_NAMES = ["Bracket A", "Bracket B", "Bracket C"];
+// the three saved brackets, with one-time migration from the legacy single-bracket key (wc26.sim).
+function loadSimBox() {
+  const blank = i => ({ name: SIM_SLOT_NAMES[i] || ("Bracket " + (i + 1)), order: {}, thirds: [], ko: {} });
+  const clean = (s, i) => ({
+    name: typeof s?.name === "string" && s.name.trim() ? s.name.slice(0, 24) : (SIM_SLOT_NAMES[i] || "Bracket " + (i + 1)),
+    order: s?.order && typeof s.order === "object" ? s.order : {},
+    thirds: Array.isArray(s?.thirds) ? s.thirds : [],
+    ko: s?.ko && typeof s.ko === "object" ? s.ko : {},
+  });
+  const pad = box => {
+    const slots = (box.slots || []).slice(0, SIM_SLOTS).map(clean);
+    while (slots.length < SIM_SLOTS) slots.push(blank(slots.length));
+    return { v: 2, active: Math.max(0, Math.min(SIM_SLOTS - 1, box.active | 0)), slots };
+  };
+  try { const raw = JSON.parse(localStorage.getItem("wc26.predict") || "null"); if (raw && Array.isArray(raw.slots) && raw.slots.length) return pad(raw); } catch { /* corrupt → migrate/fresh */ }
+  let legacy = null; try { legacy = JSON.parse(localStorage.getItem("wc26.sim") || "null"); } catch { /* */ }
+  const first = legacy && typeof legacy === "object" ? clean({ ...legacy, name: SIM_SLOT_NAMES[0] }, 0) : blank(0);
+  return pad({ v: 2, active: 0, slots: [first] });
+}
+S.simBox = loadSimBox();
+S.sim = S.simBox.slots[S.simBox.active];
+function setActiveSlot(i) {
+  if (i < 0 || i >= S.simBox.slots.length) return;
+  S.simBox.active = i; S.sim = S.simBox.slots[i]; saveSim();
+}
 // a committed match report (reports.json), keyed by openfootball match number; null until the Action writes one
 const report = m => (S.reports.matches || {})[m.num] || null;
 const isSaved = id => S.saved.has(id);
@@ -30,7 +57,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "277";  // shown in footer; bump with the ?v= asset version
+const BUILD = "278";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -2428,7 +2455,15 @@ function drawBracketLines(scope) {
 /* ============================================================
    SIMULATOR — order groups, pick thirds, tap winners
    ============================================================ */
-const saveSim = () => localStorage.setItem("wc26.sim", JSON.stringify(S.sim));
+const saveSim = () => localStorage.setItem("wc26.predict", JSON.stringify(S.simBox));
+// fill a slot's group order + thirds from the live standings (the bracket's natural starting point). Operates on the
+// given slot by briefly making it active, since seedSimThirds() works on S.sim; restores the prior active slot after.
+function fillSlotFromStandings(i) {
+  const prev = S.simBox.active;
+  S.simBox.active = i; S.sim = S.simBox.slots[i];
+  S.sim.order = {}; S.sim.thirds = []; seedSimThirds(); pruneSim();
+  S.simBox.active = prev; S.sim = S.simBox.slots[prev]; saveSim();
+}
 // encode the whole prediction into a short URL-safe string (and back)
 function encodeSim() {
   const json = JSON.stringify({ o: S.sim.order, t: S.sim.thirds, k: S.sim.ko });
@@ -2509,7 +2544,7 @@ function sanitizeSim(d) {
 }
 function loadSharedSim(enc) {
   try { const b = b64urlToBytes(enc); if (b[0] === 1 && applyPacked(b)) return true; } catch { /* not compact → try JSON */ }
-  const d = decodeSim(enc); if (d) { S.sim = sanitizeSim(d); return true; }
+  const d = decodeSim(enc); if (d) { const s = sanitizeSim(d); S.sim.order = s.order; S.sim.thirds = s.thirds; S.sim.ko = s.ko; return true; }
   return false;
 }
 
@@ -2726,6 +2761,47 @@ async function shareMatchCard(m) {
   }, "image/png");
 }
 function renderSim() {
+  return S.simView === "edit" ? renderSimEditor() : renderSimDash();
+}
+// the landing: three saved brackets as cards (champion + progress), each opening into the editor. The 3-slot model
+// lets a user keep a gut pick, the chalk and a wildcard side by side.
+function renderSimDash() {
+  const el = $("#view-sim");
+  const koMatches = S.matches.filter(m => m.stage !== "group");
+  const koTotal = koMatches.length || 1;
+  const card = (slot, i) => {
+    const champ = slot.ko[104], valid = champ && S.teams[champ];
+    const picked = koMatches.filter(m => slot.ko[m.num] != null).length;
+    const pct = Math.round(picked / koTotal * 100);
+    return `<div class="pslot${i === S.simBox.active ? " is-active" : ""}">
+      <button class="pslot-open" data-slot-open="${i}" aria-label="Open ${esc(slot.name)}">
+        <span class="pslot-top"><span class="pslot-name">${esc(slot.name)}</span>${i === S.simBox.active ? `<span class="pslot-badge">Last opened</span>` : ""}</span>
+        <span class="pslot-champ">${valid
+          ? `<span class="pslot-cup">${TROPHY}</span><span class="fl">${flag(champ)}</span><b>${esc(S.teams[champ].name)}</b>`
+          : `<span class="pslot-nochamp">No champion picked yet</span>`}</span>
+        <span class="pslot-bar"><i style="width:${pct}%"></i></span>
+        <span class="pslot-meta">${picked}/${koTotal} ties picked</span>
+      </button>
+      <div class="pslot-tools">
+        <button class="pslot-tool" data-slot-rename="${i}">Rename</button>
+        <button class="pslot-tool" data-slot-fill="${i}">Fill from standings</button>
+        <button class="pslot-tool" data-slot-clear="${i}">Clear picks</button>
+      </div>
+    </div>`;
+  };
+  el.innerHTML = viewH2("view-sim") + `
+    <p class="pdash-intro">${ICO.spark} Keep up to three brackets — a gut pick, the chalk, a wildcard. Tap one to build it, all the way to a champion. Saved on this device.</p>
+    <div class="pdash">${S.simBox.slots.map(card).join("")}</div>`;
+  $$("[data-slot-open]", el).forEach(b => b.onclick = () => { setActiveSlot(+b.dataset.slotOpen); S.simView = "edit"; renderSim(); });
+  $$("[data-slot-rename]", el).forEach(b => b.onclick = () => {
+    const i = +b.dataset.slotRename, cur = S.simBox.slots[i];
+    const name = prompt("Name this bracket:", cur.name);
+    if (name && name.trim()) { cur.name = name.trim().slice(0, 24); saveSim(); renderSim(); }
+  });
+  $$("[data-slot-fill]", el).forEach(b => b.onclick = () => { fillSlotFromStandings(+b.dataset.slotFill); renderSim(); flashToast("Filled from current standings"); });
+  $$("[data-slot-clear]", el).forEach(b => b.onclick = () => { S.simBox.slots[+b.dataset.slotClear].ko = {}; saveSim(); renderSim(); });
+}
+function renderSimEditor() {
   const el = $("#view-sim");
   // preserve scroll + which step sections are expanded so a re-render (a pick, photos loading, a poll) never
   // bounces the user back to the top or collapses what they were working on
@@ -2743,9 +2819,12 @@ function renderSim() {
     const order = simOrder(g);
     return `<div class="sgroup" style="--i:${i}"><h4>Group <span>${g}</span></h4>
       ${order.map((c, idx) => `<div class="srow ${idx < 2 ? "is-q" : idx === 2 ? "is-t" : ""}">
-        <span class="pos">${idx + 1}</span><span class="fl">${flag(c)}</span>
-        <span class="nm">${esc(S.teams[c].name)}</span>
-        <button class="up" data-g="${g}" data-i="${idx}" ${idx === 0 ? "disabled" : ""} aria-label="Move ${esc(S.teams[c].name)} up">▲</button>
+        <span class="pos">${idx + 1}</span>
+        <button class="srow-team" data-squad="${c}" aria-label="View ${esc(S.teams[c].name)}"><span class="fl">${flag(c)}</span><span class="nm">${esc(S.teams[c].name)}</span></button>
+        <span class="srow-arr">
+          <button class="up" data-g="${g}" data-i="${idx}" data-dir="-1" ${idx === 0 ? "disabled" : ""} aria-label="Move ${esc(S.teams[c].name)} up">▲</button>
+          <button class="up" data-g="${g}" data-i="${idx}" data-dir="1" ${idx === order.length - 1 ? "disabled" : ""} aria-label="Move ${esc(S.teams[c].name)} down">▼</button>
+        </span>
       </div>`).join("")}</div>`;
   };
 
@@ -2789,8 +2868,12 @@ function renderSim() {
   const stepOpen = id => firstRender ? id === "simStep3" : openSteps.has(id);
   const step = (id, head, body) => `<details class="sim-step" id="${id}"${stepOpen(id) ? " open" : ""}><summary class="eyebrow">${head}<span class="sim-chev" aria-hidden="true">▾</span></summary><div class="sim-step-body">${body}</div></details>`;
   el.innerHTML = viewH2("view-sim") + `
+    <div class="sim-edhead">
+      <button class="sim-back" id="simBack" aria-label="Back to your brackets">‹ Brackets</button>
+      <span class="sim-edname">${esc(S.simBox.slots[S.simBox.active].name)}</span>
+    </div>
     ${champTeaser}
-    ${firstRender ? `<p class="sim-firsthint">${ICO.spark} <b>New here?</b> The three steps below build your bracket: <b>order each group</b>, <b>pick the best thirds</b>, then <b>tap winners</b> to a champion. It's pre-filled from the live tables, so you can dive straight into the bracket too. Saved on this device.</p>` : ""}
+    ${firstRender && Object.keys(S.sim.ko).length === 0 ? `<p class="sim-firsthint">${ICO.spark} <b>New here?</b> The three steps below build your bracket: <b>order each group</b>, <b>pick the best thirds</b>, then <b>tap winners</b> to a champion. It's pre-filled from the live tables, so you can dive straight into the bracket too. Saved on this device.</p>` : ""}
     ${step("simStep1", `<span class="step-n">1</span> Order the groups: top two go through`, `<div class="gwrap">${GROUPS.map(groupCard).join("")}</div>`)}
     ${step("simStep2", `<span class="step-n">2</span> Best third-placed teams <span class="tcount">${S.sim.thirds.length}/8</span>`, `<div class="thirds">${thirdChips}</div>`)}
     ${step("simStep3", `<span class="step-n">3</span> Tap winners to crown your champion ${TROPHY}`, `${thirdsDone && alloc !== "impossible" ? `<p class="sim-ko-hint">${ICO.tap} Tap a team in any tie to send them through. Winners flow left → right to the final.</p>` : ""}${simBracket}`)}
@@ -2800,23 +2883,28 @@ function renderSim() {
       <button class="btn" id="simShareImg">${ICO.camera} Champion card</button>
     </div>` : ""}
     <div class="sim-actions sim-actions-foot">
+      <button class="btn ghost" id="simFill"><span class="b-lg">Use live standings</span><span class="b-sm">Standings</span></button>
       <button class="btn ghost" id="simShuffle"><span class="b-lg">Shuffle it all</span><span class="b-sm">Shuffle</span></button>
       <button class="btn ghost" id="simReset"><span class="b-lg">Start over</span><span class="b-sm">Reset</span></button>
       ${champ ? "" : `<button class="btn" id="simShare">${ICO.link} Share prediction</button>`}
     </div>`;
 
+  $("#simBack").onclick = () => { S.simView = "dash"; renderSim(); };
+  $("#simFill").onclick = () => { S.sim.order = {}; S.sim.thirds = []; seedSimThirds(); pruneSim(); saveSim(); renderSim(); flashToast("Filled from current standings"); };
+
   const goal = $("#simGoal", el);
   if (goal) goal.onclick = () => { const s3 = $("#simStep3", el); if (s3) { s3.open = true; s3.scrollIntoView({ behavior: "smooth", block: "start" }); } };
 
-  // wire: move-up
+  // wire: reorder (▲ up / ▼ down via data-dir)
   $$(".up", el).forEach(b => b.onclick = () => {
-    const g = b.dataset.g, i = +b.dataset.i;
+    const g = b.dataset.g, i = +b.dataset.i, dir = +b.dataset.dir, j = i + dir;
     const o = simOrder(g);
-    [o[i - 1], o[i]] = [o[i], o[i - 1]];
+    if (j < 0 || j >= o.length) return;
+    [o[j], o[i]] = [o[i], o[j]];
     // moved team may no longer be the group's third → drop stale third picks
     S.sim.thirds = S.sim.thirds.filter(c => simOrder(groupOf(c))[2] === c);
     pruneSim(); saveSim(); renderSim();
-    const row = $$(`.sgroup [data-g="${g}"]`, el)[i - 1]?.closest(".srow");
+    const row = $$(`.sgroup [data-g="${g}"] .up`, el).find(x => +x.dataset.i === j)?.closest(".srow");
     row?.classList.add("just-moved");
   });
   // wire: thirds
@@ -2856,7 +2944,7 @@ function renderSim() {
     const c = S.teams[S.sim.ko[104]];
     if (c) confetti(c.c1, c.c2);
   };
-  $("#simReset").onclick = () => { S.sim = { order: {}, thirds: [], ko: {} }; seedSimThirds(); saveSim(); renderSim(); };
+  $("#simReset").onclick = () => { S.sim.order = {}; S.sim.thirds = []; S.sim.ko = {}; seedSimThirds(); saveSim(); renderSim(); };
   $("#simShare").onclick = async () => {
     const url = location.origin + location.pathname + "#p=" + packSim();
     try { await navigator.clipboard.writeText(url); flashToast("Prediction link copied. Share it!"); }
@@ -3873,7 +3961,7 @@ async function boot() {
   }
   S.filters.team = "";            // default filter shows all teams (favourite is still pinned in the dropdown)
   applyTheme(); syncTzLabels(); buildPickers(); renderTicker();
-  $$("[data-nav]").forEach(b => b.onclick = e => { e.preventDefault(); nav(b.dataset.nav); });
+  $$("[data-nav]").forEach(b => b.onclick = e => { e.preventDefault(); if (b.dataset.nav === "sim") S.simView = "dash"; nav(b.dataset.nav); });
   $("#settingsChip").onclick = () => $("#settingsDialog").showModal();
   $("#tzRow").onclick = () => { $("#settingsDialog").close(); $("#tzDialog").showModal(); };
   // Subscribe to the auto-updating feed. iOS/macOS hand webcal:// straight to Calendar; Android/desktop usually
@@ -4032,7 +4120,7 @@ async function boot() {
   // a shared prediction link (#p=…) loads that bracket and opens the Predict tab
   let initView = "matches";
   if (location.hash.startsWith("#p=")) {
-    if (loadSharedSim(location.hash.slice(3))) { pruneSim(); saveSim(); initView = "sim"; setTimeout(() => flashToast("Loaded a shared prediction"), 400); }
+    if (loadSharedSim(location.hash.slice(3))) { pruneSim(); saveSim(); initView = "sim"; S.simView = "edit"; setTimeout(() => flashToast("Loaded a shared prediction"), 400); }
     history.replaceState(null, "", location.pathname + location.search);
   } else if (HASH_VIEW[location.hash.slice(1)]) {
     initView = HASH_VIEW[location.hash.slice(1)];             // deep-link straight to a tab (#teams, #groups, #predict, #stats)

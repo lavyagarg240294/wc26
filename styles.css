@@ -783,10 +783,42 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .srow.is-q{background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .srow.is-q .pos{color:var(--acc-text)}
 .srow.is-t .pos{color:var(--gold-text)}
-.up{display:grid;place-items:center;width:40px;height:40px;border-radius:10px;border:1px solid var(--line);background:var(--paper);color:var(--ink-soft);font-size:13px;transition:all .15s;flex:0 0 40px}
+.srow-team{display:flex;align-items:center;gap:10px;flex:1;min-width:0;background:none;border:none;padding:6px 8px 6px 0;margin:-6px 0;border-radius:9px;text-align:left;color:inherit;cursor:pointer;transition:background .15s}
+.srow-team:hover{background:color-mix(in srgb,var(--acc1) 7%,transparent)}
+.srow-team:hover .nm{color:var(--acc-text)}
+.srow-arr{display:flex;gap:6px;flex:0 0 auto}
+.up{display:grid;place-items:center;width:36px;height:36px;border-radius:10px;border:1px solid var(--line);background:var(--paper);color:var(--ink-soft);font-size:12px;transition:all .15s;flex:0 0 36px}
 .up:hover{border-color:var(--acc-text);color:var(--acc-text);transform:translateY(-1px)}
 .up:active{transform:scale(.92)}
 .up:disabled{opacity:.3;pointer-events:none}
+/* Predict dashboard: the three saved-bracket cards */
+.pdash-intro{margin:0 0 14px;font-size:13.5px;line-height:1.5;color:var(--ink-soft)}
+.pdash-intro svg{vertical-align:-2px;margin-right:2px}
+.pdash{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.pslot{display:flex;flex-direction:column;background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:var(--shadow);transition:border-color .18s,transform .18s,box-shadow .18s}
+.pslot:hover{transform:translateY(-2px);box-shadow:0 12px 28px -14px rgba(13,27,42,.4)}
+.pslot.is-active{border-color:color-mix(in srgb,var(--acc1) 45%,var(--line))}
+.pslot-open{display:flex;flex-direction:column;gap:9px;padding:16px 16px 14px;background:none;border:none;text-align:left;color:inherit;cursor:pointer;width:100%}
+.pslot-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.pslot-name{font-family:var(--disp);font-weight:800;font-stretch:110%;font-size:16px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pslot-badge{flex:0 0 auto;font-family:var(--disp);font-weight:800;font-stretch:106%;font-size:8.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--acc-text);background:color-mix(in srgb,var(--acc1) 14%,var(--card));padding:3px 7px;border-radius:99px}
+.pslot-champ{display:flex;align-items:center;gap:8px;min-height:24px}
+.pslot-champ .fl{font-size:20px}
+.pslot-champ b{font-weight:700;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pslot-cup{display:inline-flex;font-size:16px}
+.pslot-nochamp{font-size:13px;color:var(--ink-soft)}
+.pslot-bar{height:6px;border-radius:99px;background:color-mix(in srgb,var(--ink) 8%,var(--card));overflow:hidden}
+.pslot-bar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--acc1),var(--acc2));transition:width .4s}
+.pslot-meta{font-family:var(--mono);font-size:11px;color:var(--ink-soft);font-variant-numeric:tabular-nums}
+.pslot-tools{display:flex;border-top:1px solid var(--line)}
+.pslot-tool{flex:1;padding:9px 6px;background:none;border:none;border-right:1px solid var(--line);font-size:11px;font-weight:600;color:var(--ink-soft);cursor:pointer;transition:background .15s,color .15s}
+.pslot-tool:last-child{border-right:none}
+.pslot-tool:hover{background:color-mix(in srgb,var(--acc1) 7%,transparent);color:var(--acc-text)}
+/* Predict editor: header with back-to-brackets */
+.sim-edhead{display:flex;align-items:center;gap:11px;margin-bottom:12px}
+.sim-back{flex:0 0 auto;display:inline-flex;align-items:center;gap:3px;padding:8px 14px;border-radius:99px;border:1px solid var(--line);background:var(--card);font-weight:700;font-size:13px;color:var(--ink-soft);cursor:pointer;transition:all .15s}
+.sim-back:hover{border-color:var(--acc-text);color:var(--acc-text)}
+.sim-edname{font-family:var(--disp);font-weight:800;font-stretch:110%;font-size:17px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .srow.just-moved{animation:swapUp .35s cubic-bezier(.2,.9,.3,1.3)}
 @keyframes swapUp{0%{transform:translateY(14px);opacity:.4}100%{transform:none;opacity:1}}
 .thirds{display:flex;flex-wrap:wrap;gap:8px}
