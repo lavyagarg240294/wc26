@@ -57,7 +57,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "281";  // shown in footer; bump with the ?v= asset version
+const BUILD = "282";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1433,7 +1433,10 @@ function heroBlock(heroM, isLive) {
       <div class="hero-side"><span class="hero-flag">${a.code ? flag(a.code) : TBD_FLAG}</span><span class="hero-name">${esc(a.name)}</span></div>
     </div>
     ${(() => { const s = matchStakes(heroM); return s ? `<div class="hero-stakes">${s.lines[0]}</div>` : ""; })()}
-    ${(() => { const wp = winProb(heroM); if (!wp) return ""; const ph = Math.round(wp.h * 100), pd = Math.round(wp.d * 100), pa = 100 - ph - pd;
+    ${(() => { const wp = winProb(heroM); if (!wp) return "";
+      if (wp.ko && wp.adv) { const ph = Math.round(wp.adv.h * 100), pa = 100 - ph;   // knockout: show advance % (a 90' draw goes to ET/pens), no "draw" segment
+        return `<div class="hero-wp" aria-label="${esc(h.name)} ${ph}% to advance, ${esc(a.name)} ${pa}%"><span class="hero-wp-bar"><i class="wp-h" style="width:${ph}%"></i><i class="wp-a" style="width:${pa}%"></i></span><span class="hero-wp-tx"><b>${ph}%</b><span>to advance</span><b>${pa}%</b></span></div>`; }
+      const ph = Math.round(wp.h * 100), pd = Math.round(wp.d * 100), pa = 100 - ph - pd;
       return `<div class="hero-wp" aria-label="${esc(h.name)} ${ph}%, draw ${pd}%, ${esc(a.name)} ${pa}%"><span class="hero-wp-bar"><i class="wp-h" style="width:${ph}%"></i><i class="wp-d" style="width:${pd}%"></i><i class="wp-a" style="width:${pa}%"></i></span><span class="hero-wp-tx"><b>${ph}%</b><span>draw ${pd}%</span><b>${pa}%</b></span></div>`; })()}
     ${!isLive ? `<div class="countdown" id="cd" data-utc="${heroM.utc}">
       ${["h", "m"].map((k, i) => `${i ? `<span class="cd-sep" aria-hidden="true">:</span>` : ""}<div class="cd-cell"><span class="cd-num" data-k="${k}">–</span><span class="cd-lab">${{ h: "hrs", m: "min" }[k]}</span></div>`).join("")}
@@ -1488,7 +1491,9 @@ function liveFocusPool() {
   const soon = S.matches.filter(m => status(m) === ST.SCHED).sort((a, b) => a.utc.localeCompare(b.utc)).slice(0, 4);
   const recent = S.matches.filter(m => status(m) === ST.FT).sort((a, b) => b.utc.localeCompare(a.utc)).slice(0, 4);
   const seen = new Set(), pool = [];
-  for (const m of [...live, ...soon, ...recent]) if (!seen.has(m.id)) { seen.add(m.id); pool.push(m); }
+  // the explicitly-focused match always gets a rail chip (else picking an older result would orphan its highlight)
+  const focused = _liveFocus ? S.matches.find(x => x.id === _liveFocus) : null;
+  for (const m of [...(focused ? [focused] : []), ...live, ...soon, ...recent]) if (!seen.has(m.id)) { seen.add(m.id); pool.push(m); }
   return { live, soon, recent, pool };
 }
 function liveFocusMatch(pool) {
@@ -1556,17 +1561,18 @@ function liveSwitcher(pool, focusId) {
   };
   return `<div class="live-rail">${pool.pool.map(chip).join("")}</div>`;
 }
+function stopLiveCd() { clearInterval(_liveCdTimer); _liveCdTimer = null; }
 function startLiveCd() {
-  clearInterval(_liveCdTimer); _liveCdTimer = null;
+  stopLiveCd();
   const cd = $("#view-live .lh-cd"); if (!cd) return;
   const target = new Date(cd.dataset.utc);
   const tick = () => {
     const s = Math.max(0, Math.floor((target - new Date()) / 1000));
     const v = { d: s / 86400 | 0, h: s / 3600 % 24 | 0, m: s / 60 % 60 | 0 };
     $$("b[data-k]", cd).forEach(n => { n.textContent = String(v[n.dataset.k]).padStart(2, "0"); });
-    if (s === 0) { clearInterval(_liveCdTimer); setTimeout(refreshResults, 4000); }
+    if (s === 0) { stopLiveCd(); setTimeout(refreshResults, 4000); }   // timer is set before the first tick (below), so this clear is effective even on a synchronous zero
   };
-  tick(); _liveCdTimer = setInterval(tick, 1000);
+  _liveCdTimer = setInterval(tick, 1000); tick();   // assign BEFORE the first tick so a synchronous s===0 clears the interval (no orphan/double-fire)
 }
 function renderLive() {
   const el = $("#view-live");
@@ -1580,7 +1586,9 @@ function renderLive() {
   const pXi = r?.xi ? `<div class="eyebrow">${live ? "Line-ups" : "Starting XI"}</div>${xiPanel(r.xi, h, a)}` : "";
   const wpSection = wp ? `${winProbBlock(m)}${liveWhyChips(wp)}${liveScorelines(wp)}` : "";
   const sections = live
-    ? [mdFlow(r, h, a), mdTimeline(r, h.code, a.code), pXi, mdKeyStats(r, m), mdStats(r, false), mdEfi(m, false), wpSection, stakesBlock(m)]
+    // stats/EFI render EXPANDED here (not folds): the Live tab is "show everything", and the 30s poll re-renders
+    // the whole view, which would otherwise collapse any fold the user opened mid-match.
+    ? [mdFlow(r, h, a), mdTimeline(r, h.code, a.code), pXi, mdKeyStats(r, m), mdStats(r, true), mdEfi(m, true), wpSection, stakesBlock(m)]
     : ft
     ? [mdFlow(r, h, a), mdTimeline(r, h.code, a.code), mdKeyStats(r, m), mdStats(r, true), pXi, mdReport(m), mdEfi(m, true), wpSection]
     : [liveContext(m), wpSection, stakesBlock(m), pXi];
@@ -2385,8 +2393,9 @@ function openTeamCompare(aCode, bCode) {
   const head = T => `<div class="cmp-p cmp-team">
     <span class="cmp-crest">${flag(T.code)}</span>
     <b>${esc(T.name)}</b><span>${esc(T.conf)}${T.rank ? ` · #${T.rank}` : ""}</span></div>`;
+  const numOf = v => v == null ? null : parseFloat(String(v).replace(/[^0-9.\-]/g, ""));   // tolerate "#3", "+2", "1986" etc.
   const row = (label, av, bv, higherWins = true) => {
-    const an = av == null ? null : parseFloat(av), bn = bv == null ? null : parseFloat(bv);
+    const an = numOf(av), bn = numOf(bv);
     const aWin = an != null && bn != null && an !== bn && (higherWins ? an > bn : an < bn);
     const bWin = an != null && bn != null && an !== bn && (higherWins ? bn > an : bn < an);
     return `<div class="cmp-row"><span class="cmp-a ${aWin ? "win" : ""}">${av ?? "–"}</span><span class="cmp-lbl">${label}</span><span class="cmp-b ${bWin ? "win" : ""}">${bv ?? "–"}</span></div>`;
@@ -3718,6 +3727,7 @@ const RENDER = { live: renderLive, matches: renderMatches, teams: renderTeams, g
 const VIEW_HASH = { live: "live", teams: "teams", groups: "groups", sim: "predict", stats: "stats", pulse: "pulse" };
 const HASH_VIEW = { live: "live", matches: "matches", teams: "teams", groups: "groups", predict: "sim", stats: "stats", pulse: "pulse" };
 function nav(v) {
+  if (v !== "live") stopLiveCd();        // leaving Live → stop its countdown interval (renderLive restarts it on return)
   S.view = v;
   const _want = VIEW_HASH[v] ? "#" + VIEW_HASH[v] : "";       // reflect the tab in the URL so it's shareable / bookmarkable
   if (location.hash !== _want && !location.hash.startsWith("#p=")) history.replaceState(null, "", location.pathname + location.search + _want);
@@ -4223,7 +4233,7 @@ async function boot() {
     }
   }
   $("#searchChip").onclick = openSearch;
-  $("#searchInput").oninput = e => { renderSearch(e.target.value); const r = $("#searchRoll"); if (r && !compareSeed) r.classList.toggle("is-hidden", !!e.target.value); };
+  $("#searchInput").oninput = e => { renderSearch(e.target.value); const r = $("#searchRoll"); if (r && !compareSeed && !compareTeamSeed) r.classList.toggle("is-hidden", !!e.target.value); };
   addEventListener("keydown", e => {   // ⌘K / Ctrl-K anywhere, or "/" when not already typing
     if ((e.key === "k" || e.key === "K") && (e.metaKey || e.ctrlKey)) { e.preventDefault(); openSearch(); }
     else if (e.key === "/" && !$("#searchDialog").open && !/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || "")) { e.preventDefault(); openSearch(); }
