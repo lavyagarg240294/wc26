@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "287";  // shown in footer; bump with the ?v= asset version
+const BUILD = "288";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -3283,11 +3283,30 @@ function simMatch(m, i, alloc) {
     ${row(h, a)}${row(a, h)}
     <div class="bm-label">${matchTag(m)} · ${fmt(m.utc, { day: "numeric", month: "short" })} · ${esc(m.city.split(",")[0])}</div></div>`;
 }
+// the champion's route through the user's own picks: one match per knockout round, with who they beat.
+function champPath(code) {
+  const alloc = allocateThirds(); if (alloc === "impossible") return [];
+  const STAGES = [["r32", "R32"], ["r16", "R16"], ["qf", "QF"], ["sf", "SF"], ["final", "Final"]];
+  const path = [];
+  for (const [stage, label] of STAGES) {
+    for (const m of S.matches.filter(x => x.stage === stage).sort((x, y) => x.num - y.num)) {
+      const { h, a } = simSlots(m, alloc);
+      if ((h === code || a === code) && S.sim.ko[m.num] === code) { path.push({ label, opp: h === code ? a : h, mid: m.id }); break; }
+    }
+  }
+  return path;
+}
 function championBanner(code, predicted) {
   const t = S.teams[code];
+  const path = predicted ? champPath(code) : [];
+  const steps = path.map(s => `<div class="cpath-step"${s.opp ? ` data-mid="${s.mid}" role="button" tabindex="0"` : ""}>
+    <span class="cpath-rd">${s.label}</span>
+    <span class="cpath-opp">${s.opp ? `<span class="fl">${flag(s.opp)}</span><small>${esc(shortName(s.opp) || S.teams[s.opp]?.name || "")}</small>` : `<span class="fl">·</span><small>TBD</small>`}</span>
+  </div>`).join(`<span class="cpath-arr">›</span>`);
   return `<div class="champ">
     <span class="cup">${TROPHY}</span><span class="cfl">${flag(code)}</span>
-    <h3>${esc(t.name)}</h3><p>${predicted ? "Your predicted champions" : "Champions of the world"} · July 19 · MetLife</p></div>`;
+    <h3>${esc(t.name)}</h3><p>${predicted ? "Your predicted champions" : "Champions of the world"} · July 19 · MetLife</p>
+    ${steps ? `<div class="cpath-lbl">Path to glory</div><div class="cpath">${steps}<span class="cpath-arr">›</span><div class="cpath-step cpath-cup"><span class="cpath-rd">Champions</span><span class="cpath-opp">${TROPHY}</span></div></div>` : ""}</div>`;
 }
 
 /* ---------------- tournament stats (team + player) ---------------- */
@@ -3970,8 +3989,9 @@ function initMusic() {
     const playing = !a.paused;
     btn.setAttribute("aria-pressed", String(playing));
     const st = $("#musicState"); if (st) st.textContent = playing ? "On" : "Off";
-    $("#settingsChip")?.classList.toggle("is-on", playing);   // gear hints that music is playing
+    const mc = $("#musicChip"); if (mc) { mc.setAttribute("aria-pressed", String(playing)); mc.classList.toggle("is-on", playing); }
   };
+  const mc = $("#musicChip"); if (mc) mc.onclick = () => btn.click();   // header chip mirrors the settings toggle
   a.addEventListener("play", sync);
   a.addEventListener("pause", sync);
   btn.onclick = () => {
@@ -3994,6 +4014,7 @@ function setDark(on) {
   $('meta[name="theme-color"]')?.setAttribute("content", on ? "#0E1822" : "#0BA360");
   const st = $("#themeState"); if (st) st.textContent = on ? "On" : "Off";
   $("#themeToggle")?.setAttribute("aria-pressed", String(on));
+  const dc = $("#darkChip"); if (dc) { dc.setAttribute("aria-pressed", String(on)); dc.classList.toggle("is-on", on); }
 }
 // a short synthesized stadium air-horn (no audio file needed); opt-in, fires on goals
 let _ac = null;
@@ -4305,11 +4326,13 @@ async function boot() {
     if ((e.key === "k" || e.key === "K") && (e.metaKey || e.ctrlKey)) { e.preventDefault(); openSearch(); }
     else if (e.key === "/" && !$("#searchDialog").open && !/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || "")) { e.preventDefault(); openSearch(); }
   });
-  // dark mode + goal horn (live in the Settings sheet)
+  // dark mode + goal horn (live in the Settings sheet; dark mode also has a header chip)
   const _isDark = currentTheme() === "dark";
   $("#themeState").textContent = _isDark ? "On" : "Off";
   $("#themeToggle").setAttribute("aria-pressed", String(_isDark));
   $("#themeToggle").onclick = () => setDark(currentTheme() !== "dark");
+  const _dc = $("#darkChip");
+  if (_dc) { _dc.setAttribute("aria-pressed", String(_isDark)); _dc.classList.toggle("is-on", _isDark); _dc.onclick = () => setDark(currentTheme() !== "dark"); }
   const hornOn = localStorage.getItem("wc26.horn") === "on";
   $("#hornState").textContent = hornOn ? "On" : "Off";
   $("#hornToggle").setAttribute("aria-pressed", String(hornOn));
