@@ -344,6 +344,32 @@ body.bg-paused #bg span{animation-play-state:paused;will-change:auto}
 .sl-tile i{font-style:normal;font-family:var(--mono);font-size:11px;color:var(--ink-soft)}
 .sl-tile.sl-top{border-color:color-mix(in srgb,var(--acc1) 45%,var(--line));background:color-mix(in srgb,var(--acc1) 7%,var(--card))}
 .sl-tile.sl-top i{color:var(--acc-text);font-weight:700}
+/* live commentary feed — colour-coded key moments, newest-first while live */
+.lcm{position:relative;margin-bottom:8px}
+.lcm-load{font-size:13px;color:var(--ink-soft);padding:8px 2px}
+.lcm-row{display:grid;grid-template-columns:42px 24px 1fr;align-items:start;gap:9px;padding:9px 2px;border-top:1px solid color-mix(in srgb,var(--line) 55%,transparent)}
+.lcm-row:first-child{border-top:none}
+.lcm-min{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--ink-soft);font-variant-numeric:tabular-nums;padding-top:2px}
+.lcm-ic{display:grid;place-items:center;width:24px;height:24px}
+.lcm-i-dot{width:7px;height:7px;border-radius:50%;background:color-mix(in srgb,var(--ink) 22%,var(--line))}
+.lcm-i-w{width:11px;height:11px;border-radius:2px;border:2px solid var(--ink-soft)}
+.lcm-ic svg{width:16px;height:16px}
+.lcm-ic .tl-card{width:11px;height:15px;border-radius:2px;display:block}
+.lcm-i-goal svg{width:18px;height:18px}
+.lcm-i-var{font-family:var(--disp);font-weight:800;font-size:8px;letter-spacing:.03em;color:#fff;background:var(--acc-text);padding:2px 4px;border-radius:4px;width:auto;height:auto}
+.lcm-i-sub{color:var(--ink-soft)}
+.lcm-tx{font-size:13px;line-height:1.45;color:var(--ink);padding-top:1px}
+.lcm-goal{background:color-mix(in srgb,var(--gold) 13%,transparent);border-radius:9px;margin:0 -8px;padding-left:10px;padding-right:10px}
+.lcm-goal .lcm-tx{font-weight:600}
+.lcm-goal .lcm-min,.lcm-goal .lcm-i-goal svg{color:var(--gold-text)}
+.lcm-red{background:color-mix(in srgb,var(--live) 9%,transparent);border-radius:9px;margin:0 -8px;padding-left:10px;padding-right:10px}
+.lcm-var .lcm-tx{color:var(--acc-text);font-weight:600}
+.lcm-row.is-latest{box-shadow:inset 2px 0 0 var(--acc1)}
+.lcm-full{margin-top:6px}
+.lcm-full>summary{cursor:pointer;font-family:var(--disp);font-weight:700;font-stretch:106%;font-size:11.5px;letter-spacing:.03em;color:var(--acc-text);padding:6px 2px;list-style:none}
+.lcm-full>summary::-webkit-details-marker{display:none}
+.lcm-full[open]>summary{color:var(--ink-soft)}
+.lcm-full .lcm-row{font-size:12.5px}
 /* match stars — large player-portrait cards (goalscorers / ones to watch) */
 .star-row{display:flex;gap:10px;overflow-x:auto;padding:2px 0 12px;margin:0 -2px;scrollbar-width:none}
 .star-row::-webkit-scrollbar{display:none}

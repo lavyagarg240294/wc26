@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "286";  // shown in footer; bump with the ?v= asset version
+const BUILD = "287";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1579,6 +1579,45 @@ function liveStars(m) {
   const cards = stars.map(card).filter(Boolean).join("");
   return cards ? `<div class="eyebrow">${label}</div><div class="star-row">${cards}</div>` : "";
 }
+// engaging play-by-play for the Live tab: key moments as a colour-coded vertical feed (newest-first while live),
+// goals/cards/VAR called out, full play-by-play one tap away. Lazily loads commentary, then re-renders.
+function liveCommentary(m) {
+  const c = S.commentary[m.num];
+  if (c === undefined) {   // not fetched yet → kick it off, show a slim placeholder, re-render when it lands
+    loadCommentary(m.num).then(() => { if (S.view === "live" && (!_liveFocus || _liveFocus === m.id)) renderLive(); });
+    return `<div class="eyebrow">Commentary</div><div class="lcm-load">Loading the play-by-play…</div>`;
+  }
+  if (!c || !c.items?.length) return "";
+  const live = [ST.LIVE, ST.HT].includes(status(m));
+  const kindOf = it => {
+    const k = (it.k || "").toLowerCase(), x = it.x || "";
+    if (k.includes("goal") || (/\bgoal!?\b/i.test(x) && !/no goal|disallow|ruled out|chance/i.test(x))) return "goal";
+    if (k === "red" || /red card|sent off|second yellow/i.test(x)) return "red";
+    if (k === "yellow" || /yellow card|booked|caution/i.test(x)) return "yellow";
+    if (/\bVAR\b/i.test(x)) return "var";
+    if (k.includes("sub") || /substitution/i.test(x)) return "sub";
+    if (/First Half ends|Second Half ends|Match ends|Half begins|kick-off|kicks? off|full[- ]?time|half[- ]?time/i.test(x)) return "whistle";
+    return "";
+  };
+  const KEY = it => { const kd = kindOf(it); return kd && kd !== ""; };
+  const keyItems = c.items.filter(it => KEY(it) || /\bpenalt|hits the (bar|post|crossbar)|denied|fine save|great save|big chance/i.test(it.x || ""));
+  // ESPN ships items NEWEST-FIRST. Live wants newest-first (keep); FT reads better chronologically (reverse).
+  const lead = keyItems.length >= 3 ? keyItems : c.items.slice(0, 12);
+  const ordered = live ? lead : lead.slice().reverse();
+  const ICON = { goal: `<span class="lcm-ic lcm-i-goal">${ICO.ball}</span>`, red: `<span class="lcm-ic"><span class="tl-card r"></span></span>`,
+    yellow: `<span class="lcm-ic"><span class="tl-card y"></span></span>`, var: `<span class="lcm-ic lcm-i-var">VAR</span>`,
+    sub: `<span class="lcm-ic lcm-i-sub">${ICO.subs}</span>`, whistle: `<span class="lcm-ic lcm-i-w"></span>`, "": `<span class="lcm-ic lcm-i-dot"></span>` };
+  const clar = t => { const mm = /^VAR Decision:\s*(.+?)\.?\s*$/i.exec(t || ""); if (!mm) return esc(t || ""); let d = mm[1].trim(); if (/^other decision cancelled$/i.test(d)) d = "an on-field decision was overturned after review"; return esc(d); };
+  const rowFor = (it, i) => { const kd = kindOf(it);
+    return `<div class="lcm-row lcm-${kd || "x"}${live && i === 0 ? " is-latest" : ""}">
+      <span class="lcm-min">${esc(it.t || "")}</span>${ICON[kd] || ICON[""]}
+      <span class="lcm-tx">${clar(it.x)}</span></div>`; };
+  const feed = ordered.slice(0, 12).map(rowFor).join("");
+  const full = c.items.length > ordered.length
+    ? `<details class="lcm-full"><summary>Full play-by-play · ${c.items.length} entries</summary>${(live ? c.items : c.items.slice().reverse()).map(it => rowFor(it, -1)).join("")}</details>` : "";
+  const credit = c.src ? `<div class="md-credit">Commentary: ${c.url ? `<a href="${esc(c.url)}" target="_blank" rel="noopener noreferrer">${esc(c.src)} ↗</a>` : esc(c.src)}</div>` : "";
+  return `<div class="eyebrow">${live ? `${ballSVG("live-ball")} Live commentary` : "How it unfolded"}</div><div class="lcm">${feed}</div>${full}${credit}`;
+}
 // the rail of switchable matches (live, next up, recent) above the hero
 function liveSwitcher(pool, focusId) {
   if (pool.pool.length < 2) return "";
@@ -1619,9 +1658,9 @@ function renderLive() {
   const sections = live
     // stats/EFI render EXPANDED here (not folds): the Live tab is "show everything", and the 30s poll re-renders
     // the whole view, which would otherwise collapse any fold the user opened mid-match.
-    ? [liveStars(m), mdFlow(r, h, a), mdTimeline(r, h.code, a.code), pXi, mdKeyStats(r, m), mdStats(r, true), mdEfi(m, true), wpSection, stakesBlock(m)]
+    ? [liveStars(m), mdFlow(r, h, a), mdTimeline(r, h.code, a.code), liveCommentary(m), pXi, mdKeyStats(r, m), mdStats(r, true), mdEfi(m, true), wpSection, stakesBlock(m)]
     : ft
-    ? [liveStars(m), mdFlow(r, h, a), mdTimeline(r, h.code, a.code), mdKeyStats(r, m), mdStats(r, true), pXi, mdReport(m), mdEfi(m, true), wpSection]
+    ? [liveStars(m), mdFlow(r, h, a), mdTimeline(r, h.code, a.code), mdKeyStats(r, m), mdStats(r, true), pXi, mdReport(m), liveCommentary(m), mdEfi(m, true), wpSection]
     : [liveStars(m), liveContext(m), wpSection, stakesBlock(m), pXi];
   el.innerHTML = viewH2("view-live") + liveHero(m) + sections.filter(Boolean).join("") + koPath(m);
   startLiveCd();
