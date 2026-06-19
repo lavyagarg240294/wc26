@@ -57,7 +57,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "279";  // shown in footer; bump with the ?v= asset version
+const BUILD = "280";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -146,7 +146,7 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;",
 // instead of jumping straight to the cards' h4. Injected here (every render funnels through paint with its view el)
 // so it survives poll re-renders too. Keyed by section id; non-view paints (cards, popups) are untouched.
 // groups/sim set el.innerHTML directly (not via paint), so they prepend viewH2() themselves.
-const VIEW_H2 = { "view-matches": "Matches", "view-teams": "Teams", "view-groups": "Groups", "view-sim": "Predict", "view-stats": "Statistics", "view-pulse": "News" };
+const VIEW_H2 = { "view-live": "Live", "view-matches": "Matches", "view-teams": "Teams", "view-groups": "Groups", "view-sim": "Predict", "view-stats": "Statistics", "view-pulse": "News" };
 const viewH2 = id => VIEW_H2[id] ? `<h2 class="vh">${VIEW_H2[id]}</h2>` : "";
 function paint(el, html) {
   if (!el) return;
@@ -1475,6 +1475,116 @@ function motdBanner(m) {
     <span class="motd-fix"><span class="fl">${h.code ? flag(h.code) : TBD_FLAG}</span>${nm(h, "home")}<i>v</i>${nm(a, "away")}<span class="fl">${a.code ? flag(a.code) : TBD_FLAG}</span></span>
     <span class="motd-meta"><b>${timeStr(m.utc)}</b> · ${esc(m.group ? "Group " + m.group : m.round)} · ${esc((m.city || "").split(",")[0])}</span>
   </button>`;
+}
+
+/* ---------------- render: Live (immersive single-match following) ---------------- */
+let _liveFocus = null;        // user-picked focus match id; else auto: marquee live → next up → last result
+let _liveCdTimer = null;
+function liveFocusPool() {
+  const live = S.matches.filter(m => [ST.LIVE, ST.HT].includes(status(m))).sort((a, b) => prestige(b) - prestige(a));
+  const soon = S.matches.filter(m => status(m) === ST.SCHED).sort((a, b) => a.utc.localeCompare(b.utc)).slice(0, 4);
+  const recent = S.matches.filter(m => status(m) === ST.FT).sort((a, b) => b.utc.localeCompare(a.utc)).slice(0, 4);
+  const seen = new Set(), pool = [];
+  for (const m of [...live, ...soon, ...recent]) if (!seen.has(m.id)) { seen.add(m.id); pool.push(m); }
+  return { live, soon, recent, pool };
+}
+function liveFocusMatch(pool) {
+  if (_liveFocus) { const m = S.matches.find(x => x.id === _liveFocus); if (m) return m; }
+  return pool.live[0] || pool.soon[0] || pool.recent[0] || null;
+}
+// the big team-coloured hero band: status, flags, live score or a ticking countdown, venue
+function liveHero(m) {
+  const h = slotInfo(m, "home"), a = slotInfo(m, "away"), r = res(m), st = status(m);
+  const live = [ST.LIVE, ST.HT].includes(st), ft = st === ST.FT, score = r && r.h != null;
+  const c1 = (h.code && S.teams[h.code]?.c1) || "var(--pitch)";
+  const c2 = (a.code && S.teams[a.code]?.c1) || "var(--ink-soft)";
+  const stage = m.group ? `Group ${m.group}` : m.stage === "third" ? "3rd place" : m.round;
+  const statusEl = live ? `<span class="lh-status is-live">${ballSVG("live-ball")} ${st === ST.HT ? "Half-time" : "Live · " + (clockStr(m, r) || "")}</span>`
+    : ft ? `<span class="lh-status is-ft">● Full time</span>`
+    : `<span class="lh-status is-soon">${fmt(m.utc, { weekday: "short", day: "numeric", month: "short" })} · ${timeStr(m.utc)}</span>`;
+  const side = (s, key) => `<div class="lh-team ${s.code ? "lh-clk" : ""}"${s.code ? ` data-squad="${s.code}" role="button" tabindex="0" aria-label="Open ${esc(s.name)}"` : ""}>
+    <span class="lh-flag">${s.code ? flag(s.code) : TBD_FLAG}</span>
+    <span class="lh-name">${esc(s.name)}</span>
+    ${s.code && fifaRankOf(s.code) ? `<span class="lh-rank">FIFA #${fifaRankOf(s.code)}</span>` : ""}</div>`;
+  const mid = score
+    ? `<div class="lh-score">${r.h ?? 0}<span>–</span>${r.a ?? 0}</div>${r.hp != null ? `<div class="lh-pens">${r.hp}–${r.ap} pens</div>` : ""}`
+    : `<div class="lh-cd" data-utc="${m.utc}">${["d", "h", "m"].map(k => `<span class="lh-cd-cell"><b data-k="${k}">–</b><i>${{ d: "days", h: "hrs", m: "min" }[k]}</i></span>`).join("")}</div>`;
+  return `<div class="live-hero" style="--lha:${c1};--lhb:${c2}">
+    <div class="lh-top">${statusEl}<span class="lh-stage">${esc(stage)}</span>
+      <button class="lh-open" data-mid="${m.id}">Full details ›</button></div>
+    <div class="lh-teams">${side(h, "home")}<div class="lh-mid">${mid}</div>${side(a, "away")}</div>
+    <div class="lh-meta"><span>${esc(m.stadium)}</span><span>${esc(m.city)}</span>${r?.facts?.att ? `<span>${ICO.people} ${(+r.facts.att).toLocaleString()}</span>` : ""}</div>
+  </div>`;
+}
+// the model's discarded "why" drivers, surfaced as chips (host edge, form, down to 10, two leaky defences…)
+function liveWhyChips(wp) {
+  if (!wp?.reasons?.length) return "";
+  const chips = wp.reasons.map(rs => {
+    const arrow = rs.dir === "H" ? "◂ " : rs.dir === "A" ? "▸ " : "";
+    return `<span class="why-chip${rs.dot ? " why-live" : ""}"><i class="why-dir">${arrow}</i>${esc(rs.text)}</span>`;
+  }).join("");
+  return `<div class="why-chips">${chips}</div>`;
+}
+// the model's discarded top-3 most-likely scorelines, as tiles
+function liveScorelines(wp) {
+  if (!wp?.predicted?.length) return "";
+  const tiles = wp.predicted.slice(0, 3).map((s, i) => `<div class="sl-tile${i === 0 ? " sl-top" : ""}"><b>${s.h}–${s.a}</b><i>${Math.round(s.p * 100)}%</i></div>`).join("");
+  return `<div class="eyebrow">Most likely scores</div><div class="sl-tiles">${tiles}</div>`;
+}
+// recent W/D/L form for both sides (upcoming context)
+function liveContext(m) {
+  const h = slotInfo(m, "home"), a = slotInfo(m, "away");
+  if (!h.code || !a.code) return "";
+  const fh = formChips(h.code), fa = formChips(a.code);
+  if (!fh && !fa) return "";
+  const row = (s, f) => `<div class="lc-row"><span class="fl">${flag(s.code)}</span><span class="lc-nm">${esc(s.name)}</span>${f || `<span class="lc-none">No recent games</span>`}</div>`;
+  return `<div class="eyebrow">Recent form</div><div class="lc-form">${row(h, fh)}${row(a, fa)}</div>`;
+}
+// the rail of switchable matches (live, next up, recent) above the hero
+function liveSwitcher(pool, focusId) {
+  if (pool.pool.length < 2) return "";
+  const chip = m => {
+    const h = slotInfo(m, "home"), a = slotInfo(m, "away"), r = res(m), st = status(m);
+    const live = [ST.LIVE, ST.HT].includes(st), score = r && r.h != null;
+    const tag = live ? `<span class="lr-tag is-live">LIVE</span>` : st === ST.FT ? `<span class="lr-tag">FT</span>` : `<span class="lr-tag">${fmt(m.utc, { day: "numeric", month: "short" })}</span>`;
+    const mid = score ? `<b>${r.h}–${r.a}</b>` : `<b>${timeStr(m.utc)}</b>`;
+    return `<button class="lr-chip${m.id === focusId ? " is-on" : ""}" data-focus="${m.id}">${tag}
+      <span class="lr-mt"><span class="fl">${h.code ? flag(h.code) : TBD_FLAG}</span>${mid}<span class="fl">${a.code ? flag(a.code) : TBD_FLAG}</span></span></button>`;
+  };
+  return `<div class="live-rail">${pool.pool.map(chip).join("")}</div>`;
+}
+function startLiveCd() {
+  clearInterval(_liveCdTimer); _liveCdTimer = null;
+  const cd = $("#view-live .lh-cd"); if (!cd) return;
+  const target = new Date(cd.dataset.utc);
+  const tick = () => {
+    const s = Math.max(0, Math.floor((target - new Date()) / 1000));
+    const v = { d: s / 86400 | 0, h: s / 3600 % 24 | 0, m: s / 60 % 60 | 0 };
+    $$("b[data-k]", cd).forEach(n => { n.textContent = String(v[n.dataset.k]).padStart(2, "0"); });
+    if (s === 0) { clearInterval(_liveCdTimer); setTimeout(refreshResults, 4000); }
+  };
+  tick(); _liveCdTimer = setInterval(tick, 1000);
+}
+function renderLive() {
+  const el = $("#view-live");
+  const keepY = el.hidden ? 0 : window.scrollY;
+  const pool = liveFocusPool();
+  const m = liveFocusMatch(pool);
+  if (!m) { el.innerHTML = viewH2("view-live") + `<div class="empty" style="margin:28px 0">No matches to follow yet — the tournament opens soon. Check the schedule on the Matches tab.</div>`; return; }
+  const h = slotInfo(m, "home"), a = slotInfo(m, "away"), r = res(m), st = status(m);
+  const live = [ST.LIVE, ST.HT].includes(st), ft = st === ST.FT;
+  const wp = winProb(m);
+  const pXi = r?.xi ? `<div class="eyebrow">${live ? "Line-ups" : "Starting XI"}</div>${xiPanel(r.xi, h, a)}` : "";
+  const wpSection = wp ? `${winProbBlock(m)}${liveWhyChips(wp)}${liveScorelines(wp)}` : "";
+  const sections = live
+    ? [mdFlow(r, h, a), mdTimeline(r, h.code, a.code), pXi, mdKeyStats(r, m), mdStats(r, false), mdEfi(m, false), wpSection, stakesBlock(m)]
+    : ft
+    ? [mdFlow(r, h, a), mdTimeline(r, h.code, a.code), mdKeyStats(r, m), mdStats(r, true), pXi, mdReport(m), mdEfi(m, true), wpSection]
+    : [liveContext(m), wpSection, stakesBlock(m), pXi];
+  el.innerHTML = viewH2("view-live") + liveSwitcher(pool, m.id) + liveHero(m) + sections.filter(Boolean).join("") + koPath(m);
+  $$("[data-focus]", el).forEach(b => b.onclick = () => { _liveFocus = b.dataset.focus; renderLive(); });
+  startLiveCd();
+  if (!el.hidden) window.scrollTo(0, keepY);
 }
 function renderMatches() {
   const el = $("#view-matches");
@@ -3600,10 +3710,10 @@ async function loadEfi() {
 }
 
 /* ---------------- navigation ---------------- */
-const RENDER = { matches: renderMatches, teams: renderTeams, groups: renderGroups, stats: renderStats, sim: renderSim, pulse: renderPulse };
+const RENDER = { live: renderLive, matches: renderMatches, teams: renderTeams, groups: renderGroups, stats: renderStats, sim: renderSim, pulse: renderPulse };
 // shareable per-tab URL hash (Matches is the default → no hash; Predict's internal view name is "sim")
-const VIEW_HASH = { teams: "teams", groups: "groups", sim: "predict", stats: "stats", pulse: "pulse" };
-const HASH_VIEW = { matches: "matches", teams: "teams", groups: "groups", predict: "sim", stats: "stats", pulse: "pulse" };
+const VIEW_HASH = { live: "live", teams: "teams", groups: "groups", sim: "predict", stats: "stats", pulse: "pulse" };
+const HASH_VIEW = { live: "live", matches: "matches", teams: "teams", groups: "groups", predict: "sim", stats: "stats", pulse: "pulse" };
 function nav(v) {
   S.view = v;
   const _want = VIEW_HASH[v] ? "#" + VIEW_HASH[v] : "";       // reflect the tab in the URL so it's shareable / bookmarkable

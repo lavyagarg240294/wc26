@@ -33,7 +33,7 @@
 <meta name="apple-mobile-web-app-title" content="World Cup 26">
 <meta name="application-name" content="World Cup 26">
 <link rel="stylesheet" href="assets/fonts.css?v=112">
-<link rel="stylesheet" href="styles.css?v=279">
+<link rel="stylesheet" href="styles.css?v=280">
 <link rel="icon" href="assets/mark.svg">
 <link rel="icon" type="image/png" href="assets/icon-32.png" sizes="32x32">
 </head>
@@ -64,6 +64,7 @@
 
 <nav class="tabs" id="tabs" aria-label="Sections">
   <button class="tab is-active" data-nav="matches">Matches</button>
+  <button class="tab" data-nav="live">Live</button>
   <button class="tab" data-nav="groups">Groups</button>
   <button class="tab" data-nav="stats">Stats</button>
   <button class="tab" data-nav="sim">Predict</button>
@@ -78,6 +79,7 @@
 
 <main id="main">
   <section class="view" id="view-matches"></section>
+  <section class="view" id="view-live" hidden></section>
   <section class="view" id="view-teams" hidden></section>
   <section class="view" id="view-groups" hidden></section>
   <section class="view" id="view-sim" hidden></section>
@@ -308,6 +310,6 @@
 <canvas id="confetti" aria-hidden="true"></canvas>
 <audio id="bgm" preload="none"></audio>
 
-<script src="app.js?v=279"></script>
+<script src="app.js?v=280"></script>
 </body>
 </html>
