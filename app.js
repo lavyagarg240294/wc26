@@ -57,7 +57,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "284";  // shown in footer; bump with the ?v= asset version
+const BUILD = "285";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -146,7 +146,7 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;",
 // instead of jumping straight to the cards' h4. Injected here (every render funnels through paint with its view el)
 // so it survives poll re-renders too. Keyed by section id; non-view paints (cards, popups) are untouched.
 // groups/sim set el.innerHTML directly (not via paint), so they prepend viewH2() themselves.
-const VIEW_H2 = { "view-live": "Live", "view-matches": "Matches", "view-teams": "Teams", "view-groups": "Groups", "view-sim": "Predict", "view-stats": "Statistics", "view-pulse": "News" };
+const VIEW_H2 = { "view-live": "Live", "view-matches": "Matches", "view-teams": "Teams", "view-groups": "Tables", "view-sim": "Predict", "view-stats": "Statistics", "view-pulse": "News" };
 const viewH2 = id => VIEW_H2[id] ? `<h2 class="vh">${VIEW_H2[id]}</h2>` : "";
 function paint(el, html) {
   if (!el) return;
@@ -3755,8 +3755,8 @@ async function loadEfi() {
 /* ---------------- navigation ---------------- */
 const RENDER = { live: renderLive, matches: renderMatches, teams: renderTeams, groups: renderGroups, stats: renderStats, sim: renderSim, pulse: renderPulse };
 // shareable per-tab URL hash (Matches is the default → no hash; Predict's internal view name is "sim")
-const VIEW_HASH = { live: "live", teams: "teams", groups: "groups", sim: "predict", stats: "stats", pulse: "pulse" };
-const HASH_VIEW = { live: "live", matches: "matches", teams: "teams", groups: "groups", predict: "sim", stats: "stats", pulse: "pulse" };
+const VIEW_HASH = { live: "live", teams: "teams", groups: "tables", sim: "predict", stats: "stats", pulse: "pulse" };
+const HASH_VIEW = { live: "live", matches: "matches", teams: "teams", tables: "groups", groups: "groups", predict: "sim", stats: "stats", pulse: "pulse" };
 function nav(v) {
   if (v !== "live") stopLiveCd();        // leaving Live → stop its countdown interval (renderLive restarts it on return)
   S.view = v;
