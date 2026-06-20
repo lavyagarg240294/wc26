@@ -5,7 +5,7 @@
 /* ---------------- state ---------------- */
 const S = {
   matches: [], teams: {}, results: { matches: {} }, details: { matches: {} }, matchData: {},
-  reports: { matches: {} }, commentary: {}, buzz: null, efi: {},   // reports.json, lazy commentary, buzz.json, and efi.json (FIFA EFI deep analysis)
+  reports: { matches: {} }, commentary: {}, buzz: null, efi: {}, wc22: null,   // reports.json, lazy commentary, buzz.json, efi.json (FIFA EFI), wc2022.json (last World Cup)
   tz: localStorage.getItem("wc26.tz") || "auto",
   fav: localStorage.getItem("wc26.fav") || null,
   view: null,   // set by boot's nav() — null until then so the pre-first-paint refreshResults() doesn't double-render
@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "305";  // shown in footer; bump with the ?v= asset version
+const BUILD = "306";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -2285,6 +2285,22 @@ function styleSection(code) {
     <div class="sty-row"><span class="sty-lbl">${label}${infoBtn(help + " The bar shows where they rank among all teams (full = highest), not how good it is.", label + " explained")}</span><span class="sty-bar"><i style="width:${pct(key)}%"></i></span><span class="sty-v">${fmt(mine[key])}</span></div></div>`).join("");
   return `<div class="eyebrow">Playing style</div><div class="sty-card">${rows}<p class="sty-hint">Where ${esc(S.teams[code].name)} ranks among teams with match stats. A fuller bar means more than its rivals, not "better".</p></div>`;
 }
+// "Then & Now": this team at the last World Cup (2022) — their finish + who carried over vs who's new this time.
+function since2022Section(code) {
+  if (!S.wc22) return "";   // dataset not loaded yet (re-renders when it lands)
+  const c = wc22Continuity(code);
+  if (!c) { const debut = S.teams[code]?.best === "First appearance";
+    return `<div class="eyebrow">Since 2022</div><div class="s22-card s22-absent"><b>${debut ? "World Cup debut" : "Did not play at Qatar 2022"}</b><span>${debut ? "Their first-ever World Cup." : "Back at the World Cup this year."}</span></div>`; }
+  const cont = c.continuing.length, fresh = c.fresh.length, tot = cont + fresh, pct = tot ? Math.round(cont / tot * 100) : 0;
+  const names = arr => arr.map(p => esc(pName(p.name, code))).join(", ") || "None";
+  return `<div class="eyebrow">Since 2022</div>
+    <div class="s22-card">
+      <div class="s22-top"><span class="s22-finish s22-t${c.tier}">Qatar 2022: ${esc(c.finish)}</span><span class="s22-split"><b>${cont}</b> returning · <b>${fresh}</b> new</span></div>
+      <div class="s22-bar" role="img" aria-label="${cont} of ${tot} played in 2022"><i style="width:${pct}%"></i></div>
+      <details class="s22-det"><summary>${cont} carried over from the 2022 squad</summary><p>${names(c.continuing)}</p></details>
+      <details class="s22-det"><summary>${fresh} new since 2022</summary><p>${names(c.fresh)}</p></details>
+    </div>`;
+}
 function openTeam(code) {
   const t = S.teams[code]; if (!t) return;
   const all = S.matches.filter(m => matchHasTeam(m, code)).sort((a, b) => a.utc.localeCompare(b.utc));
@@ -2299,6 +2315,7 @@ function openTeam(code) {
     <div class="ts-meta">${t.conf ? esc(t.conf) : ""}${group ? ` · Group ${group}` : ""}${played ? ` · <b>${ordinal(pos)}</b> after ${played} match${played > 1 ? "es" : ""}` : ""}</div>
     ${teamOverview(code)}
     ${wcHistory(code)}
+    ${since2022Section(code)}
     <div class="ts-actrow">
       ${isFav
         ? `<div class="ts-fav-tag">★ Your team</div>`
@@ -2315,6 +2332,7 @@ function openTeam(code) {
       <div class="legend"><span class="l1"><i></i>Top 2 advance</span><span class="l3"><i></i>3rd: possible best-8 spot</span></div>` : ""}
     ${roadSection(code)}
     ${rotationSection(code)}`;
+  $("#teamSheet").dataset.code = code;   // so loadWC2022() can re-render this sheet once the dataset lands
   showSheet($("#teamSheet"));
 }
 // best-effort match of a feed name (e.g. "Julian QUINONES") to a squad entry (names come from a different feed)
@@ -4038,6 +4056,23 @@ async function loadEfi() {
   try { S.efi = (await (await fetch("data/efi.json?t=" + Date.now(), { cache: "no-store" })).json()).matches || {}; } catch { /* not published yet */ }
   const md = $("#matchDialog"); if (md?.open && md.dataset.openMid) openMatch(md.dataset.openMid, true);
 }
+// last World Cup (Qatar 2022): finishes + squads, for the "Then & Now" team views. Static — fetched once.
+async function loadWC2022() {
+  try { S.wc22 = await (await fetch("data/wc2022.json")).json(); } catch { /* not published yet */ }
+  if ($("#teamSheet")?.open && $("#teamSheet").dataset.code) openTeam($("#teamSheet").dataset.code);   // refresh an open sheet
+}
+// of a 2026 team, who CONTINUES from its 2022 squad vs who's NEW. 2022 names resolve to 2026 players by full
+// (order/accent-insensitive) name match — strict, so we never count a same-surname different player as "continuing".
+const _wc22KeyCache = new Map();
+function wc22Continuity(code) {
+  const w = S.wc22?.teams?.[code], sq = S.squads?.[code]?.players;
+  if (!w || !sq) return null;
+  const key = n => { const k = _deburr(n).replace(/\(.*?\)/g, "").split(/\s+/).map(t => t.replace(/[^a-z]/g, "")).filter(Boolean).sort().join(" "); return k; };
+  const had = new Set((w.squad || []).map(key));
+  const continuing = sq.filter(p => had.has(key(p.name)));
+  const fresh = sq.filter(p => !had.has(key(p.name)));
+  return { finish: w.finish, tier: w.tier, in2022: (w.squad || []).length, continuing, fresh };
+}
 
 /* ---------------- navigation ---------------- */
 const RENDER = { live: renderLive, matches: renderMatches, teams: renderTeams, players: renderPlayers, groups: renderGroups, stats: renderStats, sim: renderSim, pulse: renderPulse };
@@ -4748,6 +4783,7 @@ async function boot() {
   await Promise.race([refreshResults(), new Promise(r => setTimeout(r, 3500))]);
   nav(initView);
   loadBuzz();   // fan reactions + headlines (data/buzz.json); refreshed on the poll below
+  loadWC2022();   // last World Cup (static) — for the team "Since 2022" view
   loadEfi();    // FIFA EFI deep-analysis (data/efi.json), post-match
   addEventListener("hashchange", () => { const v = HASH_VIEW[location.hash.slice(1)]; if (v && v !== S.view) nav(v); });  // a shared #tab link opened in-session / back-forward
   const bl = $("#bootLoading"); if (bl) { bl.classList.add("gone"); setTimeout(() => bl.remove(), 320); }   // first view rendered → reveal

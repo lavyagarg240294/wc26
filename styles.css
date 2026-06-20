@@ -1072,6 +1072,24 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .ts-cal-btn:hover{background:color-mix(in srgb,var(--acc1) 14%,var(--card));border-color:color-mix(in srgb,var(--acc1) 40%,var(--line))}
 .ts-cal-btn.ghost{background:transparent;color:var(--ink-soft)}
 .ts-cal-btn.ghost:hover{color:var(--ink);background:color-mix(in srgb,var(--ink) 4%,transparent)}
+/* "Since 2022" — last-World-Cup finish + squad continuity (continuing vs new) */
+.s22-card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);padding:13px 15px;margin:2px 0 10px}
+.s22-card.s22-absent{display:flex;flex-direction:column;gap:2px}
+.s22-card.s22-absent b{font-size:14px;color:var(--ink)}
+.s22-card.s22-absent span{font-size:12px;color:var(--ink-soft)}
+.s22-top{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:9px}
+.s22-finish{font-family:var(--disp);font-weight:700;font-stretch:106%;font-size:12px;padding:4px 11px;border-radius:99px;background:color-mix(in srgb,var(--ink) 7%,var(--card));color:var(--ink-soft);border:1px solid var(--line)}
+.s22-finish.s22-t1{background:color-mix(in srgb,var(--gold) 22%,var(--card));color:var(--gold-text);border-color:color-mix(in srgb,var(--gold) 45%,var(--line))}
+.s22-finish.s22-t2,.s22-finish.s22-t3,.s22-finish.s22-t4{background:color-mix(in srgb,var(--acc1) 12%,var(--card));color:var(--acc-text);border-color:color-mix(in srgb,var(--acc1) 30%,var(--line))}
+.s22-split{font-size:13px;color:var(--ink-soft)}
+.s22-split b{color:var(--ink);font-weight:700;font-variant-numeric:tabular-nums}
+.s22-bar{height:8px;border-radius:99px;background:color-mix(in srgb,var(--ink) 8%,transparent);overflow:hidden;margin-bottom:7px}
+.s22-bar>i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,var(--acc1),var(--acc2));transition:width .5s}
+.s22-det>summary{cursor:pointer;padding:6px 0;color:var(--acc-text);font-weight:600;font-size:12px;list-style:none}
+.s22-det>summary::-webkit-details-marker{display:none}
+.s22-det>summary::before{content:"▸ ";color:var(--ink-soft)}
+.s22-det[open]>summary::before{content:"▾ "}
+.s22-det p{margin:1px 0 7px;color:var(--ink-soft);line-height:1.55;font-size:13px}
 .ts-squad{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden;margin-top:6px}
 .ts-squad>summary{list-style:none;cursor:pointer;display:flex;align-items:baseline;gap:10px;padding:13px 16px;font-family:var(--disp);font-weight:800;font-stretch:110%;font-size:13px;letter-spacing:.1em;text-transform:uppercase}
 .ts-squad>summary::-webkit-details-marker{display:none}
