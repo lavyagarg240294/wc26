@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "315";  // shown in footer; bump with the ?v= asset version
+const BUILD = "316";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1618,6 +1618,7 @@ function liveCommentary(m) {
   }
   if (!c || !c.items?.length) return "";
   const live = [ST.LIVE, ST.HT].includes(status(m));
+  // classify each line so it gets a meaningful icon (a varied feed reads far better than a column of identical dots)
   const kindOf = it => {
     const k = (it.k || "").toLowerCase(), x = it.x || "";
     if (k.includes("goal") || (/\bgoal!?\b/i.test(x) && !/no goal|disallow|ruled out|chance/i.test(x))) return "goal";
@@ -1625,15 +1626,42 @@ function liveCommentary(m) {
     if (k === "yellow" || /yellow card|booked|caution/i.test(x)) return "yellow";
     if (/\bVAR\b/i.test(x)) return "var";
     if (k.includes("sub") || /substitution/i.test(x)) return "sub";
-    if (/First Half ends|Second Half ends|Match ends|Half begins|kick-off|kicks? off|full[- ]?time|half[- ]?time/i.test(x)) return "whistle";
+    if (/First Half ends|Second Half ends|Match ends|Half begins|kick-?off|kicks? off|full[- ]?time|half[- ]?time/i.test(x)) return "whistle";
+    if (/\bsaved?\b/i.test(x)) return "save";
+    if (/attempt|\bshot\b|\bheader\b|hits the (bar|post|woodwork)|blocked|misses|too high|goes wide|\bwide\b/i.test(x)) return "shot";
+    if (/\bcorner\b/i.test(x)) return "corner";
+    if (/offside/i.test(x)) return "offside";
+    if (/free kick/i.test(x)) return "freekick";
+    if (/\bfoul\b|hand ?ball/i.test(x)) return "foul";
+    if (/injury|treatment|stretcher|knock\b/i.test(x)) return "injury";
     return "";
   };
   // ESPN ships items NEWEST-FIRST. Live keeps newest-first (latest at top); FT reads chronologically. Show ALL of it.
   const ordered = live ? c.items : c.items.slice().reverse();
-  const ICON = { goal: `<span class="lcm-ic lcm-i-goal">${ICO.ball}</span>`, red: `<span class="lcm-ic"><span class="tl-card r"></span></span>`,
-    yellow: `<span class="lcm-ic"><span class="tl-card y"></span></span>`, var: `<span class="lcm-ic lcm-i-var">VAR</span>`,
-    sub: `<span class="lcm-ic lcm-i-sub">${ICO.subs}</span>`, whistle: `<span class="lcm-ic lcm-i-w"></span>`, "": `<span class="lcm-ic lcm-i-dot"></span>` };
-  const clar = t => { const mm = /^VAR Decision:\s*(.+?)\.?\s*$/i.exec(t || ""); if (!mm) return esc(t || ""); let d = mm[1].trim(); if (/^other decision cancelled$/i.test(d)) d = "an on-field decision was overturned after review"; return esc(d); };
+  const SVG = {
+    target: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.4" fill="currentColor" stroke="none"/></svg>',
+    whistle: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 9H4a1 1 0 0 0-1 1v1.5a5.5 5.5 0 0 0 11 0V10a1 1 0 0 0-1-1z"/><path d="M13.5 10.5 21 7"/></svg>',
+    flag: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 21V4M6 4h11l-2.5 3.5L17 11H6"/></svg>',
+    cross: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 7v10M7 12h10"/></svg>',
+  };
+  const ICON = { goal: `<span class="lcm-ic lcm-i-goal">${ICO.ball}</span>`, save: `<span class="lcm-ic lcm-i-save">${ICO.glove}</span>`,
+    shot: `<span class="lcm-ic lcm-i-shot">${SVG.target}</span>`, red: `<span class="lcm-ic"><span class="tl-card r"></span></span>`,
+    yellow: `<span class="lcm-ic"><span class="tl-card y"></span></span>`, var: `<span class="lcm-ic"><span class="lcm-i-var">VAR</span></span>`,
+    sub: `<span class="lcm-ic lcm-i-sub">${ICO.subs}</span>`, corner: `<span class="lcm-ic lcm-i-corner">${SVG.flag}</span>`,
+    offside: `<span class="lcm-ic lcm-i-offside">${SVG.flag}</span>`, freekick: `<span class="lcm-ic lcm-i-fk">${SVG.whistle}</span>`,
+    foul: `<span class="lcm-ic lcm-i-foul">${SVG.whistle}</span>`, injury: `<span class="lcm-ic lcm-i-injury">${SVG.cross}</span>`,
+    whistle: `<span class="lcm-ic"><span class="lcm-i-w"></span></span>`, "": `<span class="lcm-ic"><span class="lcm-i-dot"></span></span>` };
+  // keep ESPN's facts, just make them read like commentary: bold the actor (it writes "Player (Team)") and
+  // tuck the trailing "Assisted by …" detail into a quieter voice so the main action lands first.
+  const clar = t => {
+    let s = t || "";
+    const mm = /^VAR Decision:\s*(.+?)\.?\s*$/i.exec(s);
+    if (mm) { let d = mm[1].trim(); if (/^other decision cancelled$/i.test(d)) d = "an on-field decision was overturned after review"; s = d; }
+    s = esc(s);
+    s = s.replace(/([\p{Lu}][^.()]{0,32}?)(\s\([^)]+\))/gu, '<b class="lcm-pl">$1</b>$2');
+    s = s.replace(/(\bAssisted by\b[^.]*\.?)/i, '<span class="lcm-assist">$1</span>');
+    return s;
+  };
   const rowFor = (it, i) => { const kd = kindOf(it);
     return `<div class="lcm-row lcm-${kd || "x"}${live && i === 0 ? " is-latest" : ""}">
       <span class="lcm-min">${esc(it.t || "")}</span>${ICON[kd] || ICON[""]}
@@ -1985,8 +2013,8 @@ function rosterMarkup(sq, code) {
   }).join("")}</div>`;
 }
 /* ---------------- render: Players (browse all 1248 with filters) ---------------- */
-let _plFilter = { q: "", pos: "all", sort: "caps", dir: "desc", club: "" };
-let _plIdx = null, _plIdxSig = "", _plClubs = null, _plClubCloser = null;
+let _plFilter = { q: "", pos: "all", sort: "caps", dir: "desc", club: "", country: "" };
+let _plIdx = null, _plIdxSig = "", _plClubs = null, _plCtries = null, _plPickerClosers = {};
 function playersIndex() {
   const sig = Object.keys(S.squads || {}).length + ":" + (tournamentStats().scorers.length);
   if (_plIdx && _plIdxSig === sig) return _plIdx;
@@ -2001,7 +2029,7 @@ function playersIndex() {
         wc: wcOf(nm, code), age: bio?.d ? ageFrom(bio.d) : null, cap: isCaptain(nm, code) });
     }
   }
-  _plClubs = null;   // invalidate the derived club tally
+  _plClubs = _plCtries = null;   // invalidate the derived club + country tallies
   return (_plIdx = out, _plIdxSig = sig, out);
 }
 // clubs that supply players to this World Cup, ranked by how MANY they send (most first), cached with the index
@@ -2011,6 +2039,14 @@ function playerClubs() {
   for (const p of playersIndex()) if (p.club) m.set(p.club, (m.get(p.club) || 0) + 1);
   return (_plClubs = [...m.entries()].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name)));
 }
+// the 48 nations, each with its squad size — listed alphabetically (counts are ~uniform, so name order is what helps you find one)
+function playerCountries() {
+  if (_plCtries) return _plCtries;
+  const m = new Map();
+  for (const p of playersIndex()) m.set(p.code, (m.get(p.code) || 0) + 1);
+  return (_plCtries = [...m.entries()].map(([code, count]) => ({ code, name: S.teams[code]?.name || code, count }))
+    .sort((a, b) => a.name.localeCompare(b.name)));
+}
 const PL_POS = [["all", "All"], ["GK", "GK"], ["DF", "DEF"], ["MF", "MID"], ["FW", "FWD"]];
 // each sort has a natural default direction; tapping the active one reverses it (cmp is the ASCENDING comparator)
 const PL_SORT = [
@@ -2019,9 +2055,10 @@ const PL_SORT = [
 ];
 const PLG_SEARCH_SVG = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>';
 const PLG_CLUB_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.4-3 7.7-7 9-4-1.3-7-4.6-7-9V6z"/></svg>';
+const PLG_CTRY_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.4 3.9 5.6 4 9-.1 3.4-1.5 6.6-4 9-2.5-2.4-3.9-5.6-4-9 .1-3.4 1.5-6.6 4-9z"/></svg>';
 function plgCompute() {
   const f = _plFilter, q = f.q.trim().toLowerCase();
-  const list = playersIndex().filter(p => (f.pos === "all" || p.pos === f.pos) && (!f.club || p.club === f.club) &&
+  const list = playersIndex().filter(p => (f.pos === "all" || p.pos === f.pos) && (!f.club || p.club === f.club) && (!f.country || p.code === f.country) &&
     (!q || p.name.toLowerCase().includes(q) || p.club.toLowerCase().includes(q) || (S.teams[p.code]?.name || "").toLowerCase().includes(q)));
   const s = PL_SORT.find(x => x.k === f.sort) || PL_SORT[0], sign = f.dir === "asc" ? 1 : -1;
   list.sort((a, b) => {
@@ -2052,28 +2089,41 @@ function plgListHTML(list) {
 function plgClubListHTML(q) {
   const clubs = playerClubs(), f = (q || "").trim().toLowerCase();
   const rows = f ? clubs.filter(c => c.name.toLowerCase().includes(f)) : clubs, LIM = 50;
-  const all = f ? "" : `<button class="plg-clubrow ${!_plFilter.club ? "is-on" : ""}" data-club=""><span class="plg-clubnm">All clubs</span><span class="plg-clubn">${playersIndex().length}</span></button>`;
-  const body = rows.slice(0, LIM).map(c => `<button class="plg-clubrow ${c.name === _plFilter.club ? "is-on" : ""}" data-club="${esc(c.name)}"><span class="plg-clubnm">${esc(c.name)}</span><span class="plg-clubn">${c.count}</span></button>`).join("");
+  const all = f ? "" : `<button class="plg-clubrow ${!_plFilter.club ? "is-on" : ""}" data-pick=""><span class="plg-clubnm">All clubs</span><span class="plg-clubn">${playersIndex().length}</span></button>`;
+  const body = rows.slice(0, LIM).map(c => `<button class="plg-clubrow ${c.name === _plFilter.club ? "is-on" : ""}" data-pick="${esc(c.name)}"><span class="plg-clubnm">${esc(c.name)}</span><span class="plg-clubn">${c.count}</span></button>`).join("");
   const more = !rows.length ? `<div class="plg-clubmore">No clubs match “${esc(q)}”</div>` : (rows.length > LIM ? `<div class="plg-clubmore">${rows.length - LIM} more — keep typing to narrow</div>` : "");
   return all + body + more;
 }
+// the country-picker list (all 48, alphabetical, with flag), narrowed by its own search box; value is the team CODE
+function plgCountryListHTML(q) {
+  const ctries = playerCountries(), f = (q || "").trim().toLowerCase();
+  const rows = f ? ctries.filter(c => c.name.toLowerCase().includes(f)) : ctries, LIM = 60;
+  const all = f ? "" : `<button class="plg-clubrow ${!_plFilter.country ? "is-on" : ""}" data-pick=""><span class="plg-clubnm">All countries</span><span class="plg-clubn">${playersIndex().length}</span></button>`;
+  const body = rows.slice(0, LIM).map(c => `<button class="plg-clubrow ${c.code === _plFilter.country ? "is-on" : ""}" data-pick="${esc(c.code)}"><span class="plg-clubnm"><span class="fl">${flag(c.code)}</span> ${esc(c.name)}</span><span class="plg-clubn">${c.count}</span></button>`).join("");
+  const more = rows.length ? "" : `<div class="plg-clubmore">No countries match “${esc(q)}”</div>`;
+  return all + body + more;
+}
 function renderPlayers() {
-  if (_plClubCloser) { _plClubCloser(); _plClubCloser = null; }   // tear down a previous club popover's doc listeners before rebuild
+  for (const k in _plPickerClosers) { const fn = _plPickerClosers[k]; if (fn) fn(); }   // tear down any open picker's doc listeners before rebuild
+  _plPickerClosers = {};
   const el = $("#view-players"), f = _plFilter;
   const posSeg = PL_POS.map(([k, label]) => `<button class="plg-segbtn ${k === f.pos ? "is-on" : ""}" data-pos="${k}">${label}</button>`).join("");
   const sortSeg = PL_SORT.map(s => { const on = s.k === f.sort;
     return `<button class="plg-segbtn ${on ? "is-on" : ""}" data-sort="${s.k}" title="${on ? "Tap again to reverse" : `Sort by ${s.label.toLowerCase()}`}">${s.label}${on ? `<i class="plg-dir">${f.dir === "asc" ? "↑" : "↓"}</i>` : ""}</button>`; }).join("");
+  // searchable pickers for country (all 48, flagged) and club, mirrored from one template
+  const picker = (kind, set, svg, lbl, ph) => `<div class="plg-clubwrap">
+        <button class="plg-club ${set ? "is-set" : ""}" id="plg${kind}Btn" aria-haspopup="listbox" aria-expanded="false">${svg}<span class="plg-club-lbl">${lbl}</span>${set ? `<i class="plg-club-x" data-pick-clear role="button" aria-label="Clear">✕</i>` : `<i class="plg-club-cv">▾</i>`}</button>
+        <div class="plg-clubpop" id="plg${kind}Pop" hidden>
+          <div class="plg-clubsearch">${PLG_SEARCH_SVG}<input id="plg${kind}Q" type="search" placeholder="${ph}" autocomplete="off"></div>
+          <div class="plg-clublist" id="plg${kind}List"></div>
+        </div>
+      </div>`;
   el.innerHTML = viewH2("view-players") + `
     <div class="plg-filters">
       <div class="plg-search">${PLG_SEARCH_SVG}
         <input id="plgQ" type="search" placeholder="Search players or teams…" value="${esc(f.q)}" autocomplete="off"></div>
-      <div class="plg-clubwrap">
-        <button class="plg-club ${f.club ? "is-set" : ""}" id="plgClubBtn" aria-haspopup="listbox" aria-expanded="false">${PLG_CLUB_SVG}<span class="plg-club-lbl">${f.club ? esc(f.club) : "All clubs"}</span>${f.club ? `<i class="plg-club-x" data-club-clear role="button" aria-label="Clear club">✕</i>` : `<i class="plg-club-cv">▾</i>`}</button>
-        <div class="plg-clubpop" id="plgClubPop" hidden>
-          <div class="plg-clubsearch">${PLG_SEARCH_SVG}<input id="plgClubQ" type="search" placeholder="Search clubs…" autocomplete="off"></div>
-          <div class="plg-clublist" id="plgClubList"></div>
-        </div>
-      </div>
+      ${picker("Ctry", f.country, f.country ? `<span class="fl">${flag(f.country)}</span>` : PLG_CTRY_SVG, f.country ? esc(S.teams[f.country]?.name || f.country) : "All countries", "Search countries…")}
+      ${picker("Club", f.club, PLG_CLUB_SVG, f.club ? esc(f.club) : "All clubs", "Search clubs…")}
       <div class="plg-seg">${posSeg}</div>
       <div class="plg-seg plg-sortseg">${sortSeg}</div>
     </div>
@@ -2088,27 +2138,28 @@ function renderPlayers() {
     else { _plFilter.sort = k; _plFilter.dir = (PL_SORT.find(s => s.k === k) || {}).def || "desc"; }
     renderPlayers();
   });
-  wirePlgClub(el);
+  wirePlgPicker(el, "Ctry"); wirePlgPicker(el, "Club");
 }
-// the searchable club picker (popover anchored under its button)
-function wirePlgClub(el) {
-  const btn = $("#plgClubBtn", el), pop = $("#plgClubPop", el), cq = $("#plgClubQ", el), list = $("#plgClubList", el);
+// one searchable picker, parameterised for country or club (popover anchored under its button)
+const PLG_PICK = { Ctry: { key: "country", list: plgCountryListHTML }, Club: { key: "club", list: plgClubListHTML } };
+function wirePlgPicker(el, kind) {
+  const cfg = PLG_PICK[kind];
+  const btn = $(`#plg${kind}Btn`, el), pop = $(`#plg${kind}Pop`, el), cq = $(`#plg${kind}Q`, el), list = $(`#plg${kind}List`, el);
   if (!btn) return;
-  const draw = () => { list.innerHTML = plgClubListHTML(cq.value); };
+  const draw = () => { list.innerHTML = cfg.list(cq.value); };
   const onEsc = e => { if (e.key === "Escape") { close(); btn.focus(); } };
   let onDoc = null;
-  function close() { if (pop.hidden) return; pop.hidden = true; btn.setAttribute("aria-expanded", "false"); if (onDoc) document.removeEventListener("click", onDoc, true); document.removeEventListener("keydown", onEsc); onDoc = null; _plClubCloser = null; }
+  function close() { if (pop.hidden) return; pop.hidden = true; btn.setAttribute("aria-expanded", "false"); if (onDoc) document.removeEventListener("click", onDoc, true); document.removeEventListener("keydown", onEsc); onDoc = null; _plPickerClosers[kind] = null; }
   function open() { if (!pop.hidden) return; pop.hidden = false; btn.setAttribute("aria-expanded", "true"); cq.value = ""; draw();
     // anchor under the button, but flip to right-aligned if left-aligned would spill past the viewport's right edge
-    // (on some widths the club button sits far right, so the old fixed left:0 overflowed and the page scrolled sideways)
     pop.style.left = "0"; pop.style.right = "auto";
     if (pop.getBoundingClientRect().right > innerWidth - 8) { pop.style.left = "auto"; pop.style.right = "0"; }
     setTimeout(() => cq.focus(), 0);
-    onDoc = ev => { if (!ev.target.closest("#plgClubPop") && !ev.target.closest("#plgClubBtn")) close(); };
-    document.addEventListener("click", onDoc, true); document.addEventListener("keydown", onEsc); _plClubCloser = close; }
-  btn.onclick = e => { if (e.target.closest("[data-club-clear]")) { e.stopPropagation(); _plFilter.club = ""; renderPlayers(); return; } pop.hidden ? open() : close(); };
+    onDoc = ev => { if (!ev.target.closest(`#plg${kind}Pop`) && !ev.target.closest(`#plg${kind}Btn`)) close(); };
+    document.addEventListener("click", onDoc, true); document.addEventListener("keydown", onEsc); _plPickerClosers[kind] = close; }
+  btn.onclick = e => { if (e.target.closest("[data-pick-clear]")) { e.stopPropagation(); _plFilter[cfg.key] = ""; renderPlayers(); return; } pop.hidden ? open() : close(); };
   if (cq) cq.oninput = () => { clearTimeout(cq._t); cq._t = setTimeout(draw, 80); };
-  if (list) list.onclick = e => { const r = e.target.closest("[data-club]"); if (!r) return; _plFilter.club = r.dataset.club; close(); renderPlayers(); };
+  if (list) list.onclick = e => { const r = e.target.closest("[data-pick]"); if (!r) return; _plFilter[cfg.key] = r.dataset.pick; close(); renderPlayers(); };
 }
 function squadSection(code) {
   const sq = S.squads?.[code], coach = teamCoach(code);

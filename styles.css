@@ -329,18 +329,22 @@ body.bg-paused #bg span{animation-play-state:paused;will-change:auto}
 .lcm.lcm-scroll .lcm-row:first-child{border-top:none}
 .lcm-count{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--ink-soft);background:color-mix(in srgb,var(--ink) 8%,transparent);border-radius:99px;padding:1px 7px;vertical-align:1px}
 .lcm-load{font-size:13px;color:var(--ink-soft);padding:8px 2px}
-.lcm-row{display:grid;grid-template-columns:42px 24px 1fr;align-items:start;gap:9px;padding:9px 2px;border-top:1px solid color-mix(in srgb,var(--line) 55%,transparent)}
+.lcm-row{display:grid;grid-template-columns:40px 22px 1fr;align-items:start;gap:10px;padding:8px 3px;border-top:1px solid color-mix(in srgb,var(--line) 55%,transparent)}
 .lcm-row:first-child{border-top:none}
-.lcm-min{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--ink-soft);font-variant-numeric:tabular-nums;padding-top:2px}
-.lcm-ic{display:grid;place-items:center;width:24px;height:24px}
-.lcm-i-dot{width:7px;height:7px;border-radius:50%;background:color-mix(in srgb,var(--ink) 22%,var(--line))}
-.lcm-i-w{width:11px;height:11px;border-radius:2px;border:2px solid var(--ink-soft)}
+/* the minute + icon share the text's 20px first-line box, so they sit ON the first line (no low/floating dot) */
+.lcm-min{font-family:var(--mono);font-size:11px;font-weight:700;line-height:20px;color:var(--ink-soft);font-variant-numeric:tabular-nums}
+.lcm-ic{display:grid;place-items:center;width:22px;height:20px;color:var(--ink-soft)}
+.lcm-i-dot{width:6px;height:6px;border-radius:50%;background:color-mix(in srgb,var(--ink) 30%,var(--line))}
+.lcm-i-w{width:10px;height:10px;border-radius:2px;border:2px solid var(--ink-soft)}
 .lcm-ic svg{width:16px;height:16px}
 .lcm-ic .tl-card{width:11px;height:15px;border-radius:2px;display:block}
-.lcm-i-goal svg{width:18px;height:18px}
+.lcm-i-goal{color:var(--gold-text)}.lcm-i-goal svg{width:18px;height:18px}
+.lcm-i-save{color:var(--acc-text)}
+.lcm-i-offside{color:var(--gold-text)}
 .lcm-i-var{font-family:var(--disp);font-weight:800;font-size:8px;letter-spacing:.02em;color:#fff;background:var(--acc-text);padding:2px 4px;border-radius:4px;width:auto;height:auto}
-.lcm-i-sub{color:var(--ink-soft)}
-.lcm-tx{font-size:13px;line-height:1.45;color:var(--ink);padding-top:1px}
+.lcm-tx{font-size:13px;line-height:1.5;color:var(--ink)}
+.lcm-pl{font-weight:700;color:var(--ink)}                 /* the actor's name, lifted out of the sentence */
+.lcm-assist{color:var(--ink-soft)}                        /* the quieter "Assisted by …" tail */
 .lcm-goal{background:color-mix(in srgb,var(--gold) 13%,transparent);border-radius:9px;margin:0 -8px;padding-left:10px;padding-right:10px}
 .lcm-goal .lcm-tx{font-weight:600}
 .lcm-goal .lcm-min,.lcm-goal .lcm-i-goal svg{color:var(--gold-text)}
@@ -422,6 +426,7 @@ body.bg-paused #bg span{animation-play-state:paused;will-change:auto}
 .plg-club-x{font-style:normal;color:var(--ink-soft);font-size:11px;width:17px;height:17px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;flex:none}
 .plg-club-x:hover{background:color-mix(in srgb,var(--ink) 12%,transparent);color:var(--ink)}
 .plg-clubpop{position:absolute;z-index:40;top:calc(100% + 6px);left:0;width:282px;max-width:86vw;background:var(--card);border:1px solid var(--line);border-radius:var(--r-sm);box-shadow:var(--shadow-hover);padding:8px;display:flex;flex-direction:column;gap:7px}
+.plg-clubpop[hidden]{display:none}   /* the flex display above otherwise beats the hidden attribute, leaving the popover stuck open */
 .plg-clubsearch{display:flex;align-items:center;gap:7px;padding:7px 11px;border-radius:99px;border:1px solid var(--line);background:var(--paper);color:var(--ink-soft)}
 .plg-clubsearch svg{flex:none}
 .plg-clubsearch input{flex:1;min-width:0;border:none;background:none;font:inherit;font-size:13px;color:var(--ink);outline:none}
