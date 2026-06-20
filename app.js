@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "301";  // shown in footer; bump with the ?v= asset version
+const BUILD = "302";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1941,13 +1941,13 @@ function rosterMarkup(sq, code) {
         return `<div class="roster-row" data-player="${esc(nm)}|${code}" role="button" tabindex="0">
         <span class="rnum">${x.n ?? "·"}</span>
         <span class="rface"${ph ? ` style="background-image:url('${ph}')"` : ""}>${ph ? "" : flag(code)}</span>
-        <span class="rname">${esc(nm)}${x.name.includes("(captain)") ? `<i class="cpt">C</i>` : ""}${x.club ? `<small>${esc(x.club)}</small>` : ""}</span>
+        <span class="rname">${esc(nm)}${x.name.includes("(captain)") ? `<i class="cpt">C</i>` : ""}${x.club ? `<small><span class="club-ic">${ICO.shield}</span>${esc(x.club)}</small>` : ""}</span>
         ${x.caps != null ? `<span class="rstat">${x.caps}<i>caps</i>${x.goals ? `<em>${x.goals} g</em>` : ""}</span>` : ""}
       </div>`; }).join("")}</div>` : "";
   }).join("")}</div>`;
 }
 /* ---------------- render: Players (browse all 1248 with filters) ---------------- */
-let _plFilter = { q: "", pos: "all", sort: "wc", dir: "desc", club: "" };
+let _plFilter = { q: "", pos: "all", sort: "caps", dir: "desc", club: "" };
 let _plIdx = null, _plIdxSig = "", _plClubs = null, _plClubCloser = null;
 function playersIndex() {
   const sig = Object.keys(S.squads || {}).length + ":" + (tournamentStats().scorers.length);
@@ -1976,7 +1976,6 @@ function playerClubs() {
 const PL_POS = [["all", "All"], ["GK", "GK"], ["DF", "DEF"], ["MF", "MID"], ["FW", "FWD"]];
 // each sort has a natural default direction; tapping the active one reverses it (cmp is the ASCENDING comparator)
 const PL_SORT = [
-  { k: "wc", label: "Goals", def: "desc", cmp: (a, b) => (a.wc - b.wc) || (a.cg - b.cg) },
   { k: "caps", label: "Caps", def: "desc", cmp: (a, b) => a.caps - b.caps },
   { k: "age", label: "Age", def: "asc", cmp: (a, b) => (a.age ?? 0) - (b.age ?? 0), missing: p => p.age == null },
   { k: "az", label: "A–Z", def: "asc", cmp: (a, b) => a.name.localeCompare(b.name) },
@@ -1999,17 +1998,16 @@ function plgListHTML(list) {
   const POSN = { GK: "Goalkeeper", DF: "Defender", MF: "Midfielder", FW: "Forward" };
   // the right-hand chip shows the value the list is currently SORTED by, so it's always clear what the ranking means
   const keyStat = p => {
-    if (f.sort === "caps") return `<b>${p.caps}</b><i>caps</i>`;
     if (f.sort === "age") return `<b>${p.age ?? "–"}</b><i>yrs</i>`;
-    return p.wc ? `<b class="plg-g">${p.wc}</b><i>${ICO.ball} '26</i>` : `<b class="plg-dim">0</b><i>${ICO.ball} '26</i>`;   // wc-goals (default) + A–Z
+    return `<b>${p.caps}</b><i>caps</i>`;   // caps for the Caps sort and A–Z (the default headline stat)
   };
   const card = p => {
     const ph = bestPhoto(p.name, p.code, p.n);
     return `<button class="plg-card" data-player="${esc(p.name)}|${p.code}">
       ${ph ? `<span class="plg-face" style="background-image:url('${ph}')"></span>` : `<span class="plg-face plg-flag">${flag(p.code)}</span>`}
       <span class="plg-body"><span class="plg-nm">${esc(pName(p.name, p.code))}${p.cap ? ` <i class="plg-cap">C</i>` : ""}</span>
-        <span class="plg-sub"><span class="fl">${flag(p.code)}</span>${esc(p.club || S.teams[p.code]?.name || "")}</span>
-        <span class="plg-meta">${POSN[p.pos] || p.pos || ""}${p.age ? ` · ${p.age}y` : ""}</span></span>
+        <span class="plg-sub"><span class="fl">${flag(p.code)}</span>${p.club ? `<span class="club-ic">${ICO.shield}</span>${esc(p.club)}` : esc(S.teams[p.code]?.name || "")}</span>
+        <span class="plg-meta">${POSN[p.pos] || p.pos || ""}</span></span>
       <span class="plg-key">${keyStat(p)}</span></button>`;
   };
   return `<div class="plg-count">${list.length.toLocaleString()} player${list.length === 1 ? "" : "s"}${list.length > CAP ? ` · showing top ${CAP}` : ""}</div>
@@ -2386,14 +2384,14 @@ function openPlayer(name, code) {
         ${(num != null || pos) ? `<span class="pl-pos">${num != null ? "#" + num : ""}${num != null && pos ? " · " : ""}${pos}</span>` : ""}
       </div>
     </div>
-    ${(vitals || (bio && (bio.club || bio.caps != null))) ? `<div class="pl-bio">
+    ${(vitals || (bio && (bio.caps != null || bio.goals))) ? `<div class="pl-bio">
       ${age != null ? `<span><i>Age</i>${age}</span>` : ""}
       ${vitals?.h ? `<span><i>Height</i>${vitals.h} cm</span>` : ""}
       ${vitals?.w ? `<span><i>Weight</i>${vitals.w} kg</span>` : ""}
-      ${bio?.club ? `<span><i>Club</i>${esc(bio.club)}</span>` : ""}
-      ${bio?.caps != null ? `<span><i>Caps</i>${bio.caps}</span>` : ""}
-      ${bio?.goals ? `<span><i>Career goals</i>${bio.goals}</span>` : ""}
+      ${bio?.caps != null ? `<span><i>Int'l caps</i>${bio.caps}</span>` : ""}
+      ${bio?.goals ? `<span><i>Int'l goals</i>${bio.goals}</span>` : ""}
     </div>` : ""}
+    ${bio?.club ? `<div class="pl-club"><span class="pl-club-ic">${ICO.shield}</span><span class="pl-club-tx"><i>Club</i><b>${esc(bio.club)}</b></span></div>` : ""}
     ${wc.apps ? `<div class="eyebrow">This World Cup</div><div class="pl-wc">
       <div class="pw"><b>${wc.apps}</b><span>Played</span></div>
       ${isGK
@@ -2516,7 +2514,7 @@ function renderSearch(raw) {
   const byRank = key => (a, b) => rank(key(a)) - rank(key(b)) || key(a).localeCompare(key(b));
   const players = SIDX.players.filter(p => (has(p.name) || has(p.club)) && !(cmp && p.name === compareSeed.name && p.code === compareSeed.code)).sort(byRank(p => p.name)).slice(0, cmp ? 12 : 8);
   const playerRowHtml = (p, attr) => { const ph = bestPhoto(p.name, p.code, p.n);
-    return `<button class="sr-row" ${attr}>${ph ? `<span class="lead-face" style="background-image:url('${ph}')"></span>` : `<span class="fl">${flag(p.code)}</span>`}<span class="sr-name">${esc(pName(p.name, p.code))}<small>${flag(p.code)} ${tname(p.code)}${p.club ? ` · ${esc(p.club)}` : ""}</small></span></button>`; };
+    return `<button class="sr-row" ${attr}>${ph ? `<span class="lead-face" style="background-image:url('${ph}')"></span>` : `<span class="fl">${flag(p.code)}</span>`}<span class="sr-name">${esc(pName(p.name, p.code))}<small>${flag(p.code)} ${tname(p.code)}${p.club ? ` · <span class="club-ic">${ICO.shield}</span>${esc(p.club)}` : ""}</small></span></button>`; };
   if (cmp) {   // compare mode: players only, tapping picks the second player
     res.innerHTML = players.length ? `<div class="sr-label">Compare with…</div>` + players.map(p => playerRowHtml(p, `data-compare="${esc(p.name)}|${p.code}"`)).join("") : `<div class="sr-hint">No players match “${esc(raw.trim())}”.</div>`;
     return;
