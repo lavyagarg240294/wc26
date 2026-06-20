@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "295";  // shown in footer; bump with the ?v= asset version
+const BUILD = "296";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -4421,6 +4421,7 @@ async function boot() {
   };
   $("#calDownload").onclick = () => downloadICS(S.matches.slice().sort((a, b) => a.utc.localeCompare(b.utc)), "FIFA World Cup 2026");
   $("#aboutSiteBtn").onclick = () => showSheet($("#aboutSiteDialog"));   // the tournament-format sheet is reached from the Tables legend's "How the format works"
+  $("#devStoryBtn")?.addEventListener("click", () => { const b = $("#devStoryBuild"); if (b) b.textContent = "build " + BUILD; showSheet($("#devStoryDialog")); });   // "i" by the build number → the dev-story (the number itself keeps its egg)
   const _footTz = $("#footTz"); if (_footTz) _footTz.onclick = () => $("#tzDialog").showModal();   // the "in your timezone" promise is now one tap from the footer
   $("#teamChip").onclick = () => $("#teamDialog").showModal();
   // first-launch onboarding — a short, skippable welcome shown once (any dismissal marks it seen)

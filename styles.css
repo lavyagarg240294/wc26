@@ -1663,6 +1663,7 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .foot{display:flex;flex-wrap:wrap;align-items:center;gap:6px;justify-content:center;padding:18px 18px calc(18px + env(safe-area-inset-bottom));font-size:12px;color:var(--ink-soft);border-top:1px solid var(--line)}
 .foot-dot{opacity:.5}
 .foot-build{font-family:var(--mono);font-size:11px;opacity:.6;user-select:none;-webkit-user-select:none;-webkit-tap-highlight-color:transparent;outline:none}
+.foot-devi{width:14px;height:14px;font-size:8px;margin-left:4px;opacity:.65;vertical-align:0}
 /* subtle: just the icon, no filled circle — it shouldn't compete with the footer text for attention */
 .foot-refresh{position:relative;display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;color:var(--ink-soft);border-radius:7px;line-height:0;opacity:.65;transition:color .2s,background .2s,opacity .2s}
 .foot-refresh::before{content:"";position:absolute;inset:-9px}   /* ~44px tap target, 26px visual */
