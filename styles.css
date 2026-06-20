@@ -597,6 +597,17 @@ html.sheet-dismiss .mcard,html.sheet-dismiss .teamcard,html.sheet-dismiss .bm,ht
 .teamcard .fl{font-size:24px;flex:0 0 auto;line-height:1}
 .teamcard .tc-name{flex:1;min-width:0;font-weight:600;font-size:14px;line-height:1.18;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word}
 .teamcard .tc-grp{flex:0 0 auto;font-family:var(--mono);font-size:11px;font-weight:700;color:var(--acc-text);background:color-mix(in srgb,var(--acc1) 12%,transparent);border-radius:7px;padding:2px 6px}
+/* "Since 2022" landscape banner + per-card 2022-finish chip */
+.wc22-land{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:12px 15px;margin:0 0 14px}
+.wc22-land-hd{display:flex;align-items:baseline;gap:9px;margin-bottom:7px}
+.wc22-land-hd b{font-family:var(--disp);font-weight:800;font-stretch:110%;font-size:15px;color:var(--ink)}
+.wc22-exp{font-family:var(--mono);font-size:12px;color:var(--acc-text);font-weight:700}
+.wc22-land-stats{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:13px;color:var(--ink-soft)}
+.wc22-land-stats b{color:var(--ink);font-weight:700;font-variant-numeric:tabular-nums}
+.tc-22{flex:0 0 auto;font-family:var(--mono);font-size:10px;font-weight:700;padding:2px 6px;border-radius:7px;white-space:nowrap;background:color-mix(in srgb,var(--ink) 7%,transparent);color:var(--ink-soft)}
+.tc-22.tc-22-t1{background:color-mix(in srgb,var(--gold) 26%,transparent);color:var(--gold-text)}
+.tc-22.tc-22-t2,.tc-22.tc-22-t3,.tc-22.tc-22-t4{background:color-mix(in srgb,var(--acc1) 16%,transparent);color:var(--acc-text)}
+.tc-22.tc-22-new{background:color-mix(in srgb,var(--pitch) 16%,transparent);color:var(--pitch)}
 .teamcard.is-fav{border-color:var(--acc-text);background:linear-gradient(90deg,color-mix(in srgb,var(--acc1) 8%,var(--card)),var(--card) 60%)}
 
 /* ---------- standings tables (fixed-width cols = identical alignment) ---------- */

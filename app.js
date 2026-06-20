@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "307";  // shown in footer; bump with the ?v= asset version
+const BUILD = "308";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1907,6 +1907,25 @@ function myTeamBlock() {
     ${group ? `<div class="eyebrow">Group ${group}</div><div class="gwrap">${groupTable(group, 0)}</div>
       <div class="legend"><span class="l1"><i></i>Top 2 advance</span><span class="l3"><i></i>3rd: possible best-8 spot</span></div>` : ""}`;
 }
+// each team's relationship to the LAST World Cup (Qatar 2022), shown as a chip on its landscape card
+const WC22_ABBR = { 1: "Won", 2: "Final", 3: "3rd", 4: "4th", 5: "QF", 6: "R16", 7: "Group" };
+function wc22CardChip(c) {
+  if (!S.wc22) return "";
+  const w = S.wc22.teams[c];
+  if (w) return `<span class="tc-22 tc-22-t${w.tier}" title="Qatar 2022: ${esc(w.finish)}">${WC22_ABBR[w.tier]}</span>`;
+  const debut = S.teams[c]?.best === "First appearance";
+  return `<span class="tc-22 tc-22-new" title="${debut ? "World Cup debut — first-ever" : "Back at the World Cup after missing Qatar 2022"}">${debut ? "Debut" : "Back"}</span>`;
+}
+// the "what changed since 2022" banner above the all-teams grid
+function teamsLandscapeBanner() {
+  if (!S.wc22) return "";
+  const codes = Object.keys(S.teams), notIn = codes.filter(c => !S.wc22.teams[c]);
+  const back = codes.length - notIn.length, debut = notIn.filter(c => S.teams[c]?.best === "First appearance").length;
+  return `<div class="wc22-land">
+    <div class="wc22-land-hd"><b>Since Qatar 2022</b><span class="wc22-exp">32 → 48 teams</span></div>
+    <div class="wc22-land-stats"><span><b>${back}</b> back from 2022</span><span><b>${debut}</b> on debut</span><span><b>${notIn.length - debut}</b> returning</span></div>
+  </div>`;
+}
 function renderTeams() {
   const el = $("#view-teams");
   const head = S.fav
@@ -1919,8 +1938,8 @@ function renderTeams() {
   const grid = Object.keys(S.teams)
     .sort((a, b) => S.teams[a].name.localeCompare(S.teams[b].name))
     .map(c => `<button class="teamcard ${c === S.fav ? "is-fav" : ""}" data-squad="${c}" title="${esc(S.teams[c].name)}${S.teams[c].titles ? `, ${S.teams[c].titles}× World Cup champion` : ""}">
-      <span class="fl">${flag(c)}</span><span class="tc-name">${esc(S.teams[c].name)}</span>${S.teams[c].titles ? `<span class="tc-cup" aria-label="${S.teams[c].titles} World Cup titles">${TROPHY} ${S.teams[c].titles}</span>` : ""}<span class="tc-grp">${groupOf(c) || ""}</span></button>`).join("");
-  paint(el, head + `<div class="eyebrow">All teams <span style="color:var(--ink-soft);font-weight:600">, tap for detail</span></div><div class="teamsgrid">${grid}</div>`);
+      <span class="fl">${flag(c)}</span><span class="tc-name">${esc(S.teams[c].name)}</span>${wc22CardChip(c)}<span class="tc-grp">${groupOf(c) || ""}</span></button>`).join("");
+  paint(el, head + teamsLandscapeBanner() + `<div class="eyebrow">All teams <span style="color:var(--ink-soft);font-weight:600">, tap for detail · the chip shows their 2022 finish</span></div><div class="teamsgrid">${grid}</div>`);
   const cta = $("#ctaPick", el); if (cta) cta.onclick = () => $("#teamDialog").showModal();
   const chg = $("#ctaChange", el); if (chg) chg.onclick = () => $("#teamDialog").showModal();
   const ics = $("#icsTeam", el);
