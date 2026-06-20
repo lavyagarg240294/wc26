@@ -1653,6 +1653,15 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 #musicToggle[aria-pressed="true"] .set-state{color:var(--acc-text)}
 /* calendar (.ics) buttons */
 .team-actions{margin:14px 0 4px}
+/* fav-team squad is collapsed on the Teams tab so the all-teams landscape sits higher (full squad also in the modal) */
+.th-squad{margin:8px 0 6px}
+.th-squad>summary{cursor:pointer;list-style:none;display:flex;align-items:baseline;gap:10px;padding:11px 15px;background:var(--card);border:1px solid var(--line);border-radius:var(--r-sm);box-shadow:var(--shadow)}
+.th-squad>summary::-webkit-details-marker{display:none}
+.th-squad>summary>span{font-family:var(--disp);font-weight:700;font-stretch:106%;font-size:13px;color:var(--ink)}
+.th-squad>summary>small{font-size:12px;color:var(--ink-soft)}
+.th-squad>summary::after{content:"▾";color:var(--ink-soft);margin-left:auto;font-size:11px}
+.th-squad[open]>summary{margin-bottom:9px}
+.th-squad[open]>summary::after{content:"▴"}
 .ics-btn{display:inline-flex;align-items:center;gap:7px}
 /* "add my saved matches to calendar" — appears in the Saved filter view */
 .saved-cal{display:inline-flex;align-items:center;gap:8px;width:100%;justify-content:center;margin:0 0 16px;padding:11px 14px;border-radius:14px;font-weight:600;font-size:13px;cursor:pointer;border:1px solid color-mix(in srgb,var(--acc1) 32%,var(--line));background:color-mix(in srgb,var(--acc1) 8%,var(--card));color:var(--acc-text);transition:background .15s,border-color .15s}

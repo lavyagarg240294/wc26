@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "309";  // shown in footer; bump with the ?v= asset version
+const BUILD = "310";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1876,6 +1876,8 @@ function startCountdown() {
 }
 
 /* ---------------- render: teams (my team + all 48) ---------------- */
+// compact fav-team spotlight (hero + collapsed squad) — sits ABOVE the all-teams landscape; the fixtures/group
+// move below the grid (myTeamFixtures) so the landscape isn't buried under your team's full detail.
 function myTeamBlock() {
   const t = S.teams[S.fav];
   const mine = S.matches.filter(isFavMatch).sort((a, b) => a.utc.localeCompare(b.utc));
@@ -1883,22 +1885,28 @@ function myTeamBlock() {
   const tbl = group ? standings(group) : [];
   const pos = tbl.findIndex(r => r.code === S.fav) + 1;
   const played = tbl.find(r => r.code === S.fav)?.p || 0;
-  const upcoming = mine.filter(m => status(m) === ST.SCHED);
-  const done = mine.filter(m => status(m) !== ST.SCHED);
   return `
     <div class="team-hero">
       <div class="team-hero-tap" data-squad="${S.fav}" role="button" tabindex="0" aria-label="Open ${esc(t.name)} details">
         <span class="fl">${flag(S.fav)}</span>
         <div class="th-text"><h2>${esc(t.name)}</h2>
-          <p class="th-sub">${t.conf ? esc(t.conf) + " · " : ""}Group ${group || "–"}${t.titles ? ` · <b style="color:var(--gold)">${TROPHY} ${t.titles}</b>` : ""}</p>
+          <p class="th-sub">${t.conf ? esc(t.conf) + " · " : ""}Group ${group || "–"}${fifaRankOf(S.fav) ? ` · FIFA #${fifaRankOf(S.fav)}` : ""}${t.titles ? ` · <b style="color:var(--gold)">${TROPHY} ${t.titles}</b>` : ""}</p>
           ${played ? `<p class="th-standing">Currently <b>${ordinal(pos)}</b> after ${played} match${played > 1 ? "es" : ""}</p>` : ""}
         </div>
       </div>
       <button class="btn ghost team-change" id="ctaChange">Change</button></div>
     ${mine.length ? `<div class="team-actions"><button class="btn ghost ics-btn" id="icsTeam">${CAL_SVG} Add ${esc(t.name)}'s matches to calendar</button></div>` : ""}
-    ${heroSquad(S.fav)}
-    ${done.length ? `<div class="eyebrow">Played</div>` + done.map((m, i) => matchCard(m, i)).join("") : ""}
-    <div class="eyebrow">Fixtures</div>
+    ${S.squads?.[S.fav]?.players?.length ? `<details class="th-squad"><summary><span>${esc(t.name)}'s squad</span><small>${S.squads[S.fav].players.length} players · tap to view</small></summary>${heroSquad(S.fav)}</details>` : heroSquad(S.fav)}`;
+}
+function myTeamFixtures() {
+  const t = S.teams[S.fav];
+  const mine = S.matches.filter(isFavMatch).sort((a, b) => a.utc.localeCompare(b.utc));
+  const group = mine.find(m => m.group)?.group;
+  const upcoming = mine.filter(m => status(m) === ST.SCHED);
+  const done = mine.filter(m => status(m) !== ST.SCHED);
+  return `
+    ${done.length ? `<div class="eyebrow">${esc(t.name)} · played</div>` + done.map((m, i) => matchCard(m, i)).join("") : ""}
+    <div class="eyebrow">${esc(t.name)} · fixtures</div>
     ${upcoming.length ? upcoming.map((m, i) => matchCard(m, i)).join("") : `<div class="empty">No scheduled matches. Check Predict for their knockout path.</div>`}
     ${group ? `<div class="eyebrow">Group ${group}</div><div class="gwrap">${groupTable(group, 0)}</div>
       <div class="legend"><span class="l1"><i></i>Top 2 advance</span><span class="l3"><i></i>3rd: possible best-8 spot</span></div>` : ""}`;
@@ -1935,8 +1943,8 @@ function renderTeams() {
     .sort((a, b) => S.teams[a].name.localeCompare(S.teams[b].name))
     .map(c => { const rk = fifaRankOf(c), g = groupOf(c);
       return `<button class="teamcard ${c === S.fav ? "is-fav" : ""}" data-squad="${c}" title="${esc(S.teams[c].name)}${S.teams[c].titles ? `, ${S.teams[c].titles}× World Cup champion` : ""}">
-      <span class="fl">${flag(c)}</span><span class="tc-main"><span class="tc-name">${esc(S.teams[c].name)}</span><span class="tc-meta">${rk ? `FIFA #${rk}` : ""}${rk && g ? " · " : ""}${g ? `Group ${g}` : ""}</span></span>${wc22CardChip(c)}</button>`; }).join("");
-  paint(el, head + teamsLandscapeBanner() + `<div class="eyebrow">All teams <span style="color:var(--ink-soft);font-weight:600">, tap for detail · the chip shows their 2022 finish</span></div><div class="teamsgrid">${grid}</div>`);
+      <span class="fl">${flag(c)}</span><span class="tc-main"><span class="tc-name">${esc(S.teams[c].name)}</span><span class="tc-meta">${rk ? `FIFA #${rk}` : g ? `Group ${g}` : ""}</span></span>${wc22CardChip(c)}</button>`; }).join("");
+  paint(el, head + teamsLandscapeBanner() + `<div class="eyebrow">All teams <span style="color:var(--ink-soft);font-weight:600">, tap for detail · the chip shows their 2022 finish</span></div><div class="teamsgrid">${grid}</div>` + (S.fav ? myTeamFixtures() : ""));
   const cta = $("#ctaPick", el); if (cta) cta.onclick = () => $("#teamDialog").showModal();
   const chg = $("#ctaChange", el); if (chg) chg.onclick = () => $("#teamDialog").showModal();
   const ics = $("#icsTeam", el);
