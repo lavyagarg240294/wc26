@@ -612,6 +612,22 @@ html.sheet-dismiss .mcard,html.sheet-dismiss .teamcard,html.sheet-dismiss .bm,ht
 .wc22-exp{font-family:var(--mono);font-size:12px;color:var(--acc-text);font-weight:700}
 .wc22-land-stats{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:13px;color:var(--ink-soft)}
 .wc22-land-stats b{color:var(--ink);font-weight:700;font-variant-numeric:tabular-nums}
+.wc22-results-btn{margin-top:11px;width:100%;padding:9px 13px;border-radius:99px;border:1px solid color-mix(in srgb,var(--acc1) 35%,var(--line));background:color-mix(in srgb,var(--acc1) 8%,var(--card));color:var(--acc-text);font-family:var(--disp);font-weight:700;font-stretch:106%;font-size:13px;cursor:pointer}
+.wc22-results-btn:hover{background:color-mix(in srgb,var(--acc1) 14%,var(--card))}
+/* the 2022 results reference sheet */
+.w22-intro{font-size:13px;color:var(--ink-soft);line-height:1.5;margin:0 0 6px}
+.w22-list{display:flex;flex-direction:column;gap:7px;margin-bottom:6px}
+.w22m{background:var(--card);border:1px solid var(--line);border-radius:var(--r-sm);padding:9px 12px}
+.w22m-top{display:flex;align-items:center;gap:8px}
+.w22m-side{display:flex;align-items:center;gap:7px;flex:1;min-width:0;font-size:13px;font-weight:600;color:var(--ink)}
+.w22m-side.w22m-r{justify-content:flex-end;text-align:right}
+.w22m-nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.w22m-side .fl{font-size:17px;flex:0 0 auto}
+.w22m-sc{flex:0 0 auto;font-family:var(--mono);font-weight:700;font-size:15px;color:var(--ink);font-variant-numeric:tabular-nums}
+.w22m-sc small{font-size:10px;color:var(--ink-soft);font-weight:600}
+.w22m-g{display:flex;justify-content:space-between;gap:10px;margin-top:5px;font-size:11px;color:var(--ink-soft);line-height:1.4}
+.w22m-g span{flex:1;min-width:0}
+.w22m-g span:last-child{text-align:right}
 .tc-22{flex:0 0 auto;font-family:var(--mono);font-size:10px;font-weight:700;padding:2px 6px;border-radius:7px;white-space:nowrap;background:color-mix(in srgb,var(--ink) 7%,transparent);color:var(--ink-soft)}
 .tc-22.tc-22-t1{background:color-mix(in srgb,var(--gold) 26%,transparent);color:var(--gold-text)}
 .tc-22.tc-22-t2,.tc-22.tc-22-t3,.tc-22.tc-22-t4{background:color-mix(in srgb,var(--acc1) 16%,transparent);color:var(--acc-text)}

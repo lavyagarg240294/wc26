@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "311";  // shown in footer; bump with the ?v= asset version
+const BUILD = "312";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1965,8 +1965,26 @@ function teamsLandscapeBanner() {
   return `<div class="wc22-land">
     <div class="wc22-land-hd"><b>Since Qatar 2022</b><span class="wc22-exp">32 → 48 teams</span></div>
     <div class="wc22-land-stats"><span><b>${back}</b> back from 2022</span><span><b>${debut}</b> on debut</span><span><b>${notIn.length - debut}</b> returning</span></div>
+    ${S.wc22.matches?.length ? `<button class="wc22-results-btn" data-wc22>Qatar 2022 · full results ›</button>` : ""}
   </div>`;
 }
+// the last World Cup's matches grouped by stage, with scores + goalscorers — a reference of what happened in 2022
+const WC22_STAGES = [["FIN", "Final"], ["3P", "Third place"], ["SF", "Semi-finals"], ["QF", "Quarter-finals"], ["R16", "Round of 16"],
+  ["A", "Group A"], ["B", "Group B"], ["C", "Group C"], ["D", "Group D"], ["E", "Group E"], ["F", "Group F"], ["G", "Group G"], ["H", "Group H"]];
+function wc2022ResultsHTML() {
+  const ms = S.wc22?.matches; if (!ms?.length) return `<div class="empty">2022 results aren't loaded yet.</div>`;
+  const scorers = arr => arr.length ? arr.map(x => `${esc(x.n)} ${x.m.map(mm => mm + "'").join(", ")}`).join(" · ") : "—";
+  const teamN = c => esc(S.teams[c]?.name || S.wc22?.names?.[c] || c);
+  const row = m => `<div class="w22m">
+    <div class="w22m-top"><span class="w22m-side"><span class="fl">${flag(m.a)}</span><span class="w22m-nm">${teamN(m.a)}</span></span>
+      <span class="w22m-sc">${m.s[0]}–${m.s[1]}${m.pen ? `<small> (${m.pen[0]}–${m.pen[1]}p)</small>` : ""}</span>
+      <span class="w22m-side w22m-r"><span class="w22m-nm">${teamN(m.b)}</span><span class="fl">${flag(m.b)}</span></span></div>
+    ${(m.ga.length || m.gb.length) ? `<div class="w22m-g"><span>${scorers(m.ga)}</span><span>${scorers(m.gb)}</span></div>` : ""}
+  </div>`;
+  return `<p class="w22-intro">Every match from <b>${esc(S.wc22.host)} ${S.wc22.year}</b> — champions <b>${teamN("AR")}</b>, runners-up France. Source: Wikipedia.</p>`
+    + WC22_STAGES.map(([st, label]) => { const sm = ms.filter(m => m.st === st); return sm.length ? `<div class="eyebrow">${label}</div><div class="w22-list">${sm.map(row).join("")}</div>` : ""; }).join("");
+}
+function openWc2022() { const b = $("#wc22Body"); if (b) b.innerHTML = wc2022ResultsHTML(); showSheet($("#wc22Dialog")); }
 function renderTeams() {
   const el = $("#view-teams");
   const head = S.fav
@@ -4825,6 +4843,8 @@ async function boot() {
     if (sq && sq.dataset.squad) { openTeam(sq.dataset.squad); return; }
     const ab = e.target.closest("[data-about]");   // "how the format works" → tournament info sheet
     if (ab) { showSheet($("#aboutDialog")); return; }
+    const w22 = e.target.closest("[data-wc22]");   // "Qatar 2022 · full results" → last-World-Cup reference
+    if (w22) { openWc2022(); return; }
     const hl = e.target.closest("[data-hero-live]");   // the Matches hero → follow this match in the Live tab
     if (hl) { _liveFocus = hl.dataset.heroLive; nav("live"); return; }
     const mid = e.target.closest("[data-mid]");   // hero, match card, or a record row (never a dialog)

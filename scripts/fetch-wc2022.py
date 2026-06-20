@@ -77,9 +77,9 @@ def _scorers(field):   # "*[[Player|Name]] {{goal|10|45+1}}" -> [{n, m:[mins]}]
                 for x in mg.split("|") if re.match(r"\d", x.strip())]
         out.append({"n": nm.group(1).strip(), "m": mins})
     return out
-def parse_match_page(page, stage):
+def _boxes_from_text(text, stage):
     out = []
-    for ch in fetch_wikitext(page).split("{{Football box")[1:]:
+    for ch in text.split("{{Football box")[1:]:
         t1 = re.search(r"team1=\{\{[^}]*\|([A-Z]{3})\}\}", ch)
         t2 = re.search(r"team2=\{\{[^}]*\|([A-Z]{3})\}\}", ch)
         sc = re.search(r"score=(?:\{\{[Ss]core ?link\|[^|]*\|)?\s*'?'?(\d+)\s*[–-]\s*(\d+)", ch)
@@ -95,24 +95,37 @@ def parse_match_page(page, stage):
             mt["pen"] = [int(pen.group(1)), int(pen.group(2))]
         out.append(mt)
     return out
+def parse_match_page(page, stage):
+    return _boxes_from_text(fetch_wikitext(page), stage)
+
+# Knockout boxes are stage-tagged by the level-2 section they sit under (NOT by position): Wikipedia's
+# knockout article is occasionally missing a box, and positional indexing then silently mislabels every
+# match after the gap. "Match for third place" -> 3P; the Final has no box here (it's a {{main}} link).
+KO_SECTION_STAGE = {"Round of 16": "R16", "Quarter-finals": "QF", "Semi-finals": "SF", "Match for third place": "3P"}
+def parse_knockout():
+    parts = re.split(r"^==(?!=)\s*(.+?)\s*==\s*$", fetch_wikitext("2022_FIFA_World_Cup_knockout_stage"), flags=re.M)
+    out = []
+    for i in range(1, len(parts), 2):
+        stage = KO_SECTION_STAGE.get(parts[i].strip())
+        if stage:
+            out += _boxes_from_text(parts[i + 1], stage)
+    return out
 def parse_matches():
     ms = []
     for g in "ABCDEFGH":
         ms += parse_match_page(f"2022_FIFA_World_Cup_Group_{g}", g)   # stage = group letter
-    # the knockout-stage article carries only R16(8) → QF(4) → SF(2); the play-off + final are their own articles
-    ko = parse_match_page("2022_FIFA_World_Cup_knockout_stage", None)
-    for i, m in enumerate(ko):
-        m["st"] = "R16" if i < 8 else "QF" if i < 12 else "SF"
+    ko = parse_knockout()
+    # The knockout article omits the Netherlands-Argentina QF box (the "Battle of Lusail"); it has its own
+    # article, so pull it from there to keep the quarter-finals complete (4 of 4).
+    if not any({m["a"], m["b"]} == {"NL", "AR"} and m["st"] == "QF" for m in ko):
+        na = next((m for m in parse_match_page("Battle_of_Lusail", "QF") if {m["a"], m["b"]} == {"NL", "AR"}), None)
+        if na:
+            ko.append(na)
     ms += ko
-    # the final has its own article; the 3rd-place play-off has none, so take it from the main tournament article.
-    # filter by the actual finalists/play-off teams so a "road to the final" mini-result is never mistaken for the box.
-    fin_boxes = parse_match_page("2022_FIFA_World_Cup_final", "FIN")
-    fin = next((m for m in fin_boxes if {m["a"], m["b"]} == {"AR", "FR"}), None)
+    # the final has its own article (no box in the knockout page); filter to the actual finalists.
+    fin = next((m for m in parse_match_page("2022_FIFA_World_Cup_final", "FIN") if {m["a"], m["b"]} == {"AR", "FR"}), None)
     if fin:
         ms.append(fin)
-    tp = next((m for m in parse_match_page("2022_FIFA_World_Cup", "3P") if {m["a"], m["b"]} == {"HR", "MA"}), None)
-    if tp:
-        ms.append(tp)
     return ms
 
 def main():
@@ -125,6 +138,8 @@ def main():
     out = {
         "source": "Wikipedia: 2022 FIFA World Cup squads + final classification",
         "host": "Qatar", "year": 2022, "teamCount": 32,
+        # code -> 2022 name, so the app can label the 6 teams that didn't return in 2026 (and so aren't in teams.json)
+        "names": {code: name for name, code in NAME2CODE.items()},
         "teams": teams, "matches": matches,
     }
     json.dump(out, open("data/wc2022.json", "w"), ensure_ascii=False)
