@@ -47,6 +47,9 @@ function codesIn(text) {
 // Russian peninsula, Gavi is a health body, Kane/Rice/Son are everyday words). Matched accent-insensitively.
 const _deb = s => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const STAR_RE = /\b(mbappe|messi|ronaldo|haaland|neymar|bellingham|vinicius|lewandowski|modric|griezmann|musiala|wirtz|kimmich|neuer|tchouameni|saliba|rodrygo|endrick|raphinha|osimhen|kvaratskhelia|gakpo|depay|pulisic|havertz|maignan|dembele|vlahovic|koulibaly|barcola|foden)\b/;
+// a country name alone (Iran, US, Korea…) isn't football — pair it with a football signal so general desks (Al
+// Jazeera all-news, ESPN, DW) don't leak geopolitics that merely names a country whose name is also a team's.
+const FOOTBALL_RE = /\b(footbal|soccer|fifa|world ?cup|wc[\s-]?2026|match(es)?|goals?|scored?|coach|managers?|squads?|line-?ups?|qualif|group ?stage|strikers?|midfield|defenders?|goalkeep|keeper|friendl(y|ies)|fixtures?|kick-?off|penalt|knockout|tournament|equali[sz]|hat-?trick|substitut|stadium|referee|red card|yellow card|caps?|capped|national team|trophy|champions?|finals?|semi-?finals?|quarter-?finals?|round of (16|32)|injur|transfer|forwards?|wingers?|dribbl|free.?kick)\b|\b\d{1,2}\s?[-–]\s?\d{1,2}\b/i;
 
 // drop a comment that trips the profanity / slur denylist (kept small + word-bounded to avoid false positives)
 const BLOCK = /\b(f+u+c+k\w*|shit\w*|bitch\w*|cunt\w*|asshole|a-?hole|nigg\w*|fagg?\w*|retard\w*|whore|slut|dick(?:head)?|wank\w*)\b/i;
@@ -281,7 +284,7 @@ function parseRSS(xml, src, wcFeed) {
     // ever shows complete headlines
     if (!title || /(?:…|\.\.\.)\s*$/.test(title) || !link || !/^https?:/.test(link)) return [];
     const codes = codesIn(title);
-    if (!wcFeed && !/world cup|wc[\s-]?2026/i.test(title) && !codes.length && !STAR_RE.test(_deb(title))) return [];
+    if (!wcFeed && !/world cup|wc[\s-]?2026/i.test(title) && !(codes.length && FOOTBALL_RE.test(title)) && !STAR_RE.test(_deb(title))) return [];
     // pubDate (RSS) / dc:date (RDF) / published (Atom) → ISO, for the chronological News tab
     const dRaw = (it.match(/<pubDate>([\s\S]*?)<\/pubDate>/i) || it.match(/<dc:date>([\s\S]*?)<\/dc:date>/i) || it.match(/<published>([\s\S]*?)<\/published>/i) || [])[1] || "";
     let date = ""; try { const dt = new Date(dRaw.trim()); if (!isNaN(+dt)) date = dt.toISOString(); } catch { /* leave blank */ }

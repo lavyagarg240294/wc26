@@ -67,6 +67,31 @@ def to_int(x):
     m = re.search(r"-?\d+", x or "")
     return int(m.group(0)) if m else None
 
+_MONTHS = {m: i + 1 for i, m in enumerate(
+    ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"])}
+def parse_dob(s):
+    """The PDF's DOB column -> ISO 'YYYY-MM-DD' (same shape as data/playerbio.json's `d`)."""
+    s = (s or "").strip()
+    m = re.match(r"(\d{4})-(\d{1,2})-(\d{1,2})", s)                       # already ISO-ish
+    if m:
+        y, mo, d = int(m.group(1)), int(m.group(2)), int(m.group(3))
+    else:
+        m = re.match(r"(\d{1,2})[./-](\d{1,2})[./-](\d{4})", s)           # DD.MM.YYYY / DD/MM/YYYY
+        if m:
+            d, mo, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        else:
+            m = re.match(r"(\d{1,2})\s+([A-Za-z]{3})[a-z]*\s+(\d{4})", s)  # 25 Feb 2000
+            if not m:
+                return None
+            d, mo, y = int(m.group(1)), _MONTHS.get(m.group(2).lower(), 0), int(m.group(3))
+    if not (1 <= mo <= 12 and 1 <= d <= 31 and 1960 <= y <= 2012):
+        return None
+    return f"{y:04d}-{mo:02d}-{d:02d}"
+
+def parse_height(x):
+    h = to_int(x)
+    return h if h and 140 <= h <= 220 else None                          # plausible cm; ignore stray numbers
+
 try:
     prev = json.load(open("data/squads.json"))["squads"]
 except Exception:
@@ -114,6 +139,9 @@ for pi, page in enumerate(pdf.pages):
         if goals is not None: p["goals"] = goals
         club = clean_club(cells[7])
         if club: p["club"] = club
+        dob = parse_dob(cells[6]); height = parse_height(cells[8])   # official DOB + height (every player) → app bio fallback
+        if dob: p["d"] = dob
+        if height: p["h"] = height
         players.append(p)
         if "  " in pname or re.search(r"\b[b-df-hj-np-tv-z]\b", deb(name), re.I):
             suspicious.append(f"{code} #{num}: '{pname}' / '{first}' / '{last}' -> '{name}'")

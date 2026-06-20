@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "303";  // shown in footer; bump with the ?v= asset version
+const BUILD = "304";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1996,19 +1996,15 @@ function plgCompute() {
 function plgListHTML(list) {
   const f = _plFilter, CAP = 120, shown = list.slice(0, CAP);
   const POSN = { GK: "Goalkeeper", DF: "Defender", MF: "Midfielder", FW: "Forward" };
-  // the right-hand chip shows the value the list is currently SORTED by, so it's always clear what the ranking means
-  const keyStat = p => {
-    if (f.sort === "age") return `<b>${p.age ?? "–"}</b><i>yrs</i>`;
-    return `<b>${p.caps}</b><i>caps</i>`;   // caps for the Caps sort and A–Z (the default headline stat)
-  };
   const card = p => {
     const ph = bestPhoto(p.name, p.code, p.n);
+    // second line = the international record (caps + career international goals); third = position · club
     return `<button class="plg-card" data-player="${esc(p.name)}|${p.code}">
       ${ph ? `<span class="plg-face" style="background-image:url('${ph}')"></span>` : `<span class="plg-face plg-flag">${flag(p.code)}</span>`}
       <span class="plg-body"><span class="plg-nm">${esc(pName(p.name, p.code))}${p.cap ? ` <i class="plg-cap">C</i>` : ""}</span>
-        <span class="plg-sub"><span class="fl">${flag(p.code)}</span>${esc(p.club || S.teams[p.code]?.name || "")}</span>
-        <span class="plg-meta">${POSN[p.pos] || p.pos || ""}</span></span>
-      <span class="plg-key">${keyStat(p)}</span></button>`;
+        <span class="plg-sub"><span class="fl">${flag(p.code)}</span><span class="plg-intl"><b>${p.caps}</b> caps · <b>${p.cg}</b> ${p.cg === 1 ? "goal" : "goals"}</span></span>
+        <span class="plg-meta">${POSN[p.pos] || p.pos || ""}${p.club ? ` · ${esc(p.club)}` : ""}</span></span>
+    </button>`;
   };
   return `<div class="plg-count">${list.length.toLocaleString()} player${list.length === 1 ? "" : "s"}${list.length > CAP ? ` · showing top ${CAP}` : ""}</div>
     ${shown.length ? `<div class="plg-grid">${shown.map(card).join("")}</div>` : `<div class="empty">No players match. Try a different search or filter.</div>`}`;
@@ -3994,6 +3990,13 @@ const relTime = iso => {
 };
 // News: a chronological feed of World Cup headlines (newest first) with a live filter box. The fan-reaction
 // pipeline is parked (see fetch-buzz.mjs SOCIAL flag); this reads only b.headlines.
+// Some desks leak NON-football stories that merely mention a country whose name is also a team's ("Iran", "US",
+// "Korea"…) — even the World-Cup feeds occasionally tag host-country politics/travel as WC. Keep an item only if it's
+// clearly football: a World-Cup mention, a football keyword/scoreline, or a marquee player. (Legit WC headlines almost
+// always carry "World Cup" or a football term, so this is safe; a bare country name is never enough.)
+const NEWS_FOOTBALL_RE = /\b(footbal|soccer|fifa|world ?cup|wc[\s-]?2026|match(es)?|goals?|scored?|coach|managers?|squads?|line-?ups?|qualif|group ?[a-l]\b|group ?stage|strikers?|midfield|defenders?|goalkeep|keeper|friendl(y|ies)|fixtures?|kick-?off|penalt|knockout|tournament|equali[sz]|hat-?trick|substitut|stadium|referee|red card|yellow card|caps?|capped|national team|trophy|champions?|finals?|semi-?finals?|quarter-?finals?|round of (16|32)|injur|transfer|forwards?|wingers?|dribbl|free.?kick|golden boot|own goal)\b|\b\d{1,2}\s?[-–]\s?\d{1,2}\b/i;
+const NEWS_STAR_RE = /\b(mbappe|messi|ronaldo|haaland|neymar|bellingham|vinicius|lewandowski|modric|griezmann|musiala|wirtz|kimmich|tchouameni|saliba|rodrygo|endrick|raphinha|osimhen|kvaratskhelia|gakpo|pulisic|havertz|dembele|vlahovic|yamal|salah|kane)\b/i;
+const newsIsFootball = h => NEWS_FOOTBALL_RE.test(h.title) || NEWS_STAR_RE.test(h.title.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase());
 function renderPulse() {
   const el = $("#view-pulse"), b = S.buzz;
   const intro = `<div class="pulse-intro"><h2>News</h2><p>The latest World Cup headlines from football desks worldwide, newest first. Each links out to its source.</p></div>`;
@@ -4003,6 +4006,7 @@ function renderPulse() {
   const heads = ((b && b.headlines) || [])
     .map(h => ({ ...h, title: cleanHl(h.title) }))
     .filter(h => h.title && !/(?:…|\.\.\.)\s*$/.test(h.title))
+    .filter(newsIsFootball)   // drop non-football items that only matched on a country name (e.g. Iran/US politics)
     .sort((x, y) => (y.date || "").localeCompare(x.date || ""));
   if (!heads.length) {
     paint(el, intro + `<div class="pulse-empty">${ICO.spark}<p>The day's headlines gather here as the tournament plays. Check back soon.</p></div>`);
@@ -4398,9 +4402,15 @@ function teamBio(code) {
   _teamBioCache.set(code, m); return m;
 }
 function playerBio(name, code, num, pos) {
-  if (!S.bio) return null;
   const p = resolvePlayer(name, code, num, pos);
-  return p ? (teamBio(code).get(p.name) || null) : null;
+  if (!p) return null;
+  const feed = (S.bio && teamBio(code).get(p.name)) || null;       // FIFA bio feed: DOB + height + weight
+  // the official squad list (squads.json, PDF import) carries DOB + height for EVERY player — use it to fill any
+  // gap the feed leaves (weight is feed-only). Feed wins where both exist; the squad backfills the rest → 100% age/height.
+  const sq = (p.d || p.h) ? { ...(p.d ? { d: p.d } : {}), ...(p.h ? { h: p.h } : {}) } : null;
+  if (!feed) return sq;
+  if (!sq) return feed;
+  return { ...sq, ...feed };
 }
 const ageFrom = dob => { const t = Date.parse(dob); if (!t) return null; const a = (Date.now() - t) / 31557600000; return a > 13 && a < 60 ? Math.floor(a) : null; };
 // manual "refresh scores" controls (footer + hero) — re-fetch the published results.json now
