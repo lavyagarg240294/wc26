@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "292";  // shown in footer; bump with the ?v= asset version
+const BUILD = "293";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -902,7 +902,7 @@ function mdKeyStats(r, m) {
   const s = r.stats, bars = [];
   if (Array.isArray(s.poss)) bars.push(statBar([Math.round(s.poss[0]), Math.round(s.poss[1])], "Possession", "%"));
   const e = S.efi?.[m.num];
-  if (e?.xg) bars.push(statBar(e.xg, "Expected goals (xG)"));
+  if (e?.xg) bars.push(statBar(e.xg, "Expected goals (xG)" + infoBtn("Expected goals — the goals an average team would score from the chances it created, scored by how good each chance was. A better read of performance than the final score.", "What xG means")));
   if (Array.isArray(s.sh)) bars.push(statBar(s.sh, "Shots"));
   if (Array.isArray(s.sot)) bars.push(statBar(s.sot, "On target"));
   return bars.length ? `<div class="eyebrow">Key stats</div><div class="md-stats">${bars.join("")}</div>` : "";
@@ -915,7 +915,7 @@ function mdEfi(m, expand = false) {
   const hc = (h.code && S.teams[h.code]?.c1) || "#0BA360", ac = (a.code && S.teams[a.code]?.c1) || "#5B6B7A";
   const sb = [];
   // When expanded (FT), xG and possession are already visible in Key stats — skip them here to avoid repetition
-  if (!expand && e.xg) sb.push(statBar(e.xg, "Expected goals (xG)"));
+  if (!expand && e.xg) sb.push(statBar(e.xg, "Expected goals (xG)" + infoBtn("Expected goals — the goals an average team would score from the chances it created, scored by how good each chance was. A better read of performance than the final score.", "What xG means")));
   if (e.shots) sb.push(statBar([e.shots[0], e.shots[2]], "Attempts at goal"));
   if (!expand && e.poss && e.possContest != null) sb.push(statBar(e.poss, "Possession", "%"));
   if (e.lineBreaks) sb.push(statBar(e.lineBreaks, "Completed line breaks"));
@@ -941,7 +941,8 @@ function mdEfi(m, expand = false) {
       ${phaseBars ? `<div class="efi-sub">Phases of play <small>in possession</small></div><div class="md-stats">${phaseBars}</div>` : ""}
       ${dist}
       <p class="efi-credit">Source: FIFA Enhanced Football Intelligence, published after the match.</p>`;
-  if (expand) return `<div class="eyebrow">Deep analysis</div>${body}`;
+  const efiInfo = infoBtn("FIFA's official post-match data (Enhanced Football Intelligence). Line breaks = passes played beyond a line of opponents (breaking the press); ball progressions = actions that carry the ball meaningfully towards goal; defensive pressures = times a player closed down the ball-carrier; possession in-contest = the share of the ball while it was genuinely being contested; distance covered = total running per player.", "About FIFA's deep-analysis metrics");
+  if (expand) return `<div class="eyebrow">Deep analysis ${efiInfo}</div>${body}`;
   return `<details class="md-fold"><summary><span>Deep analysis</span><small>FIFA EFI · post-match</small></summary>
     <div class="md-fold-body">${body}</div></details>`;
 }
@@ -1231,7 +1232,7 @@ function winProbBlock(m, pre = false) {
     : `<div class="wp-legend"><span class="wp-lh"><b>${ph}%</b> ${flag(h.code)} <span class="wp-lname">${esc(h.name)}</span></span><span class="wp-ld">Draw <b>${pd}%</b></span><span class="wp-la"><span class="wp-lname">${esc(a.name)}</span> ${flag(a.code)} <b>${pa}%</b></span></div>`;
   const xg = wp.xg, ph_ = xg ? Math.round(xg.h) : 0, pa_ = xg ? Math.round(xg.a) : 0;   // projected score = the expected goals rounded — a representative scoreline, not the low-scoring distribution mode
   const score = xg ? `<div class="wp-score"><span class="wp-score-lab">Projected score</span> <b>${ph_}–${pa_}</b> <span class="wp-score-p">(${xg.h.toFixed(1)}–${xg.a.toFixed(1)})</span>${wp.ko && ph_ === pa_ ? ` <span class="wp-score-et">in 90′, then ET/pens</span>` : ""}</div>` : "";
-  return `<div class="eyebrow">Win probability <span class="wp-est">${wp.live ? "live estimate" : "pre-match estimate"}</span></div>
+  return `<div class="eyebrow">Win probability <span class="wp-est">${wp.live ? "live estimate" : "pre-match estimate"}</span>${infoBtn("A Dixon-Coles goals model. Each side's strength is a World-Football Elo that updates after every result (blending in FIFA's expected goals), nudged by host advantage and, late in the groups, by what each team still needs to qualify. The projected score is the model's most likely scoreline. A clearly-labelled estimate, not a betting line.", "How win probability is calculated")}</div>
     <div class="wp">
       <div class="wp-bar" role="img" aria-label="${esc(h.name)} ${ph}%, draw ${pd}%, ${esc(a.name)} ${pa}%">
         <span class="wp-h" style="width:${ph}%"></span><span class="wp-d" style="width:${pd}%"></span><span class="wp-a" style="width:${pa}%"></span></div>
@@ -1579,7 +1580,7 @@ function liveStars(m) {
       <span class="star-info"><span class="star-top"><span class="fl">${flag(s.code)}</span><b>${esc(pName(s.name, s.code))}</b></span><span class="star-sub">${sub}</span></span></button>`;
   };
   const cards = stars.map(card).filter(Boolean).join("");
-  return cards ? `<div class="eyebrow">${label}</div><div class="star-row">${cards}</div>` : "";
+  return cards ? `<div class="eyebrow">${label}${infoBtn("This match's goalscorers, ranked by goals (penalties count; own goals are credited to the other side, so they're left out). Before kickoff it shows each team's leading scorer in this tournament.", "How match stars are chosen")}</div><div class="star-row">${cards}</div>` : "";
 }
 // engaging play-by-play for the Live tab: key moments as a colour-coded vertical feed (newest-first while live),
 // goals/cards/VAR called out, full play-by-play one tap away. Lazily loads commentary, then re-renders.
@@ -2214,8 +2215,7 @@ function styleSection(code) {
   ];
   const pct = key => { const vs = me.map(x => x[key]), lo = Math.min(...vs), hi = Math.max(...vs); return hi > lo ? Math.round((mine[key] - lo) / (hi - lo) * 100) : 50; };
   const rows = AXES.map(([key, label, fmt, help]) => `<div class="sty-item">
-    <div class="sty-row"><span class="sty-lbl">${label}<button class="sty-info" data-styhelp aria-label="What ${label} means" title="${esc(help)}">i</button></span><span class="sty-bar"><i style="width:${pct(key)}%"></i></span><span class="sty-v">${fmt(mine[key])}</span></div>
-    <div class="sty-help" hidden>${esc(help)} The bar shows where they rank among all teams (full = highest), not how good it is.</div></div>`).join("");
+    <div class="sty-row"><span class="sty-lbl">${label}${infoBtn(help + " The bar shows where they rank among all teams (full = highest), not how good it is.", label + " explained")}</span><span class="sty-bar"><i style="width:${pct(key)}%"></i></span><span class="sty-v">${fmt(mine[key])}</span></div></div>`).join("");
   return `<div class="eyebrow">Playing style</div><div class="sty-card">${rows}<p class="sty-hint">Where ${esc(S.teams[code].name)} ranks among teams with match stats. A fuller bar means more than its rivals, not "better".</p></div>`;
 }
 function openTeam(code) {
@@ -2588,7 +2588,7 @@ function openTeamCompare(aCode, bCode) {
       ${row("Goals against", A.ga, B.ga, false)}
       ${row("Goal difference", sign(A.gd), sign(B.gd))}
     </div>` : ""}
-    <div class="eyebrow">Strength &amp; ranking</div><div class="cmp-rows">
+    <div class="eyebrow">Strength &amp; ranking${infoBtn("Elo is a continuously-updated strength rating: a team gains or loses points after each match by how much it beats (or loses to) the opponent, weighted by the goal margin and blended with expected goals. Higher = stronger. It differs from the FIFA World Ranking, which uses FIFA's own points formula — so the two can order teams differently.", "Elo vs FIFA rank")}</div><div class="cmp-rows">
       ${row("Elo rating", A.elo, B.elo)}
       ${row("FIFA world rank", A.rank ? "#" + A.rank : null, B.rank ? "#" + B.rank : null, false)}
     </div>
@@ -2875,6 +2875,19 @@ function flashToast(msg) {
   if (!t) { t = document.createElement("div"); t.id = "flashToast"; t.className = "flash-toast"; document.body.appendChild(t); }
   t.textContent = msg; t.classList.add("show");
   clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("show"), 2400);
+}
+// ---- reusable "i" explainer: any [data-info] button reveals its text in one shared popover (touch-safe, unlike title=) ----
+function infoBtn(text, label) { return `<button class="info-i" type="button" data-info="${esc(text)}" aria-label="${esc(label || "What this means")}">i</button>`; }
+function closeInfoPop() { const p = $("#infoPop"); if (p) { p.classList.remove("show"); p._anchor = null; } }
+function showInfoPop(anchor, text) {
+  let pop = $("#infoPop");
+  if (!pop) { pop = document.createElement("div"); pop.id = "infoPop"; pop.className = "info-pop"; pop.setAttribute("role", "tooltip"); document.body.appendChild(pop); }
+  if (pop._anchor === anchor && pop.classList.contains("show")) return closeInfoPop();   // tap again to dismiss
+  pop.textContent = text; pop._anchor = anchor; pop.classList.add("show");
+  const r = anchor.getBoundingClientRect(), w = Math.min(280, innerWidth - 24);
+  pop.style.width = w + "px";
+  pop.style.left = Math.max(12, Math.min(r.left + r.width / 2 - w / 2 + scrollX, scrollX + innerWidth - w - 12)) + "px";
+  pop.style.top = (r.bottom + scrollY + 7) + "px";
 }
 /* compact prediction codec (~23 bytes → ~31-char link); decode falls back to the old JSON format */
 const FACT = [1, 1, 2, 6, 24];
@@ -3896,6 +3909,7 @@ const RENDER = { live: renderLive, matches: renderMatches, teams: renderTeams, p
 const VIEW_HASH = { live: "live", teams: "teams", players: "players", groups: "tables", sim: "predict", stats: "stats", pulse: "pulse" };
 const HASH_VIEW = { live: "live", matches: "matches", teams: "teams", players: "players", tables: "groups", groups: "groups", predict: "sim", stats: "stats", pulse: "pulse" };
 function nav(v) {
+  if (typeof closeInfoPop === "function") closeInfoPop();   // an open explainer is anchored to the old view
   if (v !== "live") stopLiveCd();        // leaving Live → stop its countdown interval (renderLive restarts it on return)
   S.view = v;
   const _want = VIEW_HASH[v] ? "#" + VIEW_HASH[v] : "";       // reflect the tab in the URL so it's shareable / bookmarkable
@@ -4460,7 +4474,8 @@ async function boot() {
   addEventListener("click", e => { if (!e.target.closest("#teamSelWrap")) closeTeamSel(); });   // close team dropdown on outside click
   addEventListener("click", e => { if (!e.target.closest("#stageSelWrap")) closeStagePop(); });  // …and the stage dropdown
   addEventListener("click", e => { if (!e.target.closest(".rk-filter .tsel")) closeRkPops(); });   // …and both rankings dropdowns
-  addEventListener("keydown", e => { if (e.key === "Escape") { closeTeamSel(); closeRkPops(); } });
+  addEventListener("keydown", e => { if (e.key === "Escape") { closeTeamSel(); closeRkPops(); closeInfoPop(); } });
+  addEventListener("scroll", () => closeInfoPop(), { passive: true, capture: true });   // an explainer popover dismisses on scroll
   // Keep an open sheet (search, compare, team picker…) above the on-screen keyboard. The visual viewport shrinks when
   // the keyboard is up, so cap the dialog to that height and top-anchor it; reset to the centered CSS default when it's
   // down. Fixes the keyboard covering the player-search results on phones (works on iOS + Android via visualViewport).
@@ -4501,8 +4516,9 @@ async function boot() {
     // a close button or a backdrop (click landing on the <dialog> itself) is handled by the dialog's own
     // close wiring — never let it fall through to an open-handler, or closing would immediately re-open.
     if (e.target.closest("[data-close]") || e.target.tagName === "DIALOG") return;
-    const sh = e.target.closest("[data-styhelp]");   // playing-style metric explainer: toggle its help line
-    if (sh) { e.stopPropagation(); const help = sh.closest(".sty-item")?.querySelector(".sty-help"); if (help) help.hidden = !help.hidden; return; }
+    const ii = e.target.closest("[data-info]");   // reusable "i" explainer → shared popover (touch-safe)
+    if (ii) { e.stopPropagation(); showInfoPop(ii, ii.dataset.info); return; }
+    if (!e.target.closest("#infoPop")) closeInfoPop();   // any other click dismisses an open explainer
     const rf = e.target.closest("[data-refresh]");
     if (rf) { e.stopPropagation(); manualRefresh(rf); return; }
     const star = e.target.closest("[data-save]");

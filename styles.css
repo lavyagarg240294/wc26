@@ -1409,10 +1409,13 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .sty-card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:12px 15px;box-shadow:var(--shadow);margin:2px 0 10px}
 .sty-row{display:grid;grid-template-columns:104px 1fr 46px;align-items:center;gap:10px;padding:5px 0}
 .sty-lbl{font-size:12px;font-weight:600;color:var(--ink-soft);display:inline-flex;align-items:center}
-.sty-info{position:relative;display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;margin-left:5px;flex:0 0 auto;border:1px solid var(--line);border-radius:50%;background:none;color:var(--ink-soft);font-family:var(--mono);font-size:9px;font-weight:700;font-style:italic;line-height:1;cursor:pointer;transition:color .15s,border-color .15s}
-.sty-info::before{content:"";position:absolute;inset:-12px}   /* keep the 15px circle, but a ~39px tap target */
-.sty-info:hover{color:var(--acc-text);border-color:var(--acc-text)}
-.sty-info:focus-visible{outline:2px solid var(--acc1);outline-offset:1px}
+.sty-info,.info-i{position:relative;display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;margin-left:5px;flex:0 0 auto;border:1px solid var(--line);border-radius:50%;background:none;color:var(--ink-soft);font-family:var(--mono);font-size:9px;font-weight:700;font-style:italic;line-height:1;cursor:pointer;vertical-align:1px;transition:color .15s,border-color .15s}
+.sty-info::before,.info-i::before{content:"";position:absolute;inset:-12px}   /* keep the 15px circle, but a ~39px tap target */
+.sty-info:hover,.info-i:hover{color:var(--acc-text);border-color:var(--acc-text)}
+.sty-info:focus-visible,.info-i:focus-visible{outline:2px solid var(--acc1);outline-offset:1px}
+/* shared explainer popover (one element, repositioned per tap) */
+.info-pop{position:absolute;z-index:200;max-width:280px;padding:10px 13px;border-radius:var(--r-sm);background:var(--card);border:1px solid var(--line);box-shadow:0 12px 30px -8px rgba(13,27,42,.4);font-family:var(--body);font-weight:400;font-size:12.5px;line-height:1.5;color:var(--ink);opacity:0;transform:translateY(-4px);pointer-events:none;transition:opacity .14s,transform .14s}
+.info-pop.show{opacity:1;transform:none;pointer-events:auto}
 .sty-help{font-size:11px;color:var(--ink-soft);line-height:1.45;padding:1px 0 6px 2px;margin:0}
 .sty-help[hidden]{display:none}
 .sty-bar{height:7px;border-radius:4px;background:var(--line);overflow:hidden}
