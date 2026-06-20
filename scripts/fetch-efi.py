@@ -94,19 +94,37 @@ def parse_pdf(path):
         m = re.match(r"\s*(\d+)% ([A-Za-z][A-Za-z /-]+?) (\d+)%\s*$", line)
         if m: section[m.group(2).strip()] = [int(m.group(1)), int(m.group(3))]
     d["phasesIn"], d["phasesOut"] = pin, pout
-    # per-player distance (pages 50-51, custom-font decoded). [0]=home, [1]=away.
-    players = {"home": [], "away": []}
-    for idx, side in ((49, "home"), (50, "away")):
-        txt = dec(pg(idx))
-        for line in txt.split("\n"):
-            m = re.match(r"\s*(\d+)\s+([A-Z][A-Za-z' -]+?)\s+(\d+\.\d)\s", line)
+    # per-player distance (custom-font decoded, in metres). FIFA's PMSR page count VARIES per match, so rather
+    # than hardcoding page indices we SCAN every page for the per-player table and assign, to each side, the page
+    # whose decoded rows sum to that team's published Total Distance Covered (within 1 km). This both locates the
+    # right pages and sanity-checks the font decode in one step — a page summing to garbage is never accepted.
+    row_rx = re.compile(r"\s*(\d+)\s+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ'.\- ]+?)\s+(\d{4,5}\.\d)\b")
+    def rows_on(i):
+        out = []
+        for line in dec(pg(i)).split("\n"):
+            m = row_rx.match(line)
             if m:
-                players[side].append({"n": int(m.group(1)), "name": m.group(2).strip().title(), "km": round(float(m.group(3)) / 1000, 2)})
-    # sanity-check the decode: per-player sum must match the published team total, else drop (don't show garbage)
-    for i, side in ((0, "home"), (1, "away")):
-        tot = sum(p["km"] for p in players[side])
-        if not d["distance"] or abs(tot - d["distance"][i]) > 1.0:
-            players[side] = []
+                out.append({"n": int(m.group(1)), "name": m.group(2).strip().title(), "km": round(float(m.group(3)) / 1000, 2)})
+        return out
+    players = {"home": [], "away": []}
+    if d["distance"]:
+        cands = []                                    # (page_index, rows, sum_km) for any page that looks like a distance table
+        for i in range(len(pdf.pages)):
+            r = rows_on(i)
+            if len(r) >= 7:                           # a real per-player table has ~11-18 outfield+sub rows
+                cands.append((i, r, sum(x["km"] for x in r)))
+        used = set()
+        for i, side in ((0, "home"), (1, "away")):
+            target = d["distance"][i]
+            best, best_diff = None, 1.0               # accept only a page summing within 1 km of the team total
+            for (pi, r, tot) in cands:
+                if pi in used:
+                    continue
+                if abs(tot - target) < best_diff:
+                    best_diff, best = abs(tot - target), (pi, r)
+            if best:
+                players[side] = best[1]
+                used.add(best[0])
     d["players"] = players
     return num, d
 
