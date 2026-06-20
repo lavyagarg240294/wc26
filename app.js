@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "313";  // shown in footer; bump with the ?v= asset version
+const BUILD = "314";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -2073,7 +2073,7 @@ function plgListHTML(list) {
     return `<button class="plg-card" data-player="${esc(p.name)}|${p.code}">
       ${ph ? `<span class="plg-face" style="background-image:url('${ph}')"></span>` : `<span class="plg-face plg-flag">${flag(p.code)}</span>`}
       <span class="plg-body"><span class="plg-nm">${esc(pName(p.name, p.code))}${p.cap ? ` <i class="plg-cap">C</i>` : ""}</span>
-        <span class="plg-sub"><span class="fl">${flag(p.code)}</span><span class="plg-intl">${ageBit}<b>${p.caps}</b> caps · <b>${p.cg}</b> ${p.cg === 1 ? "goal" : "goals"}</span></span>
+        <span class="plg-sub"><span class="fl">${flag(p.code)}</span><span class="plg-intl">${ageBit}<b>${p.caps}</b> ${p.caps === 1 ? "cap" : "caps"} · <b>${p.cg}</b> ${p.cg === 1 ? "goal" : "goals"}</span></span>
         <span class="plg-meta">${POSN[p.pos] || p.pos || ""}${p.club ? ` · ${esc(p.club)}` : ""}</span></span>
     </button>`;
   };
