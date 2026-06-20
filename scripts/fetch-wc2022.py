@@ -35,9 +35,12 @@ FINISH = {
 }
 
 def fetch_wikitext(page):
-    url = WIKI % page
-    req = urllib.request.Request(url, headers={"User-Agent": UA})
-    return json.loads(urllib.request.urlopen(req, timeout=40).read())["parse"]["wikitext"]
+    req = urllib.request.Request(WIKI % page, headers={"User-Agent": UA})
+    try:
+        return json.loads(urllib.request.urlopen(req, timeout=40).read()).get("parse", {}).get("wikitext", "") or ""
+    except Exception as e:
+        print(f"  !! fetch failed for {page}: {e}")
+        return ""
 
 def parse_squads():
     wt = fetch_wikitext("2022_FIFA_World_Cup_squads").split("==Statistics==")[0]
@@ -53,8 +56,68 @@ def parse_squads():
             out[code] = names
     return out
 
+# 2022 footballbox 3-letter codes -> our team codes
+FIFA3 = {
+    "NED": "NL", "USA": "US", "ARG": "AR", "KSA": "SA", "MEX": "MX", "POL": "PL", "FRA": "FR", "AUS": "AU",
+    "DEN": "DK", "TUN": "TN", "ESP": "ES", "CRC": "CR", "GER": "DE", "JPN": "JP", "BEL": "BE", "CAN": "CA",
+    "MAR": "MA", "CRO": "HR", "BRA": "BR", "SRB": "RS", "SUI": "CH", "CMR": "CM", "GHA": "GH", "POR": "PT",
+    "KOR": "KR", "URU": "UY", "ECU": "EC", "QAT": "QA", "SEN": "SN", "ENG": "GB-ENG", "IRN": "IR", "WAL": "GB-WLS",
+    "SPA": "ES",   # Wikipedia uses both ESP and SPA for Spain across the group pages
+}
+def _field(ch, name):
+    m = re.search(r"\|" + name + r"=(.*?)(?=\n\|\w+=|\n\}\})", ch, re.S)
+    return m.group(1) if m else ""
+def _scorers(field):   # "*[[Player|Name]] {{goal|10|45+1}}" -> [{n, m:[mins]}]
+    out = []
+    for line in field.split("\n"):
+        nm = re.search(r"\[\[(?:[^|\]]*\|)?([^\]]+)\]\]", line)
+        if not nm:
+            continue
+        mins = [x.strip().replace("'", "") for mg in re.findall(r"\{\{goal\|([^}]+)\}\}", line, re.I)
+                for x in mg.split("|") if re.match(r"\d", x.strip())]
+        out.append({"n": nm.group(1).strip(), "m": mins})
+    return out
+def parse_match_page(page, stage):
+    out = []
+    for ch in fetch_wikitext(page).split("{{Football box")[1:]:
+        t1 = re.search(r"team1=\{\{[^}]*\|([A-Z]{3})\}\}", ch)
+        t2 = re.search(r"team2=\{\{[^}]*\|([A-Z]{3})\}\}", ch)
+        sc = re.search(r"score=(?:\{\{[Ss]core ?link\|[^|]*\|)?\s*'?'?(\d+)\s*[–-]\s*(\d+)", ch)
+        if not (t1 and t2 and sc):
+            continue
+        c1, c2 = FIFA3.get(t1.group(1)), FIFA3.get(t2.group(1))
+        if not c1 or not c2:
+            continue
+        mt = {"a": c1, "b": c2, "s": [int(sc.group(1)), int(sc.group(2))],
+              "ga": _scorers(_field(ch, "goals1")), "gb": _scorers(_field(ch, "goals2")), "st": stage}
+        pen = re.search(r"penaltyscore=\s*(\d+)\s*[–-]\s*(\d+)", ch)
+        if pen:
+            mt["pen"] = [int(pen.group(1)), int(pen.group(2))]
+        out.append(mt)
+    return out
+def parse_matches():
+    ms = []
+    for g in "ABCDEFGH":
+        ms += parse_match_page(f"2022_FIFA_World_Cup_Group_{g}", g)   # stage = group letter
+    # the knockout-stage article carries only R16(8) → QF(4) → SF(2); the play-off + final are their own articles
+    ko = parse_match_page("2022_FIFA_World_Cup_knockout_stage", None)
+    for i, m in enumerate(ko):
+        m["st"] = "R16" if i < 8 else "QF" if i < 12 else "SF"
+    ms += ko
+    # the final has its own article; the 3rd-place play-off has none, so take it from the main tournament article.
+    # filter by the actual finalists/play-off teams so a "road to the final" mini-result is never mistaken for the box.
+    fin_boxes = parse_match_page("2022_FIFA_World_Cup_final", "FIN")
+    fin = next((m for m in fin_boxes if {m["a"], m["b"]} == {"AR", "FR"}), None)
+    if fin:
+        ms.append(fin)
+    tp = next((m for m in parse_match_page("2022_FIFA_World_Cup", "3P") if {m["a"], m["b"]} == {"HR", "MA"}), None)
+    if tp:
+        ms.append(tp)
+    return ms
+
 def main():
     squads = parse_squads()
+    matches = parse_matches()
     teams = {}
     for code, (finish, tier) in FINISH.items():
         teams[code] = {"finish": finish, "tier": tier, "squad": squads.get(code, [])}
@@ -62,10 +125,12 @@ def main():
     out = {
         "source": "Wikipedia: 2022 FIFA World Cup squads + final classification",
         "host": "Qatar", "year": 2022, "teamCount": 32,
-        "teams": teams, "matches": [],
+        "teams": teams, "matches": matches,
     }
     json.dump(out, open("data/wc2022.json", "w"), ensure_ascii=False)
-    print(f"wrote data/wc2022.json — {len(teams)} teams, squads parsed: {sum(1 for t in teams.values() if t['squad'])}")
+    goals = sum(len(m["ga"]) + len(m["gb"]) for m in matches)
+    print(f"wrote data/wc2022.json — {len(teams)} teams ({sum(1 for t in teams.values() if t['squad'])} w/ squads), "
+          f"{len(matches)} matches, {goals} scorer entries")
     print("squad-count outliers:", bad or "none (all 23-26)")
 
 main()
