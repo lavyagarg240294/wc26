@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "293";  // shown in footer; bump with the ?v= asset version
+const BUILD = "294";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -235,6 +235,7 @@ const ICO = {
   bolt: _ico('<path d="M13 2 5 13.5h6l-1 8.5 9-12.5h-6z"/>'),
   clock: _ico('<circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l3.5 2"/>'),
   glove: _ico('<path d="M8.5 13V8a1.5 1.5 0 0 1 3 0M11.5 12V6a1.5 1.5 0 0 1 3 0v6M14.5 11.5V8a1.5 1.5 0 0 1 3 0v6a6 6 0 0 1-6 6 5 5 0 0 1-5-5l-1-2.6a1.5 1.5 0 0 1 2.6-1.4l.9 1.5"/>'),
+  shield: _ico('<path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/>'),
   ball: _ico('<circle cx="12" cy="12" r="9"/><path d="M12 9l2.85 2.07-1.09 3.36h-3.52L9.15 11.07z"/><path d="M12 9V4.5M14.85 11.07l3.7-1.3M13.76 14.43l1.8 3.1M10.24 14.43l-1.8 3.1M9.15 11.07l-3.7-1.3"/>'),
   trophy: _ico('<path d="M7 4h10v4.5a5 5 0 0 1-10 0z"/><path d="M7 6.3H4.6A2.2 2.2 0 0 0 7 8.6M17 6.3h2.4A2.2 2.2 0 0 1 17 8.6M12 13.5v2.8M9.5 19.5h5M10 16.3h4"/>'),
   people: _ico('<circle cx="9" cy="8.5" r="3"/><path d="M3.5 19.5a5.5 5.5 0 0 1 11 0M16 6a3 3 0 0 1 0 6M17.2 13.6a5.5 5.5 0 0 1 3.3 5.9"/>'),
@@ -1556,7 +1557,7 @@ function liveContext(m) {
 function liveStars(m) {
   const h = slotInfo(m, "home"), a = slotInfo(m, "away"), r = res(m) || {};
   if (!h.code || !a.code) return "";
-  let stars = [], label = "Match stars";
+  let items = [], label = "Match stars";
   const tally = new Map();
   for (const e of (r.ev || [])) {            // goalscorers in THIS match (own goals credit the opponent, so skip)
     if (!["G", "P"].includes(e.k) || !e.p) continue;
@@ -1564,23 +1565,30 @@ function liveStars(m) {
     const t = tally.get(key) || { name: e.p, code, goals: 0, mins: [] };
     t.goals++; if (e.t) t.mins.push(e.t); tally.set(key, t);
   }
-  if (tally.size) stars = [...tally.values()].sort((x, y) => y.goals - x.goals).slice(0, 6);
-  else {                                     // no goals yet → each side's leading tournament scorer
+  if (tally.size) {
+    items = [...tally.values()].sort((x, y) => y.goals - x.goals).slice(0, 6)
+      .map(s => ({ name: s.name, code: s.code, sub: `${s.goals} goal${s.goals > 1 ? "s" : ""}${s.mins.length ? " · " + s.mins.join(", ") : ""}` }));
+    // beyond goals: the match's top defender + top keeper from FIFA's key-performer data (lead[])
+    const topOf = k => (r.lead || []).filter(L => L.k === k && L.n && +L.v > 0).sort((x, y) => (+y.v) - (+x.v))[0];
+    const def = topOf("defensiveInterventions");
+    if (def) items.push({ name: def.n, code: def.c, sub: `${def.v} defensive actions`, role: "Top defender" });
+    const kp = topOf("saves");
+    if (kp) items.push({ name: kp.n, code: kp.c, sub: `${kp.v} save${+kp.v > 1 ? "s" : ""}`, role: "Top keeper" });
+  } else {                                   // no goals yet → each side's leading tournament scorer
     const sc = tournamentStats().scorers, pick = c => sc.filter(p => p.code === c && p.goals > 0).sort((x, y) => y.goals - x.goals)[0];
-    stars = [pick(h.code), pick(a.code)].filter(Boolean);
+    items = [pick(h.code), pick(a.code)].filter(Boolean).map(s => ({ name: s.name, code: s.code, sub: `${s.goals} goal${s.goals > 1 ? "s" : ""} so far` }));
     label = "Ones to watch";
   }
-  if (!stars.length) return "";
   const card = s => {
     const photo = bestPhoto(s.name, s.code); if (!photo) return "";
     const big = atWidth(photo, 400) || photo, c1 = S.teams[s.code]?.c1 || "var(--pitch)";
-    const sub = s.mins ? `${s.goals} goal${s.goals > 1 ? "s" : ""}${s.mins.length ? " · " + s.mins.join(", ") : ""}` : `${s.goals} goal${s.goals > 1 ? "s" : ""} so far`;
     return `<button class="star-card" data-player="${esc(s.name)}|${s.code}" style="--sc:${c1}" aria-label="${esc(pName(s.name, s.code))}">
       <span class="star-photo" style="background-image:url('${big}')"></span>
-      <span class="star-info"><span class="star-top"><span class="fl">${flag(s.code)}</span><b>${esc(pName(s.name, s.code))}</b></span><span class="star-sub">${sub}</span></span></button>`;
+      ${s.role ? `<span class="star-role">${esc(s.role)}</span>` : ""}
+      <span class="star-info"><span class="star-top"><span class="fl">${flag(s.code)}</span><b>${esc(pName(s.name, s.code))}</b></span><span class="star-sub">${esc(s.sub)}</span></span></button>`;
   };
-  const cards = stars.map(card).filter(Boolean).join("");
-  return cards ? `<div class="eyebrow">${label}${infoBtn("This match's goalscorers, ranked by goals (penalties count; own goals are credited to the other side, so they're left out). Before kickoff it shows each team's leading scorer in this tournament.", "How match stars are chosen")}</div><div class="star-row">${cards}</div>` : "";
+  const cards = items.map(card).filter(Boolean).join("");
+  return cards ? `<div class="eyebrow">${label}${infoBtn("The match's goalscorers (most goals first), plus the top defender (most defensive actions) and top goalkeeper (most saves) from FIFA's key-performer data. Before kickoff it shows each team's leading scorer this tournament.", "How match stars are chosen")}</div><div class="star-row">${cards}</div>` : "";
 }
 // engaging play-by-play for the Live tab: key moments as a colour-coded vertical feed (newest-first while live),
 // goals/cards/VAR called out, full play-by-play one tap away. Lazily loads commentary, then re-renders.
@@ -3416,7 +3424,7 @@ function tournamentStats() {
   const gf = {}, ga = {}, poss = {}, possN = {}, sot = {}, sotN = {}, yel = {}, red = {}, played = {}, scorers = {}, assists = {}, pyel = {}, pred = {}, cs = {}, conf = {}, keepers = {}, tstat = {}, statN = {};
   const TSTAT_KEYS = ["sh", "pass", "passT", "cross", "lball", "tkl", "intc", "clr", "blk", "sv", "off", "fls"];   // richer ESPN team stats → leaderboards + style
   let goals = 0, totYellow = 0, totRed = 0;
-  const rec = { bigWin: null, hiScore: null, fastG: null, lateG: null, hiDraw: null, topMatch: null, mostCards: null };
+  const rec = { bigWin: null, hiScore: null, fastG: null, lateG: null, hiDraw: null, topMatch: null, mostCards: null, mostTackles: null, bestDef: null };
   const add = (o, k, n = 1) => { if (k) o[k] = (o[k] || 0) + n; };
   const addConf = (code, gfv, gav, diff) => {   // a team's match folded into its confederation's collective record
     const k = S.teams[code]?.conf; if (!k) return;
@@ -3476,6 +3484,15 @@ function tournamentStats() {
     const mCards = mYellow + mRed;
     if (mCards > 0 && (!rec.mostCards || mCards > rec.mostCards.total))
       rec.mostCards = { mid: m.id, hc, ac, y: mYellow, r: mRed, total: mCards };
+    // most tackles by a team in a match (team stat), + best individual defensive display (key-performer data)
+    if (Array.isArray(r.stats?.tkl)) {
+      const [ht, at] = r.stats.tkl, top = ht >= at ? { code: hc, v: ht, opp: ac } : { code: ac, v: at, opp: hc };
+      if (top.v > 0 && (!rec.mostTackles || top.v > rec.mostTackles.v)) rec.mostTackles = { ...top, mid: m.id };
+    }
+    for (const L of (r.lead || [])) {
+      if (L.k !== "defensiveInterventions" || !L.n || !(+L.v > 0)) continue;
+      if (!rec.bestDef || +L.v > rec.bestDef.v) rec.bestDef = { name: resolvePlayer(L.n, L.c)?.name || L.n, code: L.c, v: +L.v, opp: L.c === hc ? ac : hc, mid: m.id };
+    }
     if (r.stats?.poss) { add(poss, hc, r.stats.poss[0]); add(possN, hc); add(poss, ac, r.stats.poss[1]); add(possN, ac); }
     if (r.stats?.sot) { add(sot, hc, r.stats.sot[0]); add(sotN, hc); add(sot, ac, r.stats.sot[1]); add(sotN, ac); }
     if (r.stats) {   // accumulate the richer team stats (per-match averaged later, like FotMob)
@@ -3744,6 +3761,8 @@ function renderStats() {
   if (rc.fastG) { const r = rc.fastG; recItems.push(recRow(ICO.bolt, "Fastest goal", `${flag(r.code)} ${esc(r.name)}`, esc(r.t), `data-player="${esc(r.name)}|${r.code}"`)); }
   if (rc.lateG) { const r = rc.lateG; recItems.push(recRow(ICO.clock, "Latest goal", `${flag(r.code)} ${esc(r.name)}`, esc(r.t), `data-player="${esc(r.name)}|${r.code}"`)); }
   if (rc.mostCards) { const r = rc.mostCards; recItems.push(recRow(ICO.spark, "Most cards in a match", `${flag(r.hc)} ${tname(r.hc)} v ${flag(r.ac)} ${tname(r.ac)}`, `<span class="card-tally"><span class="ct ct-y">${r.y}</span>${r.r ? `<span class="ct ct-r">${r.r}</span>` : ""}</span>`, `data-mid="${r.mid}"`)); }
+  if (rc.mostTackles) { const r = rc.mostTackles; recItems.push(recRow(ICO.shield, "Most tackles by a team", `${flag(r.code)} ${tname(r.code)}${r.opp ? ` vs ${flag(r.opp)} ${tname(r.opp)}` : ""}`, `${r.v}`, `data-mid="${r.mid}"`)); }
+  if (rc.bestDef) { const r = rc.bestDef; recItems.push(recRow(ICO.shield, "Best defensive display", `${flag(r.code)} ${esc(pName(r.name, r.code))}${r.opp ? ` vs ${flag(r.opp)} ${tname(r.opp)}` : ""}`, `${r.v}<small>actions</small>`, `data-player="${esc(r.name)}|${r.code}"`)); }
   const recordsHtml = recItems.length
     ? `<div class="lead-card rec-card">${recItems.join("")}</div><p class="sim-ko-hint">Tap a record to open the match or player.</p>`
     : `<div class="empty">Records fill in as matches are played.</div>`;
