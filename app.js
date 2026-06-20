@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "314";  // shown in footer; bump with the ?v= asset version
+const BUILD = "315";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1420,29 +1420,35 @@ function heroStack(liveMatches, nextM) {
     ? `<div class="hero-stack-head">${ballSVG("live-ball")} ${liveMatches.length} matches live now</div>` : "";
   return head + `<div class="hero-stack">${liveMatches.map(m => heroBlock(m, true)).join("")}</div>`;
 }
-function heroBlock(heroM, isLive) {
-  const h = slotInfo(heroM, "home"), a = slotInfo(heroM, "away"), r = res(heroM);
-  return `<div class="hero" data-hero-live="${heroM.id}" role="button" tabindex="0" aria-label="Follow ${esc(h.name)} v ${esc(a.name)} in the Live tab">
-    <div class="hero-tag ${isLive ? "is-live" : ""}">
-      ${isLive ? `${ballSVG("live-ball")} Live now` : `${isFavMatch(heroM) ? "Your team · " : ""}Next kickoff`}<span style="color:var(--ink-soft);font-weight:600"> · ${esc(heroM.group ? "Group " + heroM.group : heroM.round)}</span>
-      <span class="hero-actions">
-        <span class="hero-go">Follow ›</span>
-      </span>
+// The single hero card, used on BOTH the Matches tab (tappable → opens the Live tab) and the Live tab
+// (onLive: same look, but you're already following so no "Follow" CTA / self-navigation). Renders live
+// score + ticking-minute chip, a final score for FT, or VS + win-prob + countdown for an upcoming match.
+function heroBlock(heroM, isLive, onLive) {
+  const h = slotInfo(heroM, "home"), a = slotInfo(heroM, "away"), r = res(heroM), st = status(heroM);
+  const live = isLive != null ? isLive : [ST.LIVE, ST.HT].includes(st);   // Matches tab passes it; Live tab derives the state
+  const ft = !live && st === ST.FT, clickable = !onLive;
+  const tag = live ? `${ballSVG("live-ball")} Live now` : ft ? `● Full time` : `${isFavMatch(heroM) ? "Your team · " : ""}Next kickoff`;
+  return `<div class="hero${onLive ? " hero-onlive" : ""}"${clickable ? ` data-hero-live="${heroM.id}" role="button" tabindex="0" aria-label="Follow ${esc(h.name)} v ${esc(a.name)} in the Live tab"` : ""}>
+    <div class="hero-tag ${live ? "is-live" : ft ? "is-ft" : ""}">
+      ${tag}<span style="color:var(--ink-soft);font-weight:600"> · ${esc(heroM.group ? "Group " + heroM.group : heroM.round)}</span>
+      ${clickable ? `<span class="hero-actions"><span class="hero-go">Follow ›</span></span>` : ""}
     </div>
     <div class="hero-teams">
       <div class="hero-side"><span class="hero-flag">${h.code ? flag(h.code) : TBD_FLAG}</span><span class="hero-name">${esc(h.name)}</span></div>
-      <div class="hero-mid">${isLive
-        ? `<span class="hero-score">${r?.h ?? 0}–${r?.a ?? 0}</span><span class="hero-livechip">${r?.st === ST.HT ? "Half-time" : (clockStr(heroM, r) || "Live")}</span>`
+      <div class="hero-mid">${live || ft
+        ? `<span class="hero-score">${r?.h ?? 0}–${r?.a ?? 0}</span>${live
+            ? `<span class="hero-livechip">${r?.st === ST.HT ? "Half-time" : (clockStr(heroM, r) || "Live")}</span>`
+            : (r?.hp != null ? `<span class="hero-pens">${r.hp}–${r.ap} pens</span>` : "")}`
         : `<span class="hero-vs">VS</span>`}</div>
       <div class="hero-side"><span class="hero-flag">${a.code ? flag(a.code) : TBD_FLAG}</span><span class="hero-name">${esc(a.name)}</span></div>
     </div>
-    ${(() => { const s = matchStakes(heroM); return s ? `<div class="hero-stakes">${s.lines[0]}</div>` : ""; })()}
-    ${!isLive ? (() => { const wp = winProb(heroM); if (!wp) return "";   // pre-match only — odds matter less once the game is under way
+    ${!ft ? (() => { const s = matchStakes(heroM); return s ? `<div class="hero-stakes">${s.lines[0]}</div>` : ""; })() : ""}
+    ${!live && !ft && !onLive ? (() => { const wp = winProb(heroM); if (!wp) return "";   // pre-match only; on the Live tab the dedicated win-prob section below already covers it
       if (wp.ko && wp.adv) { const ph = Math.round(wp.adv.h * 100), pa = 100 - ph;   // knockout: show advance % (a 90' draw goes to ET/pens), no "draw" segment
         return `<div class="hero-wp" aria-label="${esc(h.name)} ${ph}% to advance, ${esc(a.name)} ${pa}%"><span class="hero-wp-bar"><i class="wp-h" style="width:${ph}%"></i><i class="wp-a" style="width:${pa}%"></i></span><span class="hero-wp-tx"><b>${ph}%</b><span>to advance</span><b>${pa}%</b></span></div>`; }
       const ph = Math.round(wp.h * 100), pd = Math.round(wp.d * 100), pa = 100 - ph - pd;
       return `<div class="hero-wp" aria-label="${esc(h.name)} ${ph}%, draw ${pd}%, ${esc(a.name)} ${pa}%"><span class="hero-wp-bar"><i class="wp-h" style="width:${ph}%"></i><i class="wp-d" style="width:${pd}%"></i><i class="wp-a" style="width:${pa}%"></i></span><span class="hero-wp-tx"><b>${ph}%</b><span>draw ${pd}%</span><b>${pa}%</b></span></div>`; })() : ""}
-    ${!isLive ? `<div class="countdown" id="cd" data-utc="${heroM.utc}">
+    ${!live && !ft ? `<div class="countdown" data-utc="${heroM.utc}">
       ${["h", "m"].map((k, i) => `${i ? `<span class="cd-sep" aria-hidden="true">:</span>` : ""}<div class="cd-cell"><span class="cd-num" data-k="${k}">–</span><span class="cd-lab">${{ h: "hrs", m: "min" }[k]}</span></div>`).join("")}
     </div>` : ""}
     <div class="hero-meta">
@@ -1489,7 +1495,6 @@ function motdBanner(m) {
 
 /* ---------------- render: Live (immersive single-match following) ---------------- */
 let _liveFocus = null;        // user-picked focus match id; else auto: marquee live → next up → last result
-let _liveCdTimer = null;
 function liveFocusPool() {
   const live = S.matches.filter(m => [ST.LIVE, ST.HT].includes(status(m))).sort((a, b) => prestige(b) - prestige(a));
   const soon = S.matches.filter(m => status(m) === ST.SCHED).sort((a, b) => a.utc.localeCompare(b.utc)).slice(0, 4);
@@ -1503,30 +1508,6 @@ function liveFocusPool() {
 function liveFocusMatch(pool) {
   if (_liveFocus) { const m = S.matches.find(x => x.id === _liveFocus); if (m) return m; }
   return pool.live[0] || pool.soon[0] || pool.recent[0] || null;
-}
-// the big team-coloured hero band: status, flags, live score or a ticking countdown, venue
-function liveHero(m) {
-  const h = slotInfo(m, "home"), a = slotInfo(m, "away"), r = res(m), st = status(m);
-  const live = [ST.LIVE, ST.HT].includes(st), ft = st === ST.FT, score = r && r.h != null;
-  const c1 = (h.code && S.teams[h.code]?.c1) || "var(--pitch)";
-  const c2 = (a.code && S.teams[a.code]?.c1) || "var(--ink-soft)";
-  const stage = m.group ? `Group ${m.group}` : m.stage === "third" ? "3rd place" : m.round;
-  const statusEl = live ? `<span class="lh-status is-live">${ballSVG("live-ball")} ${st === ST.HT ? "Half-time" : "Live"}</span>`
-    : ft ? `<span class="lh-status is-ft">● Full time</span>`
-    : `<span class="lh-status is-soon">${fmt(m.utc, { weekday: "short", day: "numeric", month: "short" })} · ${timeStr(m.utc)}</span>`;
-  const minNow = st === ST.LIVE ? (clockStr(m, r) || "") : "";   // the ticking minute, shown prominently under the score
-  const side = (s, key) => `<div class="lh-team ${s.code ? "lh-clk" : ""}"${s.code ? ` data-squad="${s.code}" role="button" tabindex="0" aria-label="Open ${esc(s.name)}"` : ""}>
-    <span class="lh-flag">${s.code ? flag(s.code) : TBD_FLAG}</span>
-    <span class="lh-name">${esc(s.name)}</span>
-    ${s.code && fifaRankOf(s.code) ? `<span class="lh-rank">FIFA #${fifaRankOf(s.code)}</span>` : ""}</div>`;
-  const mid = score
-    ? `<div class="lh-score">${r.h ?? 0}<span>–</span>${r.a ?? 0}</div>${minNow ? `<div class="lh-min">${ballSVG("live-ball")} ${esc(minNow)}</div>` : ""}${r.hp != null ? `<div class="lh-pens">${r.hp}–${r.ap} pens</div>` : ""}`
-    : `<div class="lh-cd" data-utc="${m.utc}">${["d", "h", "m"].map(k => `<span class="lh-cd-cell"><b data-k="${k}">–</b><i>${{ d: "days", h: "hrs", m: "min" }[k]}</i></span>`).join("")}</div>`;
-  return `<div class="live-hero" style="--lha:${c1};--lhb:${c2}">
-    <div class="lh-top">${statusEl}<span class="lh-stage">${esc(stage)}</span></div>
-    <div class="lh-teams">${side(h, "home")}<div class="lh-mid">${mid}</div>${side(a, "away")}</div>
-    <div class="lh-meta"><span>${esc(m.stadium)}</span><span>${esc(m.city)}</span>${r?.facts?.att ? `<span>${ICO.people} ${(+r.facts.att).toLocaleString()}</span>` : ""}</div>
-  </div>`;
 }
 // the model's discarded "why" drivers, surfaced as chips (host edge, form, down to 10, two leaky defences…)
 function liveWhyChips(wp) {
@@ -1674,19 +1655,6 @@ function liveSwitcher(pool, focusId) {
   };
   return `<div class="live-rail">${pool.pool.map(chip).join("")}</div>`;
 }
-function stopLiveCd() { clearInterval(_liveCdTimer); _liveCdTimer = null; }
-function startLiveCd() {
-  stopLiveCd();
-  const cd = $("#view-live .lh-cd"); if (!cd) return;
-  const target = new Date(cd.dataset.utc);
-  const tick = () => {
-    const s = Math.max(0, Math.floor((target - new Date()) / 1000));
-    const v = { d: s / 86400 | 0, h: s / 3600 % 24 | 0, m: s / 60 % 60 | 0 };
-    $$("b[data-k]", cd).forEach(n => { n.textContent = String(v[n.dataset.k]).padStart(2, "0"); });
-    if (s === 0) { stopLiveCd(); setTimeout(refreshResults, 4000); }   // timer is set before the first tick (below), so this clear is effective even on a synchronous zero
-  };
-  _liveCdTimer = setInterval(tick, 1000); tick();   // assign BEFORE the first tick so a synchronous s===0 clears the interval (no orphan/double-fire)
-}
 function renderLive() {
   const el = $("#view-live");
   const keepY = el.hidden ? 0 : window.scrollY;
@@ -1705,8 +1673,8 @@ function renderLive() {
     : ft
     ? [mdKeyStats(r, m), liveStars(m), mdTimeline(r, h.code, a.code), mdStats(r, true), pXi, mdReport(m), liveCommentary(m), mdEfi(m, true), wpSection]
     : [liveStars(m), matchCompare(m), liveContext(m), wpSection, stakesBlock(m), pXi];
-  el.innerHTML = viewH2("view-live") + liveHero(m) + sections.filter(Boolean).join("") + koPath(m);
-  startLiveCd();
+  el.innerHTML = viewH2("view-live") + heroBlock(m, null, true) + sections.filter(Boolean).join("") + koPath(m);
+  startCountdown(el);
   if (!el.hidden) window.scrollTo(0, keepY);
 }
 function renderMatches() {
@@ -1766,7 +1734,7 @@ function renderMatches() {
     (past.length ? `<details class="earlier"><summary><span class="ear-tri">▸</span> Earlier results <b>${past.length}</b><span class="ear-hint">view</span></summary><div class="ear-body">${dayGroups(past)}</div></details>` : "") +
     (ahead.length ? dayGroups(ahead) : (past.length ? "" : `<div class="empty">No matches for this filter.</div>`)));
 
-  startCountdown();
+  startCountdown(el);
   const sbtn = $("#stageSelBtn", el);
   if (sbtn) {
     sbtn.onclick = () => { $("#stageSelPop").hidden ? openStagePop() : closeStagePop(); };
@@ -1896,9 +1864,9 @@ function scrollToNow() {
   const y = t.el.getBoundingClientRect().top + scrollY - STICK() - headH - 8;
   scrollTo({ top: Math.max(0, y), behavior: "smooth" });
 }
-function startCountdown() {
+function startCountdown(root) {
   clearInterval(cdTimer); prevCd = {};
-  const cd = $("#cd"); if (!cd) return;
+  const cd = (root || document).querySelector(".countdown[data-utc]"); if (!cd) return;   // scoped to the active view (Matches or Live can each carry one)
   const target = new Date(cd.dataset.utc);
   const tickFn = () => {
     let s = Math.max(0, Math.floor((target - new Date()) / 1000));
@@ -2011,7 +1979,7 @@ function rosterMarkup(sq, code) {
         return `<div class="roster-row" data-player="${esc(nm)}|${code}" role="button" tabindex="0">
         <span class="rnum">${x.n ?? "·"}</span>
         <span class="rface"${ph ? ` style="background-image:url('${ph}')"` : ""}>${ph ? "" : flag(code)}</span>
-        <span class="rname">${esc(nm)}${isCaptain(nm, code) ? `<i class="cpt" title="Captain">C</i>` : ""}${x.club ? `<small>${esc(x.club)}</small>` : ""}</span>
+        <span class="rname"><span class="rname-t">${esc(nm)}${isCaptain(nm, code) ? `<i class="cpt" title="Captain">C</i>` : ""}</span>${x.club ? `<small>${esc(x.club)}</small>` : ""}</span>
         ${x.caps != null ? `<span class="rstat">${x.caps}<i>caps</i>${x.goals ? `<em>${x.goals} g</em>` : ""}</span>` : ""}
       </div>`; }).join("")}</div>` : "";
   }).join("")}</div>`;
@@ -4159,7 +4127,6 @@ const VIEW_HASH = { live: "live", teams: "teams", players: "players", groups: "t
 const HASH_VIEW = { live: "live", matches: "matches", teams: "teams", players: "players", tables: "groups", groups: "groups", predict: "sim", stats: "stats", pulse: "pulse" };
 function nav(v) {
   if (typeof closeInfoPop === "function") closeInfoPop();   // an open explainer is anchored to the old view
-  if (v !== "live") stopLiveCd();        // leaving Live → stop its countdown interval (renderLive restarts it on return)
   S.view = v;
   const _want = VIEW_HASH[v] ? "#" + VIEW_HASH[v] : "";       // reflect the tab in the URL so it's shareable / bookmarkable
   if (location.hash !== _want && !location.hash.startsWith("#p=")) history.replaceState(null, "", location.pathname + location.search + _want);
