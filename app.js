@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "297";  // shown in footer; bump with the ?v= asset version
+const BUILD = "298";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1539,7 +1539,7 @@ function liveWhyChips(wp) {
 // the model's discarded top-3 most-likely scorelines, as tiles
 function liveScorelines(wp) {
   if (!wp?.predicted?.length) return "";
-  const tiles = wp.predicted.slice(0, 3).map((s, i) => `<div class="sl-tile${i === 0 ? " sl-top" : ""}"><b>${s.h}–${s.a}</b><i>${Math.round(s.p * 100)}%</i></div>`).join("");
+  const tiles = wp.predicted.slice(0, 3).map(s => `<div class="sl-tile"><b>${s.h}–${s.a}</b><i>${Math.round(s.p * 100)}%</i></div>`).join("");
   return `<div class="eyebrow">Most likely scores</div><div class="sl-tiles">${tiles}</div>`;
 }
 // recent W/D/L form for both sides (upcoming context)
@@ -2917,16 +2917,31 @@ function textPrompt(label, value = "", { ok = "Save", max = 24 } = {}) {
 }
 // ---- reusable "i" explainer: any [data-info] button reveals its text in one shared popover (touch-safe, unlike title=) ----
 function infoBtn(text, label) { return `<button class="info-i" type="button" data-info="${esc(text)}" aria-label="${esc(label || "What this means")}">i</button>`; }
-function closeInfoPop() { const p = $("#infoPop"); if (p) { p.classList.remove("show"); p._anchor = null; } }
+// native Popover API renders in the browser's top layer — ABOVE an open <dialog>. Without it a body-level
+// popover is painted behind any showModal()'d match/team sheet (the bug: tap an "i" in a modal, see nothing).
+const _POPOVER_OK = typeof HTMLElement !== "undefined" && HTMLElement.prototype.hasOwnProperty("showPopover");
+function closeInfoPop() {
+  const p = $("#infoPop"); if (!p) return;
+  p.classList.remove("show"); p._anchor = null;
+  if (_POPOVER_OK) { try { p.hidePopover(); } catch {} }
+}
 function showInfoPop(anchor, text) {
   let pop = $("#infoPop");
-  if (!pop) { pop = document.createElement("div"); pop.id = "infoPop"; pop.className = "info-pop"; pop.setAttribute("role", "tooltip"); document.body.appendChild(pop); }
+  if (!pop) {
+    pop = document.createElement("div"); pop.id = "infoPop"; pop.className = "info-pop"; pop.setAttribute("role", "tooltip");
+    if (_POPOVER_OK) pop.setAttribute("popover", "manual");   // top layer so it floats over open modals
+    document.body.appendChild(pop);
+  }
   if (pop._anchor === anchor && pop.classList.contains("show")) return closeInfoPop();   // tap again to dismiss
-  pop.textContent = text; pop._anchor = anchor; pop.classList.add("show");
+  pop.textContent = text; pop._anchor = anchor;
+  if (_POPOVER_OK) { try { pop.hidePopover(); } catch {} try { pop.showPopover(); } catch {} }
+  pop.classList.add("show");
+  // fixed/viewport coords (the popover's containing block is the viewport, not the transformed dialog);
+  // we dismiss on scroll, so not tracking scroll is fine.
   const r = anchor.getBoundingClientRect(), w = Math.min(280, innerWidth - 24);
   pop.style.width = w + "px";
-  pop.style.left = Math.max(12, Math.min(r.left + r.width / 2 - w / 2 + scrollX, scrollX + innerWidth - w - 12)) + "px";
-  pop.style.top = (r.bottom + scrollY + 7) + "px";
+  pop.style.left = Math.max(12, Math.min(r.left + r.width / 2 - w / 2, innerWidth - w - 12)) + "px";
+  pop.style.top = (r.bottom + 7) + "px";
 }
 /* compact prediction codec (~23 bytes → ~31-char link); decode falls back to the old JSON format */
 const FACT = [1, 1, 2, 6, 24];
@@ -4124,14 +4139,37 @@ const MUSIC = ["hitslab-334834", "ikoliks-381489", "mfcc-414731", "nastelbom-412
 function initMusic() {
   const a = $("#bgm"), btn = $("#musicToggle"); if (!btn || !a) return;
   a.volume = 0.32;
-  let queue = [], qi = 0;
-  const shuffle = arr => { const x = arr.slice(); for (let i = x.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [x[i], x[j]] = [x[j], x[i]]; } return x; };
-  const cue = () => {                                  // load the next track; reshuffle a fresh queue when one's exhausted
-    if (qi >= queue.length) { queue = shuffle(MUSIC); qi = 0; }
-    a.src = queue[qi++];
+  const HEARD_KEY = "wc26.music.heard", POS_KEY = "wc26.music.pos";
+  const load = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch { return d; } };
+  // "heard" persists ACROSS sessions: a shuffle-bag that never replays a track until the whole catalogue
+  // has been heard, so returning visitors keep getting NEW songs rather than re-rolling the same favourites.
+  let heard = new Set((load(HEARD_KEY, []) || []).filter(s => MUSIC.includes(s)));
+  let current = null, pendingSeek = 0, lastSave = -99;
+  const saveHeard = () => localStorage.setItem(HEARD_KEY, JSON.stringify([...heard]));
+  const savePos = () => { if (current) localStorage.setItem(POS_KEY, JSON.stringify({ src: current, t: a.currentTime || 0 })); };
+  const pick = () => {                                 // a fresh, not-yet-heard track (avoid an immediate repeat)
+    let pool = MUSIC.filter(s => !heard.has(s));
+    if (!pool.length) { heard = current ? new Set([current]) : new Set(); pool = MUSIC.filter(s => !heard.has(s)); }  // catalogue done → new cycle
+    if (pool.length > 1 && current) pool = pool.filter(s => s !== current);
+    return pool[Math.floor(Math.random() * pool.length)];
   };
-  const play = () => { if (!a.src) cue(); return a.play(); };
+  const cue = src => { current = src || pick(); heard.add(current); saveHeard(); a.src = current; lastSave = -99; savePos(); };
+  const play = () => {
+    if (!a.src) {
+      const saved = load(POS_KEY, null);               // resume the SAME track + position from last time, not the first song
+      if (saved && MUSIC.includes(saved.src)) { current = saved.src; pendingSeek = saved.t || 0; heard.add(current); saveHeard(); a.src = current; }
+      else cue();
+    }
+    return a.play();
+  };
+  const trySeek = () => {                             // resume the saved position once that byte offset is actually seekable
+    if (pendingSeek <= 1) return;                     // (with HTTP range support it's instant; without, it lands after buffering)
+    if (a.duration && pendingSeek >= a.duration - 2) { pendingSeek = 0; return; }   // saved point past this track's end → start fresh
+    if (a.seekable.length && a.seekable.end(a.seekable.length - 1) >= pendingSeek) { try { a.currentTime = pendingSeek; } catch {} pendingSeek = 0; }
+  };
+  ["loadedmetadata", "canplay", "progress"].forEach(ev => a.addEventListener(ev, trySeek));
   a.addEventListener("ended", () => { cue(); a.play().catch(() => {}); });   // rolling playlist, never stops on its own
+  a.addEventListener("timeupdate", () => { const t = a.currentTime; if (t - lastSave > 5 || t < lastSave) { lastSave = t; savePos(); } });
   const sync = () => {
     const playing = !a.paused;
     btn.setAttribute("aria-pressed", String(playing));
@@ -4143,7 +4181,7 @@ function initMusic() {
   a.addEventListener("pause", sync);
   btn.onclick = () => {
     if (a.paused) { play().then(() => localStorage.setItem("wc26.music", "on")).catch(() => {}); }
-    else { a.pause(); localStorage.setItem("wc26.music", "off"); }
+    else { a.pause(); savePos(); localStorage.setItem("wc26.music", "off"); }
   };
   // resume a previously-on preference on the first interaction (autoplay is blocked on load) —
   // but ignore a tap on the toggle itself, so toggling can never fight the resume

@@ -1113,9 +1113,9 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .rstat em{font-style:normal;color:var(--acc-text);margin-left:5px}
 /* team pedigree (titles · best finish · appearances) + coach */
 .ts-ped{display:flex;gap:8px;margin:10px 0 10px;flex-wrap:wrap}
-.tp{flex:1 1 0;min-width:74px;background:var(--card);border:1px solid var(--line);border-radius:13px;padding:11px 12px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:2px}
+.tp{flex:1 1 0;min-width:84px;background:var(--card);border:1px solid var(--line);border-radius:13px;padding:11px 12px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:2px}
 .tp b{font-family:var(--disp);font-weight:900;font-stretch:106%;font-size:21px;line-height:1;color:var(--ink)}
-.tp span{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);font-weight:600}
+.tp span{font-size:9px;text-transform:uppercase;letter-spacing:.02em;color:var(--ink-soft);font-weight:600}
 .tp-gold b{color:var(--gold-text)}
 .tp-wide{flex:2 1 130px}
 .tp-wide b{font-size:16px;font-stretch:106%}
@@ -1316,9 +1316,11 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 /* cards leaderboard: yellow + red side by side, each a little card chip + count */
 .card-tally{display:inline-flex;align-items:center;gap:8px}
 /* cards stat-tile: same big display number as the other tiles, with yellow/red card chips */
-.card-val{display:inline-flex;align-items:center;gap:13px}
+/* two numbers (+ card chips) live in one tile, so it's sized a touch smaller than the single-number tiles
+   above — keeps the same display font/weight but guarantees fit once yellows hit 3 digits / reds hit 2 */
+.card-val{display:inline-flex;align-items:center;gap:11px;font-size:22px}
 .cv{display:inline-flex;align-items:center;gap:6px}
-.cv::before{content:"";width:13px;height:18px;border-radius:3px;flex:none;box-shadow:0 1px 2px rgba(13,27,42,.25)}
+.cv::before{content:"";width:12px;height:16px;border-radius:3px;flex:none;box-shadow:0 1px 2px rgba(13,27,42,.25)}
 .cv-y::before{background:var(--gold)}
 .cv-r::before{background:var(--live)}
 .cv-r{color:var(--ink-soft)}
@@ -1437,7 +1439,7 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .sty-info:hover,.info-i:hover{color:var(--acc-text);border-color:var(--acc-text)}
 .sty-info:focus-visible,.info-i:focus-visible{outline:2px solid var(--acc1);outline-offset:1px}
 /* shared explainer popover (one element, repositioned per tap) */
-.info-pop{position:absolute;z-index:200;max-width:280px;padding:10px 13px;border-radius:var(--r-sm);background:var(--card);border:1px solid var(--line);box-shadow:0 12px 30px -8px rgba(13,27,42,.4);font-family:var(--body);font-weight:400;font-size:13px;line-height:1.5;color:var(--ink);opacity:0;transform:translateY(-4px);pointer-events:none;transition:opacity .14s,transform .14s}
+.info-pop{position:fixed;margin:0;inset:auto;width:auto;height:auto;overflow:visible;z-index:200;max-width:280px;padding:10px 13px;border-radius:var(--r-sm);background:var(--card);border:1px solid var(--line);box-shadow:0 12px 30px -8px rgba(13,27,42,.4);font-family:var(--body);font-weight:400;font-size:13px;line-height:1.5;color:var(--ink);opacity:0;transform:translateY(-4px);pointer-events:none;transition:opacity .14s,transform .14s}
 .info-pop.show{opacity:1;transform:none;pointer-events:auto}
 .sty-help{font-size:11px;color:var(--ink-soft);line-height:1.45;padding:1px 0 6px 2px;margin:0}
 .sty-help[hidden]{display:none}
@@ -1808,6 +1810,7 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
   .md-teams{margin-bottom:6px}
   .eyebrow{font-size:10px;margin:22px 0 11px}
   .stat-val{font-size:24px}
+  .card-val{font-size:20px;gap:9px}
   .stat-tile{padding:13px 14px}
   .lead-row{padding:8px 12px;font-size:13px}
   .lead-card h4{font-size:11px}
