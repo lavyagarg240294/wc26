@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "299";  // shown in footer; bump with the ?v= asset version
+const BUILD = "300";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -2479,12 +2479,21 @@ function openSearchOverlay() {
   else { inp.placeholder = ""; startSearchRoll(); }
   renderSearch("");
   showSheet($("#searchDialog"));
-  $("#searchResults").onclick = e => {              // close, then let the doc handler open the target…
-    const cmp = e.target.closest("[data-compare]");  // …unless we're in compare mode and a player was picked
+  $("#searchResults").onclick = e => {
+    const cmp = e.target.closest("[data-compare]");  // compare mode: a player was picked
     if (cmp) { const [n, c] = cmp.dataset.compare.split("|"); const seed = compareSeed; compareSeed = null; $("#searchDialog").close(); openCompare(seed, { name: n, code: c }); return; }
     const cmpT = e.target.closest("[data-compare-pick]");   // team-compare mode: a second team was picked
     if (cmpT) { const seed = compareTeamSeed; compareTeamSeed = null; $("#searchDialog").close(); openTeamCompare(seed, cmpT.dataset.comparePick); return; }
+    // Open the picked result HERE — in the same handler as the close — not via the document delegation. The modal
+    // history-back runs at the microtask checkpoint BETWEEN event listeners, so if we only closed and let the doc
+    // handler open the target on the next listener, that back() fires in the gap (no dialog open yet) and a popstate
+    // immediately tears down the dialog we just opened. stopPropagation keeps the doc handler from double-firing.
+    const pl = e.target.closest("[data-player]"), sq = e.target.closest("[data-squad]"), md = e.target.closest("[data-mid]");
+    e.stopPropagation();
     $("#searchDialog").close();
+    if (pl) { const [n, c] = pl.dataset.player.split("|"); openPlayer(n, c); }
+    else if (sq && sq.dataset.squad) openTeam(sq.dataset.squad);
+    else if (md) openMatch(md.dataset.mid);
   };
   setTimeout(() => inp.focus(), 60);
 }
