@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "316";  // shown in footer; bump with the ?v= asset version
+const BUILD = "317";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1602,8 +1602,7 @@ function liveStars(m) {
     const big = atWidth(photo, 400) || photo, c1 = S.teams[s.code]?.c1 || "var(--pitch)";
     return `<button class="star-card" data-player="${esc(s.name)}|${s.code}" style="--sc:${c1}" aria-label="${esc(pName(s.name, s.code))}">
       <span class="star-photo" style="background-image:url('${big}')"></span>
-      ${s.role ? `<span class="star-role">${esc(s.role)}</span>` : ""}
-      <span class="star-info"><span class="star-top"><span class="fl">${flag(s.code)}</span><b>${esc(pName(s.name, s.code))}</b></span><span class="star-sub">${esc(s.sub)}</span></span></button>`;
+      <span class="star-info">${s.role ? `<span class="star-role">${esc(s.role)}</span>` : ""}<span class="star-top"><span class="fl">${flag(s.code)}</span><b>${esc(pName(s.name, s.code))}</b></span><span class="star-sub">${esc(s.sub)}</span></span></button>`;
   };
   const cards = items.map(card).filter(Boolean).join("");
   return cards ? `<div class="eyebrow">${label}${infoBtn("The match's goalscorers (most goals first), plus the top defender (most defensive actions) and top goalkeeper (most saves) from FIFA's key-performer data. Before kickoff it shows each team's leading scorer this tournament.", "How match stars are chosen")}</div><div class="star-row">${cards}</div>` : "";
