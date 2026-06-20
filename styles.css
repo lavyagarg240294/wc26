@@ -426,6 +426,29 @@ body.bg-paused #bg span{animation-play-state:paused;will-change:auto}
 .plg-key b.plg-dim{color:var(--ink-soft);opacity:.5}
 .plg-key i{font-style:normal;display:inline-flex;align-items:center;gap:2px;font-family:var(--mono);font-size:9px;letter-spacing:.02em;color:var(--ink-soft);margin-top:3px}
 .plg-key i svg{width:9px;height:9px}
+/* sort-direction caret on the active sort chip */
+.plg-dir{font-style:normal;margin-left:4px;font-size:11px;opacity:.9}
+/* club picker (searchable, ranked by # of players) */
+.plg-clubwrap{position:relative;display:inline-flex}
+.plg-club{display:inline-flex;align-items:center;gap:7px;max-width:210px;padding:9px 13px;border-radius:99px;border:1px solid var(--line);background:var(--card);box-shadow:var(--shadow);font-family:var(--disp);font-weight:700;font-stretch:106%;font-size:12px;color:var(--ink);cursor:pointer}
+.plg-club>svg{flex:none;color:var(--ink-soft)}
+.plg-club.is-set{border-color:color-mix(in srgb,var(--acc1) 50%,var(--line));background:color-mix(in srgb,var(--acc1) 8%,var(--card))}
+.plg-club.is-set>svg{color:var(--acc-text)}
+.plg-club-lbl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.plg-club-cv{font-style:normal;color:var(--ink-soft);font-size:10px}
+.plg-club-x{font-style:normal;color:var(--ink-soft);font-size:11px;width:17px;height:17px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;flex:none}
+.plg-club-x:hover{background:color-mix(in srgb,var(--ink) 12%,transparent);color:var(--ink)}
+.plg-clubpop{position:absolute;z-index:40;top:calc(100% + 6px);left:0;width:282px;max-width:86vw;background:var(--card);border:1px solid var(--line);border-radius:var(--r-sm);box-shadow:var(--shadow-hover);padding:8px;display:flex;flex-direction:column;gap:7px}
+.plg-clubsearch{display:flex;align-items:center;gap:7px;padding:7px 11px;border-radius:99px;border:1px solid var(--line);background:var(--paper);color:var(--ink-soft)}
+.plg-clubsearch svg{flex:none}
+.plg-clubsearch input{flex:1;min-width:0;border:none;background:none;font:inherit;font-size:13px;color:var(--ink);outline:none}
+.plg-clublist{max-height:296px;overflow-y:auto;display:flex;flex-direction:column;gap:1px}
+.plg-clubrow{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;padding:8px 10px;border-radius:9px;border:none;background:none;font:inherit;font-size:13px;color:var(--ink);cursor:pointer;text-align:left}
+.plg-clubrow:hover{background:color-mix(in srgb,var(--ink) 6%,transparent)}
+.plg-clubrow.is-on{background:color-mix(in srgb,var(--acc1) 15%,transparent);color:var(--acc-text);font-weight:600}
+.plg-clubnm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.plg-clubn{flex:none;font-family:var(--mono);font-size:11px;color:var(--ink-soft);font-variant-numeric:tabular-nums}
+.plg-clubmore{padding:8px 10px 4px;font-size:12px;color:var(--ink-soft)}
 /* recent-form context (upcoming) */
 .lc-form{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden}
 .lc-row{display:flex;align-items:center;gap:9px;padding:11px 14px;border-top:1px solid color-mix(in srgb,var(--line) 55%,transparent)}

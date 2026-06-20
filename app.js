@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "298";  // shown in footer; bump with the ?v= asset version
+const BUILD = "299";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1947,8 +1947,8 @@ function rosterMarkup(sq, code) {
   }).join("")}</div>`;
 }
 /* ---------------- render: Players (browse all 1248 with filters) ---------------- */
-let _plFilter = { q: "", pos: "all", sort: "wc" };
-let _plIdx = null, _plIdxSig = "";
+let _plFilter = { q: "", pos: "all", sort: "wc", dir: "desc", club: "" };
+let _plIdx = null, _plIdxSig = "", _plClubs = null, _plClubCloser = null;
 function playersIndex() {
   const sig = Object.keys(S.squads || {}).length + ":" + (tournamentStats().scorers.length);
   if (_plIdx && _plIdxSig === sig) return _plIdx;
@@ -1963,29 +1963,44 @@ function playersIndex() {
         wc: wcOf(nm, code), age: bio?.d ? ageFrom(bio.d) : null, cap: p.name.includes("(captain)") });
     }
   }
+  _plClubs = null;   // invalidate the derived club tally
   return (_plIdx = out, _plIdxSig = sig, out);
 }
+// clubs that supply players to this World Cup, ranked by how MANY they send (most first), cached with the index
+function playerClubs() {
+  if (_plClubs) return _plClubs;
+  const m = new Map();
+  for (const p of playersIndex()) if (p.club) m.set(p.club, (m.get(p.club) || 0) + 1);
+  return (_plClubs = [...m.entries()].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name)));
+}
 const PL_POS = [["all", "All"], ["GK", "GK"], ["DF", "DEF"], ["MF", "MID"], ["FW", "FWD"]];
-const PL_SORT = [["wc", "Goals (2026)"], ["caps", "Caps"], ["az", "A–Z"], ["young", "Youngest"]];
-function renderPlayers() {
-  const el = $("#view-players");
+// each sort has a natural default direction; tapping the active one reverses it (cmp is the ASCENDING comparator)
+const PL_SORT = [
+  { k: "wc", label: "Goals", def: "desc", cmp: (a, b) => (a.wc - b.wc) || (a.cg - b.cg) },
+  { k: "caps", label: "Caps", def: "desc", cmp: (a, b) => a.caps - b.caps },
+  { k: "age", label: "Age", def: "asc", cmp: (a, b) => (a.age ?? 0) - (b.age ?? 0), missing: p => p.age == null },
+  { k: "az", label: "A–Z", def: "asc", cmp: (a, b) => a.name.localeCompare(b.name) },
+];
+const PLG_SEARCH_SVG = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>';
+const PLG_CLUB_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.4-3 7.7-7 9-4-1.3-7-4.6-7-9V6z"/></svg>';
+function plgCompute() {
   const f = _plFilter, q = f.q.trim().toLowerCase();
-  const all = playersIndex();
-  let list = all.filter(p => (f.pos === "all" || p.pos === f.pos) &&
+  const list = playersIndex().filter(p => (f.pos === "all" || p.pos === f.pos) && (!f.club || p.club === f.club) &&
     (!q || p.name.toLowerCase().includes(q) || p.club.toLowerCase().includes(q) || (S.teams[p.code]?.name || "").toLowerCase().includes(q)));
-  const SORT = {
-    wc: (a, b) => b.wc - a.wc || b.cg - a.cg || a.name.localeCompare(b.name),
-    caps: (a, b) => b.caps - a.caps || a.name.localeCompare(b.name),
-    az: (a, b) => a.name.localeCompare(b.name),
-    young: (a, b) => (a.age ?? 999) - (b.age ?? 999) || a.name.localeCompare(b.name),
-  };
-  list.sort(SORT[f.sort] || SORT.wc);
-  const CAP = 120, shown = list.slice(0, CAP);
+  const s = PL_SORT.find(x => x.k === f.sort) || PL_SORT[0], sign = f.dir === "asc" ? 1 : -1;
+  list.sort((a, b) => {
+    if (s.missing) { const am = s.missing(a), bm = s.missing(b); if (am !== bm) return am ? 1 : -1; }   // unknowns always sink, regardless of direction
+    return sign * s.cmp(a, b) || a.name.localeCompare(b.name);
+  });
+  return list;
+}
+function plgListHTML(list) {
+  const f = _plFilter, CAP = 120, shown = list.slice(0, CAP);
   const POSN = { GK: "Goalkeeper", DF: "Defender", MF: "Midfielder", FW: "Forward" };
   // the right-hand chip shows the value the list is currently SORTED by, so it's always clear what the ranking means
   const keyStat = p => {
     if (f.sort === "caps") return `<b>${p.caps}</b><i>caps</i>`;
-    if (f.sort === "young") return `<b>${p.age ?? "–"}</b><i>yrs</i>`;
+    if (f.sort === "age") return `<b>${p.age ?? "–"}</b><i>yrs</i>`;
     return p.wc ? `<b class="plg-g">${p.wc}</b><i>${ICO.ball} '26</i>` : `<b class="plg-dim">0</b><i>${ICO.ball} '26</i>`;   // wc-goals (default) + A–Z
   };
   const card = p => {
@@ -1997,20 +2012,65 @@ function renderPlayers() {
         <span class="plg-meta">${POSN[p.pos] || p.pos || ""}${p.age ? ` · ${p.age}y` : ""}</span></span>
       <span class="plg-key">${keyStat(p)}</span></button>`;
   };
-  const seg = (items, cur, attr) => `<div class="plg-seg">${items.map(([k, label]) => `<button class="plg-segbtn ${k === cur ? "is-on" : ""}" data-${attr}="${k}">${label}</button>`).join("")}</div>`;
+  return `<div class="plg-count">${list.length.toLocaleString()} player${list.length === 1 ? "" : "s"}${list.length > CAP ? ` · showing top ${CAP}` : ""}</div>
+    ${shown.length ? `<div class="plg-grid">${shown.map(card).join("")}</div>` : `<div class="empty">No players match. Try a different search or filter.</div>`}`;
+}
+// the club-picker list (sorted by player count), narrowed by its own search box
+function plgClubListHTML(q) {
+  const clubs = playerClubs(), f = (q || "").trim().toLowerCase();
+  const rows = f ? clubs.filter(c => c.name.toLowerCase().includes(f)) : clubs, LIM = 50;
+  const all = f ? "" : `<button class="plg-clubrow ${!_plFilter.club ? "is-on" : ""}" data-club=""><span class="plg-clubnm">All clubs</span><span class="plg-clubn">${playersIndex().length}</span></button>`;
+  const body = rows.slice(0, LIM).map(c => `<button class="plg-clubrow ${c.name === _plFilter.club ? "is-on" : ""}" data-club="${esc(c.name)}"><span class="plg-clubnm">${esc(c.name)}</span><span class="plg-clubn">${c.count}</span></button>`).join("");
+  const more = !rows.length ? `<div class="plg-clubmore">No clubs match “${esc(q)}”</div>` : (rows.length > LIM ? `<div class="plg-clubmore">${rows.length - LIM} more — keep typing to narrow</div>` : "");
+  return all + body + more;
+}
+function renderPlayers() {
+  if (_plClubCloser) { _plClubCloser(); _plClubCloser = null; }   // tear down a previous club popover's doc listeners before rebuild
+  const el = $("#view-players"), f = _plFilter;
+  const posSeg = PL_POS.map(([k, label]) => `<button class="plg-segbtn ${k === f.pos ? "is-on" : ""}" data-pos="${k}">${label}</button>`).join("");
+  const sortSeg = PL_SORT.map(s => { const on = s.k === f.sort;
+    return `<button class="plg-segbtn ${on ? "is-on" : ""}" data-sort="${s.k}" title="${on ? "Tap again to reverse" : `Sort by ${s.label.toLowerCase()}`}">${s.label}${on ? `<i class="plg-dir">${f.dir === "asc" ? "↑" : "↓"}</i>` : ""}</button>`; }).join("");
   el.innerHTML = viewH2("view-players") + `
     <div class="plg-filters">
-      <div class="plg-search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-        <input id="plgQ" type="search" placeholder="Search players, clubs or teams…" value="${esc(f.q)}" autocomplete="off"></div>
-      ${seg(PL_POS, f.pos, "pos")}
-      ${seg(PL_SORT, f.sort, "sort")}
+      <div class="plg-search">${PLG_SEARCH_SVG}
+        <input id="plgQ" type="search" placeholder="Search players or teams…" value="${esc(f.q)}" autocomplete="off"></div>
+      <div class="plg-clubwrap">
+        <button class="plg-club ${f.club ? "is-set" : ""}" id="plgClubBtn" aria-haspopup="listbox" aria-expanded="false">${PLG_CLUB_SVG}<span class="plg-club-lbl">${f.club ? esc(f.club) : "All clubs"}</span>${f.club ? `<i class="plg-club-x" data-club-clear role="button" aria-label="Clear club">✕</i>` : `<i class="plg-club-cv">▾</i>`}</button>
+        <div class="plg-clubpop" id="plgClubPop" hidden>
+          <div class="plg-clubsearch">${PLG_SEARCH_SVG}<input id="plgClubQ" type="search" placeholder="Search clubs…" autocomplete="off"></div>
+          <div class="plg-clublist" id="plgClubList"></div>
+        </div>
+      </div>
+      <div class="plg-seg">${posSeg}</div>
+      <div class="plg-seg plg-sortseg">${sortSeg}</div>
     </div>
-    <div class="plg-count">${list.length.toLocaleString()} player${list.length === 1 ? "" : "s"}${list.length > CAP ? ` · showing top ${CAP}` : ""}</div>
-    ${shown.length ? `<div class="plg-grid">${shown.map(card).join("")}</div>` : `<div class="empty">No players match. Try a different search or filter.</div>`}`;
+    <div id="plgList">${plgListHTML(plgCompute())}</div>`;
+  // SEARCH updates ONLY the list node — the input element is never re-created, so fast typing never drops a letter
   const qi = $("#plgQ", el);
-  if (qi) qi.oninput = e => { _plFilter.q = e.target.value; clearTimeout(qi._t); qi._t = setTimeout(() => { const s = qi.selectionStart; renderPlayers(); const n = $("#plgQ", el); if (n) { n.focus(); try { n.setSelectionRange(s, s); } catch {} } }, 160); };
+  if (qi) qi.oninput = () => { _plFilter.q = qi.value; clearTimeout(qi._t); qi._t = setTimeout(() => { const lc = $("#plgList", el); if (lc) lc.innerHTML = plgListHTML(plgCompute()); }, 110); };
   $$("[data-pos]", el).forEach(b => b.onclick = () => { _plFilter.pos = b.dataset.pos; renderPlayers(); });
-  $$("[data-sort]", el).forEach(b => b.onclick = () => { _plFilter.sort = b.dataset.sort; renderPlayers(); });
+  $$("[data-sort]", el).forEach(b => b.onclick = () => {
+    const k = b.dataset.sort;
+    if (f.sort === k) _plFilter.dir = f.dir === "asc" ? "desc" : "asc";                        // tap active → reverse
+    else { _plFilter.sort = k; _plFilter.dir = (PL_SORT.find(s => s.k === k) || {}).def || "desc"; }
+    renderPlayers();
+  });
+  wirePlgClub(el);
+}
+// the searchable club picker (popover anchored under its button)
+function wirePlgClub(el) {
+  const btn = $("#plgClubBtn", el), pop = $("#plgClubPop", el), cq = $("#plgClubQ", el), list = $("#plgClubList", el);
+  if (!btn) return;
+  const draw = () => { list.innerHTML = plgClubListHTML(cq.value); };
+  const onEsc = e => { if (e.key === "Escape") { close(); btn.focus(); } };
+  let onDoc = null;
+  function close() { if (pop.hidden) return; pop.hidden = true; btn.setAttribute("aria-expanded", "false"); if (onDoc) document.removeEventListener("click", onDoc, true); document.removeEventListener("keydown", onEsc); onDoc = null; _plClubCloser = null; }
+  function open() { if (!pop.hidden) return; pop.hidden = false; btn.setAttribute("aria-expanded", "true"); cq.value = ""; draw(); setTimeout(() => cq.focus(), 0);
+    onDoc = ev => { if (!ev.target.closest("#plgClubPop") && !ev.target.closest("#plgClubBtn")) close(); };
+    document.addEventListener("click", onDoc, true); document.addEventListener("keydown", onEsc); _plClubCloser = close; }
+  btn.onclick = e => { if (e.target.closest("[data-club-clear]")) { e.stopPropagation(); _plFilter.club = ""; renderPlayers(); return; } pop.hidden ? open() : close(); };
+  if (cq) cq.oninput = () => { clearTimeout(cq._t); cq._t = setTimeout(draw, 80); };
+  if (list) list.onclick = e => { const r = e.target.closest("[data-club]"); if (!r) return; _plFilter.club = r.dataset.club; close(); renderPlayers(); };
 }
 function squadSection(code) {
   const sq = S.squads?.[code], coach = teamCoach(code);
