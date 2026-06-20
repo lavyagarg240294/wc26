@@ -1512,16 +1512,10 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .pl-bio{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 4px}
 .pl-bio span{display:flex;flex-direction:column;gap:2px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:7px 13px;font-weight:800;font-size:16px;color:var(--ink);line-height:1.15}
 .pl-bio i{font-style:normal;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);font-weight:600}
-/* club called out separately (with a generic crest marker) so it never reads as a national-team stat */
-.pl-club{display:inline-flex;align-items:center;gap:9px;margin:0 0 6px;padding:8px 13px;background:var(--card);border:1px solid var(--line);border-radius:10px}
-.pl-club-ic{display:inline-flex;color:var(--ink-soft)}
-.pl-club-ic .ico{width:18px;height:18px}
-.pl-club-tx{display:flex;flex-direction:column;gap:2px}
-.pl-club-tx i{font-style:normal;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);font-weight:600}
-.pl-club-tx b{font-weight:700;font-size:15px;color:var(--ink);line-height:1.15}
-/* small generic club crest marker, inline before a club name (distinguishes club from the country flag) */
-.club-ic{display:inline-flex;align-items:center;color:var(--ink-soft);margin-right:2px}
-.club-ic .ico{width:1em;height:1em;vertical-align:-.12em}
+/* club is its own chip at the end (kept off the national-team caps/goals chips) */
+.pl-club{display:inline-flex;flex-direction:column;gap:2px;margin:0 0 6px;padding:7px 13px;background:var(--card);border:1px solid var(--line);border-radius:10px}
+.pl-club i{font-style:normal;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);font-weight:600}
+.pl-club b{font-weight:800;font-size:16px;color:var(--ink);line-height:1.15}
 /* result chip shared by the player match log + team match-stats strip */
 .rchip{font-family:var(--mono);font-size:12px;font-weight:700;padding:2px 7px;border-radius:6px;white-space:nowrap;font-variant-numeric:tabular-nums}
 .rchip-W{color:var(--pitch);background:color-mix(in srgb,var(--pitch) 14%,transparent)}
