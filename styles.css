@@ -1609,6 +1609,22 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .cmp-a.win,.cmp-b.win{color:var(--acc-text)}
 .cmp-a.cmp-txt,.cmp-b.cmp-txt{font-family:var(--body);font-size:13px;font-weight:600;color:var(--ink-soft)}
 .cmp-lbl{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);font-weight:600;padding:0 8px;white-space:nowrap;text-align:center}
+/* pre-match head-to-head compare + each side's results so far */
+.mc-cmp{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);padding:13px 15px;margin:2px 0 10px}
+.mc-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:9px}
+.mc-team{display:flex;align-items:center;gap:7px;min-width:0;flex:1;font-family:var(--disp);font-weight:700;font-stretch:106%;font-size:13px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mc-team .fl{font-size:18px;flex:0 0 auto}
+.mc-team.mc-rt{justify-content:flex-end;text-align:right}
+.mc-vs{flex:0 0 auto;font-family:var(--mono);font-size:11px;color:var(--ink-soft);font-weight:700}
+.mc-reslabel{font-family:var(--disp);font-weight:700;font-stretch:106%;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);margin:12px 0 7px}
+.mc-reswrap{display:flex;flex-direction:column;gap:6px}
+.mc-resrow{display:flex;flex-wrap:wrap;gap:6px}
+.mc-res{display:inline-flex;align-items:center;gap:4px;font-family:var(--mono);font-size:12px;font-weight:700;padding:3px 8px;border-radius:7px;cursor:pointer;background:color-mix(in srgb,var(--ink) 6%,transparent);color:var(--ink)}
+.mc-res .fl{font-size:13px}
+.mc-res-w{background:color-mix(in srgb,var(--pitch) 16%,transparent);color:var(--pitch)}
+.mc-res-l{background:color-mix(in srgb,var(--live) 14%,transparent);color:var(--live)}
+.mc-res-d{background:color-mix(in srgb,var(--ink) 9%,transparent);color:var(--ink-soft)}
+.mc-none{font-size:12px;color:var(--ink-soft)}
 /* team comparison: action row in the team sheet + the team-compare view */
 .ts-actrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:10px 0 2px}
 .ts-actrow .ts-setfav,.ts-actrow .ts-fav-tag{margin:0}

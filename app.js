@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "310";  // shown in footer; bump with the ?v= asset version
+const BUILD = "311";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1369,7 +1369,7 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
     </div>` : "";
   const pKeyStats = mdKeyStats(r, m), pStats = mdStats(r, isFT), pEfi = mdEfi(m, isFT);
   const _wp = winProb(m, true);   // modal always shows the PRE-MATCH estimate (for every state incl. live & finished), plus the model's "why" drivers + top-3 scorelines
-  const pReport = mdReport(m), pComm = mdCommentaryShell(m), pWinProb = winProbBlock(m, true) + liveWhyChips(_wp) + liveScorelines(_wp), pStakes = stakesBlock(m);
+  const pReport = mdReport(m), pComm = mdCommentaryShell(m), pWinProb = winProbBlock(m, true) + liveWhyChips(_wp) + liveScorelines(_wp), pStakes = stakesBlock(m), pCompare = matchCompare(m);
   const pXiInline = r?.xi ? `<div class="eyebrow">${liveNow ? "Line-ups" : "Starting XI"}</div>${xiPanel(r.xi, h, a)}` : "";
   const pXiFold = r?.xi ? `<details class="md-fold"><summary><span>Starting XI</span><small>${esc([r.xi.h?.f, r.xi.a?.f].filter(Boolean).join(" v ")) || "line-ups & formations"}</small></summary><div class="md-fold-body">${xiPanel(r.xi, h, a)}</div></details>` : "";
 
@@ -1387,7 +1387,7 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
     ? [pTimeline, pXiInline, pComm, pKeyStats, pStats, pEfi, pWinProb, pStakes]
     : isFT
     ? [pTimeline, pKeyStats, pStats, pXiInline, pReport, pEfi, pWinProb, pStakes]
-    : [pStakes, pWinProb, pXiInline];   // upcoming: stakes + odds + (announced) line-ups
+    : [pStakes, pCompare, pWinProb, pXiInline];   // upcoming: stakes + head-to-head compare + odds + (announced) line-ups
   const _body = pTop + middle.join("") + pMeta;
   const mb = $("#matchBody");
   if (reuse) paint(mb, _body);                       // live poll: morph the body in place — score/minute/timeline/stats update while expanded folds, scroll & loaded commentary survive
@@ -1552,6 +1552,43 @@ function liveContext(m) {
   const row = (s, f) => `<div class="lc-row"><span class="fl">${flag(s.code)}</span><span class="lc-nm">${esc(s.name)}</span>${f || `<span class="lc-none">No recent games</span>`}</div>`;
   return `<div class="eyebrow">Recent form</div><div class="lc-form">${row(h, fh)}${row(a, fa)}</div>`;
 }
+// a team's record + each result so far THIS World Cup (FT matches only)
+function teamWcRecord(code) {
+  const played = S.matches.filter(x => matchHasTeam(x, code) && status(x) === ST.FT).sort((p, q) => p.utc.localeCompare(q.utc));
+  let w = 0, d = 0, l = 0, gf = 0, ga = 0; const results = [];
+  for (const x of played) {
+    const r = res(x); if (!r || r.h == null) continue;
+    const home = slotInfo(x, "home").code === code, my = home ? r.h : r.a, opp = home ? r.a : r.h;
+    gf += my; ga += opp; if (my > opp) w++; else if (my < opp) l++; else d++;
+    results.push({ opp: home ? slotInfo(x, "away").code : slotInfo(x, "home").code, my, oga: opp, wdl: my > opp ? "w" : my < opp ? "l" : "d", mid: x.id });
+  }
+  return { w, d, l, gf, ga, n: results.length, results };
+}
+// pre-match head-to-head: rank + this-tournament record compared, plus each side's results so far (brief score chips)
+function matchCompare(m) {
+  const h = slotInfo(m, "home"), a = slotInfo(m, "away");
+  if (!h.code || !a.code) return "";
+  const recA = teamWcRecord(h.code), recB = teamWcRecord(a.code), rkA = fifaRankOf(h.code), rkB = fifaRankOf(a.code);
+  const numRow = (label, av, bv, hi, da = av, db = bv) => {
+    const aw = av != null && bv != null && av !== bv && (hi ? av > bv : av < bv);
+    const bw = av != null && bv != null && av !== bv && (hi ? bv > av : bv < av);
+    return `<div class="cmp-row"><span class="cmp-a ${aw ? "win" : ""}">${da ?? "–"}</span><span class="cmp-lbl">${label}</span><span class="cmp-b ${bw ? "win" : ""}">${db ?? "–"}</span></div>`;
+  };
+  const has = recA.n || recB.n;
+  const resChips = rec => rec.n ? rec.results.map(x => `<span class="mc-res mc-res-${x.wdl}" data-mid="${x.mid}" role="button" tabindex="0" title="${esc(S.teams[x.opp]?.name || x.opp)}">${flag(x.opp)} ${x.my}–${x.oga}</span>`).join("") : `<span class="mc-none">No matches yet</span>`;
+  return `<div class="eyebrow">How they compare</div>
+    <div class="mc-cmp">
+      <div class="mc-head"><span class="mc-team"><span class="fl">${flag(h.code)}</span>${esc(h.name)}</span><span class="mc-vs">vs</span><span class="mc-team mc-rt">${esc(a.name)}<span class="fl">${flag(a.code)}</span></span></div>
+      <div class="cmp-rows">
+        ${numRow("FIFA rank", rkA, rkB, false, rkA ? "#" + rkA : null, rkB ? "#" + rkB : null)}
+        ${has ? `<div class="cmp-row"><span class="cmp-a">${recA.w}-${recA.d}-${recA.l}</span><span class="cmp-lbl">W-D-L</span><span class="cmp-b">${recB.w}-${recB.d}-${recB.l}</span></div>` : ""}
+        ${has ? numRow("Goals for", recA.gf, recB.gf, true) : ""}
+        ${has ? numRow("Goals against", recA.ga, recB.ga, false) : ""}
+      </div>
+      <div class="mc-reslabel">Results so far</div>
+      <div class="mc-reswrap"><div class="mc-resrow">${resChips(recA)}</div><div class="mc-resrow">${resChips(recB)}</div></div>
+    </div>`;
+}
 // "Match stars" — large portrait cards of the goalscorers (live/FT), else each side's leading scorer (upcoming).
 // Photo-led: a player with no headshot is skipped, and the whole section drops in data-saver (bestPhoto returns "").
 function liveStars(m) {
@@ -1667,7 +1704,7 @@ function renderLive() {
     ? [mdKeyStats(r, m), liveStars(m), mdTimeline(r, h.code, a.code), liveCommentary(m), pXi, mdStats(r, true), mdEfi(m, true), wpSection, stakesBlock(m)]
     : ft
     ? [mdKeyStats(r, m), liveStars(m), mdTimeline(r, h.code, a.code), mdStats(r, true), pXi, mdReport(m), liveCommentary(m), mdEfi(m, true), wpSection]
-    : [liveStars(m), liveContext(m), wpSection, stakesBlock(m), pXi];
+    : [liveStars(m), matchCompare(m), liveContext(m), wpSection, stakesBlock(m), pXi];
   el.innerHTML = viewH2("view-live") + liveHero(m) + sections.filter(Boolean).join("") + koPath(m);
   startLiveCd();
   if (!el.hidden) window.scrollTo(0, keepY);
