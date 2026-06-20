@@ -112,8 +112,8 @@ body.bg-paused #bg span{animation-play-state:paused;will-change:auto}
   /* full-bleed bar, but content aligns with the centered 980px #main on desktop (the gutter term) and clears the
      notch in landscape (the env term). Below 980px both collapse to the base clamp. */
   padding-block:14px;
-  padding-left:max(env(safe-area-inset-left),calc(max(0px,(100% - 980px)/2) + clamp(16px,4vw,32px)));
-  padding-right:max(env(safe-area-inset-right),calc(max(0px,(100% - 980px)/2) + clamp(16px,4vw,32px)));
+  padding-left:max(env(safe-area-inset-left),calc(max(0px,(100% - var(--maxw))/2) + clamp(16px,4vw,32px)));
+  padding-right:max(env(safe-area-inset-right),calc(max(0px,(100% - var(--maxw))/2) + clamp(16px,4vw,32px)));
   /* opaque, solid --paper so the installed-app status bar (theme-color = --paper) matches the header
      exactly in both themes. (A translucent bar would pick up the body's colour gradient and never match.) */
   background:var(--paper);
@@ -169,8 +169,8 @@ body.bg-paused #bg span{animation-play-state:paused;will-change:auto}
   position:sticky;top:var(--h-bar,60px);z-index:39;
   display:flex;gap:2px;justify-content:flex-start;overflow-x:auto;
   padding:8px 0 0;   /* horizontal set below so the tab row lines up with the topbar + #main and clears the notch */
-  padding-left:max(env(safe-area-inset-left),calc(max(0px,(100% - 980px)/2) + clamp(16px,4vw,32px)));
-  padding-right:max(env(safe-area-inset-right),calc(max(0px,(100% - 980px)/2) + clamp(16px,4vw,32px)));
+  padding-left:max(env(safe-area-inset-left),calc(max(0px,(100% - var(--maxw))/2) + clamp(16px,4vw,32px)));
+  padding-right:max(env(safe-area-inset-right),calc(max(0px,(100% - var(--maxw))/2) + clamp(16px,4vw,32px)));
   background:color-mix(in srgb,var(--paper) 92%,transparent);
   backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
   border-bottom:1px solid var(--line);

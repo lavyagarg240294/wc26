@@ -7,7 +7,7 @@
 import { writeFileSync, mkdirSync } from "node:fs";
 
 const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36";
-const CSS_URL = "https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=Instrument+Sans:wght@400;500;600&family=Spline+Sans+Mono:wght@400;500;700&display=swap";
+const CSS_URL = "https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=Instrument+Sans:wght@400;500;600;700&family=Spline+Sans+Mono:wght@400;500;700&display=swap";
 
 mkdirSync("assets/fonts", { recursive: true });
 let css = await (await fetch(CSS_URL, { headers: { "User-Agent": UA } })).text();
