@@ -1314,6 +1314,8 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .rk-out .rk-name{font-weight:500}
 .rk-flag{flex:0 0 auto;width:26px;height:17px;object-fit:cover;border-radius:2px;box-shadow:0 0 0 1px color-mix(in srgb,var(--line) 70%,transparent);background:var(--line)}
 .rk-conf{flex:0 0 auto;font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.02em;color:var(--ink-soft);background:color-mix(in srgb,var(--line) 55%,transparent);border-radius:5px;padding:2px 5px}
+.rk-asof{margin:-4px 0 12px;font-size:13px;color:var(--ink-soft);line-height:1.45}
+.rk-asof b{color:var(--ink);font-weight:600}
 .rk-filter{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 11px}
 .rk-list.q-only .rk-nq{display:none}
 /* override .team-search's centring margins (defined later in the sheet) so the box spans the full width from the left edge */

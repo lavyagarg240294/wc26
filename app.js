@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "306";  // shown in footer; bump with the ?v= asset version
+const BUILD = "307";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -3677,8 +3677,8 @@ function tournamentStats() {
 }
 let statsTab = "overview";   // active Stats sub-section (persists across re-renders)
 let _statsHTML = "";        // last rendered Stats markup — re-rendered only when it actually changes (see renderStats)
-// FIFA World Ranking — June-2026 snapshot (top 50). A bare string = a qualified WC26 team (name/flag from
-// teams.json); a [code,name] pair = a top-50 nation that did NOT make the field (its flag is self-hosted too).
+// FIFA World Ranking — 18 Sep 2025 snapshot (top 50), the latest FIFA published pre-tournament. A bare string = a
+// qualified WC26 team (name/flag from teams.json); a [code,name] pair = a top-50 nation that did NOT make the field.
 // Rank is the array index + 1. The 11 finalists ranked outside the top 50 are derived (teams.json minus this list).
 const FIFA_RANK = [
   "AR", "ES", "FR", "GB-ENG", "PT", "BR", "MA", "NL", "BE", "DE", "HR", ["IT", "Italy"],
@@ -3718,7 +3718,9 @@ function fifaRankingPanel() {
   const confOpts = opt("conf", "all", "All confederations", true)
     + ["UEFA", "CONMEBOL", "CONCACAF", "CAF", "AFC", "OFC"].filter(c => rk.some(t => t.conf === c))
         .map(c => opt("conf", c, `${c} · ${esc(CONF_FULL[c] || "")}`, false)).join("");
+  const asOf = (() => { const d = S.fifaRankDate; if (!d) return ""; const dt = new Date(d + "T00:00:00Z"); return isNaN(+dt) ? "" : dt.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }); })();
   return `<div class="eyebrow">FIFA World Ranking · all ${rk.length} teams</div>
+    ${asOf ? `<p class="rk-asof">As of <b>${asOf}</b> — the latest FIFA / Coca-Cola Men's World Ranking published before the tournament.</p>` : ""}
     <div class="rk-filter">
       <div class="tsel" id="rkSetWrap">
         <button type="button" class="fsel tsel-btn" id="rkSetBtn" aria-haspopup="listbox" aria-expanded="false" aria-label="Filter by team set"><span class="tsel-cur">All teams</span></button>
@@ -4335,7 +4337,7 @@ async function loadStatic() {
     fetch("data/teams.json?v=" + BUILD).then(r => r.json()),   // ?v=BUILD so the browser refetches when team data (pedigree/coach) changes per deploy
     fetch("data/fifa-ranking.json?v=" + BUILD).then(r => r.json()).catch(() => null),   // full 211-team FIFA ranking (static snapshot, frozen during the WC)
   ]);
-  S.matches = m.matches; S.teams = t; S.fifaRanking = fr?.teams || null;
+  S.matches = m.matches; S.teams = t; S.fifaRanking = fr?.teams || null; S.fifaRankDate = fr?.rankingDate || null;
   // squads.json is committed data that changes (squad updates) — bypass cache so it's always current
   try { S.squads = (await (await fetch("data/squads.json?t=" + Date.now(), { cache: "no-store" })).json()).squads || {}; }
   catch { S.squads = {}; }

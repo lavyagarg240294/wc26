@@ -22,7 +22,8 @@ const ourCode = name => { const n = norm(name); return byName[n] || byName[ALIAS
 
 const r = await j(`https://inside.fifa.com/api/ranking-overview?locale=en&dateId=${DATE}`);
 const items = r.rankings.map(x => x.rankingItem);
-console.log("ranking rows:", items.length);
+const rankingDate = (r.rankings[0]?.lastUpdateDate || "").slice(0, 10);   // the ranking's real publication date (NOT our download date)
+console.log("ranking rows:", items.length, "| published:", rankingDate || "(unknown)", "| next update:", r.rankings[0]?.nextUpdateDate || "none (latest)");
 // confederations — parallel batches of 12
 const conf = {};
 for (let i = 0; i < items.length; i += 12)
@@ -38,5 +39,5 @@ const missing = Object.keys(teams).filter(c => !matchedQ.has(c)).map(c => `${c}=
 if (missing.length) { console.log("UNMATCHED qualifiers (need an alias):", missing); process.exit(1); }
 const noConf = out.filter(t => !t.conf).length;
 console.log("rows missing confederation:", noConf);
-writeFileSync("data/fifa-ranking.json", JSON.stringify({ updated: new Date().toISOString(), dateId: DATE, teams: out }));
+writeFileSync("data/fifa-ranking.json", JSON.stringify({ updated: new Date().toISOString(), dateId: DATE, rankingDate, teams: out }));
 console.log("wrote data/fifa-ranking.json", JSON.stringify(out[0]), "…", JSON.stringify(out.at(-1)));
