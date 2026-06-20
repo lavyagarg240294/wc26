@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "304";  // shown in footer; bump with the ?v= asset version
+const BUILD = "305";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1941,7 +1941,7 @@ function rosterMarkup(sq, code) {
         return `<div class="roster-row" data-player="${esc(nm)}|${code}" role="button" tabindex="0">
         <span class="rnum">${x.n ?? "·"}</span>
         <span class="rface"${ph ? ` style="background-image:url('${ph}')"` : ""}>${ph ? "" : flag(code)}</span>
-        <span class="rname">${esc(nm)}${x.name.includes("(captain)") ? `<i class="cpt">C</i>` : ""}${x.club ? `<small>${esc(x.club)}</small>` : ""}</span>
+        <span class="rname">${esc(nm)}${isCaptain(nm, code) ? `<i class="cpt" title="Captain">C</i>` : ""}${x.club ? `<small>${esc(x.club)}</small>` : ""}</span>
         ${x.caps != null ? `<span class="rstat">${x.caps}<i>caps</i>${x.goals ? `<em>${x.goals} g</em>` : ""}</span>` : ""}
       </div>`; }).join("")}</div>` : "";
   }).join("")}</div>`;
@@ -1960,7 +1960,7 @@ function playersIndex() {
     for (const p of team.players) {
       const nm = p.name.replace(" (captain)", ""), bio = playerBio(nm, code);
       out.push({ name: nm, code, n: p.n, pos: p.pos || "", club: p.club || "", caps: p.caps || 0, cg: p.goals || 0,
-        wc: wcOf(nm, code), age: bio?.d ? ageFrom(bio.d) : null, cap: p.name.includes("(captain)") });
+        wc: wcOf(nm, code), age: bio?.d ? ageFrom(bio.d) : null, cap: isCaptain(nm, code) });
     }
   }
   _plClubs = null;   // invalidate the derived club tally
@@ -2085,7 +2085,7 @@ function heroSquad(code) {
     return `<button class="sq-card" data-player="${esc(nm)}|${code}" style="--sc:${c1}" aria-label="${esc(pName(nm, code))}">
       <span class="sq-photo" style="background-image:url('${big}')"></span>
       ${x.n != null ? `<span class="sq-num">${x.n}</span>` : ""}
-      <span class="sq-info"><b>${esc(tlName(nm, code))}</b>${x.name.includes("(captain)") ? `<span class="sq-cap">C</span>` : ""}</span></button>`;
+      <span class="sq-info"><b>${esc(tlName(nm, code))}</b>${isCaptain(nm, code) ? `<span class="sq-cap" title="Captain">C</span>` : ""}</span></button>`;
   };
   const rows = [["GK", "Goalkeepers"], ["DF", "Defenders"], ["MF", "Midfielders"], ["FW", "Forwards"]].map(([p, label]) => {
     const cards = sq.players.filter(x => x.pos === p).map(card).filter(Boolean).join("");
@@ -2377,7 +2377,7 @@ function openPlayer(name, code) {
       <div class="pl-meta">
         <b class="pl-name">${esc(pName(name, code))}</b>
         ${code ? `<button type="button" class="pl-team pl-team-link" data-squad="${code}" title="View ${esc(team?.name || code)}">${flag(code)} ${esc(team?.name || code)}</button>` : `<span class="pl-team">${esc(team?.name || "")}</span>`}
-        ${(num != null || pos) ? `<span class="pl-pos">${num != null ? "#" + num : ""}${num != null && pos ? " · " : ""}${pos}</span>` : ""}
+        ${(num != null || pos) ? `<span class="pl-pos">${num != null ? "#" + num : ""}${num != null && pos ? " · " : ""}${pos}${isCaptain(name, code) ? ` · <b class="pl-capt">Captain</b>` : ""}</span>` : ""}
       </div>
     </div>
     ${(vitals || (bio && (bio.caps != null || bio.goals))) ? `<div class="pl-bio">
@@ -4362,6 +4362,20 @@ function resolvePlayer(name, code, num, pos) {
   }
   _resolveCache.set(ck, hit);
   return hit;
+}
+// Team captains. The FIFA squad source carries NO captain field, so this is a hand-curated, high-confidence set
+// (only well-established, stable national-team captains) and each is VERIFIED to exist in that squad before it ships
+// — a name that doesn't resolve is simply not flagged. Snapshot, not a live feed; teams not listed show no captain.
+const CAPTAINS = {
+  AR: "Lionel Messi", PT: "Cristiano Ronaldo", FR: "Kylian Mbappe", "GB-ENG": "Harry Kane", HR: "Luka Modric",
+  NL: "Virgil van Dijk", KR: "Heungmin Son", EG: "Mohamed Salah", CH: "Granit Xhaka", NO: "Martin Odegaard",
+  BE: "Kevin De Bruyne", JP: "Wataru Endo", SN: "Kalidou Koulibaly", DE: "Joshua Kimmich", CO: "James Rodriguez",
+  EC: "Enner Valencia", AU: "Mathew Ryan", CA: "Alphonso Davies", DZ: "Riyad Mahrez", US: "Christian Pulisic",
+};
+function isCaptain(name, code) {
+  const c = CAPTAINS[code]; if (!c) return false;
+  const cap = resolvePlayer(c, code), p = resolvePlayer(name, code);
+  return !!(cap && p && cap.name === p.name);
 }
 // FIFA photo filenames carry the player's name even when the key is only a surname (".../FOFANA-Yahia_405873"),
 // which disambiguates two same-surname team-mates the key alone can't.

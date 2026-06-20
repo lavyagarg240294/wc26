@@ -33,8 +33,9 @@ def deb(s):
     return unicodedata.normalize("NFD", s or "").encode("ascii", "ignore").decode("ascii").lower()
 
 def title_word(w):
-    # Title-case a token, keeping hyphens/apostrophes + accents: AÏT-NOURI -> Aït-Nouri, O'NEIL -> O'Neil
-    return re.sub(r"[A-Za-zÀ-ÿ]+", lambda m: m.group(0)[:1].upper() + m.group(0)[1:].lower(), w)
+    # Title-case a token, keeping hyphens/apostrophes + accents: AÏT-NOURI -> Aït-Nouri, O'NEIL -> O'Neil.
+    # [^\W\d_] = any Unicode letter (not just Latin-1), so Latin-Extended names case correctly too: MODRIĆ -> Modrić.
+    return re.sub(r"[^\W\d_]+", lambda m: m.group(0)[:1].upper() + m.group(0)[1:].lower(), w, flags=re.UNICODE)
 
 def title_str(s):
     return " ".join(title_word(w) for w in (s or "").split())
