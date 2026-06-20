@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "312";  // shown in footer; bump with the ?v= asset version
+const BUILD = "313";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1948,15 +1948,6 @@ function myTeamFixtures() {
     ${group ? `<div class="eyebrow">Group ${group}</div><div class="gwrap">${groupTable(group, 0)}</div>
       <div class="legend"><span class="l1"><i></i>Top 2 advance</span><span class="l3"><i></i>3rd: possible best-8 spot</span></div>` : ""}`;
 }
-// each team's relationship to the LAST World Cup (Qatar 2022), shown as a chip on its landscape card
-const WC22_ABBR = { 1: "Won", 2: "Final", 3: "3rd", 4: "4th", 5: "QF", 6: "R16", 7: "Group" };
-function wc22CardChip(c) {
-  if (!S.wc22) return "";
-  const w = S.wc22.teams[c];
-  if (w) return `<span class="tc-22 tc-22-t${w.tier}" title="Qatar 2022: ${esc(w.finish)}">${WC22_ABBR[w.tier]}</span>`;
-  const debut = S.teams[c]?.best === "First appearance";
-  return `<span class="tc-22 tc-22-new" title="${debut ? "World Cup debut — first-ever" : "Back at the World Cup after missing Qatar 2022"}">${debut ? "Debut" : "Back"}</span>`;
-}
 // the "what changed since 2022" banner above the all-teams grid
 function teamsLandscapeBanner() {
   if (!S.wc22) return "";
@@ -1998,8 +1989,8 @@ function renderTeams() {
     .sort((a, b) => S.teams[a].name.localeCompare(S.teams[b].name))
     .map(c => { const rk = fifaRankOf(c), g = groupOf(c);
       return `<button class="teamcard ${c === S.fav ? "is-fav" : ""}" data-squad="${c}" title="${esc(S.teams[c].name)}${S.teams[c].titles ? `, ${S.teams[c].titles}× World Cup champion` : ""}">
-      <span class="fl">${flag(c)}</span><span class="tc-main"><span class="tc-name">${esc(S.teams[c].name)}</span><span class="tc-meta">${rk ? `FIFA #${rk}` : g ? `Group ${g}` : ""}</span></span>${wc22CardChip(c)}</button>`; }).join("");
-  paint(el, head + teamsLandscapeBanner() + `<div class="eyebrow">All teams <span style="color:var(--ink-soft);font-weight:600">, tap for detail · the chip shows their 2022 finish</span></div><div class="teamsgrid">${grid}</div>` + (S.fav ? myTeamFixtures() : ""));
+      <span class="fl">${flag(c)}</span><span class="tc-main"><span class="tc-name">${esc(S.teams[c].name)}</span><span class="tc-meta">${rk ? `FIFA #${rk}` : g ? `Group ${g}` : ""}</span></span></button>`; }).join("");
+  paint(el, head + teamsLandscapeBanner() + `<div class="eyebrow">All teams <span style="color:var(--ink-soft);font-weight:600">, tap for detail</span></div><div class="teamsgrid">${grid}</div>` + (S.fav ? myTeamFixtures() : ""));
   const cta = $("#ctaPick", el); if (cta) cta.onclick = () => $("#teamDialog").showModal();
   const chg = $("#ctaChange", el); if (chg) chg.onclick = () => $("#teamDialog").showModal();
   const ics = $("#icsTeam", el);
@@ -2057,7 +2048,6 @@ const PL_POS = [["all", "All"], ["GK", "GK"], ["DF", "DEF"], ["MF", "MID"], ["FW
 const PL_SORT = [
   { k: "caps", label: "Caps", def: "desc", cmp: (a, b) => a.caps - b.caps },
   { k: "age", label: "Age", def: "asc", cmp: (a, b) => (a.age ?? 0) - (b.age ?? 0), missing: p => p.age == null },
-  { k: "az", label: "A–Z", def: "asc", cmp: (a, b) => a.name.localeCompare(b.name) },
 ];
 const PLG_SEARCH_SVG = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>';
 const PLG_CLUB_SVG = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.4-3 7.7-7 9-4-1.3-7-4.6-7-9V6z"/></svg>';
@@ -2077,11 +2067,13 @@ function plgListHTML(list) {
   const POSN = { GK: "Goalkeeper", DF: "Defender", MF: "Midfielder", FW: "Forward" };
   const card = p => {
     const ph = bestPhoto(p.name, p.code, p.n);
+    // when the Age sort is active, lead the record line with the player's age (the active sort key, made visible)
+    const ageBit = (f.sort === "age" && p.age != null) ? `<b>${p.age}</b> yrs · ` : "";
     // second line = the international record (caps + career international goals); third = position · club
     return `<button class="plg-card" data-player="${esc(p.name)}|${p.code}">
       ${ph ? `<span class="plg-face" style="background-image:url('${ph}')"></span>` : `<span class="plg-face plg-flag">${flag(p.code)}</span>`}
       <span class="plg-body"><span class="plg-nm">${esc(pName(p.name, p.code))}${p.cap ? ` <i class="plg-cap">C</i>` : ""}</span>
-        <span class="plg-sub"><span class="fl">${flag(p.code)}</span><span class="plg-intl"><b>${p.caps}</b> caps · <b>${p.cg}</b> ${p.cg === 1 ? "goal" : "goals"}</span></span>
+        <span class="plg-sub"><span class="fl">${flag(p.code)}</span><span class="plg-intl">${ageBit}<b>${p.caps}</b> caps · <b>${p.cg}</b> ${p.cg === 1 ? "goal" : "goals"}</span></span>
         <span class="plg-meta">${POSN[p.pos] || p.pos || ""}${p.club ? ` · ${esc(p.club)}` : ""}</span></span>
     </button>`;
   };
@@ -3804,7 +3796,7 @@ function fifaRankingPanel() {
         .map(c => opt("conf", c, `${c} · ${esc(CONF_FULL[c] || "")}`, false)).join("");
   const asOf = (() => { const d = S.fifaRankDate; if (!d) return ""; const dt = new Date(d + "T00:00:00Z"); return isNaN(+dt) ? "" : dt.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }); })();
   return `<div class="eyebrow">FIFA World Ranking · all ${rk.length} teams</div>
-    ${asOf ? `<p class="rk-asof">As of <b>${asOf}</b> — the latest FIFA / Coca-Cola Men's World Ranking published before the tournament.</p>` : ""}
+    ${asOf ? `<p class="rk-asof">As of <b>${asOf}</b>, the latest FIFA / Coca-Cola Men's World Ranking published before the tournament.</p>` : ""}
     <div class="rk-filter">
       <div class="tsel" id="rkSetWrap">
         <button type="button" class="fsel tsel-btn" id="rkSetBtn" aria-haspopup="listbox" aria-expanded="false" aria-label="Filter by team set"><span class="tsel-cur">All teams</span></button>
