@@ -398,6 +398,28 @@ body.bg-paused #bg span{animation-play-state:paused;will-change:auto}
 .sq-info b{font-family:var(--disp);font-weight:800;font-stretch:104%;font-size:12.5px;line-height:1.1;color:#fff;text-shadow:0 1px 4px rgba(0,0,0,.55);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sq-cap{flex:0 0 auto;font-family:var(--disp);font-weight:800;font-size:8px;color:var(--ink);background:var(--gold);border-radius:3px;padding:1px 3px;line-height:1}
 .sq-fulllist{margin-top:10px}
+/* ===== Players browser ===== */
+.plg-filters{display:flex;flex-wrap:wrap;gap:9px;align-items:center;margin-bottom:12px}
+.plg-search{display:flex;align-items:center;gap:8px;flex:1 1 240px;min-width:200px;padding:9px 13px;border-radius:99px;border:1px solid var(--line);background:var(--card);box-shadow:var(--shadow);color:var(--ink-soft)}
+.plg-search input{flex:1;min-width:0;border:none;background:none;font:inherit;font-size:14px;color:var(--ink);outline:none}
+.plg-search input::placeholder{color:var(--ink-soft)}
+.plg-seg{display:inline-flex;gap:3px;padding:3px;border-radius:99px;background:color-mix(in srgb,var(--ink) 5%,var(--card));border:1px solid var(--line)}
+.plg-segbtn{padding:6px 11px;border-radius:99px;border:none;background:none;font-family:var(--disp);font-weight:700;font-stretch:104%;font-size:11.5px;color:var(--ink-soft);cursor:pointer;white-space:nowrap;transition:color .15s,background .15s}
+.plg-segbtn.is-on{background:var(--acc-deep);color:#fff}
+.plg-count{font-family:var(--mono);font-size:11.5px;color:var(--ink-soft);margin-bottom:10px}
+.plg-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:9px}
+.plg-card{display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:var(--r-sm);border:1px solid var(--line);background:var(--card);box-shadow:var(--shadow);cursor:pointer;text-align:left;transition:transform .15s,border-color .15s,box-shadow .15s}
+.plg-card:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--acc1) 40%,var(--line));box-shadow:var(--shadow-hover)}
+.plg-face{width:46px;height:46px;border-radius:50%;flex:0 0 auto;background-color:var(--paper);background-size:290%;background-position:50% 2%;background-repeat:no-repeat;border:1px solid var(--line)}
+.plg-face.plg-flag{display:grid;place-items:center;font-size:24px;background-size:auto;background-image:none}
+.plg-body{min-width:0;display:flex;flex-direction:column;gap:2px}
+.plg-nm{font-weight:700;font-size:14px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.plg-cap{font-style:normal;font-family:var(--disp);font-weight:800;font-size:8px;color:var(--ink);background:var(--gold);border-radius:3px;padding:1px 3px;vertical-align:middle}
+.plg-sub{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--ink-soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.plg-sub .fl{font-size:14px;flex:0 0 auto}
+.plg-meta{font-family:var(--mono);font-size:10.5px;color:var(--ink-soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.plg-stat{color:var(--ink-soft)}
+.plg-stat.plg-hot{color:var(--gold-text);font-weight:700}
 /* recent-form context (upcoming) */
 .lc-form{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden}
 .lc-row{display:flex;align-items:center;gap:9px;padding:11px 14px;border-top:1px solid color-mix(in srgb,var(--line) 55%,transparent)}

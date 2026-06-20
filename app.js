@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "290";  // shown in footer; bump with the ?v= asset version
+const BUILD = "291";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -147,7 +147,7 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;",
 // instead of jumping straight to the cards' h4. Injected here (every render funnels through paint with its view el)
 // so it survives poll re-renders too. Keyed by section id; non-view paints (cards, popups) are untouched.
 // groups/sim set el.innerHTML directly (not via paint), so they prepend viewH2() themselves.
-const VIEW_H2 = { "view-live": "Live", "view-matches": "Matches", "view-teams": "Teams", "view-groups": "Tables", "view-sim": "Predict", "view-stats": "Statistics", "view-pulse": "News" };
+const VIEW_H2 = { "view-live": "Live", "view-matches": "Matches", "view-teams": "Teams", "view-players": "Players", "view-groups": "Tables", "view-sim": "Predict", "view-stats": "Statistics", "view-pulse": "News" };
 const viewH2 = id => VIEW_H2[id] ? `<h2 class="vh">${VIEW_H2[id]}</h2>` : "";
 function paint(el, html) {
   if (!el) return;
@@ -1937,6 +1937,66 @@ function rosterMarkup(sq, code) {
         ${x.caps != null ? `<span class="rstat">${x.caps}<i>caps</i>${x.goals ? `<em>${x.goals} g</em>` : ""}</span>` : ""}
       </div>`; }).join("")}</div>` : "";
   }).join("")}</div>`;
+}
+/* ---------------- render: Players (browse all 1248 with filters) ---------------- */
+let _plFilter = { q: "", pos: "all", sort: "wc" };
+let _plIdx = null, _plIdxSig = "";
+function playersIndex() {
+  const sig = Object.keys(S.squads || {}).length + ":" + (tournamentStats().scorers.length);
+  if (_plIdx && _plIdxSig === sig) return _plIdx;
+  const ts = tournamentStats();
+  const wcOf = (name, code) => { const s = ts.scorers.find(p => p.code === code && sameName(p.name, name)); return s ? s.goals : 0; };
+  const out = [];
+  for (const code in (S.squads || {})) {
+    const team = S.squads[code]; if (!team?.players) continue;
+    for (const p of team.players) {
+      const nm = p.name.replace(" (captain)", ""), bio = playerBio(nm, code);
+      out.push({ name: nm, code, n: p.n, pos: p.pos || "", club: p.club || "", caps: p.caps || 0, cg: p.goals || 0,
+        wc: wcOf(nm, code), age: bio?.d ? ageFrom(bio.d) : null, cap: p.name.includes("(captain)") });
+    }
+  }
+  return (_plIdx = out, _plIdxSig = sig, out);
+}
+const PL_POS = [["all", "All"], ["GK", "GK"], ["DF", "DEF"], ["MF", "MID"], ["FW", "FWD"]];
+const PL_SORT = [["wc", "Goals (2026)"], ["caps", "Caps"], ["az", "A–Z"], ["young", "Youngest"]];
+function renderPlayers() {
+  const el = $("#view-players");
+  const f = _plFilter, q = f.q.trim().toLowerCase();
+  const all = playersIndex();
+  let list = all.filter(p => (f.pos === "all" || p.pos === f.pos) &&
+    (!q || p.name.toLowerCase().includes(q) || p.club.toLowerCase().includes(q) || (S.teams[p.code]?.name || "").toLowerCase().includes(q)));
+  const SORT = {
+    wc: (a, b) => b.wc - a.wc || b.cg - a.cg || a.name.localeCompare(b.name),
+    caps: (a, b) => b.caps - a.caps || a.name.localeCompare(b.name),
+    az: (a, b) => a.name.localeCompare(b.name),
+    young: (a, b) => (a.age ?? 999) - (b.age ?? 999) || a.name.localeCompare(b.name),
+  };
+  list.sort(SORT[f.sort] || SORT.wc);
+  const CAP = 120, shown = list.slice(0, CAP);
+  const POSN = { GK: "Goalkeeper", DF: "Defender", MF: "Midfielder", FW: "Forward" };
+  const card = p => {
+    const ph = bestPhoto(p.name, p.code, p.n);
+    const stat = p.wc ? `<span class="plg-stat plg-hot">${p.wc} ⚽ '26</span>` : p.cg ? `<span class="plg-stat">${p.cg} career</span>` : p.caps ? `<span class="plg-stat">${p.caps} caps</span>` : "";
+    return `<button class="plg-card" data-player="${esc(p.name)}|${p.code}">
+      ${ph ? `<span class="plg-face" style="background-image:url('${ph}')"></span>` : `<span class="plg-face plg-flag">${flag(p.code)}</span>`}
+      <span class="plg-body"><span class="plg-nm">${esc(pName(p.name, p.code))}${p.cap ? ` <i class="plg-cap">C</i>` : ""}</span>
+        <span class="plg-sub"><span class="fl">${flag(p.code)}</span>${esc(p.club || S.teams[p.code]?.name || "")}</span>
+        <span class="plg-meta">${POSN[p.pos] || p.pos || ""}${p.age ? ` · ${p.age}` : ""}${stat ? ` · ` : ""}${stat}</span></span></button>`;
+  };
+  const seg = (items, cur, attr) => `<div class="plg-seg">${items.map(([k, label]) => `<button class="plg-segbtn ${k === cur ? "is-on" : ""}" data-${attr}="${k}">${label}</button>`).join("")}</div>`;
+  el.innerHTML = viewH2("view-players") + `
+    <div class="plg-filters">
+      <div class="plg-search"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="plgQ" type="search" placeholder="Search players, clubs or teams…" value="${esc(f.q)}" autocomplete="off"></div>
+      ${seg(PL_POS, f.pos, "pos")}
+      ${seg(PL_SORT, f.sort, "sort")}
+    </div>
+    <div class="plg-count">${list.length.toLocaleString()} player${list.length === 1 ? "" : "s"}${list.length > CAP ? ` · showing top ${CAP}` : ""}</div>
+    ${shown.length ? `<div class="plg-grid">${shown.map(card).join("")}</div>` : `<div class="empty">No players match. Try a different search or filter.</div>`}`;
+  const qi = $("#plgQ", el);
+  if (qi) qi.oninput = e => { _plFilter.q = e.target.value; clearTimeout(qi._t); qi._t = setTimeout(() => { const s = qi.selectionStart; renderPlayers(); const n = $("#plgQ", el); if (n) { n.focus(); try { n.setSelectionRange(s, s); } catch {} } }, 160); };
+  $$("[data-pos]", el).forEach(b => b.onclick = () => { _plFilter.pos = b.dataset.pos; renderPlayers(); });
+  $$("[data-sort]", el).forEach(b => b.onclick = () => { _plFilter.sort = b.dataset.sort; renderPlayers(); });
 }
 function squadSection(code) {
   const sq = S.squads?.[code], coach = teamCoach(code);
@@ -3831,10 +3891,10 @@ async function loadEfi() {
 }
 
 /* ---------------- navigation ---------------- */
-const RENDER = { live: renderLive, matches: renderMatches, teams: renderTeams, groups: renderGroups, stats: renderStats, sim: renderSim, pulse: renderPulse };
+const RENDER = { live: renderLive, matches: renderMatches, teams: renderTeams, players: renderPlayers, groups: renderGroups, stats: renderStats, sim: renderSim, pulse: renderPulse };
 // shareable per-tab URL hash (Matches is the default → no hash; Predict's internal view name is "sim")
-const VIEW_HASH = { live: "live", teams: "teams", groups: "tables", sim: "predict", stats: "stats", pulse: "pulse" };
-const HASH_VIEW = { live: "live", matches: "matches", teams: "teams", tables: "groups", groups: "groups", predict: "sim", stats: "stats", pulse: "pulse" };
+const VIEW_HASH = { live: "live", teams: "teams", players: "players", groups: "tables", sim: "predict", stats: "stats", pulse: "pulse" };
+const HASH_VIEW = { live: "live", matches: "matches", teams: "teams", players: "players", tables: "groups", groups: "groups", predict: "sim", stats: "stats", pulse: "pulse" };
 function nav(v) {
   if (v !== "live") stopLiveCd();        // leaving Live → stop its countdown interval (renderLive restarts it on return)
   S.view = v;
