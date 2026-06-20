@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "308";  // shown in footer; bump with the ?v= asset version
+const BUILD = "309";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1511,15 +1511,16 @@ function liveHero(m) {
   const c1 = (h.code && S.teams[h.code]?.c1) || "var(--pitch)";
   const c2 = (a.code && S.teams[a.code]?.c1) || "var(--ink-soft)";
   const stage = m.group ? `Group ${m.group}` : m.stage === "third" ? "3rd place" : m.round;
-  const statusEl = live ? `<span class="lh-status is-live">${ballSVG("live-ball")} ${st === ST.HT ? "Half-time" : "Live · " + (clockStr(m, r) || "")}</span>`
+  const statusEl = live ? `<span class="lh-status is-live">${ballSVG("live-ball")} ${st === ST.HT ? "Half-time" : "Live"}</span>`
     : ft ? `<span class="lh-status is-ft">● Full time</span>`
     : `<span class="lh-status is-soon">${fmt(m.utc, { weekday: "short", day: "numeric", month: "short" })} · ${timeStr(m.utc)}</span>`;
+  const minNow = st === ST.LIVE ? (clockStr(m, r) || "") : "";   // the ticking minute, shown prominently under the score
   const side = (s, key) => `<div class="lh-team ${s.code ? "lh-clk" : ""}"${s.code ? ` data-squad="${s.code}" role="button" tabindex="0" aria-label="Open ${esc(s.name)}"` : ""}>
     <span class="lh-flag">${s.code ? flag(s.code) : TBD_FLAG}</span>
     <span class="lh-name">${esc(s.name)}</span>
     ${s.code && fifaRankOf(s.code) ? `<span class="lh-rank">FIFA #${fifaRankOf(s.code)}</span>` : ""}</div>`;
   const mid = score
-    ? `<div class="lh-score">${r.h ?? 0}<span>–</span>${r.a ?? 0}</div>${r.hp != null ? `<div class="lh-pens">${r.hp}–${r.ap} pens</div>` : ""}`
+    ? `<div class="lh-score">${r.h ?? 0}<span>–</span>${r.a ?? 0}</div>${minNow ? `<div class="lh-min">${ballSVG("live-ball")} ${esc(minNow)}</div>` : ""}${r.hp != null ? `<div class="lh-pens">${r.hp}–${r.ap} pens</div>` : ""}`
     : `<div class="lh-cd" data-utc="${m.utc}">${["d", "h", "m"].map(k => `<span class="lh-cd-cell"><b data-k="${k}">–</b><i>${{ d: "days", h: "hrs", m: "min" }[k]}</i></span>`).join("")}</div>`;
   return `<div class="live-hero" style="--lha:${c1};--lhb:${c2}">
     <div class="lh-top">${statusEl}<span class="lh-stage">${esc(stage)}</span></div>
@@ -1609,11 +1610,8 @@ function liveCommentary(m) {
     if (/First Half ends|Second Half ends|Match ends|Half begins|kick-off|kicks? off|full[- ]?time|half[- ]?time/i.test(x)) return "whistle";
     return "";
   };
-  const KEY = it => { const kd = kindOf(it); return kd && kd !== ""; };
-  const keyItems = c.items.filter(it => KEY(it) || /\bpenalt|hits the (bar|post|crossbar)|denied|fine save|great save|big chance/i.test(it.x || ""));
-  // ESPN ships items NEWEST-FIRST. Live wants newest-first (keep); FT reads better chronologically (reverse).
-  const lead = keyItems.length >= 3 ? keyItems : c.items.slice(0, 12);
-  const ordered = live ? lead : lead.slice().reverse();
+  // ESPN ships items NEWEST-FIRST. Live keeps newest-first (latest at top); FT reads chronologically. Show ALL of it.
+  const ordered = live ? c.items : c.items.slice().reverse();
   const ICON = { goal: `<span class="lcm-ic lcm-i-goal">${ICO.ball}</span>`, red: `<span class="lcm-ic"><span class="tl-card r"></span></span>`,
     yellow: `<span class="lcm-ic"><span class="tl-card y"></span></span>`, var: `<span class="lcm-ic lcm-i-var">VAR</span>`,
     sub: `<span class="lcm-ic lcm-i-sub">${ICO.subs}</span>`, whistle: `<span class="lcm-ic lcm-i-w"></span>`, "": `<span class="lcm-ic lcm-i-dot"></span>` };
@@ -1622,11 +1620,9 @@ function liveCommentary(m) {
     return `<div class="lcm-row lcm-${kd || "x"}${live && i === 0 ? " is-latest" : ""}">
       <span class="lcm-min">${esc(it.t || "")}</span>${ICON[kd] || ICON[""]}
       <span class="lcm-tx">${clar(it.x)}</span></div>`; };
-  const feed = ordered.slice(0, 12).map(rowFor).join("");
-  const full = c.items.length > ordered.length
-    ? `<details class="lcm-full"><summary>Full play-by-play · ${c.items.length} entries</summary>${(live ? c.items : c.items.slice().reverse()).map(it => rowFor(it, -1)).join("")}</details>` : "";
+  const feed = ordered.map(rowFor).join("");
   const credit = c.src ? `<div class="md-credit">Commentary: ${c.url ? `<a href="${esc(c.url)}" target="_blank" rel="noopener noreferrer">${esc(c.src)} ↗</a>` : esc(c.src)}</div>` : "";
-  return `<div class="eyebrow">${live ? `${ballSVG("live-ball")} Live commentary` : "How it unfolded"}</div><div class="lcm">${feed}</div>${full}${credit}`;
+  return `<div class="eyebrow">${live ? `${ballSVG("live-ball")} Live commentary` : "How it unfolded"} <span class="lcm-count">${c.items.length}</span></div><div class="lcm lcm-scroll">${feed}</div>${credit}`;
 }
 // the rail of switchable matches (live, next up, recent) above the hero
 function liveSwitcher(pool, focusId) {
@@ -1668,9 +1664,9 @@ function renderLive() {
   const sections = live
     // stats/EFI render EXPANDED here (not folds): the Live tab is "show everything", and the 30s poll re-renders
     // the whole view, which would otherwise collapse any fold the user opened mid-match.
-    ? [liveStars(m), mdFlow(r, h, a), mdTimeline(r, h.code, a.code), liveCommentary(m), pXi, mdKeyStats(r, m), mdStats(r, true), mdEfi(m, true), wpSection, stakesBlock(m)]
+    ? [mdKeyStats(r, m), liveStars(m), mdTimeline(r, h.code, a.code), liveCommentary(m), pXi, mdStats(r, true), mdEfi(m, true), wpSection, stakesBlock(m)]
     : ft
-    ? [liveStars(m), mdFlow(r, h, a), mdTimeline(r, h.code, a.code), mdKeyStats(r, m), mdStats(r, true), pXi, mdReport(m), liveCommentary(m), mdEfi(m, true), wpSection]
+    ? [mdKeyStats(r, m), liveStars(m), mdTimeline(r, h.code, a.code), mdStats(r, true), pXi, mdReport(m), liveCommentary(m), mdEfi(m, true), wpSection]
     : [liveStars(m), liveContext(m), wpSection, stakesBlock(m), pXi];
   el.innerHTML = viewH2("view-live") + liveHero(m) + sections.filter(Boolean).join("") + koPath(m);
   startLiveCd();
@@ -1937,8 +1933,9 @@ function renderTeams() {
         <button class="btn" id="ctaPick">Choose your team</button></div>`;
   const grid = Object.keys(S.teams)
     .sort((a, b) => S.teams[a].name.localeCompare(S.teams[b].name))
-    .map(c => `<button class="teamcard ${c === S.fav ? "is-fav" : ""}" data-squad="${c}" title="${esc(S.teams[c].name)}${S.teams[c].titles ? `, ${S.teams[c].titles}× World Cup champion` : ""}">
-      <span class="fl">${flag(c)}</span><span class="tc-name">${esc(S.teams[c].name)}</span>${wc22CardChip(c)}<span class="tc-grp">${groupOf(c) || ""}</span></button>`).join("");
+    .map(c => { const rk = fifaRankOf(c), g = groupOf(c);
+      return `<button class="teamcard ${c === S.fav ? "is-fav" : ""}" data-squad="${c}" title="${esc(S.teams[c].name)}${S.teams[c].titles ? `, ${S.teams[c].titles}× World Cup champion` : ""}">
+      <span class="fl">${flag(c)}</span><span class="tc-main"><span class="tc-name">${esc(S.teams[c].name)}</span><span class="tc-meta">${rk ? `FIFA #${rk}` : ""}${rk && g ? " · " : ""}${g ? `Group ${g}` : ""}</span></span>${wc22CardChip(c)}</button>`; }).join("");
   paint(el, head + teamsLandscapeBanner() + `<div class="eyebrow">All teams <span style="color:var(--ink-soft);font-weight:600">, tap for detail · the chip shows their 2022 finish</span></div><div class="teamsgrid">${grid}</div>`);
   const cta = $("#ctaPick", el); if (cta) cta.onclick = () => $("#teamDialog").showModal();
   const chg = $("#ctaChange", el); if (chg) chg.onclick = () => $("#teamDialog").showModal();
@@ -2078,7 +2075,12 @@ function wirePlgClub(el) {
   const onEsc = e => { if (e.key === "Escape") { close(); btn.focus(); } };
   let onDoc = null;
   function close() { if (pop.hidden) return; pop.hidden = true; btn.setAttribute("aria-expanded", "false"); if (onDoc) document.removeEventListener("click", onDoc, true); document.removeEventListener("keydown", onEsc); onDoc = null; _plClubCloser = null; }
-  function open() { if (!pop.hidden) return; pop.hidden = false; btn.setAttribute("aria-expanded", "true"); cq.value = ""; draw(); setTimeout(() => cq.focus(), 0);
+  function open() { if (!pop.hidden) return; pop.hidden = false; btn.setAttribute("aria-expanded", "true"); cq.value = ""; draw();
+    // anchor under the button, but flip to right-aligned if left-aligned would spill past the viewport's right edge
+    // (on some widths the club button sits far right, so the old fixed left:0 overflowed and the page scrolled sideways)
+    pop.style.left = "0"; pop.style.right = "auto";
+    if (pop.getBoundingClientRect().right > innerWidth - 8) { pop.style.left = "auto"; pop.style.right = "0"; }
+    setTimeout(() => cq.focus(), 0);
     onDoc = ev => { if (!ev.target.closest("#plgClubPop") && !ev.target.closest("#plgClubBtn")) close(); };
     document.addEventListener("click", onDoc, true); document.addEventListener("keydown", onEsc); _plClubCloser = close; }
   btn.onclick = e => { if (e.target.closest("[data-club-clear]")) { e.stopPropagation(); _plFilter.club = ""; renderPlayers(); return; } pop.hidden ? open() : close(); };
