@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "296";  // shown in footer; bump with the ?v= asset version
+const BUILD = "297";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1231,13 +1231,12 @@ function winProbBlock(m, pre = false) {
   const legend = wp.ko && wp.adv
     ? `<div class="wp-legend"><span class="wp-lh"><b>${Math.round(wp.adv.h * 100)}%</b> ${flag(h.code)} <span class="wp-lname">${esc(h.name)}</span></span><span class="wp-ld">advance</span><span class="wp-la"><span class="wp-lname">${esc(a.name)}</span> ${flag(a.code)} <b>${Math.round(wp.adv.a * 100)}%</b></span></div>`
     : `<div class="wp-legend"><span class="wp-lh"><b>${ph}%</b> ${flag(h.code)} <span class="wp-lname">${esc(h.name)}</span></span><span class="wp-ld">Draw <b>${pd}%</b></span><span class="wp-la"><span class="wp-lname">${esc(a.name)}</span> ${flag(a.code)} <b>${pa}%</b></span></div>`;
-  const xg = wp.xg, ph_ = xg ? Math.round(xg.h) : 0, pa_ = xg ? Math.round(xg.a) : 0;   // projected score = the expected goals rounded — a representative scoreline, not the low-scoring distribution mode
-  const score = xg ? `<div class="wp-score"><span class="wp-score-lab">Projected score</span> <b>${ph_}–${pa_}</b> <span class="wp-score-p">(${xg.h.toFixed(1)}–${xg.a.toFixed(1)})</span>${wp.ko && ph_ === pa_ ? ` <span class="wp-score-et">in 90′, then ET/pens</span>` : ""}</div>` : "";
-  return `<div class="eyebrow">Win probability <span class="wp-est">${wp.live ? "live estimate" : "pre-match estimate"}</span>${infoBtn("A Dixon-Coles goals model. Each side's strength is a World-Football Elo that updates after every result (blending in FIFA's expected goals), nudged by host advantage and, late in the groups, by what each team still needs to qualify. The projected score is the model's most likely scoreline. A clearly-labelled estimate, not a betting line.", "How win probability is calculated")}</div>
+  // the single "projected score" is dropped — the "Most likely scores" tiles (rendered just below) say it better
+  return `<div class="eyebrow">Win probability <span class="wp-est">${wp.live ? "live estimate" : "pre-match estimate"}</span>${infoBtn("A Dixon-Coles goals model. Each side's strength is a World-Football Elo that updates after every result (blending in FIFA's expected goals), nudged by host advantage and, late in the groups, by what each team still needs to qualify. The most-likely scores below are the model's top scorelines. A clearly-labelled estimate, not a betting line.", "How win probability is calculated")}</div>
     <div class="wp">
       <div class="wp-bar" role="img" aria-label="${esc(h.name)} ${ph}%, draw ${pd}%, ${esc(a.name)} ${pa}%">
         <span class="wp-h" style="width:${ph}%"></span><span class="wp-d" style="width:${pd}%"></span><span class="wp-a" style="width:${pa}%"></span></div>
-      ${legend}${score}</div>`;
+      ${legend}</div>`;
 }
 /* ---------------- stakes explainer ----------------
    Plain-language "what this result means for qualification" on group matches. Pure points-based reasoning over
@@ -1983,14 +1982,20 @@ function renderPlayers() {
   list.sort(SORT[f.sort] || SORT.wc);
   const CAP = 120, shown = list.slice(0, CAP);
   const POSN = { GK: "Goalkeeper", DF: "Defender", MF: "Midfielder", FW: "Forward" };
+  // the right-hand chip shows the value the list is currently SORTED by, so it's always clear what the ranking means
+  const keyStat = p => {
+    if (f.sort === "caps") return `<b>${p.caps}</b><i>caps</i>`;
+    if (f.sort === "young") return `<b>${p.age ?? "–"}</b><i>yrs</i>`;
+    return p.wc ? `<b class="plg-g">${p.wc}</b><i>${ICO.ball} '26</i>` : `<b class="plg-dim">0</b><i>${ICO.ball} '26</i>`;   // wc-goals (default) + A–Z
+  };
   const card = p => {
     const ph = bestPhoto(p.name, p.code, p.n);
-    const stat = p.wc ? `<span class="plg-stat plg-hot">${p.wc} ⚽ '26</span>` : p.cg ? `<span class="plg-stat">${p.cg} career</span>` : p.caps ? `<span class="plg-stat">${p.caps} caps</span>` : "";
     return `<button class="plg-card" data-player="${esc(p.name)}|${p.code}">
       ${ph ? `<span class="plg-face" style="background-image:url('${ph}')"></span>` : `<span class="plg-face plg-flag">${flag(p.code)}</span>`}
       <span class="plg-body"><span class="plg-nm">${esc(pName(p.name, p.code))}${p.cap ? ` <i class="plg-cap">C</i>` : ""}</span>
         <span class="plg-sub"><span class="fl">${flag(p.code)}</span>${esc(p.club || S.teams[p.code]?.name || "")}</span>
-        <span class="plg-meta">${POSN[p.pos] || p.pos || ""}${p.age ? ` · ${p.age}` : ""}${stat ? ` · ` : ""}${stat}</span></span></button>`;
+        <span class="plg-meta">${POSN[p.pos] || p.pos || ""}${p.age ? ` · ${p.age}y` : ""}</span></span>
+      <span class="plg-key">${keyStat(p)}</span></button>`;
   };
   const seg = (items, cur, attr) => `<div class="plg-seg">${items.map(([k, label]) => `<button class="plg-segbtn ${k === cur ? "is-on" : ""}" data-${attr}="${k}">${label}</button>`).join("")}</div>`;
   el.innerHTML = viewH2("view-players") + `
@@ -2314,7 +2319,7 @@ function openPlayer(name, code) {
   $("#playerTitle").textContent = pName(name, code);   // real dialog name for screen readers (was a generic "Player")
   $("#playerBody").innerHTML = `
     <div class="pl">
-      ${photo ? `<span class="pl-face" style="background-image:url('${photo}')"></span>` : `<span class="pl-face pl-flag">${code ? flag(code) : "·"}</span>`}
+      ${photo ? `<span class="pl-portrait" style="background-image:url('${photo}')"></span>` : `<span class="pl-portrait pl-flag">${code ? flag(code) : "·"}</span>`}
       <div class="pl-meta">
         <b class="pl-name">${esc(pName(name, code))}</b>
         ${code ? `<button type="button" class="pl-team pl-team-link" data-squad="${code}" title="View ${esc(team?.name || code)}">${flag(code)} ${esc(team?.name || code)}</button>` : `<span class="pl-team">${esc(team?.name || "")}</span>`}
@@ -2884,6 +2889,32 @@ function flashToast(msg) {
   t.textContent = msg; t.classList.add("show");
   clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("show"), 2400);
 }
+// in-app text prompt (replaces the native prompt(), which falls back to the OS dialog). Resolves the entered
+// string on Save/Enter, or null on Cancel/Escape/backdrop. Built once, reused.
+function textPrompt(label, value = "", { ok = "Save", max = 24 } = {}) {
+  return new Promise(resolve => {
+    let d = $("#promptDialog");
+    if (!d) {
+      d = document.createElement("dialog");
+      d.id = "promptDialog"; d.className = "sheet prompt-sheet";
+      d.innerHTML = `<div class="sheet-body prompt-body"><h3 id="promptLabel"></h3>
+        <input id="promptInput" type="text" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <div class="prompt-actions"><button class="btn ghost" id="promptCancel" type="button">Cancel</button><button class="btn" id="promptOk" type="button"></button></div></div>`;
+      document.body.appendChild(d);
+    }
+    const lab = $("#promptLabel", d), inp = $("#promptInput", d), okb = $("#promptOk", d), cab = $("#promptCancel", d);
+    lab.textContent = label; inp.value = value; inp.maxLength = max; okb.textContent = ok;
+    let done = false;
+    const finish = v => { if (done) return; done = true; d.removeEventListener("close", onClose); d.close(); resolve(v); };
+    const onClose = () => finish(null);   // Escape / backdrop
+    okb.onclick = () => finish(inp.value.trim());
+    cab.onclick = () => finish(null);
+    d.addEventListener("close", onClose);
+    inp.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); finish(inp.value.trim()); } };
+    showSheet(d);
+    setTimeout(() => { inp.focus(); inp.select(); }, 60);
+  });
+}
 // ---- reusable "i" explainer: any [data-info] button reveals its text in one shared popover (touch-safe, unlike title=) ----
 function infoBtn(text, label) { return `<button class="info-i" type="button" data-info="${esc(text)}" aria-label="${esc(label || "What this means")}">i</button>`; }
 function closeInfoPop() { const p = $("#infoPop"); if (p) { p.classList.remove("show"); p._anchor = null; } }
@@ -3207,10 +3238,10 @@ function renderSimDash() {
     <p class="pdash-intro">${ICO.spark} Keep up to three scenarios — a gut pick, the chalk, a wildcard. Tap one to build it, all the way to a champion. Saved on this device.</p>
     <div class="pdash">${S.simBox.slots.map(card).join("")}</div>`;
   $$("[data-slot-open]", el).forEach(b => b.onclick = () => { setActiveSlot(+b.dataset.slotOpen); S.simView = "edit"; renderSim(); });
-  $$("[data-slot-rename]", el).forEach(b => b.onclick = () => {
+  $$("[data-slot-rename]", el).forEach(b => b.onclick = async () => {
     const i = +b.dataset.slotRename, cur = S.simBox.slots[i];
-    const name = prompt("Name this scenario:", cur.name);
-    if (name && name.trim()) { cur.name = name.trim().slice(0, 24); saveSim(); renderSim(); }
+    const name = await textPrompt("Name this scenario", cur.name);
+    if (name) { cur.name = name.slice(0, 24); saveSim(); renderSim(); }
   });
   $$("[data-slot-fill]", el).forEach(b => b.onclick = () => { fillSlotFromStandings(+b.dataset.slotFill); renderSim(); flashToast("Filled from current standings"); });
   $$("[data-slot-clear]", el).forEach(b => b.onclick = () => { S.simBox.slots[+b.dataset.slotClear].ko = {}; saveSim(); renderSim(); });
@@ -3791,7 +3822,7 @@ function renderStats() {
     ["overview", "Overview", `<div class="eyebrow">Tournament so far</div><div class="stat-tiles">
       ${tile("Goals", s.pulse.goals)}${tile("Matches", s.pulse.matches)}
       ${tile("Goals / match", s.pulse.perMatch.toFixed(2))}
-      <div class="stat-tile"><span class="stat-val card-tally"><span class="ct ct-y">${s.pulse.yellows}</span><span class="ct ct-r">${s.pulse.reds}</span></span><span class="stat-lbl">Cards</span></div>
+      <div class="stat-tile"><span class="stat-val card-val"><span class="cv cv-y">${s.pulse.yellows}</span><span class="cv cv-r">${s.pulse.reds}</span></span><span class="stat-lbl">Cards</span></div>
     </div>
       <div class="eyebrow">Records so far</div>${recordsHtml}
       ${confHtml}`],
@@ -4420,8 +4451,9 @@ async function boot() {
     flashToast("Calendar URL copied. Paste it into your calendar app if it doesn't open");
   };
   $("#calDownload").onclick = () => downloadICS(S.matches.slice().sort((a, b) => a.utc.localeCompare(b.utc)), "FIFA World Cup 2026");
-  $("#aboutSiteBtn").onclick = () => showSheet($("#aboutSiteDialog"));   // the tournament-format sheet is reached from the Tables legend's "How the format works"
-  $("#devStoryBtn")?.addEventListener("click", () => { const b = $("#devStoryBuild"); if (b) b.textContent = "build " + BUILD; showSheet($("#devStoryDialog")); });   // "i" by the build number → the dev-story (the number itself keeps its egg)
+  const _fillBuild = () => { const b = $("#devStoryBuild"); if (b) b.textContent = "build " + BUILD; };
+  $("#aboutSiteBtn").onclick = () => { _fillBuild(); showSheet($("#aboutSiteDialog")); };   // single About sheet; tournament format lives in the Tables legend's "How the format works"
+  $("#devStoryBtn")?.addEventListener("click", () => { _fillBuild(); const t = $("#aboutTech"); if (t) t.open = true; showSheet($("#aboutSiteDialog")); setTimeout(() => $("#aboutTech")?.scrollIntoView({ block: "start" }), 90); });   // "i" by the build → About, with the technical story expanded (the number itself keeps its egg)
   const _footTz = $("#footTz"); if (_footTz) _footTz.onclick = () => $("#tzDialog").showModal();   // the "in your timezone" promise is now one tap from the footer
   $("#teamChip").onclick = () => $("#teamDialog").showModal();
   // first-launch onboarding — a short, skippable welcome shown once (any dismissal marks it seen)
