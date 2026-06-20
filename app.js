@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "289";  // shown in footer; bump with the ?v= asset version
+const BUILD = "290";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1147,10 +1147,12 @@ function stakeAdjust(m) {
 // Dixon-Coles bivariate-Poisson outcome + scoreline. Strength enters via Elo→goal-supremacy; host, live red cards
 // and (later) weather enter MULTIPLICATIVELY so they compose without driving a rate negative. The score grid is
 // retained to surface the most-likely scoreline, and each factor's signed supremacy shift is logged for the "why".
-function winProb(m) {
+// pre=true → the frozen PRE-MATCH estimate (ignores the live scoreline/clock/red-cards and works for finished games too),
+// for showing "what the model predicted before kickoff" in the match modal regardless of state.
+function winProb(m, pre = false) {
   const hc = slotInfo(m, "home").code, ac = slotInfo(m, "away").code, st = status(m), r = res(m);
-  if (!hc || !ac || st === ST.FT) return null;
-  const live = st === ST.LIVE || st === ST.HT, ko = !m.group && m.stage !== "group";
+  if (!hc || !ac || (st === ST.FT && !pre)) return null;
+  const live = (st === ST.LIVE || st === ST.HT) && !pre, ko = !m.group && m.stage !== "group";
   const nm = c => { const n = S.teams[c]?.name || c; return n.length > 14 ? n.slice(0, 13) + "…" : n; };
   const mu = ko ? 1.25 : 1.35, eloH = teamRating(hc), eloA = teamRating(ac);   // knockouts are played tighter → lower base rate
   const supR = Math.max(-2.5, Math.min(2.5, (eloH - eloA) / 300));
@@ -1220,8 +1222,8 @@ function winProb(m) {
     predicted, drawMode: predicted[0] && predicted[0].h === predicted[0].a, xg: { h: exH / tot, a: exA / tot },
     reasons: reasons.sort((x, y) => y.mag - x.mag).slice(0, 3) };
 }
-function winProbBlock(m) {
-  const wp = winProb(m); if (!wp) return "";
+function winProbBlock(m, pre = false) {
+  const wp = winProb(m, pre); if (!wp) return "";
   const h = slotInfo(m, "home"), a = slotInfo(m, "away");
   const ph = Math.round(wp.h * 100), pd = Math.round(wp.d * 100), pa = 100 - ph - pd;
   const legend = wp.ko && wp.adv
@@ -1365,8 +1367,8 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
       <div class="md-goals-col away">${(r.ga || []).map(g => `<div class="md-goal">${esc(g)} ${ICO.ball}</div>`).join("")}</div>
     </div>` : "";
   const pKeyStats = mdKeyStats(r, m), pStats = mdStats(r, isFT), pEfi = mdEfi(m, isFT);
-  const _wp = winProb(m);   // surface the model's discarded "why" drivers + top-3 scorelines alongside the bar
-  const pReport = mdReport(m), pComm = mdCommentaryShell(m), pWinProb = winProbBlock(m) + liveWhyChips(_wp) + liveScorelines(_wp), pStakes = stakesBlock(m);
+  const _wp = winProb(m, true);   // modal always shows the PRE-MATCH estimate (for every state incl. live & finished), plus the model's "why" drivers + top-3 scorelines
+  const pReport = mdReport(m), pComm = mdCommentaryShell(m), pWinProb = winProbBlock(m, true) + liveWhyChips(_wp) + liveScorelines(_wp), pStakes = stakesBlock(m);
   const pXiInline = r?.xi ? `<div class="eyebrow">${liveNow ? "Line-ups" : "Starting XI"}</div>${xiPanel(r.xi, h, a)}` : "";
   const pXiFold = r?.xi ? `<details class="md-fold"><summary><span>Starting XI</span><small>${esc([r.xi.h?.f, r.xi.a?.f].filter(Boolean).join(" v ")) || "line-ups & formations"}</small></summary><div class="md-fold-body">${xiPanel(r.xi, h, a)}</div></details>` : "";
 
@@ -1890,7 +1892,7 @@ function myTeamBlock() {
       </div>
       <button class="btn ghost team-change" id="ctaChange">Change</button></div>
     ${mine.length ? `<div class="team-actions"><button class="btn ghost ics-btn" id="icsTeam">${CAL_SVG} Add ${esc(t.name)}'s matches to calendar</button></div>` : ""}
-    ${squadSection(S.fav)}
+    ${heroSquad(S.fav)}
     ${done.length ? `<div class="eyebrow">Played</div>` + done.map((m, i) => matchCard(m, i)).join("") : ""}
     <div class="eyebrow">Fixtures</div>
     ${upcoming.length ? upcoming.map((m, i) => matchCard(m, i)).join("") : `<div class="empty">No scheduled matches. Check Predict for their knockout path.</div>`}
@@ -1941,6 +1943,29 @@ function squadSection(code) {
   if (!sq) return `<div class="eyebrow">Squad</div><div class="empty">Squad not published yet. Check back closer to kickoff.</div>`;
   return `<div class="eyebrow">Squad: ${sq.players.length} players${coach ? ` · Coach <b style="color:var(--ink)">&nbsp;${esc(coach)}</b>` : ""}</div>
     ${rosterMarkup(sq, code)}`;
+}
+// the favourite team's squad as a full-photo gallery (position rows of large player cards); the complete detailed
+// roster stays one tap away below for anyone whose headshot isn't available.
+function heroSquad(code) {
+  const sq = S.squads?.[code], coach = teamCoach(code);
+  if (!sq) return `<div class="eyebrow">Squad</div><div class="empty">Squad not published yet. Check back closer to kickoff.</div>`;
+  const c1 = S.teams[code]?.c1 || "var(--pitch)";
+  const card = x => {
+    const nm = x.name.replace(" (captain)", ""), photo = bestPhoto(nm, code, x.n);
+    if (!photo) return "";
+    const big = atWidth(photo, 400) || photo;
+    return `<button class="sq-card" data-player="${esc(nm)}|${code}" style="--sc:${c1}" aria-label="${esc(pName(nm, code))}">
+      <span class="sq-photo" style="background-image:url('${big}')"></span>
+      ${x.n != null ? `<span class="sq-num">${x.n}</span>` : ""}
+      <span class="sq-info"><b>${esc(tlName(nm, code))}</b>${x.name.includes("(captain)") ? `<span class="sq-cap">C</span>` : ""}</span></button>`;
+  };
+  const rows = [["GK", "Goalkeepers"], ["DF", "Defenders"], ["MF", "Midfielders"], ["FW", "Forwards"]].map(([p, label]) => {
+    const cards = sq.players.filter(x => x.pos === p).map(card).filter(Boolean).join("");
+    return cards ? `<div class="sq-poslabel">${label}</div><div class="sq-row">${cards}</div>` : "";
+  }).join("");
+  return `<div class="eyebrow">Squad <span class="wp-est">${sq.players.length} players${coach ? ` · ${esc(coach)}` : ""}</span></div>
+    ${rows || ""}
+    <details class="ts-squad sq-fulllist"><summary><span>Full squad list</span><small>numbers, clubs &amp; positions</small></summary>${rosterMarkup(sq, code)}</details>`;
 }
 // World Cup pedigree (titles · best finish · appearances) + the head coach — the "what this team is about" header
 function teamOverview(code) {
@@ -2643,19 +2668,17 @@ function roadSection(code) {
   }
   const road = roadToFinal(code);
   if (!road) return `<div class="eyebrow">Road to the final</div><div class="empty">As it stands, ${esc(S.teams[code]?.name || code)} are projected to miss the Round of 32. A couple of group wins flips that.</div>`;
-  const t = S.teams[code];
-  const rows = road.path.map(({ m, opp }) => {
+  const t = S.teams[code], reaches = road.reachesFinal;
+  const steps = road.path.map(({ m, opp }) => {
     const oc = opp && S.teams[opp];
-    return `<button class="road-row" data-mid="${m.id}">
-      <span class="road-rd">${esc(m.round)}</span>
-      <span class="road-body">
-        <span class="road-opp">${oc ? `<i>vs</i> <span class="fl">${flag(opp)}</span>${esc(S.teams[opp].name)}` : `<i>vs the projected winners</i>`}</span>
-        <span class="road-meta">${fmt(m.utc, { day: "numeric", month: "short" })} · ${esc((m.city || "").split(",")[0])}</span>
-      </span></button>`;
-  }).join("");
-  return `<div class="eyebrow">Road to the final${road.reachesFinal ? ` ${TROPHY}` : ""}</div>
-    <div class="road">${rows}</div>
-    <p class="sim-ko-hint">Projected from live standings: assumes ${esc(t.name)} keep winning; opponents are the stronger projected team in each tie.</p>`;
+    return `<div class="rdp-step" data-mid="${m.id}" role="button" tabindex="0" title="${esc(fmt(m.utc, { day: "numeric", month: "short" }))} · ${esc((m.city || "").split(",")[0])}">
+      <span class="rdp-rd">${esc(STAGE_SHORT[m.stage] || m.round)}</span>
+      <span class="rdp-opp">${oc ? `<span class="fl">${flag(opp)}</span><small>${esc(shortName(opp) || S.teams[opp].name)}</small>` : `<span class="fl">·</span><small>TBD</small>`}</span>
+    </div>`;
+  }).join(`<span class="rdp-arr">›</span>`);
+  return `<div class="eyebrow">Road to the final${reaches ? ` ${TROPHY}` : ""}</div>
+    <div class="rdp${reaches ? " rdp-final" : ""}">${steps}${reaches ? `<span class="rdp-arr">›</span><div class="rdp-step rdp-cup"><span class="rdp-rd">Lift it</span><span class="rdp-opp">${TROPHY}</span></div>` : ""}</div>
+    <p class="sim-ko-hint">Projected from live standings: assumes ${esc(t.name)} keep winning, with the stronger projected team waiting in each tie. Tap a step to open that match.</p>`;
 }
 function renderGroups() {
   const el = $("#view-groups");
