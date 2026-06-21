@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "320";  // shown in footer; bump with the ?v= asset version
+const BUILD = "321";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -3644,7 +3644,7 @@ function tournamentStats() {
   const fts = S.matches.filter(m => status(m) === ST.FT && res(m)?.h != null);
   const gf = {}, ga = {}, poss = {}, possN = {}, sot = {}, sotN = {}, yel = {}, red = {}, played = {}, scorers = {}, assists = {}, pyel = {}, pred = {}, cs = {}, conf = {}, keepers = {}, tstat = {}, statN = {};
   const TSTAT_KEYS = ["sh", "pass", "passT", "cross", "lball", "tkl", "intc", "clr", "blk", "sv", "off", "fls"];   // richer ESPN team stats → leaderboards + style
-  let goals = 0, totYellow = 0, totRed = 0;
+  let goals = 0, totYellow = 0, totRed = 0, totPen = 0, totOg = 0, totSot = 0;
   const rec = { bigWin: null, hiScore: null, fastG: null, lateG: null, hiDraw: null, topMatch: null, mostCards: null, mostTackles: null, bestDef: null };
   const add = (o, k, n = 1) => { if (k) o[k] = (o[k] || 0) + n; };
   const addConf = (code, gfv, gav, diff) => {   // a team's match folded into its confederation's collective record
@@ -3679,6 +3679,7 @@ function tournamentStats() {
     let mYellow = 0, mRed = 0;
     for (const e of (r.ev || [])) {
       const tc = e.tm === "h" ? hc : ac;
+      if (e.k === "P") totPen++; else if (e.k === "OG") totOg++;   // penalties converted in play + own goals (tournament totals)
       if ((e.k === "G" || e.k === "P") && e.p) {
         // resolve to the full squad name using the API jersey (e.n) when present, else "out" = an outfielder (never the same-surname keeper)
         const sc = resolvePlayer(e.p, tc, e.n, "out")?.name || e.p;
@@ -3715,7 +3716,7 @@ function tournamentStats() {
       if (!rec.bestDef || +L.v > rec.bestDef.v) rec.bestDef = { name: resolvePlayer(L.n, L.c)?.name || L.n, code: L.c, v: +L.v, opp: L.c === hc ? ac : hc, mid: m.id };
     }
     if (r.stats?.poss) { add(poss, hc, r.stats.poss[0]); add(possN, hc); add(poss, ac, r.stats.poss[1]); add(possN, ac); }
-    if (r.stats?.sot) { add(sot, hc, r.stats.sot[0]); add(sotN, hc); add(sot, ac, r.stats.sot[1]); add(sotN, ac); }
+    if (r.stats?.sot) { add(sot, hc, r.stats.sot[0]); add(sotN, hc); add(sot, ac, r.stats.sot[1]); add(sotN, ac); totSot += (r.stats.sot[0] || 0) + (r.stats.sot[1] || 0); }
     if (r.stats) {   // accumulate the richer team stats (per-match averaged later, like FotMob)
       add(statN, hc); add(statN, ac);
       for (const k of TSTAT_KEYS) if (Array.isArray(r.stats[k])) { (tstat[k] ||= {}); add(tstat[k], hc, r.stats[k][0]); add(tstat[k], ac, r.stats[k][1]); }
@@ -3736,7 +3737,7 @@ function tournamentStats() {
   const pmT = fn => Object.keys(statN).map(c => ({ code: c, v: fn(c) / statN[c] })).sort((a, b) => b.v - a.v);   // per-game over teams with team-stats
   const g = (k, c) => tstat[k]?.[c] || 0;
   const _out = {
-    pulse: { goals, matches: fts.length, perMatch: fts.length ? goals / fts.length : 0, yellows: totYellow, reds: totRed },
+    pulse: { goals, matches: fts.length, perMatch: fts.length ? goals / fts.length : 0, yellows: totYellow, reds: totRed, pens: totPen, og: totOg, sot: totSot },
     records: rec,
     scorers: scorerList, assisters: assistList, booked: bookedList,
     teamCards: cardList,
@@ -4014,6 +4015,7 @@ function renderStats() {
     ["overview", "Overview", `<div class="eyebrow">Tournament so far</div><div class="stat-tiles">
       ${tile("Goals", s.pulse.goals)}${tile("Matches", s.pulse.matches)}
       ${tile("Goals / match", s.pulse.perMatch.toFixed(2))}
+      ${tile("Shots on target", s.pulse.sot)}${tile("Penalties scored", s.pulse.pens)}${tile("Own goals", s.pulse.og)}
       <div class="stat-tile"><span class="stat-val card-val"><span class="cv cv-y">${s.pulse.yellows}</span><span class="cv cv-r">${s.pulse.reds}</span></span><span class="stat-lbl">Cards</span></div>
     </div>
       <div class="eyebrow">Records so far</div>${recordsHtml}
