@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "323";  // shown in footer; bump with the ?v= asset version
+const BUILD = "324";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -2445,6 +2445,7 @@ function openTeam(code) {
   $("#teamSheetBody").innerHTML = `
     <div class="ts-meta">${t.conf ? esc(t.conf) : ""}${group ? ` · Group ${group}` : ""}${played ? ` · <b>${ordinal(pos)}</b> after ${played} match${played > 1 ? "es" : ""}` : ""}${t.pop ? ` · ${popStr(t.pop)} people` : ""}</div>
     ${teamOverview(code)}
+    ${countryMiniMap(code)}
     ${wcHistory(code)}
     ${since2022Section(code)}
     <div class="ts-actrow">
@@ -2465,6 +2466,26 @@ function openTeam(code) {
     ${rotationSection(code)}`;
   $("#teamSheet").dataset.code = code;   // so loadWC2022() can re-render this sheet once the dataset lands
   showSheet($("#teamSheet"));
+  fillCountryMap(code);   // lazy: drop in the country silhouette once the shapes file loads
+}
+// a small "country shape" map at the top of the team sheet — the nation's silhouette filled in its kit colours.
+// The 46KB shapes file is fetched once, on first team-sheet open; the two micro-states without a 110m shape just
+// get no map (the section removes itself). Same equirectangular space as the world map.
+function countryMiniMap(code) {
+  return _countryShapes && !_countryShapes[code] ? "" : `<div class="ctry-map" id="ctryMap" data-mapcode="${code}"><span class="ctry-map-ph"></span></div>`;
+}
+let _countryShapes = null;
+async function fillCountryMap(code) {
+  let host = $("#ctryMap"); if (!host || host.dataset.mapcode !== code) return;
+  if (_countryShapes == null) { try { _countryShapes = await (await fetch("assets/country-shapes.json")).json(); } catch { _countryShapes = {}; } }
+  host = $("#ctryMap"); if (!host || host.dataset.mapcode !== code) return;   // the sheet changed while loading
+  const s = _countryShapes[code];
+  if (!s) { host.remove(); return; }
+  const t = S.teams[code], c1 = t.c1 || "var(--acc1)", c2 = t.c2 || c1, gid = "cg-" + code.replace(/[^A-Za-z]/g, "");
+  host.innerHTML = `<svg class="ctry-svg" viewBox="${s.vb}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Map of ${esc(t.name)}">
+    <defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></linearGradient></defs>
+    <path d="${s.d}" fill="url(#${gid})" stroke="#fff" stroke-width="1.1" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+  </svg><span class="ctry-map-cap"><span class="fl">${flag(code)}</span> ${esc(t.name)}</span>`;
 }
 // best-effort match of a feed name (e.g. "Julian QUINONES") to a squad entry (names come from a different feed)
 // the squad player behind a feed reference (caps, club, position, jersey) — same robust resolver as the name & photo,
@@ -2529,10 +2550,12 @@ function openPlayer(name, code) {
         ${(num != null || pos) ? `<span class="pl-pos">${num != null ? "#" + num : ""}${num != null && pos ? " · " : ""}${pos}${isCaptain(name, code) ? ` · <b class="pl-capt">Captain</b>` : ""}</span>` : ""}
       </div>
     </div>
-    ${(vitals || (bio && (bio.caps != null || bio.goals))) ? `<div class="pl-bio">
+    ${(age != null || vitals?.h || vitals?.w) ? `<div class="pl-bio">
       ${age != null ? `<span><i>Age</i>${age}</span>` : ""}
       ${vitals?.h ? `<span><i>Height</i>${vitals.h} cm</span>` : ""}
       ${vitals?.w ? `<span><i>Weight</i>${vitals.w} kg</span>` : ""}
+    </div>` : ""}
+    ${(bio?.caps != null || bio?.goals) ? `<div class="pl-bio pl-bio-intl">
       ${bio?.caps != null ? `<span><i>Int'l caps</i>${bio.caps}</span>` : ""}
       ${bio?.goals ? `<span><i>Int'l goals</i>${bio.goals}</span>` : ""}
     </div>` : ""}

@@ -1,0 +1,47 @@
+/* Generate assets/country-shapes.json — per-nation silhouette paths for the team-sheet "country shape" mini-map.
+ * Source: Natural Earth 1:110m admin-0 countries (public domain). Each country's polygons are projected with the
+ * SAME equirectangular math the world map uses, and a padded per-country viewBox is stored so the app can draw
+ * just that country, filling its bounding box. England + Scotland both map to the UK shape (110m doesn't split
+ * the UK); Cabo Verde + Curaçao are too small to appear in the 110m set (the app shows no map for those two).
+ *   { "<code>": { d: "<path in 1000x500 space>", vb: "minx miny w h" } }.  Re-run: node scripts/make-country-shapes.mjs
+ */
+import { writeFileSync } from "fs";
+
+const W = 1000, H = 500;
+const px = lon => +(((lon + 180) / 360) * W).toFixed(1);
+const py = lat => +(((90 - lat) / 180) * H).toFixed(1);
+const ISO3 = {
+  MX: "MEX", AR: "ARG", AT: "AUT", AU: "AUS", BA: "BIH", BE: "BEL", BR: "BRA", CA: "CAN", CD: "COD", CH: "CHE",
+  CI: "CIV", CO: "COL", CV: "CPV", CW: "CUW", CZ: "CZE", DE: "DEU", DZ: "DZA", EC: "ECU", EG: "EGY", ES: "ESP",
+  FR: "FRA", GH: "GHA", HR: "HRV", HT: "HTI", IQ: "IRQ", IR: "IRN", JO: "JOR", JP: "JPN", KR: "KOR", MA: "MAR",
+  NL: "NLD", NO: "NOR", NZ: "NZL", PA: "PAN", PT: "PRT", PY: "PRY", QA: "QAT", SA: "SAU", SE: "SWE", SN: "SEN",
+  TN: "TUN", TR: "TUR", US: "USA", UY: "URY", UZ: "UZB", ZA: "ZAF", "GB-ENG": "GBR", "GB-SCT": "GBR",
+};
+const rev = {}; for (const [code, i3] of Object.entries(ISO3)) (rev[i3] ||= []).push(code);
+
+const URL = "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_110m_admin_0_countries.geojson";
+const gj = await (await fetch(URL)).json();
+const out = {};
+for (const f of gj.features) {
+  const p = f.properties || {};
+  const i3 = (p.ISO_A3_EH && p.ISO_A3_EH !== "-99") ? p.ISO_A3_EH : (p.ADM0_A3 || p.ISO_A3);
+  const codes = rev[i3]; if (!codes) continue;
+  const g = f.geometry; const polys = g.type === "Polygon" ? [g.coordinates] : g.type === "MultiPolygon" ? g.coordinates : [];
+  let d = "", minx = 1e9, maxx = -1e9, miny = 1e9, maxy = -1e9;
+  for (const poly of polys) for (const ring of poly) {
+    if (ring.length < 4) continue;
+    const pts = ring.map(([lon, lat]) => {
+      const x = px(lon), y = py(lat);
+      minx = Math.min(minx, x); maxx = Math.max(maxx, x); miny = Math.min(miny, y); maxy = Math.max(maxy, y);
+      return x + " " + y;
+    });
+    d += "M" + pts.join("L") + "Z";
+  }
+  if (!d) continue;
+  const pad = Math.max(maxx - minx, maxy - miny) * 0.12 + 0.5;
+  const vb = `${+(minx - pad).toFixed(1)} ${+(miny - pad).toFixed(1)} ${+(maxx - minx + 2 * pad).toFixed(1)} ${+(maxy - miny + 2 * pad).toFixed(1)}`;
+  for (const code of codes) out[code] = { d, vb };
+}
+const miss = Object.keys(ISO3).filter(c => !out[c]);
+writeFileSync("assets/country-shapes.json", JSON.stringify(out));
+console.log(`wrote assets/country-shapes.json — ${Object.keys(out).length}/48 shapes, ${JSON.stringify(out).length} bytes; missing: ${miss.join(", ") || "none"}`);
