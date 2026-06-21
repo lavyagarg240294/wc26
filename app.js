@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "328";  // shown in footer; bump with the ?v= asset version
+const BUILD = "329";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -147,7 +147,7 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;",
 // instead of jumping straight to the cards' h4. Injected here (every render funnels through paint with its view el)
 // so it survives poll re-renders too. Keyed by section id; non-view paints (cards, popups) are untouched.
 // groups/sim set el.innerHTML directly (not via paint), so they prepend viewH2() themselves.
-const VIEW_H2 = { "view-live": "Live", "view-matches": "Matches", "view-teams": "Teams", "view-players": "Players", "view-groups": "Tables", "view-sim": "Predict", "view-stats": "Statistics", "view-pulse": "News" };
+const VIEW_H2 = { "view-matches": "Matches", "view-teams": "Teams", "view-players": "Players", "view-groups": "Tables", "view-sim": "Predict", "view-stats": "Statistics", "view-pulse": "News" };
 const viewH2 = id => VIEW_H2[id] ? `<h2 class="vh">${VIEW_H2[id]}</h2>` : "";
 function paint(el, html) {
   if (!el) return;
@@ -370,25 +370,6 @@ function winnerFeed(s) {
 const isFavMatch = m => S.fav && (slotInfo(m, "home").code === S.fav || slotInfo(m, "away").code === S.fav);
 const matchHasTeam = (m, code) => slotInfo(m, "home").code === code || slotInfo(m, "away").code === code;
 
-// a team's last-5 finished results, oldest→newest: [{o:"W"|"D"|"L", gf, ga, m, opp}]
-function teamForm(code) {
-  return S.matches
-    .filter(m => matchHasTeam(m, code) && status(m) === ST.FT && res(m)?.h != null)
-    .sort((a, b) => a.utc.localeCompare(b.utc)).slice(-5)
-    .map(m => {
-      const r = res(m), home = slotInfo(m, "home").code === code;
-      const gf = home ? r.h : r.a, ga = home ? r.a : r.h;
-      let o = gf > ga ? "W" : gf < ga ? "L" : "D";
-      if (gf === ga && r.hp != null) o = (home ? r.hp > r.ap : r.ap > r.hp) ? "W" : "L";
-      return { o, gf, ga, m, opp: slotInfo(m, home ? "away" : "home") };
-    });
-}
-function formChips(code) {
-  const f = teamForm(code);
-  if (!f.length) return "";
-  return `<span class="form" aria-label="Recent form">${f.map(x =>
-    `<span class="form-d is-${x.o.toLowerCase()}" title="${x.o} ${x.gf}–${x.ga} v ${esc(x.opp.name || x.opp.code || "")}">${x.o}</span>`).join("")}</span>`;
-}
 
 /* ---------------- calendar (.ics) export — client-side, kickoffs in UTC ---------------- */
 const CAL_SVG = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>`;
@@ -973,30 +954,6 @@ function flowColor(hex) {
   else if (currentDark() && lum < 0.34) { const t = 165; r += (t - r) * 0.55; g += (t - g) * 0.55; b += (t - b) * 0.55; } // dark kit on dark card → lift
   return `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`;
 }
-function mdFlow(r, h, a) {
-  if (!r) return "";   // no data row yet (scheduled match / empty results.json / offline) — guard like mdStats/mdTimeline
-  const goals = (r.ev || []).filter(e => ["G", "P", "OG"].includes(e.k));
-  if (goals.length < 2) return "";
-  const end = Math.max(90, ...goals.map(g => evMin(g.t)));
-  let lead = 0; const pts = [[0, 0]];
-  goals.forEach(g => { pts.push([evMin(g.t), lead]); lead += g.tm === "h" ? 1 : -1; pts.push([evMin(g.t), lead]); });
-  pts.push([end, lead]);
-  const maxAbs = Math.max(1, ...pts.map(p => Math.abs(p[1])));
-  const W = 100, H = 44, mid = H / 2, sx = m => (m / end * W).toFixed(1), sy = v => (mid - v / maxAbs * (mid - 4)).toFixed(1);
-  const line = pts.map((p, i) => `${i ? "L" : "M"}${sx(p[0])} ${sy(p[1])}`).join(" ");
-  const area = `M0 ${mid} ` + pts.map(p => `L${sx(p[0])} ${sy(p[1])}`).join(" ") + ` L${W} ${mid} Z`;
-  const hc = flowColor((h.code && S.teams[h.code]?.c1) || "#0BA360"), ac = flowColor((a.code && S.teams[a.code]?.c1) || "#5B6B7A");
-  const gid = `flowg-${h.code || "h"}${a.code || "a"}`;
-  return `<div class="eyebrow">Match flow</div>
-    <div class="md-flow"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
-      <defs><linearGradient id="${gid}" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="${H}">
-        <stop offset="0" stop-color="${hc}" stop-opacity=".92"/><stop offset="48%" stop-color="${hc}" stop-opacity=".26"/>
-        <stop offset="52%" stop-color="${ac}" stop-opacity=".26"/><stop offset="1" stop-color="${ac}" stop-opacity=".92"/></linearGradient></defs>
-      <path d="${area}" fill="url(#${gid})"/>
-      <line x1="0" y1="${mid}" x2="${W}" y2="${mid}" class="flow-mid"/><path d="${line}" class="flow-line"/></svg>
-    <div class="flow-legend"><span><i style="background:${hc}"></i>${esc(h.code ? h.name : "Home")} ahead</span>
-      <span>${esc(a.code ? a.name : "Away")} ahead<i style="background:${ac}"></i></span></div></div>`;
-}
 const STAGE_NAME = { r32: "Round of 32", r16: "Round of 16", qf: "Quarter-final", sf: "Semi-final", final: "Final", third: "3rd place" };
 // narrative breadcrumb of where this match's winner goes, all the way to the final
 function koPath(m) {
@@ -1372,10 +1329,14 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
       <div class="md-goals-col away">${(r.ga || []).map(g => `<div class="md-goal">${esc(g)} ${ICO.ball}</div>`).join("")}</div>
     </div>` : "";
   const pKeyStats = mdKeyStats(r, m), pStats = mdStats(r, isFT), pEfi = mdEfi(m, isFT);
-  const _wp = winProb(m, true);   // modal always shows the PRE-MATCH estimate (for every state incl. live & finished), plus the model's "why" drivers + top-3 scorelines
-  const pReport = mdReport(m), pComm = mdCommentaryShell(m), pWinProb = winProbBlock(m, true) + liveWhyChips(_wp) + liveScorelines(_wp), pStakes = stakesBlock(m), pCompare = matchCompare(m);
+  // win-prob: in-play for a live game (reflects the score), the model's pre-match call otherwise — plus its "why" drivers + top-3 scorelines
+  const pre = !live, _wp = winProb(m, pre);
+  const pWinProb = _wp ? winProbBlock(m, pre) + liveWhyChips(_wp) + liveScorelines(_wp) : "";
+  const pReport = mdReport(m), pComm = mdCommentaryShell(m), pStakes = stakesBlock(m), pCompare = matchCompare(m), pStars = liveStars(m);
   const pXiInline = r?.xi ? `<div class="eyebrow">${liveNow ? "Line-ups" : "Starting XI"}</div>${xiPanel(r.xi, h, a)}` : "";
   const pXiFold = r?.xi ? `<details class="md-fold"><summary><span>Starting XI</span><small>${esc([r.xi.h?.f, r.xi.a?.f].filter(Boolean).join(" v ")) || "line-ups & formations"}</small></summary><div class="md-fold-body">${xiPanel(r.xi, h, a)}</div></details>` : "";
+  // "how they compare" rides along as a collapsed fold for live/finished games (it leads expanded in the upcoming branch)
+  const pCompareFold = (live || isFT) && pCompare ? `<details class="md-fold"><summary><span>How they compare</span><small>rankings &amp; tournament form</small></summary><div class="md-fold-body">${pCompare}</div></details>` : "";
 
   const pMeta = `<div class="md-meta">
       <span>${fmt(m.utc, { weekday: "long", day: "numeric", month: "long" })}</span>
@@ -1385,12 +1346,13 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
       ${r?.facts?.att ? `<span>${ICO.people} ${(+r.facts.att).toLocaleString()} in</span>` : ""}
       ${r?.facts?.ref ? `<span>Referee · ${esc(r.facts.ref)}</span>` : ""}
     </div>`;
-  // order by state so each opens with what you came for.
-  // informative summary, so nothing valuable is ever fully hidden — the worst case is a one-line headline.
+  // order by state so each opens with what you came for (Live folds in here — no separate tab as of build 329).
   const middle = liveNow
-    ? [pTimeline, pXiInline, pComm, pKeyStats, pStats, pEfi, pWinProb, pStakes]
+    // live: analytics lead (win-prob), then the live feed, then the numbers, match stars, deep dive, stakes
+    ? [pWinProb, pComm, pKeyStats, pStars, pTimeline, pStats, pXiInline, pEfi, pCompareFold, pStakes]
     : isFT
-    ? [pTimeline, pKeyStats, pStats, pXiInline, pReport, pEfi, pWinProb, pStakes]
+    // finished: the report leads, then key stats, stars, the full timeline & numbers, the model's call, the deep dive
+    ? [pReport, pKeyStats, pStars, pTimeline, pStats, pXiInline, pEfi, pWinProb, pCompareFold, pStakes]
     : [pStakes, pCompare, pWinProb, pXiInline];   // upcoming: stakes + head-to-head compare + odds + (announced) line-ups
   const _body = pTop + middle.join("") + pMeta;
   const mb = $("#matchBody");
@@ -1497,22 +1459,6 @@ function motdBanner(m) {
   </button>`;
 }
 
-/* ---------------- render: Live (immersive single-match following) ---------------- */
-let _liveFocus = null;        // user-picked focus match id; else auto: marquee live → next up → last result
-function liveFocusPool() {
-  const live = S.matches.filter(m => [ST.LIVE, ST.HT].includes(status(m))).sort((a, b) => prestige(b) - prestige(a));
-  const soon = S.matches.filter(m => status(m) === ST.SCHED).sort((a, b) => a.utc.localeCompare(b.utc)).slice(0, 4);
-  const recent = S.matches.filter(m => status(m) === ST.FT).sort((a, b) => b.utc.localeCompare(a.utc)).slice(0, 4);
-  const seen = new Set(), pool = [];
-  // the explicitly-focused match always gets a rail chip (else picking an older result would orphan its highlight)
-  const focused = _liveFocus ? S.matches.find(x => x.id === _liveFocus) : null;
-  for (const m of [...(focused ? [focused] : []), ...live, ...soon, ...recent]) if (!seen.has(m.id)) { seen.add(m.id); pool.push(m); }
-  return { live, soon, recent, pool };
-}
-function liveFocusMatch(pool) {
-  if (_liveFocus) { const m = S.matches.find(x => x.id === _liveFocus); if (m) return m; }
-  return pool.live[0] || pool.soon[0] || pool.recent[0] || null;
-}
 // the model's discarded "why" drivers, surfaced as chips (host edge, form, down to 10, two leaky defences…)
 function liveWhyChips(wp) {
   if (!wp?.reasons?.length) return "";
@@ -1527,15 +1473,6 @@ function liveScorelines(wp) {
   if (!wp?.predicted?.length) return "";
   const tiles = wp.predicted.slice(0, 3).map(s => `<div class="sl-tile"><b>${s.h}–${s.a}</b><i>${Math.round(s.p * 100)}%</i></div>`).join("");
   return `<div class="eyebrow">Most likely scores</div><div class="sl-tiles">${tiles}</div>`;
-}
-// recent W/D/L form for both sides (upcoming context)
-function liveContext(m) {
-  const h = slotInfo(m, "home"), a = slotInfo(m, "away");
-  if (!h.code || !a.code) return "";
-  const fh = formChips(h.code), fa = formChips(a.code);
-  if (!fh && !fa) return "";
-  const row = (s, f) => `<div class="lc-row"><span class="fl">${flag(s.code)}</span><span class="lc-nm">${esc(s.name)}</span>${f || `<span class="lc-none">No recent games</span>`}</div>`;
-  return `<div class="eyebrow">Recent form</div><div class="lc-form">${row(h, fh)}${row(a, fa)}</div>`;
 }
 // a team's record + each result so far THIS World Cup (FT matches only)
 function teamWcRecord(code) {
@@ -1610,103 +1547,6 @@ function liveStars(m) {
   };
   const cards = items.map(card).filter(Boolean).join("");
   return cards ? `<div class="eyebrow">${label}${infoBtn("The match's goalscorers (most goals first), plus the top defender (most defensive actions) and top goalkeeper (most saves) from FIFA's key-performer data. Before kickoff it shows each team's leading scorer this tournament.", "How match stars are chosen")}</div><div class="star-row">${cards}</div>` : "";
-}
-// engaging play-by-play for the Live tab: key moments as a colour-coded vertical feed (newest-first while live),
-// goals/cards/VAR called out, full play-by-play one tap away. Lazily loads commentary, then re-renders.
-function liveCommentary(m) {
-  const c = S.commentary[m.num];
-  if (c === undefined) {   // not fetched yet → kick it off, show a slim placeholder, re-render when it lands
-    loadCommentary(m.num).then(() => { if (S.view === "live" && (!_liveFocus || _liveFocus === m.id)) renderLive(); });
-    return `<div class="eyebrow">Commentary</div><div class="lcm-load">Loading the play-by-play…</div>`;
-  }
-  if (!c || !c.items?.length) return "";
-  const live = [ST.LIVE, ST.HT].includes(status(m));
-  // classify each line so it gets a meaningful icon (a varied feed reads far better than a column of identical dots)
-  const kindOf = it => {
-    const k = (it.k || "").toLowerCase(), x = it.x || "";
-    if (k.includes("goal") || (/\bgoal!?\b/i.test(x) && !/no goal|disallow|ruled out|chance/i.test(x))) return "goal";
-    if (k === "red" || /red card|sent off|second yellow/i.test(x)) return "red";
-    if (k === "yellow" || /yellow card|booked|caution/i.test(x)) return "yellow";
-    if (/\bVAR\b/i.test(x)) return "var";
-    if (k.includes("sub") || /substitution/i.test(x)) return "sub";
-    if (/First Half ends|Second Half ends|Match ends|Half begins|kick-?off|kicks? off|full[- ]?time|half[- ]?time/i.test(x)) return "whistle";
-    if (/\bsaved?\b/i.test(x)) return "save";
-    if (/attempt|\bshot\b|\bheader\b|hits the (bar|post|woodwork)|blocked|misses|too high|goes wide|\bwide\b/i.test(x)) return "shot";
-    if (/\bcorner\b/i.test(x)) return "corner";
-    if (/offside/i.test(x)) return "offside";
-    if (/free kick/i.test(x)) return "freekick";
-    if (/\bfoul\b|hand ?ball/i.test(x)) return "foul";
-    if (/injury|treatment|stretcher|knock\b/i.test(x)) return "injury";
-    return "";
-  };
-  // ESPN ships items NEWEST-FIRST. Live keeps newest-first (latest at top); FT reads chronologically. Show ALL of it.
-  const ordered = live ? c.items : c.items.slice().reverse();
-  const SVG = {
-    target: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.4" fill="currentColor" stroke="none"/></svg>',
-    whistle: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 9H4a1 1 0 0 0-1 1v1.5a5.5 5.5 0 0 0 11 0V10a1 1 0 0 0-1-1z"/><path d="M13.5 10.5 21 7"/></svg>',
-    flag: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 21V4M6 4h11l-2.5 3.5L17 11H6"/></svg>',
-    cross: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M12 7v10M7 12h10"/></svg>',
-  };
-  const ICON = { goal: `<span class="lcm-ic lcm-i-goal">${ICO.ball}</span>`, save: `<span class="lcm-ic lcm-i-save">${ICO.glove}</span>`,
-    shot: `<span class="lcm-ic lcm-i-shot">${SVG.target}</span>`, red: `<span class="lcm-ic"><span class="tl-card r"></span></span>`,
-    yellow: `<span class="lcm-ic"><span class="tl-card y"></span></span>`, var: `<span class="lcm-ic"><span class="lcm-i-var">VAR</span></span>`,
-    sub: `<span class="lcm-ic lcm-i-sub">${ICO.subs}</span>`, corner: `<span class="lcm-ic lcm-i-corner">${SVG.flag}</span>`,
-    offside: `<span class="lcm-ic lcm-i-offside">${SVG.flag}</span>`, freekick: `<span class="lcm-ic lcm-i-fk">${SVG.whistle}</span>`,
-    foul: `<span class="lcm-ic lcm-i-foul">${SVG.whistle}</span>`, injury: `<span class="lcm-ic lcm-i-injury">${SVG.cross}</span>`,
-    whistle: `<span class="lcm-ic"><span class="lcm-i-w"></span></span>`, "": `<span class="lcm-ic"><span class="lcm-i-dot"></span></span>` };
-  // keep ESPN's facts, just make them read like commentary: bold the actor (it writes "Player (Team)") and
-  // tuck the trailing "Assisted by …" detail into a quieter voice so the main action lands first.
-  const clar = t => {
-    let s = t || "";
-    const mm = /^VAR Decision:\s*(.+?)\.?\s*$/i.exec(s);
-    if (mm) { let d = mm[1].trim(); if (/^other decision cancelled$/i.test(d)) d = "an on-field decision was overturned after review"; s = d; }
-    s = esc(s);
-    s = s.replace(/([\p{Lu}][^.()]{0,32}?)(\s\([^)]+\))/gu, '<b class="lcm-pl">$1</b>$2');
-    s = s.replace(/(\bAssisted by\b[^.]*\.?)/i, '<span class="lcm-assist">$1</span>');
-    return s;
-  };
-  const rowFor = (it, i) => { const kd = kindOf(it);
-    return `<div class="lcm-row lcm-${kd || "x"}${live && i === 0 ? " is-latest" : ""}">
-      <span class="lcm-min">${esc(it.t || "")}</span>${ICON[kd] || ICON[""]}
-      <span class="lcm-tx">${clar(it.x)}</span></div>`; };
-  const feed = ordered.map(rowFor).join("");
-  const credit = c.src ? `<div class="md-credit">Commentary: ${c.url ? `<a href="${esc(c.url)}" target="_blank" rel="noopener noreferrer">${esc(c.src)} ↗</a>` : esc(c.src)}</div>` : "";
-  return `<div class="eyebrow">${live ? `${ballSVG("live-ball")} Live commentary` : "How it unfolded"} <span class="lcm-count">${c.items.length}</span></div><div class="lcm lcm-scroll">${feed}</div>${credit}`;
-}
-// the rail of switchable matches (live, next up, recent) above the hero
-function liveSwitcher(pool, focusId) {
-  if (pool.pool.length < 2) return "";
-  const chip = m => {
-    const h = slotInfo(m, "home"), a = slotInfo(m, "away"), r = res(m), st = status(m);
-    const live = [ST.LIVE, ST.HT].includes(st), score = r && r.h != null;
-    const tag = live ? `<span class="lr-tag is-live">LIVE</span>` : st === ST.FT ? `<span class="lr-tag">FT</span>` : `<span class="lr-tag">${fmt(m.utc, { day: "numeric", month: "short" })}</span>`;
-    const mid = score ? `<b>${r.h}–${r.a}</b>` : `<b>${timeStr(m.utc)}</b>`;
-    return `<button class="lr-chip${m.id === focusId ? " is-on" : ""}" data-focus="${m.id}">${tag}
-      <span class="lr-mt"><span class="fl">${h.code ? flag(h.code) : TBD_FLAG}</span>${mid}<span class="fl">${a.code ? flag(a.code) : TBD_FLAG}</span></span></button>`;
-  };
-  return `<div class="live-rail">${pool.pool.map(chip).join("")}</div>`;
-}
-function renderLive() {
-  const el = $("#view-live");
-  const keepY = el.hidden ? 0 : window.scrollY;
-  const pool = liveFocusPool();
-  const m = liveFocusMatch(pool);
-  if (!m) { el.innerHTML = viewH2("view-live") + `<div class="empty" style="margin:28px 0">No matches to follow yet — the tournament opens soon. Check the schedule on the Matches tab.</div>`; return; }
-  const h = slotInfo(m, "home"), a = slotInfo(m, "away"), r = res(m), st = status(m);
-  const live = [ST.LIVE, ST.HT].includes(st), ft = st === ST.FT;
-  const wp = winProb(m);
-  const pXi = r?.xi ? `<div class="eyebrow">${live ? "Line-ups" : "Starting XI"}</div>${xiPanel(r.xi, h, a)}` : "";
-  const wpSection = wp ? `${winProbBlock(m)}${liveWhyChips(wp)}${liveScorelines(wp)}` : "";
-  const sections = live
-    // stats/EFI render EXPANDED here (not folds): the Live tab is "show everything", and the 30s poll re-renders
-    // the whole view, which would otherwise collapse any fold the user opened mid-match.
-    ? [mdKeyStats(r, m), liveStars(m), mdTimeline(r, h.code, a.code), liveCommentary(m), pXi, mdStats(r, true), mdEfi(m, true), wpSection, stakesBlock(m)]
-    : ft
-    ? [mdKeyStats(r, m), liveStars(m), mdTimeline(r, h.code, a.code), mdStats(r, true), pXi, mdReport(m), liveCommentary(m), mdEfi(m, true), wpSection]
-    : [liveStars(m), matchCompare(m), liveContext(m), wpSection, stakesBlock(m), pXi];
-  el.innerHTML = viewH2("view-live") + heroBlock(m, null, true) + sections.filter(Boolean).join("") + koPath(m);
-  startCountdown(el);
-  if (!el.hidden) window.scrollTo(0, keepY);
 }
 function renderMatches() {
   const el = $("#view-matches");
@@ -4305,10 +4145,11 @@ function wc22Continuity(code) {
 }
 
 /* ---------------- navigation ---------------- */
-const RENDER = { live: renderLive, matches: renderMatches, teams: renderTeams, players: renderPlayers, groups: renderGroups, stats: renderStats, sim: renderSim, pulse: renderPulse };
+const RENDER = { matches: renderMatches, teams: renderTeams, players: renderPlayers, groups: renderGroups, stats: renderStats, sim: renderSim, pulse: renderPulse };
 // shareable per-tab URL hash (Matches is the default → no hash; Predict's internal view name is "sim")
-const VIEW_HASH = { live: "live", teams: "teams", players: "players", groups: "tables", sim: "predict", stats: "stats", pulse: "pulse" };
-const HASH_VIEW = { live: "live", matches: "matches", teams: "teams", players: "players", tables: "groups", groups: "groups", predict: "sim", stats: "stats", pulse: "pulse" };
+const VIEW_HASH = { teams: "teams", players: "players", groups: "tables", sim: "predict", stats: "stats", pulse: "pulse" };
+// "live" survives only as a redirect: Live folded into the match modal (build 329), but old #live links still land on Matches
+const HASH_VIEW = { live: "matches", matches: "matches", teams: "teams", players: "players", tables: "groups", groups: "groups", predict: "sim", stats: "stats", pulse: "pulse" };
 function nav(v) {
   if (typeof closeInfoPop === "function") closeInfoPop();   // an open explainer is anchored to the old view
   S.view = v;
@@ -4990,8 +4831,8 @@ async function boot() {
     if (ab) { showSheet($("#aboutDialog")); return; }
     const w22 = e.target.closest("[data-wc22]");   // "Qatar 2022 · full results" → last-World-Cup reference
     if (w22) { openWc2022(); return; }
-    const hl = e.target.closest("[data-hero-live]");   // the Matches hero → follow this match in the Live tab
-    if (hl) { _liveFocus = hl.dataset.heroLive; nav("live"); return; }
+    const hl = e.target.closest("[data-hero-live]");   // the Matches hero → open the match modal (Live folded into it, build 329)
+    if (hl) { openMatch(hl.dataset.heroLive); return; }
     const mid = e.target.closest("[data-mid]");   // hero, match card, or a record row (never a dialog)
     if (mid && mid.tagName !== "DIALOG") { openMatch(mid.dataset.mid); }
   });
