@@ -1537,6 +1537,15 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 /* player-modal hero: the FULL portrait (head-to-torso), not just the circular face crop */
 .pl-portrait{width:108px;height:144px;border-radius:14px;flex:0 0 auto;background-color:var(--paper);background-repeat:no-repeat;background-size:cover;background-position:50% 8%;border:1px solid var(--line);box-shadow:var(--shadow)}
 .pl-portrait.pl-flag{display:grid;place-items:center;font-size:48px;background-image:none;background-size:auto}
+.pl-zoomable{cursor:zoom-in;position:relative;transition:transform .15s,box-shadow .2s}
+.pl-zoomable:hover{box-shadow:var(--shadow-hover)}
+.pl-zoomable::after{content:"⤢";position:absolute;right:5px;bottom:5px;width:20px;height:20px;display:grid;place-items:center;font-size:11px;border-radius:6px;background:rgba(8,12,18,.55);color:#fff;pointer-events:none}
+/* full-size photo lightbox — created on demand, image fetched only on tap */
+.lightbox{position:fixed;inset:0;z-index:250;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(6,10,16,.92);cursor:zoom-out;animation:fadeIn .15s ease;-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px)}
+.lightbox-img{max-width:min(92vw,560px);max-height:88vh;border-radius:var(--r-sm);box-shadow:0 24px 70px rgba(0,0,0,.6);object-fit:contain;background:var(--paper)}
+.lightbox-x{position:absolute;top:16px;right:16px;width:40px;height:40px;border-radius:50%;border:none;background:rgba(255,255,255,.14);color:#fff;font-size:17px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.lightbox-x:hover{background:rgba(255,255,255,.26)}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
 .pl-meta{display:flex;flex-direction:column;gap:3px;min-width:0}
 .pl-name{font-family:var(--disp);font-weight:800;font-stretch:110%;font-size:20px;line-height:1.08}
 .pl-team{font-size:13px;color:var(--ink-soft)}

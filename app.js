@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "321";  // shown in footer; bump with the ?v= asset version
+const BUILD = "322";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1971,6 +1971,20 @@ function wc2022ResultsHTML() {
     + WC22_STAGES.map(([st, label]) => { const sm = ms.filter(m => m.st === st); return sm.length ? `<div class="eyebrow">${label}</div><div class="w22-list">${sm.map(row).join("")}</div>` : ""; }).join("");
 }
 function openWc2022() { const b = $("#wc22Body"); if (b) b.innerHTML = wc2022ResultsHTML(); showSheet($("#wc22Dialog")); }
+// tap a player portrait → a full-screen lightbox of the same photo at a sharp larger width. The bigger image is
+// fetched ONLY here, on demand (one request, browser-cached after) — it never touches initial load or scrolling.
+function openLightbox(url) {
+  if (!url) return;
+  const big = atWidth(url, 1400) || url;   // FIFA resize service: ask for a large width; non-FIFA urls pass through
+  const ov = document.createElement("div");
+  ov.className = "lightbox"; ov.setAttribute("role", "dialog"); ov.setAttribute("aria-label", "Full-size photo");
+  ov.innerHTML = `<img class="lightbox-img" src="${esc(big)}" alt="" decoding="async"><button class="lightbox-x" aria-label="Close">✕</button>`;
+  const close = () => { ov.remove(); document.removeEventListener("keydown", onKey); };
+  const onKey = e => { if (e.key === "Escape") close(); };
+  ov.addEventListener("click", close);   // click anywhere (backdrop or image) closes
+  document.addEventListener("keydown", onKey);
+  document.body.appendChild(ov);
+}
 function renderTeams() {
   const el = $("#view-teams");
   const head = S.fav
@@ -2485,7 +2499,7 @@ function openPlayer(name, code) {
   $("#playerTitle").textContent = pName(name, code);   // real dialog name for screen readers (was a generic "Player")
   $("#playerBody").innerHTML = `
     <div class="pl">
-      ${photo ? `<span class="pl-portrait" style="background-image:url('${photo}')"></span>` : `<span class="pl-portrait pl-flag">${code ? flag(code) : "·"}</span>`}
+      ${photo ? `<span class="pl-portrait pl-zoomable" style="background-image:url('${photo}')" data-zoom="${esc(photo)}" role="button" tabindex="0" aria-label="View full-size photo" title="Tap to enlarge"></span>` : `<span class="pl-portrait pl-flag">${code ? flag(code) : "·"}</span>`}
       <div class="pl-meta">
         <b class="pl-name">${esc(pName(name, code))}</b>
         ${code ? `<button type="button" class="pl-team pl-team-link" data-squad="${code}" title="View ${esc(team?.name || code)}">${flag(code)} ${esc(team?.name || code)}</button>` : `<span class="pl-team">${esc(team?.name || "")}</span>`}
@@ -4835,6 +4849,8 @@ async function boot() {
     if (rf) { e.stopPropagation(); manualRefresh(rf); return; }
     const star = e.target.closest("[data-save]");
     if (star) { e.stopPropagation(); toggleSave(star.dataset.save); return; }
+    const zoom = e.target.closest("[data-zoom]");   // tap a player portrait → full-size lightbox
+    if (zoom) { e.stopPropagation(); openLightbox(zoom.dataset.zoom); return; }
     const pl = e.target.closest("[data-player]");
     if (pl) { e.stopPropagation(); const [pn, pc] = pl.dataset.player.split("|"); openPlayer(pn, pc); return; }
     const fol = e.target.closest("[data-follow]");
