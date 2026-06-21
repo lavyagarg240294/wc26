@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "324";  // shown in footer; bump with the ?v= asset version
+const BUILD = "325";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1976,14 +1976,16 @@ function openWc2022() { const b = $("#wc22Body"); if (b) b.innerHTML = wc2022Res
 function openLightbox(url) {
   if (!url) return;
   const big = atWidth(url, 1400) || url;   // FIFA resize service: ask for a large width; non-FIFA urls pass through
-  const ov = document.createElement("div");
-  ov.className = "lightbox"; ov.setAttribute("role", "dialog"); ov.setAttribute("aria-label", "Full-size photo");
-  ov.innerHTML = `<img class="lightbox-img" src="${esc(big)}" alt="" decoding="async"><button class="lightbox-x" aria-label="Close">✕</button>`;
-  const close = () => { ov.remove(); document.removeEventListener("keydown", onKey); };
-  const onKey = e => { if (e.key === "Escape") close(); };
-  ov.addEventListener("click", close);   // click anywhere (backdrop or image) closes
-  document.addEventListener("keydown", onKey);
-  document.body.appendChild(ov);
+  // a <dialog> opened with showModal() joins the top layer ABOVE the already-open player dialog (which a plain
+  // div would render behind); top-layer dialogs stack in showModal() order, so this lands on top.
+  const dlg = document.createElement("dialog");
+  dlg.className = "lightbox"; dlg.setAttribute("aria-label", "Full-size photo");
+  dlg.innerHTML = `<img class="lightbox-img" src="${esc(big)}" alt="" decoding="async"><button class="lightbox-x" aria-label="Close">✕</button>`;
+  const close = () => { dlg.close(); dlg.remove(); };
+  dlg.addEventListener("click", close);                       // click anywhere (backdrop or image) closes
+  dlg.addEventListener("cancel", e => { e.preventDefault(); close(); });   // Escape
+  document.body.appendChild(dlg);
+  dlg.showModal();
 }
 function renderTeams() {
   const el = $("#view-teams");
@@ -2018,7 +2020,7 @@ const popStr = n => n == null ? "" : n >= 1e6 ? (n / 1e6).toFixed(n >= 1e8 ? 0 :
 // centroid (same projection as the basemap). Tap a dot to open that team. The 122KB map is fetched only here.
 async function renderTeamsMap() {
   if (!$("#teamsMap")) return;
-  if (_worldMap == null) { try { _worldMap = await (await fetch("assets/worldmap.svg")).text(); } catch { _worldMap = ""; } }
+  if (_worldMap == null) { try { _worldMap = await (await fetch("assets/worldmap.svg?v=" + BUILD)).text(); } catch { _worldMap = ""; } }
   const host = $("#teamsMap"); if (!host) return;   // user toggled back to grid while it was loading
   const land = (/<path d="([^"]+)"/.exec(_worldMap) || [, ""])[1];
   if (!land) { host.innerHTML = `<div class="empty">Map couldn't load. Try the grid view.</div>`; return; }
@@ -2443,7 +2445,7 @@ function openTeam(code) {
   const tmsHtml = tms.length ? `<div class="eyebrow">Match stats</div><div class="tms"><div class="tms-head"><span class="tms-opp">Opponent</span><span>Result</span><span>Poss</span><span>Shots</span><span>SoT</span></div>${tms.map(row => `<div class="tms-row" data-mid="${row.mid}" role="button" tabindex="0"><span class="tms-opp"><span class="fl">${flag(row.opp)}</span> ${esc(S.teams[row.opp]?.name || "TBD")}</span><span class="rchip rchip-${row.wdl}">${row.wdl} ${row.gf}–${row.ga}</span><span class="tms-v">${row.poss != null ? row.poss + "%" : "–"}</span><span class="tms-v">${row.sh ?? "–"}</span><span class="tms-v">${row.sot ?? "–"}</span></div>`).join("")}</div>` : "";
   $("#teamSheetTitle").innerHTML = `<span class="fl">${flag(code)}</span> ${esc(t.name)}`;
   $("#teamSheetBody").innerHTML = `
-    <div class="ts-meta">${t.conf ? esc(t.conf) : ""}${group ? ` · Group ${group}` : ""}${played ? ` · <b>${ordinal(pos)}</b> after ${played} match${played > 1 ? "es" : ""}` : ""}${t.pop ? ` · ${popStr(t.pop)} people` : ""}</div>
+    <div class="ts-meta">${t.conf ? esc(t.conf) : ""}${group ? ` · Group ${group}` : ""}${played ? ` · <b>${ordinal(pos)}</b> after ${played} match${played > 1 ? "es" : ""}` : ""}</div>
     ${teamOverview(code)}
     ${countryMiniMap(code)}
     ${wcHistory(code)}
@@ -2476,16 +2478,24 @@ function countryMiniMap(code) {
 }
 let _countryShapes = null;
 async function fillCountryMap(code) {
-  let host = $("#ctryMap"); if (!host || host.dataset.mapcode !== code) return;
-  if (_countryShapes == null) { try { _countryShapes = await (await fetch("assets/country-shapes.json")).json(); } catch { _countryShapes = {}; } }
-  host = $("#ctryMap"); if (!host || host.dataset.mapcode !== code) return;   // the sheet changed while loading
+  if (!$("#ctryMap")) return;
+  if (_countryShapes == null) { try { _countryShapes = await (await fetch("assets/country-shapes.json?v=" + BUILD)).json(); } catch { _countryShapes = {}; } }
+  if (_worldMap == null) { try { _worldMap = await (await fetch("assets/worldmap.svg?v=" + BUILD)).text(); } catch { _worldMap = ""; } }
+  const host = $("#ctryMap"); if (!host || host.dataset.mapcode !== code) return;   // the sheet changed while loading
+  const t = S.teams[code];
+  const cap = `<span class="fl">${flag(code)}</span> ${esc(t.name)}${t.pop ? ` · <b>${popStr(t.pop)}</b> people` : ""}`;
   const s = _countryShapes[code];
-  if (!s) { host.remove(); return; }
-  const t = S.teams[code], c1 = t.c1 || "var(--acc1)", c2 = t.c2 || c1, gid = "cg-" + code.replace(/[^A-Za-z]/g, "");
-  host.innerHTML = `<svg class="ctry-svg" viewBox="${s.vb}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Map of ${esc(t.name)}">
+  if (!s) { host.classList.add("ctry-map-solo"); host.innerHTML = `<span class="ctry-map-cap">${cap}</span>`; return; }   // micro-states absent from the 110m set
+  // widen the country's bounding box so the surrounding land shows around it, for a sense of where it sits
+  const [x, y, w, h] = s.vb.split(" ").map(Number), pad = Math.max(w, h) * 0.42;
+  const vb = `${(x - pad).toFixed(1)} ${(y - pad).toFixed(1)} ${(w + 2 * pad).toFixed(1)} ${(h + 2 * pad).toFixed(1)}`;
+  const land = (/<path d="([^"]+)"/.exec(_worldMap || "") || [, ""])[1];
+  const c1 = t.c1 || "var(--acc1)", c2 = t.c2 || c1, gid = "cg-" + code.replace(/[^A-Za-z]/g, "");
+  host.innerHTML = `<svg class="ctry-svg" viewBox="${vb}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Map showing the location of ${esc(t.name)}">
     <defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></linearGradient></defs>
+    ${land ? `<path class="ctry-context" d="${land}"/>` : ""}
     <path d="${s.d}" fill="url(#${gid})" stroke="#fff" stroke-width="1.1" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
-  </svg><span class="ctry-map-cap"><span class="fl">${flag(code)}</span> ${esc(t.name)}</span>`;
+  </svg><span class="ctry-map-cap">${cap}</span>`;
 }
 // best-effort match of a feed name (e.g. "Julian QUINONES") to a squad entry (names come from a different feed)
 // the squad player behind a feed reference (caps, club, position, jersey) — same robust resolver as the name & photo,
