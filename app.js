@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "325";  // shown in footer; bump with the ?v= asset version
+const BUILD = "326";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1323,9 +1323,12 @@ function matchStakes(m) {
   const levelWithAny = c => Object.values(R).some(o => o.code !== c && o.pts === R[c].pts && o.gd === R[c].gd && o.gf === R[c].gf);
   if (pH && pA && R[H] && R[A] && R[H].pts === R[A].pts && R[H].gd === R[A].gd && R[H].gf === R[A].gf)
     return { lines: [`${nm(H)} and ${nm(A)} are level in Group ${g} so far.`], definitive: false };
-  const p = _provPos(g), parts = [];
-  if (pH) parts.push(levelWithAny(H) ? `${nm(H)} are level on points` : `${nm(H)} are ${ordinal(p[H])}`);
-  if (pA) parts.push(levelWithAny(A) ? `${nm(A)} are level on points` : `${nm(A)} are ${ordinal(p[A])}`);
+  const p = _provPos(g), lvlH = pH && levelWithAny(H), lvlA = pA && levelWithAny(A);
+  if (lvlH && lvlA)   // both sit level — say it once, not "X are level on points and Y are level on points"
+    return { lines: [`${nm(H)} and ${nm(A)} are level on points in Group ${g} so far.`], definitive: false };
+  const parts = [];
+  if (pH) parts.push(lvlH ? `${nm(H)} are level on points` : `${nm(H)} are ${ordinal(p[H])}`);
+  if (pA) parts.push(lvlA ? `${nm(A)} are level on points` : `${nm(A)} are ${ordinal(p[A])}`);
   return { lines: [`As it stands, ${parts.join(" and ")} in Group ${g}.`], definitive: false };
 }
 function stakesBlock(m) {

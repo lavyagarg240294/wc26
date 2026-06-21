@@ -27,23 +27,27 @@ for (const f of gj.features) {
   const i3 = (p.ISO_A3_EH && p.ISO_A3_EH !== "-99") ? p.ISO_A3_EH : (p.ADM0_A3 || p.ISO_A3);
   const codes = rev[i3]; if (!codes) continue;
   const g = f.geometry; const polys = g.type === "Polygon" ? [g.coordinates] : g.type === "MultiPolygon" ? g.coordinates : [];
-  let d = "", rings = [];
+  const rings = [];
   for (const poly of polys) for (const ring of poly) {
     if (ring.length < 4) continue;
-    let rminx = 1e9, rmaxx = -1e9, rminy = 1e9, rmaxy = -1e9;
+    let minx = 1e9, maxx = -1e9, miny = 1e9, maxy = -1e9;
     const pts = ring.map(([lon, lat]) => {
       const x = px(lon), y = py(lat);
-      rminx = Math.min(rminx, x); rmaxx = Math.max(rmaxx, x); rminy = Math.min(rminy, y); rmaxy = Math.max(rmaxy, y);
+      minx = Math.min(minx, x); maxx = Math.max(maxx, x); miny = Math.min(miny, y); maxy = Math.max(maxy, y);
       return x + " " + y;
     });
-    d += "M" + pts.join("L") + "Z";
-    rings.push({ area: (rmaxx - rminx) * (rmaxy - rminy), minx: rminx, maxx: rmaxx, miny: rminy, maxy: rmaxy });
+    rings.push({ seg: "M" + pts.join("L") + "Z", area: (maxx - minx) * (maxy - miny), minx, maxx, miny, maxy });
   }
-  if (!d) continue;
-  // frame the viewBox on the MAIN landmass (largest ring), not the full extent — else overseas territories
-  // (French Guiana, the Canaries, Réunion…) blow the box up and shrink the homeland to a dot.
-  const main = rings.sort((a, b) => b.area - a.area)[0];
-  const minx = main.minx, maxx = main.maxx, miny = main.miny, maxy = main.maxy;
+  if (!rings.length) continue;
+  // MAINLAND ONLY: keep the largest ring plus anything adjacent to it, and drop far overseas territories
+  // (French Guiana, the Canaries, Réunion, Hawaii/Alaska, Svalbard…) so the homeland alone fills the frame.
+  const main = rings.slice().sort((a, b) => b.area - a.area)[0];
+  const mdim = Math.max(main.maxx - main.minx, main.maxy - main.miny);
+  const gap = r => Math.hypot(Math.max(0, r.minx - main.maxx, main.minx - r.maxx), Math.max(0, r.miny - main.maxy, main.miny - r.maxy));
+  const kept = rings.filter(r => gap(r) < 0.2 * mdim);
+  const d = kept.map(r => r.seg).join("");
+  const minx = Math.min(...kept.map(r => r.minx)), maxx = Math.max(...kept.map(r => r.maxx));
+  const miny = Math.min(...kept.map(r => r.miny)), maxy = Math.max(...kept.map(r => r.maxy));
   const pad = Math.max(maxx - minx, maxy - miny) * 0.12 + 0.5;
   const vb = `${+(minx - pad).toFixed(1)} ${+(miny - pad).toFixed(1)} ${+(maxx - minx + 2 * pad).toFixed(1)} ${+(maxy - miny + 2 * pad).toFixed(1)}`;
   for (const code of codes) out[code] = { d, vb };
