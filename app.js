@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "317";  // shown in footer; bump with the ?v= asset version
+const BUILD = "318";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -4499,7 +4499,7 @@ function resolvePlayer(name, code, num, pos) {
 const CAPTAINS = {
   AR: "Lionel Messi", PT: "Cristiano Ronaldo", FR: "Kylian Mbappe", "GB-ENG": "Harry Kane", HR: "Luka Modric",
   NL: "Virgil van Dijk", KR: "Heungmin Son", EG: "Mohamed Salah", CH: "Granit Xhaka", NO: "Martin Odegaard",
-  BE: "Kevin De Bruyne", JP: "Wataru Endo", SN: "Kalidou Koulibaly", DE: "Joshua Kimmich", CO: "James Rodriguez",
+  BE: "Youri Tielemans", JP: "Kou Itakura", SN: "Kalidou Koulibaly", DE: "Joshua Kimmich", CO: "James Rodriguez",
   EC: "Enner Valencia", AU: "Mathew Ryan", CA: "Alphonso Davies", DZ: "Riyad Mahrez", US: "Christian Pulisic",
 };
 function isCaptain(name, code) {

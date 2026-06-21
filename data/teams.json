@@ -105,9 +105,9 @@
 "conf":"CAF",
 "titles":0,
 "elo":1860,
-"apps":8,
+"apps":7,
 "best":"Fourth place · 2022",
-"coach":"Walid Regragui"
+"coach":"Mohamed Ouahbi"
 },
 "HT":{
 "name":"Haiti",
@@ -250,7 +250,7 @@
 "elo":1690,
 "apps":7,
 "best":"Group stage",
-"coach":"Sami Trabelsi"
+"coach":"Hervé Renard"
 },
 "NZ":{
 "name":"New Zealand",
@@ -514,7 +514,7 @@
 "elo":1685,
 "apps":5,
 "best":"Quarter-finals · 2010",
-"coach":"Otto Addo"
+"coach":"Carlos Queiroz"
 },
 "PA":{
 "name":"Panama",

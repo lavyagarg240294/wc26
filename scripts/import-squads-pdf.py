@@ -61,8 +61,20 @@ def build_name(player_name, first_names, last_names):
     giv = title_str(accentize(giv_common, first_names))
     return (giv + " " + sur).strip() if giv else sur
 
+# A few club glyphs drop to a NUL byte in this PDF font (the fi/ffi ligature), exactly as player names do.
+# Reconstruct the known cases; for any other stray NUL fall back to the far-most-common "fi" so a control
+# byte never reaches the JSON (which otherwise renders as a missing letter / box in club names).
+CLUB_FIX = {
+    "SL Ben\x00ca": "SL Benfica", "She\x00eld United FC": "Sheffield United FC",
+    "AE Ki\x00sia FC": "AE Kifisia FC", "CA Vélez Sars\x00eld": "CA Vélez Sarsfield",
+    "FC Cincinnatti": "FC Cincinnati",
+}
 def clean_club(c):
-    return re.sub(r"\s*\([A-Z]{3}\)\s*$", "", c or "").strip() or None
+    c = re.sub(r"\s*\([A-Z]{3}\)\s*$", "", c or "").strip()
+    c = CLUB_FIX.get(c, c)
+    if "\x00" in c:
+        c = c.replace("\x00", "fi")
+    return c or None
 
 def to_int(x):
     m = re.search(r"-?\d+", x or "")
