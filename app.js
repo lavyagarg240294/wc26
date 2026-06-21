@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "322";  // shown in footer; bump with the ?v= asset version
+const BUILD = "323";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1999,13 +1999,36 @@ function renderTeams() {
     .map(c => { const rk = fifaRankOf(c), g = groupOf(c);
       return `<button class="teamcard ${c === S.fav ? "is-fav" : ""}" data-squad="${c}" title="${esc(S.teams[c].name)}${S.teams[c].titles ? `, ${S.teams[c].titles}× World Cup champion` : ""}">
       <span class="fl">${flag(c)}</span><span class="tc-main"><span class="tc-name">${esc(S.teams[c].name)}</span><span class="tc-meta">${rk ? `FIFA #${rk}` : g ? `Group ${g}` : ""}</span></span></button>`; }).join("");
-  paint(el, head + teamsLandscapeBanner() + `<div class="eyebrow">All teams <span style="color:var(--ink-soft);font-weight:600">, tap for detail</span></div><div class="teamsgrid">${grid}</div>` + (S.fav ? myTeamFixtures() : ""));
+  const isMap = _teamsView === "map";
+  const toggle = `<span class="tv-toggle">${[["grid", "Grid"], ["map", "Map"]].map(([k, lbl]) => `<button class="tv-btn ${_teamsView === k ? "is-on" : ""}" data-tview="${k}">${lbl}</button>`).join("")}</span>`;
+  const body = isMap ? `<div class="teams-map" id="teamsMap"><div class="wmap-load">Loading the world map…</div></div>` : `<div class="teamsgrid">${grid}</div>`;
+  paint(el, head + teamsLandscapeBanner() + `<div class="eyebrow tv-eyebrow">All teams <span style="color:var(--ink-soft);font-weight:600">, ${isMap ? "tap a nation" : "tap for detail"}</span>${toggle}</div>` + body + (S.fav ? myTeamFixtures() : ""));
+  $$("[data-tview]", el).forEach(b => b.onclick = () => { _teamsView = b.dataset.tview; renderTeams(); });
+  if (isMap) renderTeamsMap();
   const cta = $("#ctaPick", el); if (cta) cta.onclick = () => $("#teamDialog").showModal();
   const chg = $("#ctaChange", el); if (chg) chg.onclick = () => $("#teamDialog").showModal();
   const ics = $("#icsTeam", el);
   if (ics) ics.onclick = () => downloadICS(
     S.matches.filter(isFavMatch).sort((a, b) => a.utc.localeCompare(b.utc)),
     `${S.teams[S.fav].name} · World Cup 2026`);
+}
+let _teamsView = "grid", _worldMap = null;   // Teams tab: grid vs world-map view; the basemap SVG is fetched once, on first map open
+const popStr = n => n == null ? "" : n >= 1e6 ? (n / 1e6).toFixed(n >= 1e8 ? 0 : 1) + "M" : n >= 1e3 ? (n / 1e3).toFixed(0) + "k" : "" + n;
+// the all-48-nations world map: a lazy-loaded equirectangular basemap with a kit-coloured dot at each country's
+// centroid (same projection as the basemap). Tap a dot to open that team. The 122KB map is fetched only here.
+async function renderTeamsMap() {
+  if (!$("#teamsMap")) return;
+  if (_worldMap == null) { try { _worldMap = await (await fetch("assets/worldmap.svg")).text(); } catch { _worldMap = ""; } }
+  const host = $("#teamsMap"); if (!host) return;   // user toggled back to grid while it was loading
+  const land = (/<path d="([^"]+)"/.exec(_worldMap) || [, ""])[1];
+  if (!land) { host.innerHTML = `<div class="empty">Map couldn't load. Try the grid view.</div>`; return; }
+  const px = lon => (((lon + 180) / 360) * 1000).toFixed(1), py = lat => (((90 - lat) / 180) * 500).toFixed(1);
+  const dots = Object.keys(S.teams).filter(c => S.teams[c].lat != null).map(c => {
+    const t = S.teams[c];
+    return `<g class="mdot${c === S.fav ? " is-fav" : ""}" data-squad="${c}" role="button" tabindex="0" aria-label="${esc(t.name)}"><circle cx="${px(t.lon)}" cy="${py(t.lat)}" r="6.5" style="fill:${t.c1 || "var(--acc1)"}"/><title>${esc(t.name)} · pop. ${popStr(t.pop)}</title></g>`;
+  }).join("");
+  host.innerHTML = `<svg class="wmap" viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet" role="img" aria-label="World map of the 48 qualified nations"><path class="wmap-land" d="${land}"/><g class="wmap-dots">${dots}</g></svg>
+    <p class="wmap-cap">Each dot is one of the 48 — tap to open. Population: World Bank 2024 (England/Scotland ONS 2023).</p>`;
 }
 // authoritative head coach: curated teams.json value (web-verified, all 48), API-squad coach as a fallback
 const teamCoach = code => S.teams[code]?.coach || S.squads?.[code]?.coach || "";
@@ -2420,7 +2443,7 @@ function openTeam(code) {
   const tmsHtml = tms.length ? `<div class="eyebrow">Match stats</div><div class="tms"><div class="tms-head"><span class="tms-opp">Opponent</span><span>Result</span><span>Poss</span><span>Shots</span><span>SoT</span></div>${tms.map(row => `<div class="tms-row" data-mid="${row.mid}" role="button" tabindex="0"><span class="tms-opp"><span class="fl">${flag(row.opp)}</span> ${esc(S.teams[row.opp]?.name || "TBD")}</span><span class="rchip rchip-${row.wdl}">${row.wdl} ${row.gf}–${row.ga}</span><span class="tms-v">${row.poss != null ? row.poss + "%" : "–"}</span><span class="tms-v">${row.sh ?? "–"}</span><span class="tms-v">${row.sot ?? "–"}</span></div>`).join("")}</div>` : "";
   $("#teamSheetTitle").innerHTML = `<span class="fl">${flag(code)}</span> ${esc(t.name)}`;
   $("#teamSheetBody").innerHTML = `
-    <div class="ts-meta">${t.conf ? esc(t.conf) : ""}${group ? ` · Group ${group}` : ""}${played ? ` · <b>${ordinal(pos)}</b> after ${played} match${played > 1 ? "es" : ""}` : ""}</div>
+    <div class="ts-meta">${t.conf ? esc(t.conf) : ""}${group ? ` · Group ${group}` : ""}${played ? ` · <b>${ordinal(pos)}</b> after ${played} match${played > 1 ? "es" : ""}` : ""}${t.pop ? ` · ${popStr(t.pop)} people` : ""}</div>
     ${teamOverview(code)}
     ${wcHistory(code)}
     ${since2022Section(code)}
