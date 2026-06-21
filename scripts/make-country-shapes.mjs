@@ -2,7 +2,7 @@
  * Source: Natural Earth 1:110m admin-0 countries (public domain). Each country's polygons are projected with the
  * SAME equirectangular math the world map uses, and a padded per-country viewBox is stored so the app can draw
  * just that country, filling its bounding box. England + Scotland both map to the UK shape (110m doesn't split
- * the UK); Cabo Verde + Curaçao are too small to appear in the 110m set (the app shows no map for those two).
+ * the UK); Cabo Verde + Curaçao are too small for the 110m set, so they're pulled from the finer 50m set.
  *   { "<code>": { d: "<path in 1000x500 space>", vb: "minx miny w h" } }.  Re-run: node scripts/make-country-shapes.mjs
  */
 import { writeFileSync } from "fs";
@@ -19,14 +19,10 @@ const ISO3 = {
 };
 const rev = {}; for (const [code, i3] of Object.entries(ISO3)) (rev[i3] ||= []).push(code);
 
-const URL = "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_110m_admin_0_countries.geojson";
-const gj = await (await fetch(URL)).json();
-const out = {};
-for (const f of gj.features) {
-  const p = f.properties || {};
-  const i3 = (p.ISO_A3_EH && p.ISO_A3_EH !== "-99") ? p.ISO_A3_EH : (p.ADM0_A3 || p.ISO_A3);
-  const codes = rev[i3]; if (!codes) continue;
-  const g = f.geometry; const polys = g.type === "Polygon" ? [g.coordinates] : g.type === "MultiPolygon" ? g.coordinates : [];
+// Build one country's { d, vb } entry. mainlandOnly drops far-flung overseas territories so the homeland fills
+// the frame; for tiny archipelago nations (Cabo Verde) we keep every island so the whole country is shown.
+function buildEntry(geometry, mainlandOnly) {
+  const polys = geometry.type === "Polygon" ? [geometry.coordinates] : geometry.type === "MultiPolygon" ? geometry.coordinates : [];
   const rings = [];
   for (const poly of polys) for (const ring of poly) {
     if (ring.length < 4) continue;
@@ -38,19 +34,45 @@ for (const f of gj.features) {
     });
     rings.push({ seg: "M" + pts.join("L") + "Z", area: (maxx - minx) * (maxy - miny), minx, maxx, miny, maxy });
   }
-  if (!rings.length) continue;
-  // MAINLAND ONLY: keep the largest ring plus anything adjacent to it, and drop far overseas territories
-  // (French Guiana, the Canaries, Réunion, Hawaii/Alaska, Svalbard…) so the homeland alone fills the frame.
-  const main = rings.slice().sort((a, b) => b.area - a.area)[0];
-  const mdim = Math.max(main.maxx - main.minx, main.maxy - main.miny);
-  const gap = r => Math.hypot(Math.max(0, r.minx - main.maxx, main.minx - r.maxx), Math.max(0, r.miny - main.maxy, main.miny - r.maxy));
-  const kept = rings.filter(r => gap(r) < 0.2 * mdim);
+  if (!rings.length) return null;
+  let kept = rings;
+  if (mainlandOnly) {
+    // keep the largest ring plus anything adjacent to it, and drop far overseas territories
+    // (French Guiana, the Canaries, Réunion, Hawaii/Alaska, Svalbard…).
+    const main = rings.slice().sort((a, b) => b.area - a.area)[0];
+    const mdim = Math.max(main.maxx - main.minx, main.maxy - main.miny);
+    const gap = r => Math.hypot(Math.max(0, r.minx - main.maxx, main.minx - r.maxx), Math.max(0, r.miny - main.maxy, main.miny - r.maxy));
+    kept = rings.filter(r => gap(r) < 0.2 * mdim);
+  }
   const d = kept.map(r => r.seg).join("");
   const minx = Math.min(...kept.map(r => r.minx)), maxx = Math.max(...kept.map(r => r.maxx));
   const miny = Math.min(...kept.map(r => r.miny)), maxy = Math.max(...kept.map(r => r.maxy));
   const pad = Math.max(maxx - minx, maxy - miny) * 0.12 + 0.5;
   const vb = `${+(minx - pad).toFixed(1)} ${+(miny - pad).toFixed(1)} ${+(maxx - minx + 2 * pad).toFixed(1)} ${+(maxy - miny + 2 * pad).toFixed(1)}`;
-  for (const code of codes) out[code] = { d, vb };
+  return { d, vb };
+}
+
+const out = {};
+const i3of = p => (p.ISO_A3_EH && p.ISO_A3_EH !== "-99") ? p.ISO_A3_EH : (p.ADM0_A3 && p.ADM0_A3 !== "-99" ? p.ADM0_A3 : p.ISO_A3);
+const URL = "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_110m_admin_0_countries.geojson";
+const gj = await (await fetch(URL)).json();
+for (const f of gj.features) {
+  const codes = rev[i3of(f.properties || {})]; if (!codes) continue;
+  const e = buildEntry(f.geometry, true); if (!e) continue;
+  for (const code of codes) out[code] = e;
+}
+// Fallback: the 110m set omits micro-island nations (Cabo Verde, Curaçao). Pull just the stragglers from the
+// finer 50m set, keeping the whole archipelago so the country actually shows on its team sheet.
+let still = Object.keys(ISO3).filter(c => !out[c]);
+if (still.length) {
+  const URL50 = "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_50m_admin_0_countries.geojson";
+  const gj50 = await (await fetch(URL50)).json();
+  const want = new Set(still.map(c => ISO3[c]));
+  for (const f of gj50.features) {
+    const i3 = i3of(f.properties || {}); if (!want.has(i3)) continue;
+    const e = buildEntry(f.geometry, false); if (!e) continue;
+    for (const code of rev[i3]) if (!out[code]) out[code] = e;
+  }
 }
 const miss = Object.keys(ISO3).filter(c => !out[c]);
 writeFileSync("assets/country-shapes.json", JSON.stringify(out));

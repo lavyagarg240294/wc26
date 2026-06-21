@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "326";  // shown in footer; bump with the ?v= asset version
+const BUILD = "327";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -801,10 +801,11 @@ function pitchSide(side, s, home) {
     const top = home ? 96 - depth * 44 : 4 + depth * 44;               // home bottom half, away top half
     const left = home ? x : 100 - x;
     const photo = bestPhoto(p[1], s.code, p[0]);   // p[0] = jersey number → exact match
+    const num = p[0] ?? "";
     const face = photo
-      ? `<span class="pp-dot pp-photo" style="background-image:url('${photo}')"><i>${p[0] ?? ""}</i></span>`
-      : `<span class="pp-dot">${p[0] ?? ""}</span>`;
-    return `<div class="pp pp-clk" data-player="${esc(p[1])}|${s.code}" role="button" tabindex="0" style="left:${left}%;top:${top}%;--pc:${c1};--pt:${c2}">${face}<span class="pp-name">${esc(lastName(p[1]))}</span></div>`;
+      ? `<span class="pp-face" style="background-image:url('${photo}')"></span>`     // headshot only — no circle, no number on the face
+      : `<span class="pp-dot">${num}</span>`;                                        // fallback when no photo exists
+    return `<div class="pp pp-clk${photo ? "" : " pp-nf"}" data-player="${esc(p[1])}|${s.code}" role="button" tabindex="0" style="left:${left}%;top:${top}%;--pc:${c1};--pt:${c2}">${face}<span class="pp-name">${num !== "" ? `<b class="pp-no">${num}</b>` : ""}<span class="pp-nm">${esc(lastName(p[1]))}</span></span></div>`;
   };
   let html = dot(fr.gk, 50, 0.06);                                     // keep GK just off the goal line
   fr.bands.forEach((band, bi) => {
@@ -2019,6 +2020,8 @@ function renderTeams() {
 }
 let _teamsView = "grid", _worldMap = null;   // Teams tab: grid vs world-map view; the basemap SVG is fetched once, on first map open
 const popStr = n => n == null ? "" : n >= 1e6 ? (n / 1e6).toFixed(n >= 1e8 ? 0 : 1) + "M" : n >= 1e3 ? (n / 1e3).toFixed(0) + "k" : "" + n;
+// spelled-out population for captions, e.g. 48.8 million / 1.4 billion / 150 thousand
+const popWords = n => n == null ? "" : n >= 1e9 ? +(n / 1e9).toFixed(n >= 1e10 ? 1 : 2) + " billion" : n >= 1e6 ? +(n / 1e6).toFixed(n >= 1e8 ? 0 : 1) + " million" : n >= 1e3 ? Math.round(n / 1e3) + " thousand" : "" + n;
 // the all-48-nations world map: a lazy-loaded equirectangular basemap with a kit-coloured dot at each country's
 // centroid (same projection as the basemap). Tap a dot to open that team. The 122KB map is fetched only here.
 async function renderTeamsMap() {
@@ -2486,7 +2489,7 @@ async function fillCountryMap(code) {
   if (_worldMap == null) { try { _worldMap = await (await fetch("assets/worldmap.svg?v=" + BUILD)).text(); } catch { _worldMap = ""; } }
   const host = $("#ctryMap"); if (!host || host.dataset.mapcode !== code) return;   // the sheet changed while loading
   const t = S.teams[code];
-  const cap = `<span class="fl">${flag(code)}</span> ${esc(t.name)}${t.pop ? ` · <b>${popStr(t.pop)}</b> people` : ""}`;
+  const cap = `<span class="ctry-map-name"><span class="fl">${flag(code)}</span> ${esc(t.name)}</span>${t.pop ? `<span class="ctry-map-pop">Population · <b>${popWords(t.pop)}</b></span>` : ""}`;
   const s = _countryShapes[code];
   if (!s) { host.classList.add("ctry-map-solo"); host.innerHTML = `<span class="ctry-map-cap">${cap}</span>`; return; }   // micro-states absent from the 110m set
   // widen the country's bounding box so the surrounding land shows around it, for a sense of where it sits
