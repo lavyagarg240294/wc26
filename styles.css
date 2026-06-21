@@ -1024,6 +1024,40 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .pdash-intro{margin:0 0 14px;font-size:14px;line-height:1.5;color:var(--ink-soft)}
 .pdash-intro svg{vertical-align:-2px;margin-right:2px}
 .pdash{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+/* projected Round-of-32 board — the live "as it stands" bracket atop Predict */
+.r32board{margin:2px 0 24px;animation:rise .45s both}
+.r32board-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:0 2px 12px}
+.r32board-eyebrow{display:inline-flex;align-items:center;gap:8px;font:800 13px/1 var(--disp);letter-spacing:.05em;text-transform:uppercase;color:var(--ink)}
+.r32board-dot{width:8px;height:8px;border-radius:50%;background:var(--acc-text);box-shadow:0 0 0 4px color-mix(in srgb,var(--acc-text) 16%,transparent)}
+.r32board-sub{margin:0;font:500 11.5px/1.3 var(--mono);color:var(--ink-soft)}
+.r32board-sub b{color:var(--ink);font-weight:700}
+.r32board-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(236px,1fr));gap:9px}
+.r32-card{display:flex;flex-direction:column;gap:9px;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:11px 13px;cursor:pointer;transition:border-color .15s,transform .12s,box-shadow .15s}
+.r32-card:hover{border-color:color-mix(in srgb,var(--acc1) 45%,var(--line));transform:translateY(-1px);box-shadow:var(--shadow)}
+.r32-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.r32-no{font:600 10px/1 var(--mono);letter-spacing:.07em;text-transform:uppercase;color:var(--ink-soft)}
+.r32-chip{display:inline-flex;align-items:center;gap:4px;font:700 10px/1 var(--disp);letter-spacing:.02em;padding:4px 8px 4px 6px;border-radius:999px;white-space:nowrap}
+.r32-chip .ico{width:11px;height:11px;stroke-width:2.4}
+.r32-chip-ok{background:color-mix(in srgb,var(--pitch) 16%,var(--card));color:var(--acc-text)}
+.r32-chip-games{background:color-mix(in srgb,var(--ink-soft) 14%,var(--card));color:var(--ink-soft)}
+.r32-chip-bubble{background:color-mix(in srgb,var(--gold) 24%,var(--card));color:var(--gold-text)}
+.r32-tie{display:flex;flex-direction:column;gap:2px}
+.r32-side{display:flex;align-items:center;gap:10px;min-width:0;padding:3px 0}
+.r32-flag{flex:0 0 auto;width:40px;height:27px}
+.r32-flag .flagimg{width:40px;height:27px;border-radius:4px;object-fit:cover;box-shadow:0 1px 2px rgba(13,27,42,.28)}
+.r32-tbdf{display:flex;align-items:center;justify-content:center;width:40px;height:27px;border:1.4px dashed color-mix(in srgb,var(--ink-soft) 50%,transparent);border-radius:4px;color:var(--ink-soft);font:700 14px/1 var(--mono)}
+.r32-id{display:flex;flex-direction:column;gap:1px;min-width:0}
+.r32-nm{max-width:100%;font:800 14px/1.1 var(--disp);font-stretch:104%;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.r32-nm.r32-tbd{color:var(--ink-soft);font-weight:700}
+.r32-seed{max-width:100%;font:500 9.5px/1.1 var(--mono);letter-spacing:.01em;color:var(--ink-soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.r32-mid{width:40px;text-align:center;font:600 10px/1 var(--mono);color:var(--ink-soft)}
+.r32board-foot{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin:14px 2px 0}
+.r32board-foot>span{flex:1 1 240px;font:500 11.5px/1.45 var(--body);color:var(--ink-soft)}
+.r32board-cta{display:inline-flex;align-items:center;gap:6px;font:700 12px/1 var(--disp);color:#fff;background:var(--acc-deep);border:none;border-radius:999px;padding:9px 16px;cursor:pointer;transition:filter .15s}
+.r32board-cta .ico{width:14px;height:14px}
+.r32board-cta:hover{filter:brightness(1.07)}
+.pdash-sep{display:flex;align-items:center;gap:12px;margin:6px 2px 14px;font:800 12px/1 var(--disp);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft)}
+.pdash-sep::after{content:"";flex:1;height:1px;background:var(--line)}
 .pslot{display:flex;flex-direction:column;background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:hidden;box-shadow:var(--shadow);transition:border-color .18s,transform .18s,box-shadow .18s}
 .pslot:hover{transform:translateY(-2px);box-shadow:var(--shadow-hover)}
 .pslot.is-active{border-color:color-mix(in srgb,var(--acc1) 45%,var(--line))}

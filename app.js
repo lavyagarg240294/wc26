@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "327";  // shown in footer; bump with the ?v= asset version
+const BUILD = "328";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -2946,6 +2946,60 @@ function projR32HTML() {
     <div class="proj-body">${rows}</div>
     <p class="sim-ko-hint">Live group winners &amp; runners-up plus the best-8 third places, routed through FIFA's slot rules. Make your own calls in <b>Predict</b>.</p></details>`;
 }
+// big-flag "Round of 32 — as it stands" board: the same projectedR32() allocation as the buried Tables list, but as
+// tappable tie cards with an honest per-tie certainty chip. Mounted atop Predict so the live bracket greets a visitor
+// before the build-your-own editor. Third-place slots stay TBD until mathematically settled — a board this prominent
+// must never commit to a nation that can still change (the site's zero-error bar).
+function r32SeedInfo(sh) {
+  return /^1[A-L]$/.test(sh) ? { lbl: "Winners · Group " + sh[1], g: sh[1] }
+    : /^2[A-L]$/.test(sh) ? { lbl: "Runners-up · Group " + sh[1], g: sh[1] }
+    : sh.startsWith("3rd") ? { lbl: "Best third place", g: null, third: true }
+    : { lbl: sh || "To be decided", g: null };
+}
+function r32BoardHTML() {
+  const anyPlayed = S.matches.some(m => m.group && status(m) === ST.FT && res(m)?.h != null);
+  if (!anyPlayed) return "";
+  const remOf = g => S.matches.filter(x => x.group === g && status(x) !== ST.FT).length;
+  const allGroupsDone = GROUPS.every(g => remOf(g) === 0);
+  const ties = projectedR32();
+  const CIC = {
+    ok: _ico('<path d="M20 6 9 17l-5-5"/>'),
+    games: _ico('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
+    bubble: _ico('<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h16a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>'),
+  };
+  const verdict = (sH, sA, h, a) => {                       // honest per-tie certainty
+    const thirdPending = (sH.third || sA.third) && !allGroupsDone;
+    const rem = (sH.g ? remOf(sH.g) : 0) + (sA.g ? remOf(sA.g) : 0);
+    if (thirdPending) return { k: "bubble", t: "On the bubble" };
+    if (rem === 0 && h && a) return { k: "ok", t: "Confirmed" };
+    return { k: "games", t: rem + " game" + (rem === 1 ? "" : "s") + " left" };
+  };
+  const side = (code, s) => {
+    const locked = s.third ? allGroupsDone : (s.g ? remOf(s.g) === 0 : !!code);
+    const tbd = s.third && !locked;                         // never commit a nation to an unsettled third-place slot
+    const known = code && !tbd && S.teams[code];
+    return `<span class="r32-side">
+      <span class="r32-flag">${known ? flag(code) : `<span class="r32-tbdf">?</span>`}</span>
+      <span class="r32-id"><span class="r32-nm${known ? "" : " r32-tbd"}">${known ? esc(S.teams[code].name) : "Best 3rd"}</span><span class="r32-seed">${tbd ? "Best 3rd — undecided" : s.lbl}</span></span>
+    </span>`;
+  };
+  let confirmed = 0;
+  const cards = ties.map(({ m, h, a }) => {
+    const sH = r32SeedInfo(m.home.short), sA = r32SeedInfo(m.away.short);
+    const v = verdict(sH, sA, h, a); if (v.k === "ok") confirmed++;
+    return `<button class="r32-card" data-mid="${m.id}">
+      <span class="r32-top"><span class="r32-no">Match ${m.num}</span><span class="r32-chip r32-chip-${v.k}">${CIC[v.k]}${v.t}</span></span>
+      <span class="r32-tie">${side(h, sH)}<span class="r32-mid">v</span>${side(a, sA)}</span>
+    </button>`;
+  }).join("");
+  return `<section class="r32board">
+    <div class="r32board-head"><span class="r32board-eyebrow"><span class="r32board-dot"></span>Round of 32 — as it stands</span>
+      <p class="r32board-sub">If the groups ended today · <b>${confirmed}</b> of 16 ties confirmed</p></div>
+    <div class="r32board-grid">${cards}</div>
+    <div class="r32board-foot"><span>Group winners &amp; runners-up plus the best-eight third places, routed through FIFA's slot rules.</span>
+      <button class="r32board-cta" data-sim-edit>Make your own picks ${ICO.tap}</button></div>
+  </section>`;
+}
 // a team's current-standings strength (for projecting knockout winners)
 function teamStrength(code) {
   const g = groupOf(code); if (!g) return -1;
@@ -3500,9 +3554,11 @@ function renderSimDash() {
       </div>
     </div>`;
   };
-  el.innerHTML = viewH2("view-sim") + `
+  el.innerHTML = viewH2("view-sim") + r32BoardHTML() + `
+    <div class="pdash-sep"><span>Build your own</span></div>
     <p class="pdash-intro">${ICO.spark} Keep up to three scenarios — a gut pick, the chalk, a wildcard. Tap one to build it, all the way to a champion. Saved on this device.</p>
     <div class="pdash">${S.simBox.slots.map(card).join("")}</div>`;
+  const editCta = el.querySelector("[data-sim-edit]"); if (editCta) editCta.onclick = () => { S.simView = "edit"; renderSim(); };
   $$("[data-slot-open]", el).forEach(b => b.onclick = () => { setActiveSlot(+b.dataset.slotOpen); S.simView = "edit"; renderSim(); });
   $$("[data-slot-rename]", el).forEach(b => b.onclick = async () => {
     const i = +b.dataset.slotRename, cur = S.simBox.slots[i];
