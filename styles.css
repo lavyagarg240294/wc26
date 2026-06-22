@@ -1082,6 +1082,47 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .rb-trophy{color:var(--gold);display:inline-flex}.rb-trophy svg{width:28px;height:28px}
 .rb-final{font:600 8.5px/1 var(--disp);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft)}
 .rb-tbd{border:1.3px dashed color-mix(in srgb,var(--ink-soft) 50%,transparent);border-radius:3px;color:var(--ink-soft);font:700 12px/1 var(--mono)}
+/* Predict step 3 — interactive converging bracket: tap a winner, the round collapses inward to the trophy */
+.simbr{margin-top:2px}
+.sb-head{display:flex;flex-direction:column;gap:9px;margin-bottom:15px}
+.sb-crumbs{display:flex;align-items:center;justify-content:center}
+.sb-crumb{font:700 10px/1 var(--mono);letter-spacing:.02em;color:var(--ink-soft);background:var(--line);border:none;border-radius:999px;padding:5px 9px;cursor:pointer;transition:color .15s,background .15s;display:inline-flex;align-items:center}
+.sb-crumb:disabled{opacity:.42;cursor:default}
+.sb-crumb.done{color:var(--acc-text);background:color-mix(in srgb,var(--acc1) 16%,var(--card))}
+.sb-crumb.cur{color:#3a2c05;background:var(--gold);box-shadow:0 2px 8px -2px color-mix(in srgb,var(--gold) 65%,transparent)}
+.sb-cup-mini svg{width:13px;height:13px;display:block}
+.sb-crumb-sep{width:9px;height:1.5px;background:var(--line);flex:0 0 auto}
+.sb-roundline{display:flex;align-items:center;justify-content:center;gap:8px}
+.sb-roundline b{font:800 16px/1 var(--disp);font-stretch:104%;color:var(--ink)}
+.sb-prog{font:600 11px/1 var(--mono);color:var(--ink-soft);background:var(--line);border-radius:999px;padding:3px 8px}
+.simbr-grid{align-items:center}
+.simbr-grid .rb-col{justify-content:center;gap:9px}
+.sb-tie{display:flex;align-items:center;justify-content:center;gap:4px;width:100%;padding:2px 0;border-radius:9px}
+.sb-side{display:inline-flex;align-items:center;gap:5px;min-width:0;background:transparent;border:1.5px solid transparent;border-radius:8px;padding:4px 6px;cursor:pointer;transition:background .15s,border-color .15s,opacity .15s}
+.sb-side .flagimg{width:20px;height:14px;border-radius:2px;object-fit:cover;box-shadow:0 1px 1px rgba(13,27,42,.3)}
+.sb-side .rb-tri{transition:color .15s}
+.sb-side:hover:not(.won):not(.lost){background:color-mix(in srgb,var(--acc1) 12%,transparent)}
+.sb-side.won{background:color-mix(in srgb,var(--acc1) 17%,var(--card));border-color:color-mix(in srgb,var(--acc1) 55%,transparent)}
+.sb-side.won .rb-tri{color:var(--acc-text)}
+.sb-side.lost{opacity:.34}
+.sb-side-tbd{opacity:.55;border:1.3px dashed color-mix(in srgb,var(--ink-soft) 45%,transparent)}
+.sb-v{font:500 9px/1 var(--mono);color:var(--ink-soft);flex:0 0 auto}
+.sb-spine{display:flex;flex-direction:column;align-items:center;gap:5px;justify-content:center;color:var(--ink-soft);padding:0 2px}
+.sb-tip{font-size:12px;line-height:1.45;color:var(--ink-soft);text-align:center;margin:15px 10px 2px}
+/* final round — the crown */
+.simbr-final .sb-finalwrap{display:flex;flex-direction:column;align-items:center;gap:9px;padding:10px 0 4px}
+.sb-cup{width:84px;height:84px;border-radius:50%;display:grid;place-items:center;background:radial-gradient(circle at 50% 34%,color-mix(in srgb,var(--gold) 20%,var(--card)),var(--card));border:1.5px solid var(--line);transition:box-shadow .3s,border-color .3s}
+.sb-cup svg{width:42px;height:42px;color:var(--gold)}
+.sb-cup.lit{border-color:color-mix(in srgb,var(--gold) 60%,transparent);box-shadow:0 8px 28px -8px color-mix(in srgb,var(--gold) 60%,transparent)}
+.sb-cupfl{width:60px;height:40px;display:block}.sb-cupfl .flagimg{width:60px;height:40px;border-radius:5px;object-fit:cover;box-shadow:0 3px 10px rgba(13,27,42,.35)}
+.sb-champcap{text-align:center}
+.sb-champcap b{display:block;font:800 20px/1.15 var(--disp);font-stretch:104%;color:var(--ink)}
+.sb-champcap small{display:block;font:600 12px/1.3 var(--mono);color:var(--ink-soft);margin-top:3px}
+.sb-tie-final{gap:12px;margin-top:6px}
+.sb-tie-final .sb-side{padding:7px 12px}
+.sb-tie-final .sb-side .flagimg{width:30px;height:21px}
+.sb-tie-final .rb-tri{font-size:14px}
+.sb-fmeta{font:500 11px/1.3 var(--mono);color:var(--ink-soft);text-align:center;margin-top:3px}
 /* projected-tie sheet */
 .pt-tagrow{display:flex;justify-content:flex-end;margin:-2px 0 4px}
 .pt-teams{display:grid;grid-template-columns:1fr auto 1fr;align-items:start;gap:10px;margin:6px 0 14px}

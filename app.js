@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "338";  // shown in footer; bump with the ?v= asset version
+const BUILD = "339";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -3556,7 +3556,7 @@ function renderSimEditor() {
   // bounces the user back to the top or collapses what they were working on
   const openSteps = new Set([...el.querySelectorAll(".sim-step[open]")].map(d => d.id));
   const firstRender = !el.querySelector(".sim-step");   // first paint → open step 3 (the bracket) so it's seen, not buried
-  const keepY = window.scrollY, keepBX = el.querySelector(".bracket-scroll")?.scrollLeft || 0;
+  const keepY = window.scrollY;
   // seed a valid default set of thirds so the knockout bracket is visible & tappable from the first visit
   // (done here, not at boot, so live standings are already loaded — order reflects real results)
   if (S.sim.thirds.length === 0) { seedSimThirds(); saveSim(); }
@@ -3585,18 +3585,10 @@ function renderSimEditor() {
       <span class="fl">${flag(c)}</span>${esc(shortName(c))}<span class="gl">${g}</span></button>`;
   }).join("");
 
-  const cols = [["r32", "Round of 32"], ["r16", "Round of 16"], ["qf", "Quarter-finals"], ["sf", "Semi-finals"], ["final", "Final"]];
-  const third = S.matches.find(m => m.stage === "third");
   const need = 8 - S.sim.thirds.length;
   const simBracket = !thirdsDone ? `<div class="empty">Pick ${need} more third-placed team${need === 1 ? "" : "s"} above and your knockout path appears here, then tap your way to a champion.</div>`
     : alloc === "impossible" ? `<div class="empty">That combination of thirds can't fill the slots. Swap one and try again.</div>`
-    : `<div class="bracket-scroll"><div class="bracket"><svg class="bracket-lines" aria-hidden="true"></svg>
-        ${cols.map(([st, title]) => {
-          const inner = S.matches.filter(m => m.stage === st).sort((a, b) => a.num - b.num).map((m, i) => simMatch(m, i, alloc)).join("")
-            + (st === "final" && third ? simMatch(third, 1, alloc) : "");
-          return `<div class="bcol bcol-${st}"><div class="bcol-title">${title}</div><div class="bcol-matches">${inner}</div></div>`;
-        }).join("")}
-      </div></div>`;
+    : simBracketHTML(alloc);
 
   // prominent "north star": the champion you're building toward — tap to jump to the knockout bracket
   const koMatches = S.matches.filter(m => m.stage !== "group");
@@ -3625,7 +3617,7 @@ function renderSimEditor() {
     ${firstRender && Object.keys(S.sim.ko).length === 0 ? `<p class="sim-firsthint">${ICO.spark} <b>New here?</b> The three steps below build your scenario: <b>order each group</b>, <b>pick the best thirds</b>, then <b>tap winners</b> to a champion. It's pre-filled from the live tables, so you can dive straight into the knockouts too. Saved on this device.</p>` : ""}
     ${step("simStep1", `<span class="step-n">1</span> Order the groups: top two go through`, `<div class="gwrap">${GROUPS.map(groupCard).join("")}</div>`)}
     ${step("simStep2", `<span class="step-n">2</span> Best third-placed teams <span class="tcount">${S.sim.thirds.length}/8</span>`, `<div class="thirds">${thirdChips}</div>`)}
-    ${step("simStep3", `<span class="step-n">3</span> Tap winners to crown your champion ${TROPHY}`, `${thirdsDone && alloc !== "impossible" ? `<p class="sim-ko-hint">${ICO.tap} Tap a team in any tie to send them through. Winners flow left → right to the final.</p>` : ""}${simBracket}`)}
+    ${step("simStep3", `<span class="step-n">3</span> Tap winners to crown your champion ${TROPHY}`, simBracket)}
     ${champ ? championBanner(champ, true) : ""}
     ${champ ? `<div class="sim-share-row">
       <button class="btn" id="simShare">${ICO.link} Share prediction</button>
@@ -3664,16 +3656,22 @@ function renderSimEditor() {
     else if (S.sim.thirds.length < 8) S.sim.thirds.push(c);
     pruneSim(); saveSim(); renderSim();
   });
-  // wire: bracket picks
-  $$("[data-pick]", el).forEach(r => r.onclick = e => {
-    const [num, code] = r.dataset.pick.split("|");
-    S.sim.ko[+num] = code;
-    pruneSim(); saveSim(); renderSim();   // renderSim restores scroll + the bracket's horizontal position centrally
-    if (+num === 104) {
-      const t = S.teams[code];
-      confetti(t.c1, t.c2, { x: e.clientX || innerWidth / 2, y: e.clientY || innerHeight / 2 });
-    }
+  // wire: converging-bracket picks — tap a side to send it through; completing a round collapses to the next
+  $$("[data-sim-pick]", el).forEach(b => b.onclick = e => {
+    const [num, code] = b.dataset.simPick.split("|");
+    const n = +num;
+    const roundMs = S.matches.filter(m => m.stage === SIM_ROUNDS[_simRound].st);
+    const wasComplete = roundMs.every(m => S.sim.ko[m.num] != null);
+    const before = S.sim.ko[n];
+    S.sim.ko[n] = code;
+    pruneSim(); saveSim();
+    const nowComplete = roundMs.every(m => S.sim.ko[m.num] != null);
+    _simRound = (!wasComplete && nowComplete) ? simFrontier() : Math.min(_simRound, simFrontier());
+    if (n === 104 && before !== code) { const t = S.teams[code]; confetti(t.c1, t.c2, { x: e.clientX || innerWidth / 2, y: e.clientY || innerHeight / 2 }); }
+    renderSim();
   });
+  // wire: round breadcrumb (step back to revise an earlier round, or forward to the live one)
+  $$("[data-sim-round]", el).forEach(b => b.onclick = () => { _simRound = +b.dataset.simRound; renderSim(); });
   // wire: actions
   $("#simShuffle").onclick = () => {
     GROUPS.forEach(g => S.sim.order[g] = simOrder(g).slice().sort(() => Math.random() - .5));
@@ -3696,13 +3694,81 @@ function renderSimEditor() {
   $("#simReset").onclick = () => { S.sim.order = {}; S.sim.thirds = []; S.sim.ko = {}; seedSimThirds(); saveSim(); renderSim(); };
   $("#simShare").onclick = sharePrediction;
   $("#simShareImg")?.addEventListener("click", () => shareChampionImage(S.sim.ko[104]));
-  // the bracket needs measurable dimensions to lay out its tree, so only when step 3 is expanded — and re-lay it
-  // out whenever that section is opened
-  const s3 = $("#simStep3", el);
-  if (s3) { if (s3.open) layoutBracket(el); s3.ontoggle = () => { if (s3.open) layoutBracket(el); }; }
-  // restore scroll + bracket position captured at the top (the innerHTML rebuild reset them)
-  window.scrollTo(0, keepY);
-  const nb = el.querySelector(".bracket-scroll"); if (nb) nb.scrollLeft = keepBX;
+  window.scrollTo(0, keepY);   // the innerHTML rebuild resets scroll — restore where the user was
+}
+// ---- Predict step 3: the interactive converging knockout bracket (Option A) ----
+// The R32 split-bracket made playable. You tap the winner in each tie; when a round is fully picked it collapses
+// inward — 16 → 8 → 4 → 2 → 1 — each round visibly shorter, funnelling toward the central trophy and your champion.
+// One round shows at a time in the split layout (a full bracket tree won't fit a phone); a breadcrumb steps between
+// rounds so you can go back and revise. Picks live in S.sim.ko keyed by match number (shared with the simulator).
+const SIM_ROUNDS = [
+  { st: "r32", name: "Round of 32", ab: "R32" },
+  { st: "r16", name: "Round of 16", ab: "R16" },
+  { st: "qf", name: "Quarter-finals", ab: "QF" },
+  { st: "sf", name: "Semi-finals", ab: "SF" },
+  { st: "final", name: "Final", ab: "Final" },
+];
+let _simRound = 0;
+let _simHalfFn = null;
+// which half of the draw a knockout match sits in: follow the winner-feeds down to a semi-final (101 = left, 102 = right)
+function simHalf(num) {
+  if (!_simHalfFn) {
+    const down = {}; S.matches.forEach(m => ["home", "away"].forEach(s => { const f = m[s] && m[s].feeds; if (f) down[f] = m.num; }));
+    _simHalfFn = n => { for (let i = 0; i < 8; i++) { if (n === 101) return "L"; if (n === 102) return "R"; if (n === 104) return "C"; const nx = down[n]; if (nx == null) return "C"; n = nx; } return "C"; };
+  }
+  return _simHalfFn(num);
+}
+function simRoundPicked(stage) { const ms = S.matches.filter(m => m.stage === stage); return { picked: ms.filter(m => S.sim.ko[m.num] != null).length, total: ms.length }; }
+// the live round: the first that isn't fully picked (so its predecessors are all decided and it's ready to play)
+function simFrontier() {
+  for (let i = 0; i < SIM_ROUNDS.length; i++) { const ms = S.matches.filter(m => m.stage === SIM_ROUNDS[i].st); if (!ms.every(m => S.sim.ko[m.num] != null)) return i; }
+  return SIM_ROUNDS.length - 1;
+}
+function simBracketHTML(alloc) {
+  const frontier = simFrontier();
+  _simRound = Math.max(0, Math.min(_simRound, frontier));
+  const round = SIM_ROUNDS[_simRound];
+  const ms = S.matches.filter(m => m.stage === round.st).sort((a, b) => a.num - b.num);
+
+  // breadcrumb of rounds funnelling to the trophy: done (filled) · current (gold) · locked (future, dimmed)
+  const crumb = SIM_ROUNDS.map((r, i) => {
+    const { picked, total } = simRoundPicked(r.st);
+    const cur = i === _simRound, done = total > 0 && picked === total && !cur, locked = i > frontier;
+    const label = r.st === "final" ? `<i class="sb-cup-mini">${ICO.trophy}</i>` : r.ab;
+    return `<button class="sb-crumb${cur ? " cur" : ""}${done ? " done" : ""}" data-sim-round="${i}"${locked ? " disabled" : ""} aria-label="${r.name}${done ? ", complete" : ""}">${label}</button>`;
+  }).join(`<span class="sb-crumb-sep"></span>`);
+  const { picked, total } = simRoundPicked(round.st);
+  const head = `<div class="sb-head"><div class="sb-crumbs">${crumb}</div>
+    <div class="sb-roundline"><b>${round.name}</b><span class="sb-prog">${picked}/${total}</span></div></div>`;
+
+  const sideBtn = (m, code) => {
+    if (!code) return `<span class="sb-side sb-side-tbd"><b class="rb-tri">—</b></span>`;
+    const pick = S.sim.ko[m.num], won = pick === code, lost = pick && pick !== code;
+    return `<button class="sb-side${won ? " won" : ""}${lost ? " lost" : ""}" data-sim-pick="${m.num}|${code}" aria-label="Send ${esc(S.teams[code].name)} through">${flag(code)}<b class="rb-tri">${tri(code)}</b></button>`;
+  };
+  const tieEl = m => { const { h, a } = simSlots(m, alloc); return `<div class="sb-tie${S.sim.ko[m.num] ? " done" : ""}">${sideBtn(m, h)}<span class="sb-v">v</span>${sideBtn(m, a)}</div>`; };
+
+  if (round.st === "final") {
+    const m = ms[0], { h, a } = simSlots(m, alloc), champ = S.sim.ko[104], t = champ && S.teams[champ];
+    return `<div class="simbr simbr-final">${head}
+      <div class="sb-finalwrap">
+        <div class="sb-cup${champ ? " lit" : ""}">${champ ? `<span class="sb-cupfl">${flag(champ)}</span>` : ICO.trophy}</div>
+        <div class="sb-champcap">${champ ? `<b>${esc(t.name)}</b><small>Your World Cup champions</small>` : `<b>One pick from a champion</b><small>Tap the winner of the final</small>`}</div>
+        <div class="sb-tie sb-tie-final${champ ? " done" : ""}">${sideBtn(m, h)}<span class="sb-v">v</span>${sideBtn(m, a)}</div>
+        <div class="sb-fmeta">Final · ${fmt(m.utc, { day: "numeric", month: "short" })} · MetLife Stadium</div>
+      </div></div>`;
+  }
+
+  const left = ms.filter(m => simHalf(m.num) === "L"), right = ms.filter(m => simHalf(m.num) === "R");
+  const spine = `<div class="sb-spine"><span class="rb-line"></span><span class="rb-trophy">${ICO.trophy}</span><span class="rb-line"></span></div>`;
+  return `<div class="simbr">${head}
+    <div class="r32br-grid simbr-grid">
+      <div class="rb-col sb-col-l">${left.map(tieEl).join("")}</div>
+      ${spine}
+      <div class="rb-col sb-col-r">${right.map(tieEl).join("")}</div>
+    </div>
+    <p class="sb-tip">Tap a flag to send that team through. Win the round and the bracket closes in on the trophy.</p>
+  </div>`;
 }
 function simMatch(m, i, alloc) {
   const { h, a } = simSlots(m, alloc);
