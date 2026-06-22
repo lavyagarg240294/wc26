@@ -1,4 +1,4 @@
-/* WC·26 companion — vanilla JS, no build step */
+/* WC·26 companion - vanilla JS, no build step */
 (() => {
 "use strict";
 
@@ -8,7 +8,7 @@ const S = {
   reports: { matches: {} }, commentary: {}, buzz: null, efi: {}, wc22: null,   // reports.json, lazy commentary, buzz.json, efi.json (FIFA EFI), wc2022.json (last World Cup)
   tz: localStorage.getItem("wc26.tz") || "auto",
   fav: localStorage.getItem("wc26.fav") || null,
-  view: null,   // set by boot's nav() — null until then so the pre-first-paint refreshResults() doesn't double-render
+  view: null,   // set by boot's nav() - null until then so the pre-first-paint refreshResults() doesn't double-render
   filters: { stage: "all", team: "", saved: false },
   saved: new Set(JSON.parse(localStorage.getItem("wc26.saved") || "[]")),
   simBox: null, sim: null, simView: "dash",   // simBox = the 3 saved brackets; sim points at the active one; simView = dash|edit
@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "340";  // shown in footer; bump with the ?v= asset version
+const BUILD = "342";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -75,7 +75,7 @@ const ZONES = [
 /* ---------------- utils ---------------- */
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
-// open a <dialog> modally — closing first if it's already open (re-entering the same sheet from a
+// open a <dialog> modally - closing first if it's already open (re-entering the same sheet from a
 // stacked context would otherwise throw InvalidStateError on Safari/Firefox, or silently update the
 // hidden dialog underneath on Chromium). Brings the sheet to the front with its fresh content.
 let _sheetOpenAt = 0;
@@ -98,7 +98,7 @@ const showSheet = d => {
 // so the two never collide. Patched on the prototype so every dialog (sheets, settings, search, picker) is covered.
 let _inModal = false, _popClosing = false;
 // Briefly kill card transitions on the dismiss frame: when a centred sheet closes, the cursor can land back on the
-// card it opened from and :hover re-fires — without this its lift would animate in, reading as a flicker.
+// card it opened from and :hover re-fires - without this its lift would animate in, reading as a flicker.
 let _flickT = 0;
 const _flickGuard = () => { const h = document.documentElement; h.classList.add("sheet-dismiss"); clearTimeout(_flickT); _flickT = setTimeout(() => h.classList.remove("sheet-dismiss"), 240); };
 addEventListener("popstate", () => {
@@ -127,7 +127,7 @@ _dlgProto.close = function (v) {
   if (_popClosing || !_inModal) return;
   queueMicrotask(() => { if (_inModal && !document.querySelector("dialog[open]")) { _inModal = false; _flickGuard(); if (history.state && history.state.modal) history.back(); } });
 };
-// A collapsible section the USER opens off-screen feels like nothing happened — scroll it into view. But a
+// A collapsible section the USER opens off-screen feels like nothing happened - scroll it into view. But a
 // <details open> fires `toggle` on initial render in current Chromium, which would yank a freshly-opened sheet
 // down to it (e.g. the live-commentary fold). Suppress the scroll briefly after a sheet opens so only genuine taps move it.
 document.addEventListener("toggle", e => {
@@ -138,11 +138,11 @@ document.addEventListener("toggle", e => {
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 // ---------- flicker-free view updates ----------
 // Replacing a view's innerHTML on every poll tears down and rebuilds every node, so flags/photos re-decode and the
-// layout jumps — on a live match that's a visible flash every minute, and it would wipe a focused filter input or a
+// layout jumps - on a live match that's a visible flash every minute, and it would wipe a focused filter input or a
 // section the user just expanded. paint() instead diffs the new HTML against what's on screen and mutates only what
 // actually changed. Fast-path: byte-identical HTML → do nothing. It deliberately never touches the `open` attribute
 // (so an expanded <details> stays open) nor anything under a [data-keep] node (so loaded commentary survives). Safe
-// because every view interaction is delegated to one document-level listener — morphing nodes never drops a handler.
+// because every view interaction is delegated to one document-level listener - morphing nodes never drops a handler.
 // Each top-level view gets a stable, visually-hidden <h2> so the heading outline reads h1 (page) -> h2 (section)
 // instead of jumping straight to the cards' h4. Injected here (every render funnels through paint with its view el)
 // so it survives poll re-renders too. Keyed by section id; non-view paints (cards, popups) are untouched.
@@ -186,7 +186,7 @@ const compRanks = (rows, keyOf) => { const r = []; for (let i = 0; i < rows.leng
 // and often drops the accent ("QUIÑONES" → "QUINONES"); squads.json carries the proper accented Title-Case form.
 // pName() Title-Cases the feed name and RESTORES ACCENTS from a per-team accent dictionary (built from squads.json),
 // word by word. It deliberately does NOT swap in a different name, so a player known by a short form ("RODRI",
-// "Havertz") keeps it and a same-surname team-mate can't hijack it. DISPLAY ONLY — data-player keys keep the raw
+// "Havertz") keeps it and a same-surname team-mate can't hijack it. DISPLAY ONLY - data-player keys keep the raw
 // feed name so the openPlayer/photo joins still resolve. Cached; squads load before any render.
 // The feed sometimes glues an initial to the surname with no space ("E.ASHOUR", "J.GALLARDO"); split it so the
 // surname title-cases properly ("E. Ashour", not "E.ashour"). Then title-case every all-caps token.
@@ -216,10 +216,10 @@ const pName = (s, code) => {
   _nameCache.set(key, out);
   return out;
 };
-// the dense match timeline uses just the surname (football convention) — drop a Jr/Filho-style suffix first.
+// the dense match timeline uses just the surname (football convention) - drop a Jr/Filho-style suffix first.
 const tlName = (s, code) => { const t = pName(s, code).trim().split(/\s+/).filter(w => !/^(jr|jnr|junior|filho|neto|ii|iii)\.?$/i.test(_deburr(w))); return t[t.length - 1] || _titleCase(s); };
 
-// real SVG flags (self-hosted) — emoji regional-indicator flags don't render on Windows, where the
+// real SVG flags (self-hosted) - emoji regional-indicator flags don't render on Windows, where the
 // whole flag-heavy UI would degrade to "BR"/"US" letter boxes. alt falls back to the code if a file 404s.
 function flag(code) {
   if (!code) return "";
@@ -242,10 +242,11 @@ const ICO = {
   link: _ico('<path d="M10.6 13.4a3.4 3.4 0 0 0 4.8 0l2.4-2.4a3.4 3.4 0 0 0-4.8-4.8l-1.2 1.2M13.4 10.6a3.4 3.4 0 0 0-4.8 0L6.2 13a3.4 3.4 0 0 0 4.8 4.8l1.2-1.2"/>'),
   camera: _ico('<rect x="3" y="7" width="18" height="13" rx="2.5"/><circle cx="12" cy="13.5" r="3.3"/><path d="M8.5 7l1.2-2.2h4.6L15.5 7"/>'),
   tap: _ico('<path d="M9 11.2V6a1.5 1.5 0 0 1 3 0v4M12 10V8a1.5 1.5 0 0 1 3 0v2.5M15 10.5v-1a1.5 1.5 0 0 1 3 0V15a5 5 0 0 1-5 5h-.7a4 4 0 0 1-2.9-1.2L7 16a1.45 1.45 0 0 1 2.1-2l.9.9"/>'),
-  subs: _ico('<path d="M4 9h12M13 6l3 3-3 3M20 15H8M11 12l-3 3 3 3"/>'),       // two opposing arrows — substitution
-  compare: _ico('<path d="M4 20h16M7.5 20v-6M12 20V5M16.5 20v-9"/>'),         // bars — compare two players
+  subs: _ico('<path d="M4 9h12M13 6l3 3-3 3M20 15H8M11 12l-3 3 3 3"/>'),       // two opposing arrows - substitution
+  compare: _ico('<path d="M4 20h16M7.5 20v-6M12 20V5M16.5 20v-9"/>'),         // bars - compare two players
   calendar: _ico('<rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/>'),   // tournament editions (World Cups played)
-  shirt: _ico('<path d="M8 4 4 6.5 6 10.5 8 9.5 8 20 16 20 16 9.5 18 10.5 20 6.5 16 4A6 6 0 0 1 8 4Z"/>'),       // jersey — appearances / caps
+  shirt: _ico('<path d="M8 4 4 6.5 6 10.5 8 9.5 8 20 16 20 16 9.5 18 10.5 20 6.5 16 4A6 6 0 0 1 8 4Z"/>'),       // jersey - appearances / caps
+  info: _ico('<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 7.6v.2"/>'),                                 // i-in-a-circle - matchup details
 };
 const TROPHY = `<span class="ico-gold">${ICO.trophy}</span>`;   // gold-tinted trophy (replaces the old emoji)
 // Building an Intl.DateTimeFormat is the costly part; reuse one formatter per (locale, zone, options) shape instead of
@@ -259,18 +260,18 @@ const _dtf = (locale, opts) => {
 };
 const fmt = (iso, opts) => _dtf("en", opts).format(new Date(iso));
 const timeStr = iso => fmt(iso, { hour: "2-digit", minute: "2-digit", hour12: false });
-// The matches LIST groups by the real, technical calendar date in the visitor's timezone — Sunday's matches under
+// The matches LIST groups by the real, technical calendar date in the visitor's timezone - Sunday's matches under
 // "Sunday", a 2am-Monday kickoff under "Monday". Straightforward and correct.
 const dayKey = iso => fmt(iso, { year: "numeric", month: "2-digit", day: "2-digit" });
 const dayLabel = iso => fmt(iso, { weekday: "long", day: "numeric", month: "long" });
-// The "viewing day" is slate-aware — it rolls over at ~10am LOCAL, not midnight — so the TICKER and MATCH OF THE DAY
+// The "viewing day" is slate-aware - it rolls over at ~10am LOCAL, not midnight - so the TICKER and MATCH OF THE DAY
 // treat a night's football as one block even when it runs past midnight (for Dubai the WC slate is 8pm–8am, India
 // 9pm–9am, with a long match-free gap through the local daytime where 10am sits). Only those two use it; the list
 // above stays on the calendar date.
 const DAY_ROLLOVER_H = 10;
 // en-CA → "2026-06-14": a SORTABLE practical-day key (used for equality + ordering by the ticker window + match-of-day).
 const viewDay = iso => _dtf("en-CA", { year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(Date.parse(iso) - DAY_ROLLOVER_H * 36e5));
-// uniform offset label everywhere ("GMT+4", "GMT-5", "GMT+5:30") — not the mixed EST/IST/GMT+N that "short" gives
+// uniform offset label everywhere ("GMT+4", "GMT-5", "GMT+5:30") - not the mixed EST/IST/GMT+N that "short" gives
 const tzShort = () => {
   try { return new Intl.DateTimeFormat("en", { timeZone: tz(), timeZoneName: "shortOffset" }).formatToParts(new Date()).find(p => p.type === "timeZoneName").value.replace(/^GMT$/, "GMT+0"); }
   catch { return tz(); }
@@ -281,9 +282,9 @@ const tzOffsetLabel = zone => {
     return p.find(x => x.type === "timeZoneName").value.replace(/^GMT$/, "GMT+0");   // GMT everywhere (matches tzShort), incl. GMT+0 for London
   } catch { return ""; }
 };
-// numeric GMT offset in minutes (handles DST + half-hour zones) — used to order the picker west→east
+// numeric GMT offset in minutes (handles DST + half-hour zones) - used to order the picker west→east
 const tzMinutes = zone => { try { const v = new Intl.DateTimeFormat("en", { timeZone: zone === "auto" ? AUTO_TZ : zone, timeZoneName: "shortOffset" }).formatToParts(new Date()).find(p => p.type === "timeZoneName").value; const mm = v.match(/GMT([+-])(\d{1,2})(?::(\d{2}))?/); return mm ? (mm[1] === "-" ? -1 : 1) * (+mm[2] * 60 + (+mm[3] || 0)) : 0; } catch { return 0; } };
-// friendly CITY name for the active zone — from the ZONES list if listed, else the IANA city. Always a city
+// friendly CITY name for the active zone - from the ZONES list if listed, else the IANA city. Always a city
 // (never a country/region) so every place the timezone is shown reads the same way.
 const tzCity = () => (ZONES.find(z => z[0] === tz())?.[1]) || tz().split("/").pop().replace(/_/g, " ");
 
@@ -300,7 +301,7 @@ function rebuildMatchData() {
 }
 // openfootball's static kickoff times can drift hours from the real FIFA slate; the scores Action persists the
 // feed's true kickoff as `ko` (results.json) when it differs. Overlay it onto each match's `utc` so countdowns,
-// day-grouping, sorting and the live hero all agree with reality — every renderer reads `m.utc`, so one overlay
+// day-grouping, sorting and the live hero all agree with reality - every renderer reads `m.utc`, so one overlay
 // fixes them all. The original static time is kept in `_utc0` so the overlay is idempotent and reverts if `ko` clears.
 function applyKickoffs() {
   if (!S.matches) return;
@@ -310,7 +311,7 @@ function applyKickoffs() {
     const md = S.matchData[m.id];
     let ko = md?.ko;
     // Use the feed's corrected kickoff (`ko`) when it drifted from openfootball's static time; otherwise the
-    // static time. We deliberately do NOT synthesize a kickoff from `now − feed_minute` for a live match — the
+    // static time. We deliberately do NOT synthesize a kickoff from `now − feed_minute` for a live match - the
     // free feed's minute is unreliable and that estimate drifted the displayed kickoff (e.g. showing 03:51 for
     // a match that kicked off at 03:00). The authoritative `ko` lands within a poll or two and fixes any wrong
     // static time on its own.
@@ -320,11 +321,11 @@ function applyKickoffs() {
 const ST = { SCHED: "SCHED", LIVE: "LIVE", HT: "HT", FT: "FT" };
 function status(m) {
   const r = res(m);
-  // The FIFA feed is authoritative for status — trust it. (We used to promote a "started by our clock but
+  // The FIFA feed is authoritative for status - trust it. (We used to promote a "started by our clock but
   // still SCHED" match to LIVE to mask feed lag, but openfootball's static kickoff times don't always match
   // the real schedule, so that faked a live 0–0 on the wrong match. The feed says which game is actually live.)
   if (r?.st) {
-    // A feed stuck on LIVE/HT long past any real match length is stale (the score loop lagged or stopped) — treat it
+    // A feed stuck on LIVE/HT long past any real match length is stale (the score loop lagged or stopped) - treat it
     // as finished so the hero stops showing it "live" and it drops into Earlier results. Group ≈ 90+HT+stoppage
     // (~125′); knockouts allow extra time + penalties (~160′).
     if ((r.st === ST.LIVE || r.st === ST.HT) && Date.now() - +new Date(m.utc) > (m.stage === "group" ? 125 : 160) * 60000) return ST.FT;
@@ -335,7 +336,7 @@ function status(m) {
 }
 // FEED-confirmed final: the feed itself says FT and a real scoreline is present. Distinct from status()===FT, which
 // also fires when a LIVE/HT row is stuck past full time (the feed lagged). Standings + qualification math must only
-// fold in feed-final results — never a stale-live score the feed hasn't closed — so the table and the Q/out badges
+// fold in feed-final results - never a stale-live score the feed hasn't closed - so the table and the Q/out badges
 // never disagree. UI ("still live?", "upcoming vs past") keeps using status() so a stuck match still drops out of live.
 const isFeedFinal = m => { const r = res(m); return !!r && r.st === ST.FT && r.h != null; };
 // live match clock: exact minute from the feed if present, else an estimate from kickoff
@@ -347,11 +348,24 @@ function clockStr(m, r) {
   const est = real <= 45 ? real : Math.max(46, real - 15);
   return (est >= 90 ? "90+" : est) + "′";
 }
+const remInGroup = g => S.matches.filter(m => m.group === g && status(m) !== ST.FT).length;
 function slotInfo(m, side) {
   const s = m[side];
+  if (s.team && S.teams[s.team]) return { code: s.team, name: S.teams[s.team].name };   // a fixed (group-stage) team
   const r = res(m);
-  const code = s.team || (r && r[side === "home" ? "ht" : "at"]) || winnerFeed(s);
-  if (code && S.teams[code]) return { code, name: S.teams[code].name };
+  // if the match itself is under way or finished, both teams are literally confirmed - trust the feed's codes
+  if (r && (r.st === ST.LIVE || r.st === ST.HT || r.st === ST.FT)) {
+    const code = r[side === "home" ? "ht" : "at"] || winnerFeed(s);
+    if (code && S.teams[code]) return { code, name: S.teams[code].name };
+  }
+  // a SCHEDULED knockout slot: commit to a concrete team only once the seed is MATHEMATICALLY settled. Never present
+  // a projection on the schedule as if it were confirmed (zero-error bar) - show the seed ("Winners Group E") until
+  // the group is finished / the feeding tie is decided, mirroring the R32 board's Confirmed view.
+  const sh = s.short || ""; let code = null, locked = false;
+  if (/^[12][A-L]$/.test(sh)) { locked = remInGroup(sh[1]) === 0; if (locked) code = (r && r[side === "home" ? "ht" : "at"]) || standings(sh[1])[sh[0] === "1" ? 0 : 1]?.code; }
+  else if (/^3/.test(sh)) { locked = GROUPS.every(g => remInGroup(g) === 0); if (locked) code = r && r[side === "home" ? "ht" : "at"]; }
+  else { code = winnerFeed(s); locked = code != null; }
+  if (locked && code && S.teams[code]) return { code, name: S.teams[code].name };
   return { name: s.ph || "TBD", ph: true, short: s.short };
 }
 function winnerFeed(s) {
@@ -361,7 +375,7 @@ function winnerFeed(s) {
   if (!fm) return null;
   const r = res(fm);
   if (!r || r.st !== ST.FT) return null;
-  if (r.h === r.a && r.hp == null && r.ap == null) return null;   // FT level but penalties not in the feed yet — leave unresolved, don't guess (and propagate) a winner
+  if (r.h === r.a && r.hp == null && r.ap == null) return null;   // FT level but penalties not in the feed yet - leave unresolved, don't guess (and propagate) a winner
   const hWin = r.h > r.a || (r.h === r.a && (r.hp ?? -1) > (r.ap ?? -1));
   const h = slotInfo(fm, "home").code, a = slotInfo(fm, "away").code;
   if (!h || !a) return null;
@@ -371,7 +385,7 @@ const isFavMatch = m => S.fav && (slotInfo(m, "home").code === S.fav || slotInfo
 const matchHasTeam = (m, code) => slotInfo(m, "home").code === code || slotInfo(m, "away").code === code;
 
 
-/* ---------------- calendar (.ics) export — client-side, kickoffs in UTC ---------------- */
+/* ---------------- calendar (.ics) export - client-side, kickoffs in UTC ---------------- */
 const CAL_SVG = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>`;
 const SHARE_SVG = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.85 3.99M15.4 6.51l-6.8 3.98"/></svg>`;
 const REFRESH_SVG = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>`;
@@ -410,7 +424,7 @@ function downloadICS(matches, name) {
 /* ---------------- standings ---------------- */
 // rank a group's rows by FIFA regulations art.13: points → head-to-head (points/GD/goals among the teams level
 // on points) → overall GD → overall goals → FIFA World Ranking. (Reg step 2f, conduct/cards, isn't reliably in
-// the free feed, so it's omitted — the ranking step decides the rest. Never alphabetical.)
+// the free feed, so it's omitted - the ranking step decides the rest. Never alphabetical.)
 function fifaSort(rows, gm, statuses) {
   const sts = statuses || [ST.FT];
   const gd = r => r.gf - r.ga;
@@ -455,11 +469,11 @@ function standings(group) {
   return fifaSort(Object.values(rows), gm);
 }
 
-// "what each team needs" — enumerate every remaining-result combo in a group.
+// "what each team needs" - enumerate every remaining-result combo in a group.
 // Ranks use points only, with ties resolved pessimistically (worst) for guarantees and
 // optimistically (best) for elimination, so claims hold regardless of goal difference.
 // NOTE: the "What each team needs" outlook is currently not rendered (removed for now);
-// groupOutlook/groupOutlookHTML are kept intact — re-add ${groupOutlookHTML(g)} to renderGroups
+// groupOutlook/groupOutlookHTML are kept intact - re-add ${groupOutlookHTML(g)} to renderGroups
 // (and the team blocks) to bring it back.
 function groupOutlook(g) {
   const gm = S.matches.filter(m => m.group === g);
@@ -561,7 +575,7 @@ const relLum = hex => { const n = parseInt(hex.slice(1), 16); const f = c => { c
 const contrastRatio = (a, b) => { const x = relLum(a) + .05, y = relLum(b) + .05; return x > y ? x / y : y / x; };
 const scaleRGB = (hex, f) => { const n = parseInt(hex.slice(1), 16); const c = i => Math.max(0, Math.min(255, Math.round(i * f))); return "#" + ((1 << 24) + (c(n >> 16 & 255) << 16) + (c(n >> 8 & 255) << 8) + c(n & 255)).toString(16).slice(1); };
 // pick the team kit colour that reads best on the paper background, then darken it until it clears a
-// 3.5:1 contrast ratio — so bright mid-tones (orange, sky-blue) stay on-brand but legible, and pale
+// 3.5:1 contrast ratio - so bright mid-tones (orange, sky-blue) stay on-brand but legible, and pale
 // kits (yellow/white) fall back to their darker secondary rather than a washed-out accent.
 function readableAccent(c1, c2) {
   const PAPER = "#FAFBF9";
@@ -618,11 +632,11 @@ function celebrateGoals(prev, now) {
     const m = S.matches.find(x => x.id === id); if (!m) continue;
     const hs = slotInfo(m, "home"), as = slotInfo(m, "away");
     const score = `${hs.name} ${b.h ?? 0}, ${as.name} ${b.a ?? 0}`;
-    // a new goal — counts even when this poll also flipped the match to FT (the late winner), which the old guard missed
+    // a new goal - counts even when this poll also flipped the match to FT (the late winner), which the old guard missed
     if (((b.h || 0) + (b.a || 0)) > ((a.h || 0) + (a.a || 0)) && [ST.LIVE, ST.HT, ST.FT].includes(b.st)) {
       const scorer = slotInfo(m, (b.h || 0) > (a.h || 0) ? "home" : "away").code;
       if (!celebrated) { goalCelebration(scorer); maybeNotifyGoal(m, b, scorer); celebrated = true; }
-      announce(`Goal! ${S.teams[scorer]?.name || ""}. ${score}.`);   // raw text — announce() sets textContent
+      announce(`Goal! ${S.teams[scorer]?.name || ""}. ${score}.`);   // raw text - announce() sets textContent
     } else if (a.st !== b.st && b.st === ST.HT) announce(`Half-time. ${score}.`);
     else if (a.st !== b.st && b.st === ST.FT) announce(`Full time. ${score}.`);
   }
@@ -633,7 +647,7 @@ function announce(msg) {
   el.textContent = ""; requestAnimationFrame(() => { el.textContent = msg; });
 }
 /* ---------------- match alerts (opt-in, while the tab is open) ---------------- */
-// Goals + kickoff reminders for the favourite team. No push backend — these fire from the same 60s
+// Goals + kickoff reminders for the favourite team. No push backend - these fire from the same 60s
 // poll while the page is open, and only when the tab is in the background (when you're looking at the
 // page, the on-screen toast/horn already signal a goal).
 function notifyEnabled() { return localStorage.getItem("wc26.notify") === "on" && "Notification" in window && Notification.permission === "granted"; }
@@ -665,7 +679,7 @@ function checkKickoffAlert() {
 let _tickerSig = "";   // last-built marquee string; renderTicker early-returns when unchanged
 function renderTicker() {
   // Two practical days at once: the PREVIOUS day's final scores + the CURRENT day's matches (kickoff times →
-  // live → finals as they play). At each ~10am boundary the window slides forward one day — today's finals become
+  // live → finals as they play). At each ~10am boundary the window slides forward one day - today's finals become
   // the "previous", tomorrow's fixtures become the new "current". Always relevant: what just happened + what's next.
   const cur = viewDay(new Date().toISOString());
   const byDay = {};
@@ -695,12 +709,12 @@ function renderTicker() {
   track.innerHTML = built;
   wrap.hidden = false;
   // scroll as a seamless marquee whenever the content is wider than the strip (any number of matches);
-  // only centre it static when it genuinely fits — so nothing ever gets clipped. (reading scrollWidth forces layout)
+  // only centre it static when it genuinely fits - so nothing ever gets clipped. (reading scrollWidth forces layout)
   if (track.scrollWidth > wrap.clientWidth + 4) {
     track.innerHTML = built + sep + built;   // duplicate so the scroll wraps with no gap
     // translate by the EXACT width of one copy (to the 2nd copy's first item) so the loop is seamless. A plain
-    // -50% lands half a separator off — the flex gap plus the single middle separator make the two halves
-    // unequal — which shows as a flick at every repeat. Measuring the real offset removes it.
+    // -50% lands half a separator off - the flex gap plus the single middle separator make the two halves
+    // unequal - which shows as a flick at every repeat. Measuring the real offset removes it.
     const items = track.querySelectorAll(".ticker-item");
     const dist = Math.round(items[todays.length]?.offsetLeft || track.scrollWidth / 2);
     track.style.setProperty("--tick-x", -dist + "px");
@@ -715,6 +729,9 @@ const shortName = code => {
   const n = S.teams[code]?.name || code;
   return n.length > 11 ? (code.includes("-") ? code.slice(3) : code) : n;
 };
+// compact display label where a full team name is too long for a tight one-line row (leaderboards, chips)
+const COMPACT_TEAM = { BA: "Bosnia" };
+const cname = code => COMPACT_TEAM[code] || S.teams[code]?.name || code;
 
 /* ---------------- render: shared match card ---------------- */
 function matchCard(m, i, opts = {}) {
@@ -724,19 +741,19 @@ function matchCard(m, i, opts = {}) {
   const stageL = m.group ? `Group ${m.group}` : m.stage === "third" ? "3rd place" : m.round;
   const live = st === ST.LIVE || st === ST.HT;
   const score = r && r.h != null;   // a real, feed-reported scoreline
-  const sh = r?.h ?? 0, sa = r?.a ?? 0;   // display score — a live match with no goal data shows 0–0
+  const sh = r?.h ?? 0, sa = r?.a ?? 0;   // display score - a live match with no goal data shows 0–0
   const winH = score && st === ST.FT && (r.h > r.a || (r.h === r.a && (r.hp ?? -1) > (r.ap ?? -1)));
   const winA = score && st === ST.FT && (r.a > r.h || (r.h === r.a && (r.ap ?? -1) > (r.hp ?? -1)));
   const badge = st === ST.LIVE ? `<span class="badge live">${clockStr(m, r) || "Live"}</span>`
     : st === ST.HT ? `<span class="badge live">HT</span>`
     : st === ST.FT ? `<span class="badge ft">FT</span>`
-    : "";   // scheduled: kickoff time already shows on the left — don't repeat it on the right
+    : "";   // scheduled: kickoff time already shows on the left - don't repeat it on the right
   const teamRow = (s, key, lost) =>
     `<div class="mcard-team ${s.ph ? "is-ph" : ""} ${lost ? "is-lost" : ""}">` +
     `<span class="fl">${s.code ? flag(s.code) : TBD_FLAG}</span><span>${esc(slotText(m, key, s))}</span></div>`;
   const sv = isSaved(m.id);
   // The card body is the primary button; the save-star is a SIBLING <button>, not nested inside it
-  // (nesting two interactive controls is invalid ARIA — screen readers announce it ambiguously). The
+  // (nesting two interactive controls is invalid ARIA - screen readers announce it ambiguously). The
   // .mcard-wrap carries the list spacing + entrance animation and is the positioning context for the star.
   return `<div class="mcard-wrap" style="--i:${i}">
     <div class="mcard ${fav ? "is-fav" : ""}" role="button" tabindex="0" data-mid="${m.id}">
@@ -784,7 +801,7 @@ function pitchSide(side, s, home) {
     const photo = bestPhoto(p[1], s.code, p[0]);   // p[0] = jersey number → exact match
     const num = p[0] ?? "";
     const face = photo
-      ? `<span class="pp-face" style="background-image:url('${photo}')"></span>`     // headshot only — no circle, no number on the face
+      ? `<span class="pp-face" style="background-image:url('${photo}')"></span>`     // headshot only - no circle, no number on the face
       : `<span class="pp-dot">${num}</span>`;                                        // fallback when no photo exists
     return `<div class="pp pp-clk${photo ? "" : " pp-nf"}" data-player="${esc(p[1])}|${s.code}" role="button" tabindex="0" style="left:${left}%;top:${top}%;--pc:${c1};--pt:${c2}">${face}<span class="pp-name">${num !== "" ? `<b class="pp-no">${num}</b>` : ""}<span class="pp-nm">${esc(lastName(p[1]))}</span></span></div>`;
   };
@@ -832,7 +849,7 @@ function mdTimeline(r, hc, ac) {
   if (!r?.ev?.length) return "";
   const rows = r.ev.map(e => {
     // `tm` is the team the event counts FOR; for an own goal that's the beneficiary, but the scorer belongs to
-    // the OTHER team — so link the player to their real side, else the tap opens the wrong team and the photo misses.
+    // the OTHER team - so link the player to their real side, else the tap opens the wrong team and the photo misses.
     const scorerCode = e.k === "OG" ? (e.tm === "h" ? ac : hc) : (e.tm === "h" ? hc : ac);
     return `<div class="tl ${e.tm === "h" ? "is-h" : "is-a"}${["G", "P", "OG"].includes(e.k) ? " is-goal" : ""}">
     <div class="tl-min">${esc(e.t || "–")}</div>
@@ -841,7 +858,7 @@ function mdTimeline(r, hc, ac) {
   }).join("");
   return `<div class="eyebrow">Match events</div><div class="md-tl">${rows}</div>`;
 }
-// grouped so the all-stats read by theme — going forward, in possession, at the back, discipline —
+// grouped so the all-stats read by theme - going forward, in possession, at the back, discipline -
 // instead of one undifferentiated column (poss/xG/shots/on-target headline up in Key stats).
 const STAT_GROUPS = [
   ["Attacking", [["sh", "Shots"], ["sot", "On target"], ["blk", "Blocked"], ["cor", "Corners"], ["off", "Offsides"], ["cross", "Crosses"]]],
@@ -878,20 +895,20 @@ function mdStats(r, expand = false) {
   return `<details class="md-fold"><summary><span>All match stats</span><small>${head}</small></summary>
     <div class="md-fold-body">${groups}${mdLeaders(r)}</div></details>`;
 }
-// the headline stats shown inline above the full fold — possession, xG (post-match), shots, on target — so the
+// the headline stats shown inline above the full fold - possession, xG (post-match), shots, on target - so the
 // numbers people came for are visible without a tap, while the full 16-stat table stays one tap deep.
 function mdKeyStats(r, m) {
   if (!r?.stats) return "";
   const s = r.stats, bars = [];
   if (Array.isArray(s.poss)) bars.push(statBar([Math.round(s.poss[0]), Math.round(s.poss[1])], "Possession", "%"));
   const e = S.efi?.[m.num];
-  if (e?.xg) bars.push(statBar(e.xg, "Expected goals (xG)" + infoBtn("Expected goals — the goals an average team would score from the chances it created, scored by how good each chance was. A better read of performance than the final score.", "What xG means")));
+  if (e?.xg) bars.push(statBar(e.xg, "Expected goals (xG)" + infoBtn("Expected goals - the goals an average team would score from the chances it created, scored by how good each chance was. A better read of performance than the final score.", "What xG means")));
   if (Array.isArray(s.sh)) bars.push(statBar(s.sh, "Shots"));
   if (Array.isArray(s.sot)) bars.push(statBar(s.sot, "On target"));
   return bars.length ? `<div class="eyebrow">Key stats</div><div class="md-stats">${bars.join("")}</div>` : "";
 }
 // a single derived "who's on top" index blending xG (when published) + shots + on-target + corners into one share.
-// Explicitly NOT a minute-by-minute momentum read — no time-series data exists — so it's labelled an index, not a graph.
+// Explicitly NOT a minute-by-minute momentum read - no time-series data exists - so it's labelled an index, not a graph.
 function matchControlBar(m) {
   const r = res(m); if (!r?.stats) return "";
   const e = S.efi?.[m.num], s = r.stats, pairs = [], names = [];
@@ -900,18 +917,18 @@ function matchControlBar(m) {
   add(s.sh, "shots"); add(s.sot, "on-target"); add(s.cor, "corners");
   if (pairs.length < 2) return "";                       // need a couple of independent signals before calling it "control"
   const hp = Math.round(pairs.reduce((t, [hv, av]) => t + hv / (hv + av), 0) / pairs.length * 100);
-  const info = infoBtn(`A derived index blending ${names.join(" + ")} into one share of the attacking initiative — a "who's on top" read, NOT minute-by-minute momentum (no time data exists in the feed).`, "How match control is worked out");
+  const info = infoBtn(`A derived index blending ${names.join(" + ")} into one share of the attacking initiative - a "who's on top" read, NOT minute-by-minute momentum (no time data exists in the feed).`, "How match control is worked out");
   return `<div class="eyebrow">Match control ${info}</div><div class="md-stats">${statBar([hp, 100 - hp], "Share of control", "%")}</div>`;
 }
-// "Deep analysis": FIFA Enhanced Football Intelligence (post-match) — official xG, line breaks, ball progressions,
+// "Deep analysis": FIFA Enhanced Football Intelligence (post-match) - official xG, line breaks, ball progressions,
 // pressures, phases of play, and the headline: per-player distance covered. Only shown when data/efi.json has it.
 function mdEfi(m, expand = false) {
   const e = S.efi?.[m.num]; if (!e) return "";
   const h = slotInfo(m, "home"), a = slotInfo(m, "away");
   const hc = (h.code && S.teams[h.code]?.c1) || "#0BA360", ac = (a.code && S.teams[a.code]?.c1) || "#5B6B7A";
   const sb = [];
-  // When expanded (FT), xG and possession are already visible in Key stats — skip them here to avoid repetition
-  if (!expand && e.xg) sb.push(statBar(e.xg, "Expected goals (xG)" + infoBtn("Expected goals — the goals an average team would score from the chances it created, scored by how good each chance was. A better read of performance than the final score.", "What xG means")));
+  // When expanded (FT), xG and possession are already visible in Key stats - skip them here to avoid repetition
+  if (!expand && e.xg) sb.push(statBar(e.xg, "Expected goals (xG)" + infoBtn("Expected goals - the goals an average team would score from the chances it created, scored by how good each chance was. A better read of performance than the final score.", "What xG means")));
   if (e.shots) sb.push(statBar([e.shots[0], e.shots[2]], "Attempts at goal"));
   if (!expand && e.poss && e.possContest != null) sb.push(statBar(e.poss, "Possession", "%"));
   if (e.lineBreaks) sb.push(statBar(e.lineBreaks, "Completed line breaks"));
@@ -944,7 +961,7 @@ function mdEfi(m, expand = false) {
   return `<details class="md-fold"><summary><span>Deep analysis</span><small>FIFA EFI · post-match</small></summary>
     <div class="md-fold-body">${body}</div></details>`;
 }
-// per-team standout performers (top shooter / passer / defender / keeper) — names are display-only
+// per-team standout performers (top shooter / passer / defender / keeper) - names are display-only
 function mdLeaders(r) {
   if (!r?.lead?.length) return "";
   const CAT = [["totalShots", "Shots"], ["accuratePasses", "Passes"], ["defensiveInterventions", "Defensive actions"], ["saves", "Saves"]];
@@ -956,8 +973,8 @@ function mdLeaders(r) {
   return sects ? `<div class="eyebrow">Key performers</div><div class="md-leaders">${sects}</div>` : "";
 }
 const evMin = s => { const m = String(s || "").match(/(\d+)(?:'?\+(\d+))?/); return m ? +m[1] + (m[2] ? +m[2] / 100 : 0) : 0; };
-// "match flow" — the running lead (home − away) over the timeline, as a signed area
-// kit colours off the shirt can be near-white or near-black — invisible on the card. Nudge each into a
+// "match flow" - the running lead (home − away) over the timeline, as a signed area
+// kit colours off the shirt can be near-white or near-black - invisible on the card. Nudge each into a
 // readable band for the current theme so the match-flow fill (and its legend swatch) always reads.
 function flowColor(hex) {
   let c = String(hex || "").replace("#", "");
@@ -980,14 +997,14 @@ function koPath(m) {
   const steps = chain.slice(1).map(x => STAGE_NAME[x.stage] || x.stage);   // rounds ahead, no global match numbers (we don't number matches)
   return `<div class="md-kopath"><span class="kp-label">Winner's road →</span> ${steps.join(`<span class="kp-arr">›</span>`)}</div>`;
 }
-// win-probability — a bivariate-Poisson goals model. Team strength is each side's World Football Elo rating
+// win-probability - a bivariate-Poisson goals model. Team strength is each side's World Football Elo rating
 // (seeded snapshot in teams.json), nudged by current-tournament form; the Elo gap sets the goal supremacy that
 // splits the two scoring rates. Scorelines are summed with a Dixon-Coles low-score correction (independent
 // Poisson under-counts draws). In-play, the rates scale to the minutes remaining and the live scoreline is
-// carried as a head-start. A clearly-labelled model estimate — not a feed/betting value.
+// carried as a head-start. A clearly-labelled model estimate - not a feed/betting value.
 const _FACT = [1, 1, 2, 6, 24, 120, 720, 5040, 40320, 362880];
 const _pois = (k, l) => Math.exp(-l) * Math.pow(l, k) / _FACT[k];
-const DC_RHO = -0.11;   // Dixon-Coles low-score dependence; NEGATIVE for football — inflates the 0-0 & 1-1 correlation real matches show (their paper lands ~-0.13)
+const DC_RHO = -0.11;   // Dixon-Coles low-score dependence; NEGATIVE for football - inflates the 0-0 & 1-1 correlation real matches show (their paper lands ~-0.13)
 // Dixon-Coles τ: nudges the four low scores independent Poisson gets wrong (mutual caution correlates 0-0/1-1 up).
 const _dcTau = (x, y, lh, la) =>
   x === 0 && y === 0 ? 1 - lh * la * DC_RHO :
@@ -998,13 +1015,13 @@ const _dcTau = (x, y, lh, la) =>
 const HOST_OF = { USA: "US", Mexico: "MX", Canada: "CA" };
 const hostCode = m => HOST_OF[(m.city || "").split(", ").pop()] || null;
 // Opponent-adjusted Elo from each completed result AND its official xG (efi); memoised on (#FT, #efi). K is kept cool
-// and per-team drift hard-capped so a short group stage — or one blowout — can't swamp a 4-year-seeded prior, and the
+// and per-team drift hard-capped so a short group stage - or one blowout - can't swamp a 4-year-seeded prior, and the
 // xG blend tames fluky scorelines (xG lives inside the update, so there is NO separate form term to double-count).
-// TWO stages: (1) a sequential online walk — the established rating, and the FINAL rating for any one-game team; then
+// TWO stages: (1) a sequential online walk - the established rating, and the FINAL rating for any one-game team; then
 // (2) a strength-of-schedule refinement (a fixed-point iteration) that re-scores every game against opponents' CURRENT
 // ratings and re-derives each MULTI-game team from its seed. Stage 2 is what lets a result ripple to a NON-playing team
 // through a shared opponent (within a group from matchday 2, across the whole bracket in the knockouts). A one-game team
-// has no common-opponent leverage, so it keeps its online value — which also keeps the ratings identical to the pure
+// has no common-opponent leverage, so it keeps its online value - which also keeps the ratings identical to the pure
 // online model until a team's 2nd game. Groups only ever connect a team to its own group, so nothing propagates across
 // groups during the group stage by construction (there is no shared-opponent path to carry it).
 let _eloCache = null, _eloSig = "";
@@ -1035,7 +1052,7 @@ function eloSeq() {
     const d = K * x.g * (x.seffH - exp(g0(x.hc), g0(x.ac), x.host, x.hc, x.ac));
     E0[x.hc] = clamp(x.hc, g0(x.hc) + d); E0[x.ac] = clamp(x.ac, g0(x.ac) - d);
   }
-  // (2) strength-of-schedule refinement — re-derive each multi-game team from its seed against opponents' current
+  // (2) strength-of-schedule refinement - re-derive each multi-game team from its seed against opponents' current
   // ratings; one-game teams keep their online value. Converges in a few passes (the ±DRIFT clamp keeps it bounded).
   let R = {}; for (const c in ng) R[c] = E0[c] ?? seed(c);
   for (let pass = 0; pass < 4; pass++) {
@@ -1065,7 +1082,7 @@ function liveReds(r) {
 }
 // Attack/defence "game-character" estimator (v3). The scalar Elo split provably can't move the TOTAL goals (it pins
 // it to 2·mu at every gap), so this overlay reshapes the total (and a small ≤25% slice of the skew) to add the
-// orthogonal "good attack / leaky defence" info Elo's single number can't hold — WITHOUT re-counting the xG already
+// orthogonal "good attack / leaky defence" info Elo's single number can't hold - WITHOUT re-counting the xG already
 // inside the Elo. Per-team estimates are heavily shrunk toward an Elo-implied prior (every team has barely played),
 // and the whole overlay is gated off until a side has ≥2 games, so early-tournament odds are untouched.
 let _adCache = null, _adSig = "";
@@ -1102,7 +1119,7 @@ function attackDefence() {
   }
   return (_adCache = out, _adSig = sig, out);
 }
-// Group-stage qualification stakes — only the two scenarios with a real, evidenced behavioural signal, detected
+// Group-stage qualification stakes - only the two scenarios with a real, evidenced behavioural signal, detected
 // EXACTLY from the live table via _qualScan (no heuristics). Mutually exclusive; fires only once a final-round
 // permutation is decided (so it stays dormant until matchday 3). Returns null when no clear stake applies.
 function stakeAdjust(m) {
@@ -1110,10 +1127,10 @@ function stakeAdjust(m) {
   const g = m.group, H = m.home.team, A = m.away.team;
   if (!H || !A || !S.matches.some(x => x.group === g && status(x) === ST.FT && res(x)?.h != null)) return null;
   const through = c => _qualScan(g, c).clinched, gone = c => _qualScan(g, c).out;
-  // 1) a draw sends BOTH through — neither already safe, yet a draw here guarantees top-two for each (cap the draw, ease the goals)
+  // 1) a draw sends BOTH through - neither already safe, yet a draw here guarantees top-two for each (cap the draw, ease the goals)
   if (!through(H) && !through(A) && _qualScan(g, H, m.id, "d").clinched && _qualScan(g, A, m.id, "d").clinched)
     return { lamMult: 0.92, draw: { mode: "boost", w: 0.20 }, reason: { key: "stake", dir: "N", mag: 0.16, text: "A draw sends both through" } };
-  // 2) both need the win — for EACH side a win clinches top-two but a draw leaves it uncertain (open, end-to-end game)
+  // 2) both need the win - for EACH side a win clinches top-two but a draw leaves it uncertain (open, end-to-end game)
   const needWin = (c, win) => !through(c) && !gone(c) && _qualScan(g, c, m.id, win).clinched && !_qualScan(g, c, m.id, "d").clinched;
   if (needWin(H, "h") && needWin(A, "a"))
     return { lamMult: 1.06, draw: { mode: "cut", w: 0.85 }, reason: { key: "stake", dir: "N", mag: 0.14, text: "Both need a win, end to end" } };
@@ -1135,7 +1152,7 @@ function winProb(m, pre = false) {
   let lamH = lamH0, lamA = lamA0;
   const reasons = [];
   if (ko) reasons.push({ key: "ko", dir: "N", mag: 0.08, text: "Knockout tie, played tighter" });
-  // attack/defence game-character overlay — dormant until BOTH sides have ≥2 games, so today's odds are unchanged
+  // attack/defence game-character overlay - dormant until BOTH sides have ≥2 games, so today's odds are unchanged
   const ad = attackDefence(), adH = ad[hc], adA = ad[ac];
   const ftN = S.matches.reduce((n, x) => n + (status(x) === ST.FT && res(x)?.h != null ? 1 : 0), 0);
   const adW = 0.6 * Math.min(1, ftN / 24);   // global trust ramp: 0 before any games, ~0.6 by ~24 played
@@ -1147,14 +1164,14 @@ function winProb(m, pre = false) {
     if (adH.D > 1.08 && adA.D > 1.08) reasons.push({ key: "matchup", dir: "N", mag: 0.06, text: "Two leaky defences, goals likely" });
     else if (adH.D < 0.92 && adA.D < 0.92) reasons.push({ key: "matchup", dir: "N", mag: 0.06, text: "Two tight defences, low and tight" });
   }
-  // the bar itself already conveys "who's stronger" — the "why" is reserved for NON-obvious movers. Surface only the
+  // the bar itself already conveys "who's stronger" - the "why" is reserved for NON-obvious movers. Surface only the
   // in-tournament FORM the sequential-Elo has added on top of the seeded prior (the raw strength gap is intentionally silent).
   const seedGap = ((S.teams[hc]?.elo || 1700) - (S.teams[ac]?.elo || 1700)) / 300;
   const formGap = (eloH - eloA) / 300 - seedGap;
   if (Math.abs(formGap) >= 0.06) reasons.push({ key: "form", dir: formGap >= 0 ? "H" : "A", mag: Math.abs(formGap), text: `${nm(formGap >= 0 ? hc : ac)} in form here` });
   const stk = (ko || live) ? null : stakeAdjust(m);   // pre-match group stakes (qualification scenario)
   if (stk) { lamH *= stk.lamMult; lamA *= stk.lamMult; reasons.push(stk.reason); }
-  const host = hostCode(m);   // host home advantage — only a host playing in its own country (else stays neutral)
+  const host = hostCode(m);   // host home advantage - only a host playing in its own country (else stays neutral)
   if (host === hc || host === ac) {
     const hs = host === hc; lamH *= Math.exp(hs ? 0.13 : -0.06); lamA *= Math.exp(hs ? -0.06 : 0.13);
     reasons.push({ key: "host", dir: hs ? "H" : "A", mag: 0.19, text: `Host edge in ${(m.city || "").split(",")[0]}` });
@@ -1179,7 +1196,7 @@ function winProb(m, pre = false) {
   const tot = pH + pD + pA || 1;
   let probH = pH / tot, probD = pD / tot, probA = pA / tot;
   // early-tournament calibration (pre-match only): while teams have barely shown form, hedge toward a draw-aware
-  // base — cagey openers draw far more than a confident Elo split implies. Shrink decays to 0 by the knockouts.
+  // base - cagey openers draw far more than a confident Elo split implies. Shrink decays to 0 by the knockouts.
   // A principled uncertainty knob from the research range (15-20%), NOT a fit to results.
   if (!live) {
     const pld = c => S.matches.reduce((n, x) => n + (matchHasTeam(x, c) && status(x) === ST.FT ? 1 : 0), 0);
@@ -1204,7 +1221,7 @@ function winProbBlock(m, pre = false) {
   const legend = wp.ko && wp.adv
     ? `<div class="wp-legend"><span class="wp-lh"><b>${Math.round(wp.adv.h * 100)}%</b> ${flag(h.code)} <span class="wp-lname">${esc(h.name)}</span></span><span class="wp-ld">advance</span><span class="wp-la"><span class="wp-lname">${esc(a.name)}</span> ${flag(a.code)} <b>${Math.round(wp.adv.a * 100)}%</b></span></div>`
     : `<div class="wp-legend"><span class="wp-lh"><b>${ph}%</b> ${flag(h.code)} <span class="wp-lname">${esc(h.name)}</span></span><span class="wp-ld">Draw <b>${pd}%</b></span><span class="wp-la"><span class="wp-lname">${esc(a.name)}</span> ${flag(a.code)} <b>${pa}%</b></span></div>`;
-  // the single "projected score" is dropped — the "Most likely scores" tiles (rendered just below) say it better
+  // the single "projected score" is dropped - the "Most likely scores" tiles (rendered just below) say it better
   return `<div class="eyebrow">Win probability <span class="wp-est">${wp.live ? "live estimate" : "pre-match estimate"}</span>${infoBtn("A Dixon-Coles goals model. Each side's strength is a World-Football Elo that updates after every result (blending in FIFA's expected goals), nudged by host advantage and, late in the groups, by what each team still needs to qualify. The most-likely scores below are the model's top scorelines. A clearly-labelled estimate, not a betting line.", "How win probability is calculated")}</div>
     <div class="wp">
       <div class="wp-bar" role="img" aria-label="${esc(h.name)} ${ph}%, draw ${pd}%, ${esc(a.name)} ${pa}%">
@@ -1214,8 +1231,8 @@ function winProbBlock(m, pre = false) {
 /* ---------------- stakes explainer ----------------
    Plain-language "what this result means for qualification" on group matches. Pure points-based reasoning over
    every still-possible W/D/L of the group's unfinished matches, so each claim survives goal-difference tiebreaks;
-   where the cut IS GD-dependent we don't fake a call — we fall back to the live standing. No new data. */
-function _basePts(g) {                                    // FT-only points — the definite base (feed-final only)
+   where the cut IS GD-dependent we don't fake a call - we fall back to the live standing. No new data. */
+function _basePts(g) {                                    // FT-only points - the definite base (feed-final only)
   const pts = {}; groupTeams(g).forEach(c => pts[c] = 0);
   for (const m of S.matches) if (m.group === g && isFeedFinal(m)) {
     const r = res(m);
@@ -1258,7 +1275,7 @@ function _provRows(g) {                                    // FT + in-play point
   return rows;
 }
 // "as it stands" positions. The final tiebreak is the alphabetical code, so a single team's position is only
-// meaningful when it isn't dead-level with a neighbour — callers (matchStakes) must guard for that.
+// meaningful when it isn't dead-level with a neighbour - callers (matchStakes) must guard for that.
 function _provPos(g) {                                    // FT + in-play provisional positions ("as it stands")
   const pos = {};
   Object.values(_provRows(g)).sort((x, y) => y.pts - x.pts || y.gd - x.gd || y.gf - x.gf || x.code.localeCompare(y.code))
@@ -1282,7 +1299,7 @@ function matchStakes(m) {
   };
   const lines = [say(H), say(A)].filter(Boolean);
   if (lines.length) return { lines, definitive: true };          // crisp qualification call
-  // "As it stands" positions are only meaningful for teams that have actually played — a team on 0
+  // "As it stands" positions are only meaningful for teams that have actually played - a team on 0
   // games is "Nth" purely by tiebreak among everyone tied on 0 points, which misreads as a real standing.
   const counted = x => { const r = res(x); return r && r.h != null && [ST.FT, ST.LIVE, ST.HT].includes(r.st); };
   const playedIn = code => S.matches.some(x => x.group === g && (x.home.team === code || x.away.team === code) && counted(x));
@@ -1290,14 +1307,14 @@ function matchStakes(m) {
   if (!pH && !pA) return { lines: [`Both sides open their Group ${g} campaign.`], definitive: false };
   // A team's "position" is only real if it isn't dead-level with ANY other group member: when teams tie on
   // points/GD/goals the order is decided purely by the alphabetical code tiebreak, which misreads as a real
-  // standing (the "Ecuador 3rd at 0–0" bug — and it also bites when a side is level with a THIRD team, not just
+  // standing (the "Ecuador 3rd at 0–0" bug - and it also bites when a side is level with a THIRD team, not just
   // its opponent, e.g. a group that opens with four draws). In that case say "level", never an ordinal.
   const R = _provRows(g);
   const levelWithAny = c => Object.values(R).some(o => o.code !== c && o.pts === R[c].pts && o.gd === R[c].gd && o.gf === R[c].gf);
   if (pH && pA && R[H] && R[A] && R[H].pts === R[A].pts && R[H].gd === R[A].gd && R[H].gf === R[A].gf)
     return { lines: [`${nm(H)} and ${nm(A)} are level in Group ${g} so far.`], definitive: false };
   const p = _provPos(g), lvlH = pH && levelWithAny(H), lvlA = pA && levelWithAny(A);
-  if (lvlH && lvlA)   // both sit level — say it once, not "X are level on points and Y are level on points"
+  if (lvlH && lvlA)   // both sit level - say it once, not "X are level on points and Y are level on points"
     return { lines: [`${nm(H)} and ${nm(A)} are level on points in Group ${g} so far.`], definitive: false };
   const parts = [];
   if (pH) parts.push(lvlH ? `${nm(H)} are level on points` : `${nm(H)} are ${ordinal(p[H])}`);
@@ -1318,7 +1335,7 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
   const statusTag = st === ST.LIVE ? `<span class="md-tag live">● Live ${clockStr(m, r)}</span>`
     : st === ST.HT ? `<span class="md-tag live">Half-time</span>`
     : st === ST.FT ? `<span class="md-tag ft">Full time</span>`
-    : `<span class="md-tag soon">Upcoming</span>`;   // time/date live in the meta row below — no need to repeat it
+    : `<span class="md-tag soon">Upcoming</span>`;   // time/date live in the meta row below - no need to repeat it
   const side = (s, key) => `<div class="md-team ${s.code === S.fav ? "is-fav" : ""}${s.code ? " md-team-clk" : ""}"${s.code ? ` data-squad="${s.code}" role="button" tabindex="0" aria-label="Open ${esc(s.name)} details"` : ""}>
       <span class="md-flag">${s.code ? flag(s.code) : TBD_FLAG}</span>
       <span class="md-name ${s.ph ? "is-ph" : ""}">${esc(slotText(m, key, s))}</span>
@@ -1344,7 +1361,7 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
       <div class="md-goals-col away">${(r.ga || []).map(g => `<div class="md-goal">${esc(g)} ${ICO.ball}</div>`).join("")}</div>
     </div>` : "";
   const pKeyStats = mdKeyStats(r, m), pStats = mdStats(r, isFT), pEfi = mdEfi(m, isFT);
-  // win-prob: in-play for a live game (reflects the score), the model's pre-match call otherwise — plus its "why" drivers + top-3 scorelines
+  // win-prob: in-play for a live game (reflects the score), the model's pre-match call otherwise - plus its "why" drivers + top-3 scorelines
   const pre = !live, _wp = winProb(m, pre);
   const pWinProb = _wp ? winProbBlock(m, pre) + liveWhyChips(_wp) + liveScorelines(_wp) : "";
   const pReport = mdReport(m), pComm = mdCommentaryShell(m), pStakes = stakesBlock(m), pCompare = matchCompare(m), pStars = liveStars(m), pControl = matchControlBar(m);
@@ -1361,7 +1378,7 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
       ${r?.facts?.att ? `<span>${ICO.people} ${(+r.facts.att).toLocaleString()} in</span>` : ""}
       ${r?.facts?.ref ? `<span>Referee · ${esc(r.facts.ref)}</span>` : ""}
     </div>`;
-  // order by state so each opens with what you came for (Live folds in here — no separate tab as of build 329).
+  // order by state so each opens with what you came for (Live folds in here - no separate tab as of build 329).
   const middle = liveNow
     // live: analytics lead (win-prob + who's-on-top control), then the live feed, then the numbers, stars, deep dive, stakes
     ? [pWinProb, pControl, pComm, pKeyStats, pStars, pTimeline, pStats, pXiInline, pEfi, pCompareFold, pStakes]
@@ -1371,7 +1388,7 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
     : [pStakes, pCompare, pWinProb, pXiInline];   // upcoming: stakes + head-to-head compare + odds + (announced) line-ups
   const _body = pTop + middle.join("") + pMeta;
   const mb = $("#matchBody");
-  if (reuse) paint(mb, _body);                       // live poll: morph the body in place — score/minute/timeline/stats update while expanded folds, scroll & loaded commentary survive
+  if (reuse) paint(mb, _body);                       // live poll: morph the body in place - score/minute/timeline/stats update while expanded folds, scroll & loaded commentary survive
   else { mb.__sig = _body; mb.innerHTML = _body; }   // fresh open: one clean render (seed the signature so the first refresh morphs against it)
   const md = $("#matchDialog"); md.dataset.openMid = id; if (!reuse) showSheet(md);   // openMid (not data-mid) so the global match-open click handler never matches the dialog itself
   // live commentary is per-match; fetch it when the section is open (it opens by default for live games)
@@ -1386,14 +1403,14 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
       body.innerHTML = renderCommentary(await loadCommentary(m.num));
     };
     comm.addEventListener("toggle", loadComm);
-    if (comm.open) loadComm();   // <details open> doesn't fire toggle on render — kick it off manually
+    if (comm.open) loadComm();   // <details open> doesn't fire toggle on render - kick it off manually
   }
 }
 
 /* ---------------- render: matches (today + full calendar) ---------------- */
 let cdTimer = null, prevCd = {};
 // The hero area. Stacked (vertical), not a swipe carousel: when two games kick off at once both stay visible
-// at a glance with zero gestures — a carousel would hide the second match behind an undiscoverable swipe and
+// at a glance with zero gestures - a carousel would hide the second match behind an undiscoverable swipe and
 // add interaction cost for no benefit when there are only ever a handful. A header labels the count when >1.
 function heroStack(liveMatches, nextM) {
   if (!liveMatches.length) return nextM ? heroBlock(nextM, false) : "";
@@ -1439,13 +1456,13 @@ function heroBlock(heroM, isLive, onLive) {
     </div>
   </div>`;
 }
-// "Match of the day" — the marquee fixture among the next slate of upcoming/live games, scored by
+// "Match of the day" - the marquee fixture among the next slate of upcoming/live games, scored by
 // stage weight + the two teams' World Cup pedigree + a host bonus. A rolling window over the next few
 // fixtures (not a local-day boundary) so a late-night kickoff isn't shoved into "tomorrow" by the tz.
 const MOTD_STAGE = { group: 0, r32: 3, r16: 4, qf: 6, sf: 8, third: 5, final: 12 };
 const HOSTS = ["CA", "MX", "US"];
 // how marquee a fixture is: stage weight + the two teams' current strength (Elo) + historic pedigree (titles) +
-// a host bonus. Elo is the main team-quality signal — titles alone can't rank a Netherlands–Croatia tie (both
+// a host bonus. Elo is the main team-quality signal - titles alone can't rank a Netherlands–Croatia tie (both
 // 0 titles) above a minnows game; the closeness of the two sides also nudges a balanced heavyweight clash up.
 function prestige(m) {
   const h = slotInfo(m, "home"), a = slotInfo(m, "away");
@@ -1457,7 +1474,7 @@ function prestige(m) {
   return (MOTD_STAGE[m.stage] || 0) + strength + even + titles + host + (!!h.code + !!a.code);   // prefer known fixtures
 }
 const marqueeOf = list => list.length ? list.slice().sort((a, b) => prestige(b) - prestige(a) || a.utc.localeCompare(b.utc))[0] : null;
-// the marquee of TODAY's remaining fixtures — "today" is the visitor's local day (same one the ticker uses), so
+// the marquee of TODAY's remaining fixtures - "today" is the visitor's local day (same one the ticker uses), so
 // it's never a tomorrow match mislabelled "of the day", and it re-computes when you change timezone. Null on a
 // rest day with nothing left to play (the hero's next-kickoff card carries the gap instead).
 function matchOfDay() {
@@ -1528,7 +1545,7 @@ function matchCompare(m) {
       <div class="mc-reswrap"><div class="mc-resrow">${resChips(recA)}</div><div class="mc-resrow">${resChips(recB)}</div></div>
     </div>`;
 }
-// "Match stars" — large portrait cards of the goalscorers (live/FT), else each side's leading scorer (upcoming).
+// "Match stars" - large portrait cards of the goalscorers (live/FT), else each side's leading scorer (upcoming).
 // Photo-led: a player with no headshot is skipped, and the whole section drops in data-saver (bestPhoto returns "").
 function liveStars(m) {
   const h = slotInfo(m, "home"), a = slotInfo(m, "away"), r = res(m) || {};
@@ -1569,8 +1586,8 @@ function renderMatches() {
   const el = $("#view-matches");
   const now = new Date();
   const todayK = dayKey(now.toISOString());
-  // Simultaneous kickoffs are normal at a World Cup — the final round of every group plays its two games at
-  // the same time — so don't pick one "the" live match; surface them all. When nothing's live, a single
+  // Simultaneous kickoffs are normal at a World Cup - the final round of every group plays its two games at
+  // the same time - so don't pick one "the" live match; surface them all. When nothing's live, a single
   // next-kickoff card carries the countdown.
   const liveMatches = S.matches.filter(m => [ST.LIVE, ST.HT].includes(status(m)))
     .sort((a, b) => a.utc.localeCompare(b.utc));
@@ -1591,7 +1608,7 @@ function renderMatches() {
   const past = list.filter(m => status(m) === ST.FT);
   const ahead = list.filter(m => status(m) !== ST.FT);
 
-  const motd = matchOfDay();   // skip if it's already a hero card (live/next) — no point showing it twice
+  const motd = matchOfDay();   // skip if it's already a hero card (live/next) - no point showing it twice
   paint(el,
     heroStack(liveMatches, nextM) +
     (motd && !heroIds.has(motd.id) ? motdBanner(motd) : "") +
@@ -1632,7 +1649,7 @@ function renderMatches() {
   if (tb) {
     tb.onclick = () => { $("#teamSelPop").hidden ? openTeamSel() : closeTeamSel(); };
     $("#teamSelSearch", el).oninput = e => renderTeamSelList(e.target.value);
-    // keyboard: the role="listbox" implies arrow-key traversal — wire it (↓/↑ move, Enter selects, ↑ off the top returns to search)
+    // keyboard: the role="listbox" implies arrow-key traversal - wire it (↓/↑ move, Enter selects, ↑ off the top returns to search)
     $("#teamSelPop", el).onkeydown = e => {
       if (!["ArrowDown", "ArrowUp", "Enter"].includes(e.key)) return;
       const opts = $$("#teamSelList .tsel-opt", el), cur = opts.indexOf(document.activeElement);
@@ -1654,7 +1671,6 @@ function renderMatches() {
     const cards = $$(".ear-body .mcard-wrap", ear);
     cards[cards.length - 1]?.scrollIntoView({ block: "end", behavior: "smooth" });
   };
-  requestAnimationFrame(updateJumpNow);
 }
 // custom searchable team filter (favourite pinned on top, then alphabetical)
 function teamSelOptions(q = "") {
@@ -1693,7 +1709,7 @@ function closeTeamSel() {
   $("#teamSelBtn")?.setAttribute("aria-expanded", "false");
   $("#teamSelWrap")?.classList.remove("open");
 }
-// stage filter — a custom dropdown (matches the team one) instead of a native <select>, whose Android
+// stage filter - a custom dropdown (matches the team one) instead of a native <select>, whose Android
 // picker is a jarring edge-to-edge OS sheet that breaks the look of the rest of the page
 function openStagePop() {
   const pop = $("#stageSelPop"); if (!pop) return;
@@ -1707,50 +1723,12 @@ function closeStagePop() {
   $("#stageSelBtn")?.setAttribute("aria-expanded", "false");
   $("#stageSelWrap")?.classList.remove("open");
 }
-// floating "jump to today/live" control.
-// We target the first *match card* of the live/today group, not the day header:
-// headers are position:sticky, so their offsetTop / getBoundingClientRect are unreliable.
-function jumpTarget() {
-  const v = $("#view-matches"); if (!v || S.view !== "matches") return null;
-  const liveM = S.matches.find(m => [ST.LIVE, ST.HT].includes(status(m)));
-  // a sticky day banner sits above the live card too — pass a visible dayhead (they're all one height) so scrollToNow
-  // lands the card *below* the banner instead of behind it. (Was head:null, which let the banner cover the card top.)
-  if (liveM) { const c = v.querySelector(`.mcard[data-mid="${liveM.id}"]`); if (c) return { el: c, head: [...v.querySelectorAll(".dayhead")].find(h => h.offsetHeight > 0) || null, live: true }; }
-  // there can be two "today" headers — one inside the collapsed "Earlier results" <details> and one in
-  // the upcoming list. Target the upcoming (visible) one, never the collapsed one.
-  const heads = [...v.querySelectorAll(".dayhead.is-today")];
-  const head = heads.find(h => !h.closest("details")) || heads[0];
-  if (head) {
-    let card = head.nextElementSibling;
-    while (card && !card.classList.contains("mcard")) card = card.nextElementSibling;
-    return { el: card || head, head, live: false };  // card is non-sticky → accurate geometry
-  }
-  return null;
-}
-const STICK = () => ($(".topbar")?.offsetHeight || 56) + ($(".tabs")?.offsetHeight || 48);
-// publish the real pinned-chrome heights as CSS vars so the sticky day-headers pin exactly under the
-// tabs (the old hardcoded 60px/105px assumed a taller bar) — keeps "jump to today" landing pixel-true.
+// publish the real pinned-chrome heights as CSS vars so the sticky day-headers pin exactly under the tabs
 function setChromeVars() {
   const bar = $(".topbar")?.offsetHeight || 56, tabs = $(".tabs")?.offsetHeight || 46;
   const r = document.documentElement.style;
   r.setProperty("--h-bar", bar + "px");
   r.setProperty("--h-chrome", (bar + tabs) + "px");
-}
-function updateJumpNow() {
-  const btn = $("#jumpNow"); if (!btn) return;
-  const t = jumpTarget();
-  if (!t) { btn.hidden = true; return; }
-  const vp = t.el.getBoundingClientRect().top;               // viewport-relative (target is non-sticky)
-  btn.hidden = !(vp < STICK() - 60 || vp > innerHeight - 24); // show only when it's well off-screen
-  btn.classList.toggle("is-live", t.live);
-  $("#jnLabel").textContent = t.live ? "Live" : "Today";
-}
-function scrollToNow() {
-  const t = jumpTarget(); if (!t) return;
-  // land the day header just under the sticky chrome; the card sits right below it
-  const headH = t.head ? t.head.offsetHeight : 0;
-  const y = t.el.getBoundingClientRect().top + scrollY - STICK() - headH - 8;
-  scrollTo({ top: Math.max(0, y), behavior: "smooth" });
 }
 function startCountdown(root) {
   clearInterval(cdTimer); prevCd = {};
@@ -1769,7 +1747,7 @@ function startCountdown(root) {
 }
 
 /* ---------------- render: teams (my team + all 48) ---------------- */
-// compact fav-team spotlight (hero + collapsed squad) — sits ABOVE the all-teams landscape; the fixtures/group
+// compact fav-team spotlight (hero + collapsed squad) - sits ABOVE the all-teams landscape; the fixtures/group
 // move below the grid (myTeamFixtures) so the landscape isn't buried under your team's full detail.
 function myTeamBlock() {
   const t = S.teams[S.fav];
@@ -1815,12 +1793,12 @@ function teamsLandscapeBanner() {
     ${S.wc22.matches?.length ? `<button class="wc22-results-btn" data-wc22>Qatar 2022 · full results ›</button>` : ""}
   </div>`;
 }
-// the last World Cup's matches grouped by stage, with scores + goalscorers — a reference of what happened in 2022
+// the last World Cup's matches grouped by stage, with scores + goalscorers - a reference of what happened in 2022
 const WC22_STAGES = [["FIN", "Final"], ["3P", "Third place"], ["SF", "Semi-finals"], ["QF", "Quarter-finals"], ["R16", "Round of 16"],
   ["A", "Group A"], ["B", "Group B"], ["C", "Group C"], ["D", "Group D"], ["E", "Group E"], ["F", "Group F"], ["G", "Group G"], ["H", "Group H"]];
 function wc2022ResultsHTML() {
   const ms = S.wc22?.matches; if (!ms?.length) return `<div class="empty">2022 results aren't loaded yet.</div>`;
-  const scorers = arr => arr.length ? arr.map(x => `${esc(x.n)} ${x.m.map(mm => mm + "'").join(", ")}`).join(" · ") : "—";
+  const scorers = arr => arr.length ? arr.map(x => `${esc(x.n)} ${x.m.map(mm => mm + "'").join(", ")}`).join(" · ") : "-";
   const teamN = c => esc(S.teams[c]?.name || S.wc22?.names?.[c] || c);
   const row = m => `<div class="w22m">
     <div class="w22m-top"><span class="w22m-side"><span class="fl">${flag(m.a)}</span><span class="w22m-nm">${teamN(m.a)}</span></span>
@@ -1828,12 +1806,12 @@ function wc2022ResultsHTML() {
       <span class="w22m-side w22m-r"><span class="w22m-nm">${teamN(m.b)}</span><span class="fl">${flag(m.b)}</span></span></div>
     ${(m.ga.length || m.gb.length) ? `<div class="w22m-g"><span>${scorers(m.ga)}</span><span>${scorers(m.gb)}</span></div>` : ""}
   </div>`;
-  return `<p class="w22-intro">Every match from <b>${esc(S.wc22.host)} ${S.wc22.year}</b> — champions <b>${teamN("AR")}</b>, runners-up France. Source: Wikipedia.</p>`
+  return `<p class="w22-intro">Every match from <b>${esc(S.wc22.host)} ${S.wc22.year}</b> - champions <b>${teamN("AR")}</b>, runners-up France. Source: Wikipedia.</p>`
     + WC22_STAGES.map(([st, label]) => { const sm = ms.filter(m => m.st === st); return sm.length ? `<div class="eyebrow">${label}</div><div class="w22-list">${sm.map(row).join("")}</div>` : ""; }).join("");
 }
 function openWc2022() { const b = $("#wc22Body"); if (b) b.innerHTML = wc2022ResultsHTML(); showSheet($("#wc22Dialog")); }
 // tap a player portrait → a full-screen lightbox of the same photo at a sharp larger width. The bigger image is
-// fetched ONLY here, on demand (one request, browser-cached after) — it never touches initial load or scrolling.
+// fetched ONLY here, on demand (one request, browser-cached after) - it never touches initial load or scrolling.
 function openLightbox(url) {
   if (!url) return;
   const big = atWidth(url, 1400) || url;   // FIFA resize service: ask for a large width; non-FIFA urls pass through
@@ -1893,7 +1871,7 @@ async function renderTeamsMap() {
     return `<g class="mdot${c === S.fav ? " is-fav" : ""}" data-squad="${c}" role="button" tabindex="0" aria-label="${esc(t.name)}"><circle cx="${px(t.lon)}" cy="${py(t.lat)}" r="6.5" style="fill:${t.c1 || "var(--acc1)"}"/><title>${esc(t.name)} · pop. ${popStr(t.pop)}</title></g>`;
   }).join("");
   host.innerHTML = `<svg class="wmap" viewBox="0 0 1000 500" preserveAspectRatio="xMidYMid meet" role="img" aria-label="World map of the 48 qualified nations"><path class="wmap-land" d="${land}"/><g class="wmap-dots">${dots}</g></svg>
-    <p class="wmap-cap">Each dot is one of the 48 — tap to open. Population: World Bank 2024 (England/Scotland ONS 2023).</p>`;
+    <p class="wmap-cap">Each dot is one of the 48 - tap to open. Population: World Bank 2024 (England/Scotland ONS 2023).</p>`;
 }
 // authoritative head coach: curated teams.json value (web-verified, all 48), API-squad coach as a fallback
 const teamCoach = code => S.teams[code]?.coach || S.squads?.[code]?.coach || "";
@@ -1940,7 +1918,7 @@ function playerClubs() {
   for (const p of playersIndex()) if (p.club) m.set(p.club, (m.get(p.club) || 0) + 1);
   return (_plClubs = [...m.entries()].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name)));
 }
-// the 48 nations, each with its squad size — listed alphabetically (counts are ~uniform, so name order is what helps you find one)
+// the 48 nations, each with its squad size - listed alphabetically (counts are ~uniform, so name order is what helps you find one)
 function playerCountries() {
   if (_plCtries) return _plCtries;
   const m = new Map();
@@ -1992,7 +1970,7 @@ function plgClubListHTML(q) {
   const rows = f ? clubs.filter(c => c.name.toLowerCase().includes(f)) : clubs, LIM = 50;
   const all = f ? "" : `<button class="plg-clubrow ${!_plFilter.club ? "is-on" : ""}" data-pick=""><span class="plg-clubnm">All clubs</span><span class="plg-clubn">${playersIndex().length}</span></button>`;
   const body = rows.slice(0, LIM).map(c => `<button class="plg-clubrow ${c.name === _plFilter.club ? "is-on" : ""}" data-pick="${esc(c.name)}"><span class="plg-clubnm">${esc(c.name)}</span><span class="plg-clubn">${c.count}</span></button>`).join("");
-  const more = !rows.length ? `<div class="plg-clubmore">No clubs match “${esc(q)}”</div>` : (rows.length > LIM ? `<div class="plg-clubmore">${rows.length - LIM} more — keep typing to narrow</div>` : "");
+  const more = !rows.length ? `<div class="plg-clubmore">No clubs match “${esc(q)}”</div>` : (rows.length > LIM ? `<div class="plg-clubmore">${rows.length - LIM} more - keep typing to narrow</div>` : "");
   return all + body + more;
 }
 // the country-picker list (all 48, alphabetical, with flag), narrowed by its own search box; value is the team CODE
@@ -2029,7 +2007,7 @@ function renderPlayers() {
       <div class="plg-seg plg-sortseg">${sortSeg}</div>
     </div>
     <div id="plgList">${plgListHTML(plgCompute())}</div>`;
-  // SEARCH updates ONLY the list node — the input element is never re-created, so fast typing never drops a letter
+  // SEARCH updates ONLY the list node - the input element is never re-created, so fast typing never drops a letter
   const qi = $("#plgQ", el);
   if (qi) qi.oninput = () => { _plFilter.q = qi.value; clearTimeout(qi._t); qi._t = setTimeout(() => { const lc = $("#plgList", el); if (lc) lc.innerHTML = plgListHTML(plgCompute()); }, 110); };
   $$("[data-pos]", el).forEach(b => b.onclick = () => { _plFilter.pos = b.dataset.pos; renderPlayers(); });
@@ -2091,7 +2069,7 @@ function heroSquad(code) {
     ${rows || ""}
     <details class="ts-squad sq-fulllist"><summary><span>Full squad list</span><small>numbers, clubs &amp; positions</small></summary>${rosterMarkup(sq, code)}</details>`;
 }
-// World Cup pedigree (titles · best finish · appearances) + the head coach — the "what this team is about" header
+// World Cup pedigree (titles · best finish · appearances) + the head coach - the "what this team is about" header
 function teamOverview(code) {
   const t = S.teams[code]; if (!t) return "";
   const titles = t.titles || 0, debut = t.best === "First appearance";
@@ -2156,7 +2134,7 @@ function wcHistory(code) {
   }).join("");
   return `<div class="eyebrow">World Cup since 2002</div><div class="wch-grid">${chips}</div>`;
 }
-// a player's record at THIS World Cup — counted from the team's played matches (tolerant name match vs feed names)
+// a player's record at THIS World Cup - counted from the team's played matches (tolerant name match vs feed names)
 function playerWC(name, code) {
   let g = 0, a = 0, y = 0, rc = 0, apps = 0, starts = 0, cs = 0, ga = 0;
   for (const m of S.matches) {
@@ -2168,7 +2146,7 @@ function playerWC(name, code) {
     const inXI = xi.some(p => sameName(p[1], name));
     const onBench = (r.ev || []).some(e => e.tm === side && e.k === "S" && e.on && sameName(e.on, name));
     if (inXI || onBench) apps++;
-    // clean sheets / goals conceded while the player STARTED — shared by the keeper and the back line,
+    // clean sheets / goals conceded while the player STARTED - shared by the keeper and the back line,
     // approximated to the match's final score (the same simplification the keeper leaderboard uses)
     if (inXI && r.h != null) {
       starts++; const conceded = side === "h" ? r.a : r.h; ga += conceded; if (conceded === 0) cs++;
@@ -2183,7 +2161,7 @@ function playerWC(name, code) {
   }
   return { g, a, y, rc, apps, starts, cs, ga };
 }
-// a player's tournament match-by-match: opponent, result and what they did — tappable through to the match
+// a player's tournament match-by-match: opponent, result and what they did - tappable through to the match
 function playerMatchLog(name, code) {
   const rows = [];
   for (const m of S.matches) {
@@ -2208,7 +2186,7 @@ function playerMatchLog(name, code) {
   }
   return rows.sort((x, y) => x.utc.localeCompare(y.utc));
 }
-// a team's match-by-match key stats (possession, shots, on target) — tappable through to the match
+// a team's match-by-match key stats (possession, shots, on target) - tappable through to the match
 function teamMatchStats(code) {
   const rows = [];
   for (const m of S.matches) {
@@ -2224,7 +2202,7 @@ function teamMatchStats(code) {
   }
   return rows.sort((x, y) => x.utc.localeCompare(y.utc));
 }
-// Team detail sheet — overview, recent form, every fixture (results + upcoming), the group
+// Team detail sheet - overview, recent form, every fixture (results + upcoming), the group
 // standing + qualification outlook, and the full squad (collapsible). Tapping a team anywhere
 // (grid, group table, leaderboards, match modal) opens this; match cards inside drill deeper.
 // minutes & rotation, built from each match's starting XI (xi) + substitutions (ev). Approximate
@@ -2264,7 +2242,7 @@ function rotationSection(code) {
     <div class="rt-list">${R.players.map(row).join("")}</div>
     <div class="rt-legend"><span><i class="rt-cell s-S"></i>Started</span><span><i class="rt-cell s-P"></i>Subbed off</span><span><i class="rt-cell s-U"></i>Off the bench</span><span><i class="rt-cell s--"></i>Unused</span></div></details>`;
 }
-// a team's "playing style" fingerprint — five identity axes, each a bar showing where the team sits among
+// a team's "playing style" fingerprint - five identity axes, each a bar showing where the team sits among
 // the field (min-max percentile over teams that have a match-stats line). It's a shape, not a ranking.
 function styleSection(code) {
   const me = tournamentStats().style, mine = me.find(x => x.code === code);
@@ -2281,7 +2259,7 @@ function styleSection(code) {
     <div class="sty-row"><span class="sty-lbl">${label}${infoBtn(help + " The bar shows where they rank among all teams (full = highest), not how good it is.", label + " explained")}</span><span class="sty-bar"><i style="width:${pct(key)}%"></i></span><span class="sty-v">${fmt(mine[key])}</span></div></div>`).join("");
   return `<div class="eyebrow">Playing style</div><div class="sty-card">${rows}<p class="sty-hint">Where ${esc(S.teams[code].name)} ranks among teams with match stats. A fuller bar means more than its rivals, not "better".</p></div>`;
 }
-// "Then & Now": this team at the last World Cup (2022) — their finish + who carried over vs who's new this time.
+// "Then & Now": this team at the last World Cup (2022) - their finish + who carried over vs who's new this time.
 function since2022Section(code) {
   if (!S.wc22) return "";   // dataset not loaded yet (re-renders when it lands)
   const c = wc22Continuity(code);
@@ -2333,7 +2311,7 @@ function openTeam(code) {
   showSheet($("#teamSheet"));
   fillCountryMap(code);   // lazy: drop in the country silhouette once the shapes file loads
 }
-// a small "country shape" map at the top of the team sheet — the nation's silhouette filled in its kit colours.
+// a small "country shape" map at the top of the team sheet - the nation's silhouette filled in its kit colours.
 // The 46KB shapes file is fetched once, on first team-sheet open; the two micro-states without a 110m shape just
 // get no map (the section removes itself). Same equirectangular space as the world map.
 function countryMiniMap(code) {
@@ -2361,12 +2339,12 @@ async function fillCountryMap(code) {
   </svg><span class="ctry-map-cap">${cap}</span>`;
 }
 // best-effort match of a feed name (e.g. "Julian QUINONES") to a squad entry (names come from a different feed)
-// the squad player behind a feed reference (caps, club, position, jersey) — same robust resolver as the name & photo,
+// the squad player behind a feed reference (caps, club, position, jersey) - same robust resolver as the name & photo,
 // so the bio can never describe a different person than the one named.
 function squadBio(name, code) { return resolvePlayer(name, code); }
 // tap a player name anywhere (timeline, lineup, Golden Boot, squad) → a compact profile.
 // Uses live-match context (XI position + what they did) only when a match modal is actually open.
-// join a player to their ESPN per-match box score (pstats keys are raw ESPN names) — exact, then unique surname
+// join a player to their ESPN per-match box score (pstats keys are raw ESPN names) - exact, then unique surname
 function matchPstat(name, ps) {
   if (!ps) return null;
   const nn = normName(name);
@@ -2464,7 +2442,7 @@ const ordinal = n => n + (["th", "st", "nd", "rd"][((n % 100) - 20) % 10] || ["t
 // opens the right sheet; #searchResults' own listener just closes the overlay first.
 let SIDX = null, _sidxSig = "";
 // Memoised wrapper: rebuilding the whole index (every team, ~700 players, every match's slot resolution) on each
-// search-open was wasted work when nothing changed. Rebuild only when the data that feeds it moves — team count,
+// search-open was wasted work when nothing changed. Rebuild only when the data that feeds it moves - team count,
 // total squad size, match count, or the results stamp (which is what flips knockout slot names + scores).
 function searchIndex() {
   const sig = S.matches.length + "|" + Object.keys(S.teams).length + "|" +
@@ -2528,7 +2506,7 @@ function openSearchOverlay() {
     if (cmp) { const [n, c] = cmp.dataset.compare.split("|"); const seed = compareSeed; compareSeed = null; $("#searchDialog").close(); openCompare(seed, { name: n, code: c }); return; }
     const cmpT = e.target.closest("[data-compare-pick]");   // team-compare mode: a second team was picked
     if (cmpT) { const seed = compareTeamSeed; compareTeamSeed = null; $("#searchDialog").close(); openTeamCompare(seed, cmpT.dataset.comparePick); return; }
-    // Open the picked result HERE — in the same handler as the close — not via the document delegation. The modal
+    // Open the picked result HERE - in the same handler as the close - not via the document delegation. The modal
     // history-back runs at the microtask checkpoint BETWEEN event listeners, so if we only closed and let the doc
     // handler open the target on the next listener, that back() fires in the gap (no dialog open yet) and a popstate
     // immediately tears down the dialog we just opened. stopPropagation keeps the doc handler from double-firing.
@@ -2543,7 +2521,7 @@ function openSearchOverlay() {
 }
 function renderSearch(raw) {
   const q = raw.trim().toLowerCase(), res = $("#searchResults"), cmp = !!compareSeed;
-  const tname = c => esc(S.teams[c]?.name || c);
+  const tname = c => esc(cname(c));
   if (compareTeamSeed) {   // team-compare mode: teams only, tapping picks the second team
     if (!q) { res.innerHTML = ""; return; }
     const ts = SIDX.teams.filter(t => ((t.name || "").toLowerCase().includes(q) || t.code.toLowerCase() === q || (t.conf || "").toLowerCase().includes(q)) && t.code !== compareTeamSeed)
@@ -2575,7 +2553,7 @@ function renderSearch(raw) {
   res.innerHTML = (teamHtml + playerHtml + matchHtml) || `<div class="sr-hint">No teams, players or matches match “${esc(raw.trim())}”.</div>`;
 }
 // feed scorer names (e.g. "Cyle LARIN") and squad names (e.g. "Cyle Larin") differ in case and
-// sometimes fullness — match tolerantly so a player picked from search still finds their feed stats.
+// sometimes fullness - match tolerantly so a player picked from search still finds their feed stats.
 function sameName(a, b) {
   if (a === b) return true;
   const x = normName(a), y = normName(b);
@@ -2631,7 +2609,7 @@ function openCompare(a, b) {
   showSheet($("#playerDialog"));
 }
 // neutral-venue model win-probability + expected score between any two teams (same bivariate-Poisson core as winProb,
-// minus match context — no host edge, group base rate). Powers the "if they met now" line in team comparison.
+// minus match context - no host edge, group base rate). Powers the "if they met now" line in team comparison.
 function h2hProb(aCode, bCode) {
   const ea = teamRating(aCode), eb = teamRating(bCode);
   const mu = 1.35, sup = Math.max(-2.5, Math.min(2.5, (ea - eb) / 300));
@@ -2714,7 +2692,7 @@ function openTeamCompare(aCode, bCode) {
       ${row("Goals against", A.ga, B.ga, false)}
       ${row("Goal difference", sign(A.gd), sign(B.gd))}
     </div>` : ""}
-    <div class="eyebrow">Strength &amp; ranking${infoBtn("Elo is a continuously-updated strength rating: a team gains or loses points after each match by how much it beats (or loses to) the opponent, weighted by the goal margin and blended with expected goals. Higher = stronger. It differs from the FIFA World Ranking, which uses FIFA's own points formula — so the two can order teams differently.", "Elo vs FIFA rank")}</div><div class="cmp-rows">
+    <div class="eyebrow">Strength &amp; ranking${infoBtn("Elo is a continuously-updated strength rating: a team gains or loses points after each match by how much it beats (or loses to) the opponent, weighted by the goal margin and blended with expected goals. Higher = stronger. It differs from the FIFA World Ranking, which uses FIFA's own points formula - so the two can order teams differently.", "Elo vs FIFA rank")}</div><div class="cmp-rows">
       ${row("Elo rating", A.elo, B.elo)}
       ${row("FIFA world rank", A.rank ? "#" + A.rank : null, B.rank ? "#" + B.rank : null, false)}
     </div>
@@ -2752,7 +2730,7 @@ function groupTable(g, i) {
       <td>${r.p}</td><td>${r.w}</td><td>${r.d}</td><td>${r.l}</td><td>${r.gf - r.ga > 0 ? "+" : ""}${r.gf - r.ga}</td><td><b>${r.pts}</b></td></tr>`).join("")}
     </tbody></table></div>`;
 }
-// the 48-team format sends 8 of the 12 third-placed teams through — a ranking that's impossible to
+// the 48-team format sends 8 of the 12 third-placed teams through - a ranking that's impossible to
 // eyeball across 12 separate tables. Rank them by FIFA's third-place criteria (pts → GD → GF) and
 // draw the cut line after the 8th. Pure client math, no extra data.
 function thirdPlaceRace() {
@@ -2766,7 +2744,7 @@ function thirdRaceHTML() {
   if (!anyPlayed || rows.length < 3) return "";
   const sign = n => (n > 0 ? "+" : "") + n;
   const ranks = compRanks(rows, r => r.pts + "|" + r.gd + "|" + r.gf);   // genuine 3rd-place criteria; teams level on all three share a rank
-  const cut = i => {                                                      // honest cut — a tie group straddling the 8th spot is undecided, not arbitrarily split
+  const cut = i => {                                                      // honest cut - a tie group straddling the 8th spot is undecided, not arbitrarily split
     const first = ranks.indexOf(ranks[i]), last = ranks.lastIndexOf(ranks[i]);
     return last < 8 ? "tr-in" : first >= 8 ? "tr-out" : "tr-bubble";
   };
@@ -2777,7 +2755,7 @@ function thirdRaceHTML() {
       <span class="tr-gd">${sign(r.gd)}</span><span class="tr-pts">${r.pts}<small>pts</small></span></div>${i === 7 && rows.length > 8 && ranks[7] !== ranks[8] ? `<div class="tr-cut"><span>Top 8 advance</span></div>` : ""}`).join("")}</div>
     <p class="sim-ko-hint">Ranked by points, then goal difference, then goals scored: the eight best of twelve reach the Round of 32. Teams level on all three share a rank; FIFA then separates them on fair play, and finally a drawing of lots.</p>`;
 }
-// read-only "if the groups ended today" Round-of-32 — resolved purely from live standings (group
+// read-only "if the groups ended today" Round-of-32 - resolved purely from live standings (group
 // winners/runners-up + the best-8 thirds routed through FIFA's slot constraints). Never touches the
 // user's saved prediction; that interactive bracket lives in Predict.
 function projectedR32() {
@@ -2794,9 +2772,9 @@ function projectedR32() {
   return S.matches.filter(m => m.stage === "r32").sort((a, b) => a.num - b.num)
     .map(m => ({ m, h: side(m, m.home), a: side(m, m.away) }));
 }
-// big-flag "Round of 32 — as it stands" board on the projectedR32() allocation: tappable tie cards with an honest
+// big-flag "Round of 32 - as it stands" board on the projectedR32() allocation: tappable tie cards with an honest
 // per-tie certainty chip. Mounted atop Predict (before the build-your-own editor) AND in Tables (replacing the old
-// collapsed list, build 330). Third-place slots stay TBD until mathematically settled — a board this prominent must
+// collapsed list, build 330). Third-place slots stay TBD until mathematically settled - a board this prominent must
 // never commit to a nation that can still change (the site's zero-error bar).
 // 3-letter codes for the bracket (flag + tricode). Standard FIFA tricodes for the 48.
 const TRI = { MX: "MEX", ZA: "RSA", KR: "KOR", CZ: "CZE", CA: "CAN", BA: "BIH", QA: "QAT", CH: "SUI", BR: "BRA", MA: "MAR", HT: "HAI", "GB-SCT": "SCO", US: "USA", PY: "PAR", AU: "AUS", TR: "TUR", DE: "GER", CW: "CUW", CI: "CIV", EC: "ECU", NL: "NED", JP: "JPN", TN: "TUN", NZ: "NZL", BE: "BEL", EG: "EGY", IR: "IRN", UZ: "UZB", ES: "ESP", CV: "CPV", SA: "KSA", UY: "URU", FR: "FRA", SN: "SEN", IQ: "IRQ", NO: "NOR", AR: "ARG", DZ: "ALG", AT: "AUT", JO: "JOR", PT: "POR", CD: "COD", CO: "COL", SE: "SWE", "GB-ENG": "ENG", HR: "CRO", GH: "GHA", PA: "PAN" };
@@ -2855,7 +2833,7 @@ function r32BracketHTML() {
   const tieEl = t => {
     const info = r32TieInfo(t, _r32Mode);
     const nm = g => g.known ? S.teams[g.code].name : g.ph;
-    return `<button class="rb-tie" data-projtie="${t.m.id}" aria-label="${esc(nm(info.gh) + " v " + nm(info.ga))} — Round of 32 tie">${sideEl(info.gh)}<span class="rb-v">v</span>${sideEl(info.ga)}</button>`;
+    return `<button class="rb-tie" data-projtie="${t.m.id}" aria-label="${esc(nm(info.gh) + " v " + nm(info.ga))} - Round of 32 tie">${sideEl(info.gh)}<span class="rb-v">v</span>${sideEl(info.ga)}</button>`;
   };
   const pair = p => `<div class="rb-r16">${p.ties.map(tieEl).join("")}</div>`;
   const qfBlock = (g, i) => `<div class="rb-qf"><span class="rb-qf-lbl">Quarter-final ${i}</span>${g.pairs.map(pair).join("")}</div>`;
@@ -2865,9 +2843,9 @@ function r32BracketHTML() {
     <button class="rb-seg${_r32Mode === "projected" ? " on" : ""}" data-r32mode="projected">Projected</button>
     <button class="rb-seg${_r32Mode === "confirmed" ? " on" : ""}" data-r32mode="confirmed">Confirmed</button></div>`;
   return `<section class="r32br">
-    <div class="r32board-head"><span class="r32board-eyebrow"><span class="r32board-dot"></span>Round of 32 — the road to the final</span>${toggle}</div>
+    <div class="r32board-head"><span class="r32board-eyebrow"><span class="r32board-dot"></span>Round of 32 - the road to the final</span>${toggle}</div>
     <div class="r32br-grid">${col(left, "l", 1)}${spine}${col(right, "r", 3)}</div>
-    <div class="r32board-foot"><span>${_r32Mode === "projected" ? "Filled from the live standings — tap a tie for names, venue &amp; past meetings." : "Only mathematically-locked teams shown — the rest stay as seed slots."}</span>
+    <div class="r32board-foot"><span>${_r32Mode === "projected" ? "Filled from the live standings - tap a tie for names, venue &amp; past meetings." : "Only mathematically-locked teams shown - the rest stay as seed slots."}</span>
       <div class="r32board-acts">
         <button class="r32board-share" data-r32share aria-label="Share this Round of 32">${ICO.camera} Share</button>
         <button class="r32board-cta" data-sim-edit>Make your own picks ${ICO.tap}</button>
@@ -2880,7 +2858,7 @@ async function loadWcH2H() { if (_wcH2H == null) { try { _wcH2H = await (await f
 function wcH2HBlock(a, b) {
   const ms = (_wcH2H && _wcH2H[[a, b].sort().join("|")]) || [];
   const nm = c => esc(S.teams[c]?.name || c);
-  if (!ms.length) return `<div class="eyebrow">Past World Cup meetings</div><p class="h2h-none">${nm(a)} and ${nm(b)} have never met at a World Cup — this would be their first.</p>`;
+  if (!ms.length) return `<div class="eyebrow">Past World Cup meetings</div><p class="h2h-none">${nm(a)} and ${nm(b)} have never met at a World Cup - this would be their first.</p>`;
   let wa = 0, d = 0, wb = 0;
   for (const m of ms) {
     const as = m.h === a ? m.hs : m.as, bs = m.h === a ? m.as : m.hs, ap = m.h === a ? m.ph : m.pa, bp = m.h === a ? m.pa : m.ph;
@@ -2892,7 +2870,7 @@ function wcH2HBlock(a, b) {
     <div class="h2h-sum"><b>${nm(a)}</b> ${wa} · ${d} draw${d !== 1 ? "s" : ""} · ${wb} <b>${nm(b)}</b></div>
     <div class="h2h-list">${rows}</div>`;
 }
-// the projected-tie sheet — opened by tapping a bracket tie: projected matchup, seeds, venue/date, the model's odds
+// the projected-tie sheet - opened by tapping a bracket tie: projected matchup, seeds, venue/date, the model's odds
 // (when both teams are known) and the historical World Cup head-to-head.
 async function openProjTie(id) {
   const t = projectedR32().find(x => x.m.id === id); if (!t) return;
@@ -2906,12 +2884,41 @@ async function openProjTie(id) {
   const odds = both ? winProbBlock({ ...m, home: { team: info.gh.code }, away: { team: info.ga.code } }, true) : "";
   const h2h = both ? wcH2HBlock(info.gh.code, info.ga.code) : "";
   const meta = `<div class="md-meta"><span>${fmt(m.utc, { weekday: "long", day: "numeric", month: "long" })}</span><span>${timeStr(m.utc)}</span><span>${esc(m.stadium)}</span><span>${esc(m.city)}</span></div>`;
-  $("#projTitle").innerHTML = `<span class="md-stage">Round of 32 — projected tie</span>`;
+  $("#projTitle").innerHTML = `<span class="md-stage">Round of 32 - projected tie</span>`;
   $("#projBody").innerHTML = `<div class="pt-tagrow"><span class="r32-chip r32-chip-${info.verdict.k}">${info.verdict.t}</span></div>
     <div class="pt-teams">${teamHdr(info.gh, info.sH)}<span class="pt-v">v</span>${teamHdr(info.ga, info.sA)}</div>
     ${meta}${odds}${h2h}
-    <p class="pt-note">Projected from the live group standings — it'll shift as results come in.</p>
+    <p class="pt-note">Projected from the live group standings - it'll shift as results come in.</p>
     <button class="pl-compare" data-sim-edit>${ICO.tap} Build your own bracket</button>`;
+  showSheet($("#projDialog"));
+}
+// the matchup-detail sheet for a tie in the user's own bracket: who's the favourite (model win probability), the two
+// sides' past World Cup meetings, date & venue - and pick the winner right from here. Opened by each tie's "i" icon.
+async function openSimTie(num) {
+  const m = S.matches.find(x => x.num === +num); if (!m) return;
+  const alloc = allocateThirds();
+  const { h, a } = simSlots(m, alloc); if (!h || !a || !S.teams[h] || !S.teams[a]) return;
+  await loadWcH2H();
+  const pick = S.sim.ko[m.num];
+  const round = (SIM_ROUNDS.find(r => r.st === m.stage) || {}).name || m.round || "Knockout tie";
+  const teamHdr = code => `<div class="pt-team">
+      <span class="pt-fl">${flag(code)}</span>
+      <b class="pt-nm">${esc(S.teams[code].name)}</b>
+      <span class="pt-seed">${pick === code ? "Your pick to advance" : "&nbsp;"}</span></div>`;
+  const odds = winProbBlock({ ...m, home: { team: h }, away: { team: a } }, true);
+  const h2h = wcH2HBlock(h, a);
+  const meta = `<div class="md-meta"><span>${fmt(m.utc, { weekday: "long", day: "numeric", month: "long" })}</span><span>${timeStr(m.utc)}</span><span>${esc(m.stadium)}</span><span>${esc(m.city)}</span></div>`;
+  const pickBtn = code => `<button class="btn${pick === code ? "" : " ghost"} st-pick" data-simtie-pick="${m.num}|${code}">${flag(code)} ${esc(shortName(code))}${pick === code ? " ✓" : ""}</button>`;
+  $("#projTitle").innerHTML = `<span class="md-stage">${esc(round)} - your matchup</span>`;
+  $("#projBody").innerHTML = `<div class="pt-teams">${teamHdr(h)}<span class="pt-v">v</span>${teamHdr(a)}</div>
+    ${meta}${odds}${h2h}
+    <div class="pt-note">Send your winner through:</div>
+    <div class="st-pickrow">${pickBtn(h)}${pickBtn(a)}</div>`;
+  $$("[data-simtie-pick]", $("#projBody")).forEach(b => b.onclick = () => {
+    const [n, code] = b.dataset.simtiePick.split("|");
+    S.sim.ko[+n] = code; pruneSim(); saveSim();
+    $("#projDialog").close(); renderSim();
+  });
   showSheet($("#projDialog"));
 }
 // a team's current-standings strength (for projecting knockout winners)
@@ -2951,7 +2958,7 @@ function roadToFinal(code) {
   return { code, path, reachesFinal: cur.stage === "final" };
 }
 function roadSection(code) {
-  // only project a team's route once they've actually played — before that, standings are all level
+  // only project a team's route once they've actually played - before that, standings are all level
   // and any "road" would be arbitrary tiebreak noise.
   const teamPlayed = S.matches.some(m => matchHasTeam(m, code) && status(m) === ST.FT && res(m)?.h != null);
   if (!teamPlayed) {
@@ -2979,7 +2986,7 @@ function renderGroups() {
      <div class="legend"><span class="l1"><i></i>Top 2 advance to the Round of 32</span><span class="l3"><i></i>3rd place: eight best advance</span><button class="legend-about" data-about>ⓘ How the format works</button></div>
      ${thirdRaceHTML()}
      ${r32BracketHTML()}`;
-  if (el.__sig === html) return;                           // groups unchanged (e.g. a minute tick elsewhere) — no flicker
+  if (el.__sig === html) return;                           // groups unchanged (e.g. a minute tick elsewhere) - no flicker
   el.__sig = html;
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const prev = {};                                          // capture row positions for a FLIP when standings reorder
@@ -3004,7 +3011,7 @@ function feedLabel(num, loser) {
   const sh = STAGE_SHORT[m.stage] || m.stage.toUpperCase();
   return (loser ? "Loser " : "Winner ") + sh + "-" + idx;
 }
-// human label for a knockout match — users never see global match numbers, so "M104" becomes "Final", "SF 1"…
+// human label for a knockout match - users never see global match numbers, so "M104" becomes "Final", "SF 1"…
 function matchTag(m) {
   if (m.stage === "final") return "Final";
   if (m.stage === "third") return "3rd place";
@@ -3016,7 +3023,7 @@ function slotText(m, side, si) {
   const slot = m[side];
   if (slot.feeds) return feedLabel(slot.feeds, false); // "Winner QF1"
   if (slot.feedsL) return feedLabel(slot.feedsL, true);// "Loser SF1" (third-place)
-  return si.name;                                      // group placeholder — the friendly "Runner-up Group A" (not the terse "2A")
+  return si.name;                                      // group placeholder - the friendly "Runner-up Group A" (not the terse "2A")
 }
 // position every bracket card at the vertical midpoint of its feeder matches (a true bracket tree)
 function layoutBracket(scope) {
@@ -3078,7 +3085,7 @@ function drawBracketLines(scope) {
   svg.innerHTML = d ? `<path d="${d}"/>` : "";
 }
 /* ============================================================
-   SIMULATOR — order groups, pick thirds, tap winners
+   SIMULATOR - order groups, pick thirds, tap winners
    ============================================================ */
 const saveSim = () => localStorage.setItem("wc26.predict", JSON.stringify(S.simBox));
 // fill a slot's group order + thirds from the live standings (the bracket's natural starting point). Operates on the
@@ -3136,7 +3143,7 @@ function textPrompt(label, value = "", { ok = "Save", max = 24 } = {}) {
 }
 // ---- reusable "i" explainer: any [data-info] button reveals its text in one shared popover (touch-safe, unlike title=) ----
 function infoBtn(text, label) { return `<button class="info-i" type="button" data-info="${esc(text)}" aria-label="${esc(label || "What this means")}">i</button>`; }
-// native Popover API renders in the browser's top layer — ABOVE an open <dialog>. Without it a body-level
+// native Popover API renders in the browser's top layer - ABOVE an open <dialog>. Without it a body-level
 // popover is painted behind any showModal()'d match/team sheet (the bug: tap an "i" in a modal, see nothing).
 const _POPOVER_OK = typeof HTMLElement !== "undefined" && HTMLElement.prototype.hasOwnProperty("showPopover");
 function closeInfoPop() {
@@ -3210,7 +3217,7 @@ function applyPacked(bytes) {
   return true;
 }
 // scrub a decoded (legacy-JSON) prediction so a hand-crafted #p= link can't inject fake team codes that would
-// crash renderSim at S.teams[c].name — keep only real codes / valid group permutations.
+// crash renderSim at S.teams[c].name - keep only real codes / valid group permutations.
 function sanitizeSim(d) {
   const out = { order: {}, thirds: [], ko: {} };
   for (const g of GROUPS) {
@@ -3242,7 +3249,7 @@ function r32ThirdSlots() {
   }));
   return slots;
 }
-// assign chosen third-place teams to the constrained slots (backtracking); pure — no shared state.
+// assign chosen third-place teams to the constrained slots (backtracking); pure - no shared state.
 // Returns {slotKey: code} or null if no valid assignment exists.
 function allocateThirdsPure(slots, picks) {
   if (picks.length !== slots.length) return null;
@@ -3262,7 +3269,7 @@ function allocateThirdsPure(slots, picks) {
   }
   return bt(0) ? assign : null;
 }
-// predictor's allocator — over the user's chosen thirds. Keeps the "impossible" sentinel its callers expect.
+// predictor's allocator - over the user's chosen thirds. Keeps the "impossible" sentinel its callers expect.
 function allocateThirds() {
   const slots = r32ThirdSlots();
   const picks = S.sim.thirds.map(code => ({ code, g: groupOf(code) }));
@@ -3334,7 +3341,7 @@ function simScore() {
   });
   return gTotal || koDecided ? { gSpots, gTotal, koHit, koDecided } : null;
 }
-// a shareable champion card — drawn on a canvas (same-origin flag SVG → not tainted), then offered via
+// a shareable champion card - drawn on a canvas (same-origin flag SVG → not tainted), then offered via
 // the Web Share API (files) where supported, falling back to a download. Turns the prediction into reach.
 function rrect(x, X, Y, W, H, r) { x.beginPath(); x.moveTo(X + r, Y); x.arcTo(X + W, Y, X + W, Y + H, r); x.arcTo(X + W, Y + H, X, Y + H, r); x.arcTo(X, Y + H, X, Y, r); x.arcTo(X, Y, X + W, Y, r); x.closePath(); }
 // the app's line trophy (24×24 viewBox) rendered onto a canvas, centred at (cx,cy) at the given size
@@ -3343,7 +3350,7 @@ function drawTrophy(x, cx, cy, size, color) {
   x.save(); x.translate(cx - size / 2, cy - size / 2); x.scale(size / 24, size / 24);
   x.strokeStyle = color; x.lineWidth = 2.1 * 24 / size; x.lineJoin = "round"; x.lineCap = "round"; x.stroke(p); x.restore();
 }
-// draw the 1080² champion card and resolve a PNG blob — shared by the image-only button and the full "share prediction"
+// draw the 1080² champion card and resolve a PNG blob - shared by the image-only button and the full "share prediction"
 async function makeChampionBlob(code) {
   const t = code && S.teams[code]; if (!t) return null;
   try { await document.fonts.ready; } catch { /* fall back to system fonts */ }
@@ -3405,7 +3412,7 @@ async function loadFlags(codes) {
   })));
   return out;
 }
-// the hero share card (item 4): the user's WHOLE predicted bracket — every pick, both halves of the draw funnelling
+// the hero share card (item 4): the user's WHOLE predicted bracket - every pick, both halves of the draw funnelling
 // to their champion. Champion hero up top, the full knockout tree below as the proof. 1080×1350 portrait.
 async function makeBracketBlob() {
   const alloc = allocateThirds(); if (alloc === "impossible") return null;
@@ -3493,7 +3500,7 @@ async function makeBracketBlob() {
   x.fillText((location.host + location.pathname).replace(/\/$/, ""), W / 2, H - 30);
   return await new Promise(res => c.toBlob(res, "image/png"));
 }
-// share the full predicted-bracket hero card (item 4) — Web Share files where supported, else download
+// share the full predicted-bracket hero card (item 4) - Web Share files where supported, else download
 async function shareBracketImage() {
   if (!S.sim.ko[104]) { flashToast("Crown a champion first"); return; }
   flashToast("Building your bracket…");
@@ -3502,13 +3509,13 @@ async function shareBracketImage() {
   const file = new File([blob], "my-wc26-bracket.png", { type: "image/png" });
   const champ = S.teams[S.sim.ko[104]];
   if (navigator.canShare && navigator.canShare({ files: [file] })) {
-    try { await navigator.share({ files: [file], title: "My World Cup 2026 bracket", text: `My World Cup 2026 bracket — champions: ${champ?.name || ""}` }); return; } catch (err) { if (err?.name === "AbortError") return; }
+    try { await navigator.share({ files: [file], title: "My World Cup 2026 bracket", text: `My World Cup 2026 bracket - champions: ${champ?.name || ""}` }); return; } catch (err) { if (err?.name === "AbortError") return; }
   }
   const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = "my-wc26-bracket.png"; document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 3000); flashToast("Bracket card saved");
 }
 // the R32 "as it stands" share card (item 2): the projected or confirmed Round of 32 split-bracket as a square card,
-// picking up whichever mode is on screen. 1080² — two columns of eight ties flank a central trophy.
+// picking up whichever mode is on screen. 1080² - two columns of eight ties flank a central trophy.
 async function makeR32Blob(mode) {
   const anyPlayed = S.matches.some(m => m.group && status(m) === ST.FT && res(m)?.h != null);
   if (!anyPlayed) return null;
@@ -3558,15 +3565,17 @@ async function makeR32Blob(mode) {
     x.restore();
   };
 
-  // two columns of 8, with a slightly bigger gap every 2 ties (the round-of-16 pairs)
-  const colY = i => 322 + i * 86 + Math.floor(i / 2) * 10 + 43;
+  // two columns of 8, with a slightly bigger gap every 2 ties (the round-of-16 pairs). Vertically balanced between the
+  // header and the footer, with the trophy at the true centre of the eight ties.
+  const colY = i => 300 + i * 86 + Math.floor(i / 2) * 10 + 43;
   const lx = 296, rx = W - 296;
   L.forEach((t, i) => drawTie(infos[i], lx, colY(i)));
   R.forEach((t, i) => drawTie(infos[i + 8], rx, colY(i)));
+  const midY = (colY(0) + colY(7)) / 2;   // centre of the eight ties
   // central trophy + spine
   x.strokeStyle = "rgba(255,255,255,.12)"; x.lineWidth = 1.5;
-  x.beginPath(); x.moveTo(W / 2, 322); x.lineTo(W / 2, 470); x.moveTo(W / 2, 610); x.lineTo(W / 2, 1004); x.stroke();
-  drawTrophy(x, W / 2, 540, 70, "#E8B931");
+  x.beginPath(); x.moveTo(W / 2, colY(0) - 30); x.lineTo(W / 2, midY - 38); x.moveTo(W / 2, midY + 38); x.lineTo(W / 2, colY(7) + 30); x.stroke();
+  drawTrophy(x, W / 2, midY, 70, "#E8B931");
 
   x.fillStyle = "#5b6b7a"; x.font = "500 23px 'Spline Sans Mono', monospace";
   x.fillText((location.host + location.pathname).replace(/\/$/, ""), W / 2, H - 34);
@@ -3579,7 +3588,7 @@ async function shareR32Image(mode) {
   const file = new File([blob], "wc26-round-of-32.png", { type: "image/png" });
   const link = location.origin + location.pathname;
   if (navigator.canShare && navigator.canShare({ files: [file] })) {
-    try { await navigator.share({ files: [file], title: "World Cup 2026 — Round of 32", text: "The World Cup 2026 Round of 32 as it stands", url: link }); return; } catch (err) { if (err?.name === "AbortError") return; }
+    try { await navigator.share({ files: [file], title: "World Cup 2026 - Round of 32", text: "The World Cup 2026 Round of 32 as it stands", url: link }); return; } catch (err) { if (err?.name === "AbortError") return; }
   }
   const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = "wc26-round-of-32.png"; document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 3000); flashToast("Round of 32 card saved");
@@ -3595,7 +3604,7 @@ async function sharePlayerCard(name, code) {
   glow(180, 160, 460, "rgba(11,163,96,.30)"); glow(920, 940, 480, "rgba(232,185,49,.22)");
   x.textAlign = "center";
   x.fillStyle = "#E8B931"; x.font = "700 34px Archivo, sans-serif"; x.fillText("FIFA WORLD CUP 2026", W / 2, 116);
-  // headshot — crossOrigin so toBlob stays allowed; cover-fit framed to the face
+  // headshot - crossOrigin so toBlob stays allowed; cover-fit framed to the face
   const pURL = atWidth(bestPhoto(name, code, bio?.n) || bio?.photo || "", 640);
   let drew = false;
   if (pURL) {
@@ -3708,7 +3717,7 @@ function renderSim() {
   return S.simView === "edit" ? renderSimEditor() : renderSimDash();
 }
 // the landing: three saved brackets as cards (champion + progress), each opening into the editor. The 3-slot model
-// lets a user keep a gut pick, the chalk and a wildcard side by side.
+// lets a user keep a gut pick, the favourites and a wildcard side by side.
 function renderSimDash() {
   const el = $("#view-sim");
   const koMatches = S.matches.filter(m => m.stage !== "group");
@@ -3735,9 +3744,9 @@ function renderSimDash() {
   };
   el.innerHTML = viewH2("view-sim") + r32BracketHTML() + `
     <div class="pdash-sep"><span>Build your own</span></div>
-    <p class="pdash-intro">${ICO.spark} Keep up to three scenarios — a gut pick, the chalk, a wildcard. Tap one to build it, all the way to a champion. Saved on this device.</p>
+    <p class="pdash-intro">${ICO.spark} Keep up to three scenarios - a gut pick, the favourites, a wildcard. Tap one to build it, all the way to a champion. Saved on this device.</p>
     <div class="pdash">${S.simBox.slots.map(card).join("")}</div>`;
-  $$("[data-slot-open]", el).forEach(b => b.onclick = () => { setActiveSlot(+b.dataset.slotOpen); S.simView = "edit"; renderSim(); });
+  $$("[data-slot-open]", el).forEach(b => b.onclick = () => { setActiveSlot(+b.dataset.slotOpen); S.simView = "edit"; renderSim(); window.scrollTo(0, 0); });   // a freshly opened scenario starts at the top, not the dash's scroll position
   $$("[data-slot-rename]", el).forEach(b => b.onclick = async () => {
     const i = +b.dataset.slotRename, cur = S.simBox.slots[i];
     const name = await textPrompt("Name this scenario", cur.name);
@@ -3754,7 +3763,7 @@ function renderSimEditor() {
   const firstRender = !el.querySelector(".sim-step");   // first paint → open step 3 (the bracket) so it's seen, not buried
   const keepY = window.scrollY;
   // seed a valid default set of thirds so the knockout bracket is visible & tappable from the first visit
-  // (done here, not at boot, so live standings are already loaded — order reflects real results)
+  // (done here, not at boot, so live standings are already loaded - order reflects real results)
   if (S.sim.thirds.length === 0) { seedSimThirds(); saveSim(); }
   const alloc = allocateThirds();
   const thirdsDone = S.sim.thirds.length === 8;
@@ -3786,7 +3795,7 @@ function renderSimEditor() {
     : alloc === "impossible" ? `<div class="empty">That combination of thirds can't fill the slots. Swap one and try again.</div>`
     : simBracketHTML(alloc);
 
-  // prominent "north star": the champion you're building toward — tap to jump to the knockout bracket
+  // prominent "north star": the champion you're building toward - tap to jump to the knockout bracket
   const koMatches = S.matches.filter(m => m.stage !== "group");
   const koPicked = koMatches.filter(m => S.sim.ko[m.num] != null).length;
   const champTeaser = `<button class="sim-goal ${champ ? "is-set" : ""}" id="simGoal" type="button">
@@ -3799,7 +3808,7 @@ function renderSimEditor() {
 
   // how the prediction is tracking against real results (only once something has been played)
   // "Your call vs reality" scorecard removed from the UI for now (unclear to users); simScore() kept.
-  // each step is a collapsible section. On first paint step 3 (the bracket — the fun part) is open so it's seen
+  // each step is a collapsible section. On first paint step 3 (the bracket - the fun part) is open so it's seen
   // straight away; steps 1 & 2 stay collapsed. After that the user's own open/closed state is preserved across
   // re-renders. The intro + actions sit at the BOTTOM so the steps and bracket get the top of the page.
   const stepOpen = id => firstRender ? id === "simStep3" : openSteps.has(id);
@@ -3810,7 +3819,6 @@ function renderSimEditor() {
       <span class="sim-edname">${esc(S.simBox.slots[S.simBox.active].name)}</span>
     </div>
     ${champTeaser}
-    ${firstRender && Object.keys(S.sim.ko).length === 0 ? `<p class="sim-firsthint">${ICO.spark} <b>New here?</b> The three steps below build your scenario: <b>order each group</b>, <b>pick the best thirds</b>, then <b>tap winners</b> to a champion. It's pre-filled from the live tables, so you can dive straight into the knockouts too. Saved on this device.</p>` : ""}
     ${step("simStep1", `<span class="step-n">1</span> Order the groups: top two go through`, `<div class="gwrap">${GROUPS.map(groupCard).join("")}</div>`)}
     ${step("simStep2", `<span class="step-n">2</span> Best third-placed teams <span class="tcount">${S.sim.thirds.length}/8</span>`, `<div class="thirds">${thirdChips}</div>`)}
     ${step("simStep3", `<span class="step-n">3</span> Tap winners to crown your champion ${TROPHY}`, simBracket)}
@@ -3856,7 +3864,7 @@ function renderSimEditor() {
     else if (S.sim.thirds.length < 8) S.sim.thirds.push(c);
     pruneSim(); saveSim(); renderSim();
   });
-  // wire: converging-bracket picks — tap a side to send it through; completing a round collapses to the next
+  // wire: converging-bracket picks - tap a side to send it through; completing a round collapses to the next
   $$("[data-sim-pick]", el).forEach(b => b.onclick = e => {
     const [num, code] = b.dataset.simPick.split("|");
     const n = +num;
@@ -3895,11 +3903,11 @@ function renderSimEditor() {
   $("#simShare").onclick = sharePrediction;
   $("#simShareImg")?.addEventListener("click", () => shareChampionImage(S.sim.ko[104]));
   $("#simShareBracket")?.addEventListener("click", shareBracketImage);
-  window.scrollTo(0, keepY);   // the innerHTML rebuild resets scroll — restore where the user was
+  window.scrollTo(0, keepY);   // the innerHTML rebuild resets scroll - restore where the user was
 }
 // ---- Predict step 3: the interactive converging knockout bracket (Option A) ----
 // The R32 split-bracket made playable. You tap the winner in each tie; when a round is fully picked it collapses
-// inward — 16 → 8 → 4 → 2 → 1 — each round visibly shorter, funnelling toward the central trophy and your champion.
+// inward - 16 → 8 → 4 → 2 → 1 - each round visibly shorter, funnelling toward the central trophy and your champion.
 // One round shows at a time in the split layout (a full bracket tree won't fit a phone); a breadcrumb steps between
 // rounds so you can go back and revise. Picks live in S.sim.ko keyed by match number (shared with the simulator).
 const SIM_ROUNDS = [
@@ -3943,11 +3951,13 @@ function simBracketHTML(alloc) {
     <div class="sb-roundline"><b>${round.name}</b><span class="sb-prog">${picked}/${total}</span></div></div>`;
 
   const sideBtn = (m, code) => {
-    if (!code) return `<span class="sb-side sb-side-tbd"><b class="rb-tri">—</b></span>`;
+    if (!code) return `<span class="sb-side sb-side-tbd"><b class="rb-tri">-</b></span>`;
     const pick = S.sim.ko[m.num], won = pick === code, lost = pick && pick !== code;
     return `<button class="sb-side${won ? " won" : ""}${lost ? " lost" : ""}" data-sim-pick="${m.num}|${code}" aria-label="Send ${esc(S.teams[code].name)} through">${flag(code)}<b class="rb-tri">${tri(code)}</b></button>`;
   };
-  const tieEl = m => { const { h, a } = simSlots(m, alloc); return `<div class="sb-tie${S.sim.ko[m.num] ? " done" : ""}">${sideBtn(m, h)}<span class="sb-v">v</span>${sideBtn(m, a)}</div>`; };
+  // a small, subtle "i" by each tie → the matchup detail sheet (predicted winner, win probability, past meetings)
+  const infoBtn = num => `<button class="sb-info" data-sim-info="${num}" aria-label="Matchup details - win probability and head-to-head">${ICO.info}</button>`;
+  const tieEl = m => { const { h, a } = simSlots(m, alloc); return `<div class="sb-tie${S.sim.ko[m.num] ? " done" : ""}">${sideBtn(m, h)}<span class="sb-v">v</span>${sideBtn(m, a)}${h && a ? infoBtn(m.num) : ""}</div>`; };
 
   if (round.st === "final") {
     const m = ms[0], { h, a } = simSlots(m, alloc), champ = S.sim.ko[104], t = champ && S.teams[champ];
@@ -3955,7 +3965,7 @@ function simBracketHTML(alloc) {
       <div class="sb-finalwrap">
         <div class="sb-cup${champ ? " lit" : ""}">${champ ? `<span class="sb-cupfl">${flag(champ)}</span>` : ICO.trophy}</div>
         <div class="sb-champcap">${champ ? `<b>${esc(t.name)}</b><small>Your World Cup champions</small>` : `<b>One pick from a champion</b><small>Tap the winner of the final</small>`}</div>
-        <div class="sb-tie sb-tie-final${champ ? " done" : ""}">${sideBtn(m, h)}<span class="sb-v">v</span>${sideBtn(m, a)}</div>
+        <div class="sb-tie sb-tie-final${champ ? " done" : ""}">${sideBtn(m, h)}<span class="sb-v">v</span>${sideBtn(m, a)}${h && a ? infoBtn(m.num) : ""}</div>
         <div class="sb-fmeta">Final · ${fmt(m.utc, { day: "numeric", month: "short" })} · MetLife Stadium</div>
       </div></div>`;
   }
@@ -4003,12 +4013,12 @@ function championBanner(code, predicted) {
   const path = predicted ? champPath(code) : [];
   const steps = path.map(s => `<div class="cpath-step"${s.opp ? ` data-mid="${s.mid}" role="button" tabindex="0"` : ""}>
     <span class="cpath-rd">${s.label}</span>
-    <span class="cpath-opp">${s.opp ? `<span class="fl">${flag(s.opp)}</span><small>${esc(shortName(s.opp) || S.teams[s.opp]?.name || "")}</small>` : `<span class="fl">·</span><small>TBD</small>`}</span>
+    <span class="cpath-opp">${s.opp ? `<span class="fl">${flag(s.opp)}</span><small>${esc(tri(s.opp))}</small>` : `<span class="fl">·</span><small>TBD</small>`}</span>
   </div>`).join(`<span class="cpath-arr">›</span>`);
   return `<div class="champ">
     <span class="cup">${TROPHY}</span><span class="cfl">${flag(code)}</span>
-    <h3>${esc(t.name)}</h3><p>${predicted ? "Your predicted champions" : "Champions of the world"} · July 19 · MetLife</p>
-    ${steps ? `<div class="cpath-lbl">Path to glory</div><div class="cpath">${steps}<span class="cpath-arr">›</span><div class="cpath-step cpath-cup"><span class="cpath-rd">Champions</span><span class="cpath-opp">${TROPHY}</span></div></div>` : ""}</div>`;
+    <h3>${esc(t.name)}</h3><p>${predicted ? "Your predicted champions" : "Champions of the world"}<small>July 19 · MetLife Stadium</small></p>
+    ${steps ? `<div class="cpath-lbl">Path to glory</div><div class="cpath">${steps}</div>` : ""}</div>`;
 }
 
 /* ---------------- tournament stats (team + player) ---------------- */
@@ -4016,7 +4026,9 @@ let _tsCache = null, _tsSig = "";
 function tournamentStats() {
   // memoise: the ~15 leaderboards depend only on FT scores/events/stats, never the live minute that ticks every poll.
   // Without this, an open Stats tab rebuilds and re-sorts everything every 30s on a busy matchday for zero visible change.
-  const sig = S.matches.reduce((s, m) => { const r = res(m); return status(m) === ST.FT && r?.h != null ? s + `${m.num}:${r.h}-${r.a}:${(r.ev || []).length}:${r.stats ? 1 : 0};` : s; }, "");
+  // FT matches drive every leaderboard; LIVE matches are folded in for goals/assists only (the Boot + career records
+  // tick over in real time), so the sig must change when a live score/event does - but not on the bare minute tick.
+  const sig = S.matches.reduce((s, m) => { const r = res(m), st = status(m); if (r?.h == null) return s; if (st === ST.FT) return s + `${m.num}:${r.h}-${r.a}:${(r.ev || []).length}:${r.stats ? 1 : 0};`; if (st === ST.LIVE || st === ST.HT) return s + `${m.num}L:${r.h}-${r.a}:${(r.ev || []).length};`; return s; }, "");
   if (_tsCache && _tsSig === sig) return _tsCache;
   const fts = S.matches.filter(m => status(m) === ST.FT && res(m)?.h != null);
   const gf = {}, ga = {}, poss = {}, possN = {}, sot = {}, sotN = {}, yel = {}, red = {}, played = {}, scorers = {}, assists = {}, pyel = {}, pred = {}, cs = {}, conf = {}, keepers = {}, tstat = {}, statN = {};
@@ -4099,6 +4111,19 @@ function tournamentStats() {
       for (const k of TSTAT_KEYS) if (Array.isArray(r.stats[k])) { (tstat[k] ||= {}); add(tstat[k], hc, r.stats[k][0]); add(tstat[k], ac, r.stats[k][1]); }
     }
   }
+  // LIVE matches: fold goals + assists into the Boot and the all-time career records in real time - a goal counts the
+  // moment it's given, even mid-match. (The match-level records above stay FT-only; they need a finished result.)
+  for (const m of S.matches) {
+    if (![ST.LIVE, ST.HT].includes(status(m))) continue;
+    const r = res(m); if (!r || r.h == null) continue;
+    const hc = slotInfo(m, "home").code, ac = slotInfo(m, "away").code;
+    for (const e of (r.ev || [])) {
+      if (!((e.k === "G" || e.k === "P") && e.p)) continue;
+      const tc = e.tm === "h" ? hc : ac;
+      add(scorers, (resolvePlayer(e.p, tc, e.n, "out")?.name || e.p) + "\t" + tc);
+      if (e.a) add(assists, (resolvePlayer(e.a, tc, e.an, "out")?.name || e.a) + "\t" + tc);
+    }
+  }
   const split = k => { const i = k.indexOf("\t"); return [k.slice(0, i), k.slice(i + 1)]; };
   const scorerList = Object.entries(scorers).map(([k, g]) => { const [name, code] = split(k); return { name, code, goals: g, assists: assists[name + "\t" + code] || 0 }; })
     .sort((a, b) => b.goals - a.goals || b.assists - a.assists || a.name.localeCompare(b.name));
@@ -4148,8 +4173,8 @@ function tournamentStats() {
   return (_tsCache = _out, _tsSig = sig, _out);
 }
 let statsTab = "overview";   // active Stats sub-section (persists across re-renders)
-let _statsHTML = "";        // last rendered Stats markup — re-rendered only when it actually changes (see renderStats)
-// FIFA World Ranking — 18 Sep 2025 snapshot (top 50), the latest FIFA published pre-tournament. A bare string = a
+let _statsHTML = "";        // last rendered Stats markup - re-rendered only when it actually changes (see renderStats)
+// FIFA World Ranking - 18 Sep 2025 snapshot (top 50), the latest FIFA published pre-tournament. A bare string = a
 // qualified WC26 team (name/flag from teams.json); a [code,name] pair = a top-50 nation that did NOT make the field.
 // Rank is the array index + 1. The 11 finalists ranked outside the top 50 are derived (teams.json minus this list).
 const FIFA_RANK = [
@@ -4161,7 +4186,7 @@ const FIFA_RANK = [
 ];
 const FIFA_POS = {}; FIFA_RANK.forEach((e, i) => { FIFA_POS[typeof e === "string" ? e : e[0]] = i; });
 // final group-stage tiebreak per FIFA regulations art.13 step 3 (FIFA World Ranking). Teams outside the top-50
-// snapshot fall back to their Elo so it's still skill-based — never the alphabetical code.
+// snapshot fall back to their Elo so it's still skill-based - never the alphabetical code.
 const tiebreakRank = code => FIFA_POS[code] != null ? FIFA_POS[code] : 100 - (S.teams[code]?.elo || 0) / 100;
 const CONF_FULL = { UEFA: "Europe", CONMEBOL: "South America", CONCACAF: "N. & C. America", AFC: "Asia", CAF: "Africa", OFC: "Oceania" };
 // a team's FIFA world-ranking position from the frozen 211-team snapshot, by code. Built once (the snapshot
@@ -4173,7 +4198,7 @@ function fifaRankOf(code) {
 }
 function fifaRankingPanel() {
   const rk = S.fifaRanking;
-  if (!rk?.length) {   // ranking file not loaded (stale cache / offline) — minimal fallback from teams.json
+  if (!rk?.length) {   // ranking file not loaded (stale cache / offline) - minimal fallback from teams.json
     const quals = Object.keys(S.teams).sort((a, b) => (S.teams[b].elo || 0) - (S.teams[a].elo || 0));
     return `<div class="eyebrow">World Cup field</div><div class="lead-card rk-list">${quals.map((c, n) => `<div class="rk-row" data-squad="${c}" role="button" tabindex="0"><span class="rk-num">${n + 1}</span><span class="fl">${flag(c)}</span><span class="rk-name">${esc(S.teams[c].name)}</span></div>`).join("")}</div>`;
   }
@@ -4207,7 +4232,7 @@ function fifaRankingPanel() {
     <div class="lead-card rk-list" id="rkList">${rk.map(row).join("")}</div>
     <p class="sim-ko-hint">Source: FIFA / Coca-Cola Men's World Ranking · the <b>WC</b> badge marks the 48 finalists · tap one for its page.</p>`;
 }
-// wire the ranking panel's filter pills + search — called both on render AND after the lazy first-click build,
+// wire the ranking panel's filter pills + search - called both on render AND after the lazy first-click build,
 // so the World-Cup pill and the search work whichever way the panel came into the DOM
 function wireRankings(scope) {
   const list = $("#rkList", scope), search = $("#rkSearch", scope);
@@ -4240,7 +4265,7 @@ function wireRankings(scope) {
   wireSel("rkConfWrap", "Confederation", "conf", v => { confMode = v; });
   if (search) search.oninput = apply;
 }
-function closeRkPops() {   // both ranking dropdowns — used by the global outside-tap + Escape handlers
+function closeRkPops() {   // both ranking dropdowns - used by the global outside-tap + Escape handlers
   for (const id of ["rkSetPop", "rkConfPop"]) { const p = $("#" + id); if (p && !p.hidden) { p.hidden = true; $("#" + id.replace("Pop", "Btn"))?.setAttribute("aria-expanded", "false"); } }
 }
 
@@ -4318,7 +4343,7 @@ function renderStats() {
   const el = $("#view-stats"), s = tournamentStats();
   if (!s.pulse.matches) { paint(el, `<div class="rk-pre">Tournament stats (scorers, records, team form) fill in as matches kick off. Until then, here's the field by world ranking.</div>${fifaRankingPanel()}`); return; }
   const tile = (label, val) => `<div class="stat-tile"><span class="stat-val">${val}</span><span class="stat-lbl">${label}</span></div>`;
-  const tname = c => esc(S.teams[c]?.name || c);
+  const tname = c => esc(cname(c));
   // a player leaderboard row (photo + name + value). 2nd arg is the competition rank (tied rows share it), not the index.
   const playerRow = (p, rank, val) => { const ph = bestPhoto(p.name, p.code); return `<div class="lead-row lead-player${rank === 1 ? " lead-top" : ""}" data-player="${esc(p.name)}|${p.code}" role="button" tabindex="0">
     <span class="lead-rank">${rank}</span>${ph ? `<span class="lead-face" style="background-image:url('${ph}')"></span>` : `<span class="fl">${flag(p.code)}</span>`}
@@ -4331,7 +4356,7 @@ function renderStats() {
   // map a leaderboard to HTML with competition ranks. rowFn(item, rank, index); rows with an equal keyOf share a rank.
   const ranked = (rows, rowFn, keyOf) => { const rk = compRanks(rows, keyOf); return rows.map((x, i) => rowFn(x, rk[i], i)).join(""); };
   // suspension watch: a red card or an accumulated 2nd yellow = a one-match ban. We list only players who will
-  // actually miss their next game — a lone yellow is far too common to flag (and the count is arbitrary).
+  // actually miss their next game - a lone yellow is far too common to flag (and the count is arbitrary).
   const suspRow = p => { const ph = bestPhoto(p.name, p.code); return `<div class="lead-row lead-player" data-player="${esc(p.name)}|${p.code}" role="button" tabindex="0">
     ${ph ? `<span class="lead-face" style="background-image:url('${ph}')"></span>` : `<span class="fl">${flag(p.code)}</span>`}
     <span class="lead-name">${esc(pName(p.name, p.code))}<small>${flag(p.code)} ${tname(p.code)}</small></span>
@@ -4350,7 +4375,7 @@ function renderStats() {
     <span class="lead-rank">${rank}</span><span class="fl">${flag(x.code)}</span><span class="lead-name">${tname(x.code)}</span>
     <span class="lead-v card-tally"><span class="ct ct-y" title="${x.y} yellow">${x.y}</span><span class="ct ct-r" title="${x.r} red">${x.r}</span></span></div>`, x => x.v)}</div>` : "";
 
-  // records / superlatives — each row taps through to its match or the player who scored
+  // records / superlatives - each row taps through to its match or the player who scored
   const rc = s.records;
   const recRow = (ic, label, sub, val, attr) => `<div class="rec-row" ${attr} role="button" tabindex="0">
     <span class="rec-ic">${ic}</span><span class="rec-tx"><b>${label}</b><small>${sub}</small></span><span class="rec-v">${val}</span></div>`;
@@ -4368,7 +4393,7 @@ function renderStats() {
     ? `<div class="lead-card rec-card">${recItems.join("")}</div><p class="sim-ko-hint">Tap a record to open the match or player.</p>`
     : `<div class="empty">Records fill in as matches are played.</div>`;
 
-  // confederation breakdown — each confederation's collective record, ranked by points per game
+  // confederation breakdown - each confederation's collective record, ranked by points per game
   // A proper standings table (same chrome + column rhythm as the group tables): one header row of stat names,
   // numbers aligned in fixed columns beneath. Names abbreviated so every column lines up on a phone.
   const CONF_LABEL = { UEFA: "Europe", CONMEBOL: "S. America", CONCACAF: "N/C America", AFC: "Asia", CAF: "Africa", OFC: "Oceania" };
@@ -4418,7 +4443,7 @@ function renderStats() {
   const out = `<div class="substat-nav" role="tablist" aria-label="Statistics sections">${sections.map(([k, label]) => `<button class="substat ${k === statsTab ? "is-on" : ""}" id="substab-${k}" role="tab" aria-selected="${k === statsTab}" aria-controls="substat-${k}" data-stat="${k}">${label}</button>`).join("")}</div>`
     + sections.map(([k, , html]) => `<div class="substat-panel" id="substat-${k}" role="tabpanel" aria-labelledby="substab-${k}" data-panel="${k}"${k === statsTab ? "" : " hidden"}>${html}</div>`).join("");
   // a live match rewrites results.json every poll (the minute ticks), which re-renders the active view. If the
-  // Stats markup is byte-identical, keep the existing DOM — otherwise a tap mid-poll lands on a freshly-swapped row.
+  // Stats markup is byte-identical, keep the existing DOM - otherwise a tap mid-poll lands on a freshly-swapped row.
   if (out === _statsHTML && el.firstChild) return;
   _statsHTML = out;
   paint(el, out);
@@ -4441,14 +4466,14 @@ function mdReport(m) {
   const credit = (rp.src || rp.by) ? `<div class="md-credit">Report: ${rp.by ? esc(rp.by) + " · " : ""}${rp.url ? `<a href="${esc(rp.url)}" target="_blank" rel="noopener noreferrer">${esc(rp.src || "source")} ↗</a>` : esc(rp.src || "")}</div>` : "";
   return `<div class="eyebrow">Match report</div><div class="md-report">${rp.hl ? `<h4>${esc(rp.hl)}</h4>` : ""}${paras}${credit}</div>`;
 }
-// live commentary — only while a match is in play; finished matches get the report above instead
+// live commentary - only while a match is in play; finished matches get the report above instead
 function mdCommentaryShell(m) {
   if (![ST.LIVE, ST.HT].includes(status(m))) return "";
   return `<details class="md-comm" id="mdComm" data-keep open><summary><span>Live commentary</span><small class="md-comm-hint">● updating</small></summary><div class="md-comm-body" id="mdCommBody"></div></details>`;
 }
 function renderCommentary(c) {
   if (!c || !c.items?.length) return `<div class="empty">No commentary published for this match.</div>`;
-  // ESPN ships terse VAR strings (e.g. "VAR Decision: Other Decision Cancelled.") — badge them and say it plainly
+  // ESPN ships terse VAR strings (e.g. "VAR Decision: Other Decision Cancelled.") - badge them and say it plainly
   const clarify = t => {
     const m = /^VAR Decision:\s*(.+?)\.?\s*$/i.exec(t || "");
     if (!m) return esc(t || "");
@@ -4460,7 +4485,7 @@ function renderCommentary(c) {
     const isVar = /^VAR Decision:/i.test(it.x || "");
     return `<div class="cm-row${it.k ? ` cm-${esc(it.k)}` : ""}${isVar ? " cm-var-row" : ""}">${it.t ? `<span class="cm-t">${esc(it.t)}</span>` : `<span class="cm-t cm-t-x"></span>`}<span class="cm-x">${isVar ? clarify(it.x) : esc(it.x || "")}</span></div>`;
   };
-  // a raw play-by-play is mostly throw-ins and blocked shots — lead with the moments that matter; full feed one tap away
+  // a raw play-by-play is mostly throw-ins and blocked shots - lead with the moments that matter; full feed one tap away
   const KEY = it => it.k || /\bpenalt|\bVAR\b|own goal|sent off|red card|hits the (bar|post|crossbar)|Match ends|First Half ends|Second Half ends|Half begins|^Goal|kick-off/i.test(it.x || "");
   const key = c.items.filter(KEY);
   const lead = key.length >= 3 ? key : c.items.slice(0, 10);   // enough highlights? lead with them, else the latest 10
@@ -4484,7 +4509,7 @@ const relTime = iso => {
 // News: a chronological feed of World Cup headlines (newest first) with a live filter box. The fan-reaction
 // pipeline is parked (see fetch-buzz.mjs SOCIAL flag); this reads only b.headlines.
 // Some desks leak NON-football stories that merely mention a country whose name is also a team's ("Iran", "US",
-// "Korea"…) — even the World-Cup feeds occasionally tag host-country politics/travel as WC. Keep an item only if it's
+// "Korea"…) - even the World-Cup feeds occasionally tag host-country politics/travel as WC. Keep an item only if it's
 // clearly football: a World-Cup mention, a football keyword/scoreline, or a marquee player. (Legit WC headlines almost
 // always carry "World Cup" or a football term, so this is safe; a bare country name is never enough.)
 const NEWS_FOOTBALL_RE = /\b(footbal|soccer|fifa|world ?cup|wc[\s-]?2026|match(es)?|goals?|scored?|coach|managers?|squads?|line-?ups?|qualif|group ?[a-l]\b|group ?stage|strikers?|midfield|defenders?|goalkeep|keeper|friendl(y|ies)|fixtures?|kick-?off|penalt|knockout|tournament|equali[sz]|hat-?trick|substitut|stadium|referee|red card|yellow card|caps?|capped|national team|trophy|champions?|finals?|semi-?finals?|quarter-?finals?|round of (16|32)|injur|transfer|forwards?|wingers?|dribbl|free.?kick|golden boot|own goal)\b|\b\d{1,2}\s?[-–]\s?\d{1,2}\b/i;
@@ -4523,7 +4548,7 @@ function renderPulse() {
   if (s) { s.oninput = applyNewsFilter; if (s.value) applyNewsFilter(); }   // re-apply after a 60s poll re-render (the input value survives the morph, the .news-hide classes don't)
 }
 async function loadBuzz() {
-  try { S.buzz = await (await fetch("data/buzz.json?t=" + Date.now(), { cache: "no-store" })).json(); } catch { /* not published yet — keep what we have */ }
+  try { S.buzz = await (await fetch("data/buzz.json?t=" + Date.now(), { cache: "no-store" })).json(); } catch { /* not published yet - keep what we have */ }
   if (S.view === "pulse") renderPulse();
 }
 // FIFA EFI deep-analysis data (post-match). If the currently-open match popup just gained EFI, re-render it.
@@ -4531,13 +4556,13 @@ async function loadEfi() {
   try { S.efi = (await (await fetch("data/efi.json?t=" + Date.now(), { cache: "no-store" })).json()).matches || {}; } catch { /* not published yet */ }
   const md = $("#matchDialog"); if (md?.open && md.dataset.openMid) openMatch(md.dataset.openMid, true);
 }
-// last World Cup (Qatar 2022): finishes + squads, for the "Then & Now" team views. Static — fetched once.
+// last World Cup (Qatar 2022): finishes + squads, for the "Then & Now" team views. Static - fetched once.
 async function loadWC2022() {
   try { S.wc22 = await (await fetch("data/wc2022.json")).json(); } catch { /* not published yet */ }
   if ($("#teamSheet")?.open && $("#teamSheet").dataset.code) openTeam($("#teamSheet").dataset.code);   // refresh an open sheet
 }
 // of a 2026 team, who CONTINUES from its 2022 squad vs who's NEW. 2022 names resolve to 2026 players by full
-// (order/accent-insensitive) name match — strict, so we never count a same-surname different player as "continuing".
+// (order/accent-insensitive) name match - strict, so we never count a same-surname different player as "continuing".
 const _wc22KeyCache = new Map();
 function wc22Continuity(code) {
   const w = S.wc22?.teams?.[code], sq = S.squads?.[code]?.players;
@@ -4567,7 +4592,6 @@ function nav(v) {
   if (at && tabs) tabs.scrollTo({ left: at.offsetLeft - tabs.clientWidth / 2 + at.offsetWidth / 2, behavior: "smooth" });
   RENDER[v]();
   scrollTo({ top: 0, behavior: "instant" });
-  if (v !== "matches") $("#jumpNow").hidden = true;
   try { window.goatcounter?.count?.({ path: location.pathname + "#" + v, title: "WC26 · " + v, event: false }); } catch { /* analytics off or not loaded */ }
 }
 function moveInk() {
@@ -4707,7 +4731,7 @@ function openChampOverlay() {
 }
 
 /* ---------------- background music (off by default) ---------------- */
-// Royalty-free "stadium mix" — 14 match-day tracks sourced by the user (Pixabay/Uppbeat artists:
+// Royalty-free "stadium mix" - 14 match-day tracks sourced by the user (Pixabay/Uppbeat artists:
 // hitslab, ikoliks, mfcc, nastelbom, positive_sound, prettyjohn1, soundsurfer, starostin, the_mountain,
 // tunetank, yevhenastafiev). Curated from 15 by dropping a 0.95-similar duplicate (prettyjohn twin);
 // the rest were ordered/kept by a timbre-similarity pass so near-alike tracks don't cluster.
@@ -4764,7 +4788,7 @@ function initMusic() {
     if (a.paused) { play().then(() => localStorage.setItem("wc26.music", "on")).catch(() => {}); }
     else { a.pause(); savePos(); localStorage.setItem("wc26.music", "off"); }
   };
-  // resume a previously-on preference on the first interaction (autoplay is blocked on load) —
+  // resume a previously-on preference on the first interaction (autoplay is blocked on load) -
   // but ignore a tap on the toggle itself, so toggling can never fight the resume
   if (localStorage.getItem("wc26.music") === "on") {
     const resume = e => { if (!e.target.closest("#musicToggle")) play().catch(() => {}); };
@@ -4811,7 +4835,7 @@ async function loadStatic() {
     fetch("data/fifa-ranking.json?v=" + BUILD).then(r => r.json()).catch(() => null),   // full 211-team FIFA ranking (static snapshot, frozen during the WC)
   ]);
   S.matches = m.matches; S.teams = t; S.fifaRanking = fr?.teams || null; S.fifaRankDate = fr?.rankingDate || null;
-  // squads.json is committed data that changes (squad updates) — bypass cache so it's always current
+  // squads.json is committed data that changes (squad updates) - bypass cache so it's always current
   try { S.squads = (await (await fetch("data/squads.json?t=" + Date.now(), { cache: "no-store" })).json()).squads || {}; }
   catch { S.squads = {}; }
   // official player photos + bios (DOB/height/weight) harvested from FIFA, keyed "name|CODE"; optional, skipped in data-saver
@@ -4823,7 +4847,7 @@ async function loadStatic() {
 }
 const LITE = () => localStorage.getItem("wc26.lite") === "on";   // data-saver: suppress hot-linked photos, fall back to flags
 // Only ever surface an https image URL with no CSS/HTML-breaking characters: these are inserted into
-// `url('…')` background-images, where esc() wouldn't even cover the quote/paren — so sanitise at the source.
+// `url('…')` background-images, where esc() wouldn't even cover the quote/paren - so sanitise at the source.
 // FIFA's portrait PNGs are ~900KB each, so a squad list or pitch pulled 10-20MB and stalled. Their image service
 // resizes via ?io=transform: request a small width and let the existing CSS (background cover, top-anchored) crop to
 // the face. ~900KB -> ~14KB per avatar, no visual change. Only FIFA URLs support it; everything else passes through.
@@ -4856,7 +4880,7 @@ function resolvePlayer(name, code, num, pos) {
     if (!hit && L) {
       // a name suffix (Jr / Júnior / Filho…) is NOT a surname, and the feed may abbreviate it differently from the
       // squad ("Vinicius Jr" vs "Vinicius Júnior"). Drop suffixes on BOTH sides so a player is keyed by their real
-      // distinguishing name — otherwise "Vinicius Jr" keys on "jr" and wrongly resolves to a "Neymar Jr" team-mate.
+      // distinguishing name - otherwise "Vinicius Jr" keys on "jr" and wrongly resolves to a "Neymar Jr" team-mate.
       const sigA = a => { const f = a.filter(w => !PH_SUFFIX.has(nrm(w))); return f.length ? f : a; };
       const fT = sigA(toks), sur = nrm(fT[fT.length - 1]);
       let cand = sq.filter(p => { const t = sigA(p.name.split(/\s+/)), n = t.length; return nrm(t[n - 1]) === sur || (n > 1 && nrm(t[n - 2] + t[n - 1]) === sur); });
@@ -4864,7 +4888,7 @@ function resolvePlayer(name, code, num, pos) {
       if (cand.length > 1 && pos) { const byPos = pos === "out" ? cand.filter(p => p.pos !== "GK") : cand.filter(p => p.pos === pos); if (byPos.length) cand = byPos; }   // "out" = outfielder (a scorer is never the same-surname keeper)
       if (cand.length === 1) hit = cand[0];
       else if (!cand.length && L === 1) { const bf = sq.filter(p => nrm(p.name.split(/\s+/)[0]) === nrm(toks[0])); if (bf.length === 1) hit = bf[0]; }
-      if (!hit && L > 1) {   // same set of name tokens, any order — handles reversed "SURNAME-First" photo filenames
+      if (!hit && L > 1) {   // same set of name tokens, any order - handles reversed "SURNAME-First" photo filenames
         const set = toks.map(nrm).filter(Boolean), ts = sq.filter(p => { const pt = p.name.split(/\s+/).map(nrm).filter(Boolean); return pt.length === set.length && set.every(w => pt.includes(w)); });
         if (ts.length === 1) hit = ts[0];
       }
@@ -4875,7 +4899,7 @@ function resolvePlayer(name, code, num, pos) {
 }
 // Team captains. The FIFA squad source carries NO captain field, so this is a hand-curated, high-confidence set
 // (only well-established, stable national-team captains) and each is VERIFIED to exist in that squad before it ships
-// — a name that doesn't resolve is simply not flagged. Snapshot, not a live feed; teams not listed show no captain.
+// - a name that doesn't resolve is simply not flagged. Snapshot, not a live feed; teams not listed show no captain.
 const CAPTAINS = {
   AR: "Lionel Messi", PT: "Cristiano Ronaldo", FR: "Kylian Mbappe", "GB-ENG": "Harry Kane", HR: "Luka Modric",
   NL: "Virgil van Dijk", KR: "Heungmin Son", EG: "Mohamed Salah", CH: "Granit Xhaka", NO: "Martin Odegaard",
@@ -4929,7 +4953,7 @@ function playerBio(name, code, num, pos) {
   const p = resolvePlayer(name, code, num, pos);
   if (!p) return null;
   const feed = (S.bio && teamBio(code).get(p.name)) || null;       // FIFA bio feed: DOB + height + weight
-  // the official squad list (squads.json, PDF import) carries DOB + height for EVERY player — use it to fill any
+  // the official squad list (squads.json, PDF import) carries DOB + height for EVERY player - use it to fill any
   // gap the feed leaves (weight is feed-only). Feed wins where both exist; the squad backfills the rest → 100% age/height.
   const sq = (p.d || p.h) ? { ...(p.d ? { d: p.d } : {}), ...(p.h ? { h: p.h } : {}) } : null;
   if (!feed) return sq;
@@ -4937,7 +4961,7 @@ function playerBio(name, code, num, pos) {
   return { ...sq, ...feed };
 }
 const ageFrom = dob => { const t = Date.parse(dob); if (!t) return null; const a = (Date.now() - t) / 31557600000; return a > 13 && a < 60 ? Math.floor(a) : null; };
-// manual "refresh scores" controls (footer + hero) — re-fetch the published results.json now
+// manual "refresh scores" controls (footer + hero) - re-fetch the published results.json now
 async function manualRefresh(origin) {
   const btns = origin ? [origin] : $$("[data-refresh]");   // a tapped per-card/footer button spins only itself, not every refresh icon
   if (btns.some(b => b.classList.contains("spinning"))) return;
@@ -4947,7 +4971,7 @@ async function manualRefresh(origin) {
   finally { setTimeout(() => btns.forEach(b => { b.classList.remove("spinning"); b.removeAttribute("aria-busy"); b.disabled = false; }), Math.max(0, 650 - (Date.now() - t0))); }
 }
 // heavy per-match detail (timeline/lineups/stats) lives in its own file so it isn't re-downloaded
-// every 60s — fetched only when scores change (see refreshResults). Tolerates a missing file.
+// every 60s - fetched only when scores change (see refreshResults). Tolerates a missing file.
 async function loadDetails() {   // returns true when details.json actually changed (so the caller can re-render)
   try {
     const txt = await (await fetch("data/details.json?t=" + Date.now(), { cache: "no-store" })).text();
@@ -4957,10 +4981,10 @@ async function loadDetails() {   // returns true when details.json actually chan
     return true;
   } catch { return false; }   // keep whatever we have on a blip
 }
-// credited match reports (headline + prose) — small file, refreshed on score change like details.json. Tolerates absence.
+// credited match reports (headline + prose) - small file, refreshed on score change like details.json. Tolerates absence.
 async function loadReports() {
   try { const d = await (await fetch("data/reports.json?t=" + Date.now(), { cache: "no-store" })).json(); S.reports = d && d.matches ? d : { matches: {} }; }
-  catch { /* keep whatever we have — reports are optional */ }
+  catch { /* keep whatever we have - reports are optional */ }
 }
 // heavy live commentary lives in one file per match so we only download it when a popup actually wants it
 async function loadCommentary(num) {
@@ -4976,7 +5000,7 @@ function setFreshness() {
   if (!S.lastChecked) { el.textContent = S.results.updated ? "Up to date" : "Schedule loaded"; return; }
   const fmtT = ms => _dtf("en", { hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(ms));   // 24h, matching every kickoff time on screen
   if (S.offline) { el.textContent = `Offline · last update ${fmtT(S.lastChecked)}`; return; }   // say so, rather than show a frozen "just now"
-  // lead with how recently we checked, not the data's age — a quiet stretch with no matches isn't staleness
+  // lead with how recently we checked, not the data's age - a quiet stretch with no matches isn't staleness
   if (Date.now() - S.lastChecked > 5 * 60000) { el.textContent = `Last checked ${fmtT(S.lastChecked)}`; return; }
   const live = S.matches.some(m => [ST.LIVE, ST.HT].includes(status(m)));
   el.textContent = `${live ? "Live" : "Up to date"} · checked just now`;
@@ -5001,13 +5025,13 @@ async function refreshResults() {
     const detailChanged = await loadDetails();
     if (scoresChanged) await loadReports();
     if (scoresChanged || detailChanged) {
-      for (const m of S.matches) if ([ST.LIVE, ST.HT].includes(status(m))) delete S.commentary[m.num];   // only live commentary advances — keep finished matches cached
+      for (const m of S.matches) if ([ST.LIVE, ST.HT].includes(status(m))) delete S.commentary[m.num];   // only live commentary advances - keep finished matches cached
       rebuildMatchData();
       renderTicker();
-      // Predict is driven by the user's saved picks, not live results — re-rendering it on a poll would reset their
-      // bracket scroll for no benefit. Refresh every other view. (S.view is null pre-first-paint — boot's nav renders.)
+      // Predict is driven by the user's saved picks, not live results - re-rendering it on a poll would reset their
+      // bracket scroll for no benefit. Refresh every other view. (S.view is null pre-first-paint - boot's nav renders.)
       if (S.view && S.view !== "sim") RENDER[S.view]();
-      refreshOpenMatch();           // keep an open match popup live — score/minute/timeline/stats, not just commentary
+      refreshOpenMatch();           // keep an open match popup live - score/minute/timeline/stats, not just commentary
       if (scoresChanged && !firstLoad) celebrateGoals(prev, S.results.matches);
     }
     setFreshness();
@@ -5025,9 +5049,9 @@ function refreshOpenMatch() {
   if (!(md?.open && md.dataset.openMid)) return;
   const y = md.scrollTop;
   openMatch(md.dataset.openMid, true);        // paint() morphs the body: expanded folds (open is never synced) & loaded commentary ([data-keep]) survive on their own
-  if (md.scrollTop !== y) md.scrollTop = y;    // belt-and-braces — a morph shouldn't move the scroll, but pin it if a node above changed height
+  if (md.scrollTop !== y) md.scrollTop = y;    // belt-and-braces - a morph shouldn't move the scroll, but pin it if a node above changed height
 }
-// keep an open live-match popup's commentary current — re-fetch its feed each poll (commentary advances on
+// keep an open live-match popup's commentary current - re-fetch its feed each poll (commentary advances on
 // fouls/cards too, not just goals, so this runs every tick, independent of whether the score changed)
 async function refreshOpenCommentary() {
   const md = document.getElementById("matchDialog");
@@ -5041,24 +5065,24 @@ async function refreshOpenCommentary() {
   if (body) body.innerHTML = renderCommentary(c);
 }
 // Scores update live via the poll, but the *app itself* (HTML/CSS/JS) can't be force-reloaded on a static
-// site — a page left open keeps running its old build. So detect a new deploy (the live index.html bumps
+// site - a page left open keeps running its old build. So detect a new deploy (the live index.html bumps
 // app.js?v=<BUILD> each release) and offer a one-tap refresh instead of leaving people on a stale UI.
 async function checkVersion() {
   try {
     const html = await (await fetch("index.html?t=" + Date.now(), { cache: "no-store" })).text();
     const m = html.match(/app\.js\?v=([\w.]+)/);
     if (m && m[1] !== BUILD) { const p = $("#updatePill"); if (p) p.hidden = false; }
-  } catch { /* offline — try again next tick */ }
+  } catch { /* offline - try again next tick */ }
 }
 // Thorough refresh for the update pill: wipe every cache + unregister the worker so the reload is guaranteed to
-// come from the network (the latest build) — even on a device stuck behind an old worker. The page re-registers
+// come from the network (the latest build) - even on a device stuck behind an old worker. The page re-registers
 // a fresh worker on next load, so offline support is restored immediately after.
 async function hardRefresh() {
   const p = $("#updatePill"); if (p) p.disabled = true;
   try {
     if (window.caches) await Promise.all((await caches.keys()).map(k => caches.delete(k)));
     if ("serviceWorker" in navigator) await Promise.all((await navigator.serviceWorker.getRegistrations()).map(r => r.unregister()));
-  } catch { /* best effort — reload regardless */ }
+  } catch { /* best effort - reload regardless */ }
   location.reload();
 }
 
@@ -5085,7 +5109,7 @@ async function boot() {
   $("#calSubscribe").onclick = () => {
     const webcal = webcalURL("all.ics"), https = webcal.replace(/^webcal:\/\//, "https://");
     if (/iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent)) { location.href = webcal; return; }
-    try { navigator.clipboard?.writeText(https); } catch { /* clipboard blocked — the Google tab still opens */ }
+    try { navigator.clipboard?.writeText(https); } catch { /* clipboard blocked - the Google tab still opens */ }
     window.open("https://calendar.google.com/calendar/u/0/r?cid=" + encodeURIComponent(https), "_blank", "noopener");
     flashToast("Calendar URL copied. Paste it into your calendar app if it doesn't open");
   };
@@ -5095,7 +5119,7 @@ async function boot() {
   $("#devStoryBtn")?.addEventListener("click", () => { _fillBuild(); const t = $("#aboutTech"); if (t) t.open = true; showSheet($("#aboutSiteDialog")); setTimeout(() => $("#aboutTech")?.scrollIntoView({ block: "start" }), 90); });   // "i" by the build → About, with the technical story expanded (the number itself keeps its egg)
   const _footTz = $("#footTz"); if (_footTz) _footTz.onclick = () => $("#tzDialog").showModal();   // the "in your timezone" promise is now one tap from the footer
   $("#teamChip").onclick = () => $("#teamDialog").showModal();
-  // first-launch onboarding — a short, skippable welcome shown once (any dismissal marks it seen)
+  // first-launch onboarding - a short, skippable welcome shown once (any dismissal marks it seen)
   if (!localStorage.getItem("wc26.seen")) {
     const w = $("#welcomeDialog");
     if (w) {
@@ -5159,8 +5183,6 @@ async function boot() {
     flashToast(on ? "Data saver on: photos hidden" : "Data saver off");
     RENDER[S.view]();   // re-render so photos↔flags swap immediately
   };
-  $("#jumpNow").onclick = scrollToNow;
-  addEventListener("scroll", () => { if (S.view === "matches") requestAnimationFrame(updateJumpNow); }, { passive: true });
   addEventListener("click", e => { if (!e.target.closest("#teamSelWrap")) closeTeamSel(); });   // close team dropdown on outside click
   addEventListener("click", e => { if (!e.target.closest("#stageSelWrap")) closeStagePop(); });  // …and the stage dropdown
   addEventListener("click", e => { if (!e.target.closest(".rk-filter .tsel")) closeRkPops(); });   // …and both rankings dropdowns
@@ -5187,7 +5209,7 @@ async function boot() {
   $("#searchDialog").addEventListener("close", () => { compareSeed = null; stopSearchRoll(); });   // never leave compare mode armed (or a timer running) after the overlay closes
   // Closing a modal restores focus to whatever opened it (e.g. the tapped match card). On a pointer close the
   // browser paints a :focus-visible ring on that card, which reads as a flicker. Track input modality and drop
-  // the ring on pointer closes only — keyboard closes keep focus so keyboard users don't lose their place.
+  // the ring on pointer closes only - keyboard closes keep focus so keyboard users don't lose their place.
   let _kbdNav = false;
   addEventListener("keydown", () => { _kbdNav = true; }, true);
   addEventListener("pointerdown", () => { _kbdNav = false; }, true);
@@ -5204,7 +5226,7 @@ async function boot() {
   });
   document.addEventListener("click", e => {
     // a close button or a backdrop (click landing on the <dialog> itself) is handled by the dialog's own
-    // close wiring — never let it fall through to an open-handler, or closing would immediately re-open.
+    // close wiring - never let it fall through to an open-handler, or closing would immediately re-open.
     if (e.target.closest("[data-close]") || e.target.tagName === "DIALOG") return;
     const ii = e.target.closest("[data-info]");   // reusable "i" explainer → shared popover (touch-safe)
     if (ii) { e.stopPropagation(); showInfoPop(ii, ii.dataset.info); return; }
@@ -5244,6 +5266,8 @@ async function boot() {
     if (rsh) { shareR32Image(_r32Mode); return; }
     const pjt = e.target.closest("[data-projtie]");   // a bracket tie → the projected-tie sheet (names, venue, odds, head-to-head)
     if (pjt) { openProjTie(pjt.dataset.projtie); return; }
+    const sti = e.target.closest("[data-sim-info]");   // the "i" on a bracket tie → your-matchup sheet (favourite, win prob, H2H, pick)
+    if (sti) { openSimTie(sti.dataset.simInfo); return; }
     const se = e.target.closest("[data-sim-edit]");   // "Make your own picks" / "Build your own bracket" → open the predictor editor
     if (se) { const pd = $("#projDialog"); if (pd?.open) pd.close(); S.simView = "edit"; nav("sim"); return; }
     const mid = e.target.closest("[data-mid]");   // hero, match card, or a record row (never a dialog)
@@ -5265,12 +5289,12 @@ async function boot() {
   }
   setChromeVars();
   // Load live scores + detail BEFORE the first paint, so a refresh never flickers from a no-scores render to the
-  // live one — the visitor always opens straight onto current data. Raced with a timeout so a slow/hung network
+  // live one - the visitor always opens straight onto current data. Raced with a timeout so a slow/hung network
   // can't block the page; if the data is late it simply re-renders when it lands.
   await Promise.race([refreshResults(), new Promise(r => setTimeout(r, 3500))]);
   nav(initView);
   loadBuzz();   // fan reactions + headlines (data/buzz.json); refreshed on the poll below
-  loadWC2022();   // last World Cup (static) — for the team "Since 2022" view
+  loadWC2022();   // last World Cup (static) - for the team "Since 2022" view
   loadEfi();    // FIFA EFI deep-analysis (data/efi.json), post-match
   addEventListener("hashchange", () => { const v = HASH_VIEW[location.hash.slice(1)]; if (v && v !== S.view) nav(v); });  // a shared #tab link opened in-session / back-forward
   const bl = $("#bootLoading"); if (bl) { bl.classList.add("gone"); setTimeout(() => bl.remove(), 320); }   // first view rendered → reveal
@@ -5281,7 +5305,7 @@ async function boot() {
     setTimeout(() => openMatch(mq), 350);
   }
   setInterval(refreshResults, 30 * 1000);   // scores: poll every 30s so the page catches each new commit sooner
-  setInterval(() => { refreshOpenCommentary(); loadBuzz(); }, 60 * 1000);   // commentary + buzz change slower — 60s is plenty
+  setInterval(() => { refreshOpenCommentary(); loadBuzz(); }, 60 * 1000);   // commentary + buzz change slower - 60s is plenty
   // returning to a backgrounded tab is the classic "stale score" moment (the goal happened while you were away):
   // pull the latest immediately instead of waiting for the next poll. Throttled so quick tab-flicks don't spam.
   document.addEventListener("visibilitychange", () => {
@@ -5290,15 +5314,15 @@ async function boot() {
   });
   addEventListener("online", () => refreshResults());                // reconnected → pull immediately and clear the offline label
   addEventListener("offline", () => { S.offline = true; setFreshness(); });
-  setInterval(loadEfi, 5 * 60 * 1000);   // EFI is post-match — refresh every 5 min is plenty
+  setInterval(loadEfi, 5 * 60 * 1000);   // EFI is post-match - refresh every 5 min is plenty
   checkKickoffAlert();
   setInterval(checkKickoffAlert, 60 * 1000); // fire a kickoff reminder for the favourite team (opt-in)
   $("#updatePill").onclick = hardRefresh;
   setInterval(checkVersion, 120 * 1000);  // nudge open pages to refresh when a new build ships
-  // offline support — network-first SW (registered after first render so it never blocks paint).
+  // offline support - network-first SW (registered after first render so it never blocks paint).
   // The shell stays network-first so an online visitor always gets the latest build; the version
   // nudge still handles prompting a reload when a new app.js ships.
-  // background-scroll lock behind modals — primary is the CSS `:has()` rule; this is a fallback for older webviews
+  // background-scroll lock behind modals - primary is the CSS `:has()` rule; this is a fallback for older webviews
   const _lockObs = new MutationObserver(() => document.documentElement.classList.toggle("modal-open", !!document.querySelector("dialog[open]")));
   $$("dialog").forEach(d => _lockObs.observe(d, { attributes: true, attributeFilter: ["open"] }));
   if ("serviceWorker" in navigator) {
