@@ -19,8 +19,6 @@
      stay for fills, large display, icons & dark mode where they already pass). */
   --acc-text:#0A7D45;
   --gold-text:#8A6A12;
-  --silver:#9FB0BC;--silver-text:#465761;   /* podium medals for the World-Cup-since-2002 history */
-  --bronze:#C77B3C;--bronze-text:#7A4316;
   /* Solid green fill that carries WHITE text at AA in BOTH themes (white on #0A7D45 = 5.2:1; the brand
      --acc1 #0BA360 only reaches 3.3:1). Used for primary buttons + the selected segmented-pill state. */
   --acc-deep:#0A7D45;
@@ -46,7 +44,6 @@
   --acc-text:var(--acc1);   /* on the dark field the vivid brand colours already pass AA — no darkening needed */
   --focus:color-mix(in srgb,var(--acc1) 55%,#dff0e6);   /* lighten the team accent so the focus ring stays visible on the dark field */
   --gold-text:var(--gold);
-  --silver-text:#C7D2DA;--bronze-text:#E0A368;
   --shadow:0 1px 2px rgba(0,0,0,.45),0 8px 28px -10px rgba(0,0,0,.6);
   --shadow-hover:0 14px 32px -14px rgba(0,0,0,.7);
 }
@@ -1247,23 +1244,19 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .wch-chip{display:flex;flex-direction:column;align-items:center;gap:3px;padding:7px 6px;border-radius:9px;flex:1;min-width:42px;text-align:center;background:var(--line)}
 .wch-yr{font:700 9px/1 var(--mono);color:var(--ink-soft);letter-spacing:.05em}
 .wch-res{font:800 11.5px/1 var(--disp)}
-/* intuitive ramp: didn't qualify → group stage → deepening green through the knockouts → podium medals (bronze/silver/gold) */
+/* single green scale = how far they got (one glance: the darker the chip, the better the run); gold reserved for champions */
 .wch-chip[data-r="-"]{background:transparent;border:1px solid var(--line);opacity:.4}
 .wch-chip[data-r="-"] .wch-res{color:var(--ink-soft)}
-.wch-chip[data-r="GS"]{background:color-mix(in srgb,var(--ink-soft) 12%,var(--card))}
-.wch-chip[data-r="GS"] .wch-res{color:var(--ink-soft)}
-.wch-chip[data-r="R16"]{background:color-mix(in srgb,var(--pitch) 16%,var(--card))}
-.wch-chip[data-r="R16"] .wch-res{color:var(--acc-text)}
-.wch-chip[data-r="QF"]{background:color-mix(in srgb,var(--pitch) 30%,var(--card))}
-.wch-chip[data-r="QF"] .wch-res{color:var(--acc-text)}
-.wch-chip[data-r="4th"]{background:color-mix(in srgb,var(--pitch) 46%,var(--card))}
-.wch-chip[data-r="4th"] .wch-res{color:#fff}
-.wch-chip[data-r="3rd"]{background:color-mix(in srgb,var(--bronze) 42%,var(--card))}
-.wch-chip[data-r="3rd"] .wch-res{color:var(--bronze-text)}
-.wch-chip[data-r="F"]{background:color-mix(in srgb,var(--silver) 48%,var(--card))}
-.wch-chip[data-r="F"] .wch-res{color:var(--silver-text)}
-.wch-chip[data-r="W"]{background:color-mix(in srgb,var(--gold) 46%,var(--card))}
-.wch-chip[data-r="W"] .wch-res{color:var(--gold-text)}
+.wch-chip[data-r="GS"]{background:color-mix(in srgb,var(--pitch) 15%,var(--card))}
+.wch-chip[data-r="GS"] .wch-res{color:var(--acc-text)}
+.wch-chip[data-r="R16"]{background:#239467}
+.wch-chip[data-r="QF"]{background:#1A8456}
+.wch-chip[data-r="4th"]{background:#137046}
+.wch-chip[data-r="3rd"]{background:#0D5E3A}
+.wch-chip[data-r="F"]{background:#084A2D}
+.wch-chip[data-r="R16"] .wch-res,.wch-chip[data-r="QF"] .wch-res,.wch-chip[data-r="4th"] .wch-res,.wch-chip[data-r="3rd"] .wch-res,.wch-chip[data-r="F"] .wch-res{color:#fff}
+.wch-chip[data-r="W"]{background:var(--gold)}
+.wch-chip[data-r="W"] .wch-res{color:#5A4408}
 /* player — this-World-Cup record tiles */
 .pl-wc{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin:0 0 6px}
 .pl-wc .pw{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 4px;text-align:center;box-shadow:var(--shadow)}
@@ -1299,7 +1292,8 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .pp{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:3px;width:62px;pointer-events:none}
 .pp.pp-clk{pointer-events:auto;cursor:pointer}
 /* headshot-only marker: the player's face, framed top so it reads clearly — no circle chrome, no number on the face */
-.pp-face{width:44px;height:44px;border-radius:50%;background-size:cover;background-position:50% 8%;background-repeat:no-repeat;background-color:rgba(255,255,255,.16);box-shadow:0 2px 7px rgba(0,0,0,.4)}
+/* zoomed to the face (head + neck), not the upper body — the source photo is a head-to-waist portrait */
+.pp-face{width:44px;height:44px;border-radius:50%;background-size:182%;background-position:50% 9%;background-repeat:no-repeat;background-color:rgba(255,255,255,.16);box-shadow:0 2px 7px rgba(0,0,0,.4)}
 .pp-clk:hover .pp-face,.pp-clk:focus-visible .pp-face{box-shadow:0 0 0 2px #fff,0 3px 9px rgba(0,0,0,.5)}
 /* fallback dot only when a player has no headshot at all */
 .pp-dot{width:30px;height:30px;border-radius:50%;background:var(--pc);color:var(--pt);border:1.5px solid rgba(255,255,255,.85);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-weight:700;font-size:12px;box-shadow:0 2px 5px rgba(0,0,0,.35)}
@@ -1519,6 +1513,10 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .md-stats{display:flex;flex-direction:column;gap:12px;margin:4px 0 8px}
 /* EFI "Deep analysis": sub-headers, the per-player distance chart, and the source credit */
 .efi-sub{font-family:var(--disp);font-weight:700;font-stretch:110%;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);margin:16px 0 9px}
+/* attack/possession/defence/discipline sub-headings in the all-match-stats fold */
+.st-grp{font-family:var(--disp);font-weight:700;font-stretch:110%;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);margin:15px 0 8px;display:flex;align-items:center;gap:8px}
+.st-grp:first-child{margin-top:2px}
+.st-grp::after{content:"";flex:1;height:1px;background:var(--line)}
 .efi-sub small{font-weight:600;letter-spacing:0;text-transform:none;opacity:.78}
 .efi-dist{display:flex;flex-direction:column;gap:5px}
 .efi-prow{display:grid;grid-template-columns:86px 1fr 30px;align-items:center;gap:9px;font-size:12px}

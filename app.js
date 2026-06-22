@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "329";  // shown in footer; bump with the ?v= asset version
+const BUILD = "330";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -841,13 +841,13 @@ function mdTimeline(r, hc, ac) {
   }).join("");
   return `<div class="eyebrow">Match events</div><div class="md-tl">${rows}</div>`;
 }
-const STAT_ROWS = [
-  ["poss", "Possession", "%"],
-  ["sh", "Shots"], ["sot", "On target"], ["blk", "Blocked"],
-  ["sv", "Saves"], ["cor", "Corners"], ["off", "Offsides"],
-  ["pass", "Passes"], ["cross", "Crosses"], ["lball", "Long balls"],
-  ["tkl", "Tackles"], ["intc", "Interceptions"], ["clr", "Clearances"],
-  ["fls", "Fouls"], ["yc", "Yellow cards"],
+// grouped so the all-stats read by theme — going forward, in possession, at the back, discipline —
+// instead of one undifferentiated column (poss/xG/shots/on-target headline up in Key stats).
+const STAT_GROUPS = [
+  ["Attacking", [["sh", "Shots"], ["sot", "On target"], ["blk", "Blocked"], ["cor", "Corners"], ["off", "Offsides"], ["cross", "Crosses"]]],
+  ["In possession", [["pass", "Passes"], ["lball", "Long balls"]]],
+  ["Defending", [["tkl", "Tackles"], ["intc", "Interceptions"], ["clr", "Clearances"], ["sv", "Saves"]]],
+  ["Discipline", [["fls", "Fouls"], ["yc", "Yellow cards"], ["rc", "Red cards"]]],
 ];
 const statBar = ([hv, av], label, suf = "") => {
   const tot = (hv + av) || 1, hp = Math.round(hv / tot * 100);
@@ -860,23 +860,23 @@ const statBar = ([hv, av], label, suf = "") => {
 };
 function mdStats(r, expand = false) {
   if (!r?.stats) return "";
-  const s = r.stats, parts = [];
-  // possession, shots and on target already sit in Key stats just above — don't repeat them here.
-  const inKey = new Set(["poss", "sh", "sot"]);
-  for (const [k, label, suf] of STAT_ROWS) {
-    if (inKey.has(k) || !Array.isArray(s[k])) continue;
-    parts.push(statBar(s[k], label, suf));
-    // derive pass accuracy from the accurate/total counts (ESPN's passPct ships as a 0-1 fraction, so we don't store it)
-    if (k === "pass" && Array.isArray(s.passT) && s.passT[0] && s.passT[1])
-      parts.push(statBar([Math.round(s.pass[0] / s.passT[0] * 100), Math.round(s.pass[1] / s.passT[1] * 100)], "Pass accuracy", "%"));
-  }
-  if (!parts.length) return "";
-  if (expand) {
-    return `<div class="eyebrow">All match stats</div><div class="md-stats">${parts.join("")}</div>${mdLeaders(r)}`;
-  }
-  const head = Array.isArray(s.pass) ? `${s.pass[0]}–${s.pass[1]} passes · ${parts.length} stats` : `${parts.length} stats`;
+  const s = r.stats;
+  const groups = STAT_GROUPS.map(([title, rows]) => {
+    const bars = [];
+    for (const [k, label, suf] of rows) {
+      if (!Array.isArray(s[k])) continue;
+      bars.push(statBar(s[k], label, suf || ""));
+      // derive pass accuracy from the accurate/total counts (ESPN's passPct ships as a 0-1 fraction, so we don't store it)
+      if (k === "pass" && Array.isArray(s.passT) && s.passT[0] && s.passT[1])
+        bars.push(statBar([Math.round(s.pass[0] / s.passT[0] * 100), Math.round(s.pass[1] / s.passT[1] * 100)], "Pass accuracy", "%"));
+    }
+    return bars.length ? `<div class="st-grp">${title}</div><div class="md-stats">${bars.join("")}</div>` : "";
+  }).filter(Boolean).join("");
+  if (!groups) return "";
+  if (expand) return `<div class="eyebrow">All match stats</div>${groups}${mdLeaders(r)}`;
+  const head = Array.isArray(s.pass) ? `${s.pass[0]}–${s.pass[1]} passes · attack, defence &amp; more` : "attack, defence &amp; more";
   return `<details class="md-fold"><summary><span>All match stats</span><small>${head}</small></summary>
-    <div class="md-fold-body"><div class="md-stats">${parts.join("")}</div>${mdLeaders(r)}</div></details>`;
+    <div class="md-fold-body">${groups}${mdLeaders(r)}</div></details>`;
 }
 // the headline stats shown inline above the full fold — possession, xG (post-match), shots, on target — so the
 // numbers people came for are visible without a tap, while the full 16-stat table stays one tap deep.
@@ -889,6 +889,19 @@ function mdKeyStats(r, m) {
   if (Array.isArray(s.sh)) bars.push(statBar(s.sh, "Shots"));
   if (Array.isArray(s.sot)) bars.push(statBar(s.sot, "On target"));
   return bars.length ? `<div class="eyebrow">Key stats</div><div class="md-stats">${bars.join("")}</div>` : "";
+}
+// a single derived "who's on top" index blending xG (when published) + shots + on-target + corners into one share.
+// Explicitly NOT a minute-by-minute momentum read — no time-series data exists — so it's labelled an index, not a graph.
+function matchControlBar(m) {
+  const r = res(m); if (!r?.stats) return "";
+  const e = S.efi?.[m.num], s = r.stats, pairs = [], names = [];
+  const add = (p, nm) => { if (Array.isArray(p) && p.length === 2 && (p[0] + p[1]) > 0) { pairs.push(p); names.push(nm); } };
+  if (e?.xg) add(e.xg, "xG");
+  add(s.sh, "shots"); add(s.sot, "on-target"); add(s.cor, "corners");
+  if (pairs.length < 2) return "";                       // need a couple of independent signals before calling it "control"
+  const hp = Math.round(pairs.reduce((t, [hv, av]) => t + hv / (hv + av), 0) / pairs.length * 100);
+  const info = infoBtn(`A derived index blending ${names.join(" + ")} into one share of the attacking initiative — a "who's on top" read, NOT minute-by-minute momentum (no time data exists in the feed).`, "How match control is worked out");
+  return `<div class="eyebrow">Match control ${info}</div><div class="md-stats">${statBar([hp, 100 - hp], "Share of control", "%")}</div>`;
 }
 // "Deep analysis": FIFA Enhanced Football Intelligence (post-match) — official xG, line breaks, ball progressions,
 // pressures, phases of play, and the headline: per-player distance covered. Only shown when data/efi.json has it.
@@ -904,7 +917,9 @@ function mdEfi(m, expand = false) {
   if (e.lineBreaks) sb.push(statBar(e.lineBreaks, "Completed line breaks"));
   if (e.ballProg) sb.push(statBar(e.ballProg, "Ball progressions"));
   if (e.pressures) sb.push(statBar(e.pressures, "Defensive pressures"));
-  const phaseKeys = ["Build Up Unopposed", "Progression", "Final Third", "Attacking Transition"];
+  if (Array.isArray(e.distance)) sb.push(statBar(e.distance, "Distance covered", " km"));   // team totals (per-player breakdown below when available)
+  // all eight in-possession phases (each is the share of that team's build-up play, so they read as %)
+  const phaseKeys = ["Build Up Unopposed", "Build Up Opposed", "Progression", "Final Third", "Long Ball", "Attacking Transition", "Counter Attack", "Set Piece"];
   const phaseBars = phaseKeys.filter(k => e.phasesIn?.[k]).map(k => statBar(e.phasesIn[k], k, "%")).join("");
   const homeKm = (e.players?.home || []).filter(p => p.km);
   const awayKm = (e.players?.away || []).filter(p => p.km);
@@ -1332,7 +1347,7 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
   // win-prob: in-play for a live game (reflects the score), the model's pre-match call otherwise — plus its "why" drivers + top-3 scorelines
   const pre = !live, _wp = winProb(m, pre);
   const pWinProb = _wp ? winProbBlock(m, pre) + liveWhyChips(_wp) + liveScorelines(_wp) : "";
-  const pReport = mdReport(m), pComm = mdCommentaryShell(m), pStakes = stakesBlock(m), pCompare = matchCompare(m), pStars = liveStars(m);
+  const pReport = mdReport(m), pComm = mdCommentaryShell(m), pStakes = stakesBlock(m), pCompare = matchCompare(m), pStars = liveStars(m), pControl = matchControlBar(m);
   const pXiInline = r?.xi ? `<div class="eyebrow">${liveNow ? "Line-ups" : "Starting XI"}</div>${xiPanel(r.xi, h, a)}` : "";
   const pXiFold = r?.xi ? `<details class="md-fold"><summary><span>Starting XI</span><small>${esc([r.xi.h?.f, r.xi.a?.f].filter(Boolean).join(" v ")) || "line-ups & formations"}</small></summary><div class="md-fold-body">${xiPanel(r.xi, h, a)}</div></details>` : "";
   // "how they compare" rides along as a collapsed fold for live/finished games (it leads expanded in the upcoming branch)
@@ -1348,11 +1363,11 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
     </div>`;
   // order by state so each opens with what you came for (Live folds in here — no separate tab as of build 329).
   const middle = liveNow
-    // live: analytics lead (win-prob), then the live feed, then the numbers, match stars, deep dive, stakes
-    ? [pWinProb, pComm, pKeyStats, pStars, pTimeline, pStats, pXiInline, pEfi, pCompareFold, pStakes]
+    // live: analytics lead (win-prob + who's-on-top control), then the live feed, then the numbers, stars, deep dive, stakes
+    ? [pWinProb, pControl, pComm, pKeyStats, pStars, pTimeline, pStats, pXiInline, pEfi, pCompareFold, pStakes]
     : isFT
-    // finished: the report leads, then key stats, stars, the full timeline & numbers, the model's call, the deep dive
-    ? [pReport, pKeyStats, pStars, pTimeline, pStats, pXiInline, pEfi, pWinProb, pCompareFold, pStakes]
+    // finished: the report leads, then key stats + control, stars, the full timeline & numbers, the model's call, the deep dive
+    ? [pReport, pKeyStats, pControl, pStars, pTimeline, pStats, pXiInline, pEfi, pWinProb, pCompareFold, pStakes]
     : [pStakes, pCompare, pWinProb, pXiInline];   // upcoming: stakes + head-to-head compare + odds + (announced) line-ups
   const _body = pTop + middle.join("") + pMeta;
   const mb = $("#matchBody");
@@ -2772,24 +2787,10 @@ function projectedR32() {
   return S.matches.filter(m => m.stage === "r32").sort((a, b) => a.num - b.num)
     .map(m => ({ m, h: side(m, m.home), a: side(m, m.away) }));
 }
-function projR32HTML() {
-  const allDone = GROUPS.every(g => S.matches.filter(x => x.group === g).every(x => status(x) === ST.FT));
-  const anyPlayed = S.matches.some(m => m.group && status(m) === ST.FT && res(m)?.h != null);
-  if (!anyPlayed) return "";
-  const ties = projectedR32();
-  const cell = (code, sh) => code && S.teams[code]
-    ? `<span class="fl">${flag(code)}</span><span class="pj-nm">${esc(S.teams[code].name)}</span>`
-    : `<span class="fl">·</span><span class="pj-nm pj-tbd">${esc(sh || "TBD")}</span>`;
-  const rows = ties.map(({ m, h, a }) => `<button class="pj-row" data-mid="${m.id}">
-    <span class="pj-side">${cell(h, m.home.short)}</span><span class="pj-v">v</span><span class="pj-side pj-r">${cell(a, m.away.short)}</span></button>`).join("");
-  return `<details class="proj"${allDone ? " open" : ""}><summary><span>Projected Round of 32</span><small>if the groups ended today</small></summary>
-    <div class="proj-body">${rows}</div>
-    <p class="sim-ko-hint">Live group winners &amp; runners-up plus the best-8 third places, routed through FIFA's slot rules. Make your own calls in <b>Predict</b>.</p></details>`;
-}
-// big-flag "Round of 32 — as it stands" board: the same projectedR32() allocation as the buried Tables list, but as
-// tappable tie cards with an honest per-tie certainty chip. Mounted atop Predict so the live bracket greets a visitor
-// before the build-your-own editor. Third-place slots stay TBD until mathematically settled — a board this prominent
-// must never commit to a nation that can still change (the site's zero-error bar).
+// big-flag "Round of 32 — as it stands" board on the projectedR32() allocation: tappable tie cards with an honest
+// per-tie certainty chip. Mounted atop Predict (before the build-your-own editor) AND in Tables (replacing the old
+// collapsed list, build 330). Third-place slots stay TBD until mathematically settled — a board this prominent must
+// never commit to a nation that can still change (the site's zero-error bar).
 function r32SeedInfo(sh) {
   return /^1[A-L]$/.test(sh) ? { lbl: "Winners · Group " + sh[1], g: sh[1] }
     : /^2[A-L]$/.test(sh) ? { lbl: "Runners-up · Group " + sh[1], g: sh[1] }
@@ -2810,7 +2811,7 @@ function r32BoardHTML() {
   const verdict = (sH, sA, h, a) => {                       // honest per-tie certainty
     const thirdPending = (sH.third || sA.third) && !allGroupsDone;
     const rem = (sH.g ? remOf(sH.g) : 0) + (sA.g ? remOf(sA.g) : 0);
-    if (thirdPending) return { k: "bubble", t: "On the bubble" };
+    if (thirdPending) return { k: "bubble", t: "Spot still open" };   // a third-place qualifying place isn't settled yet
     if (rem === 0 && h && a) return { k: "ok", t: "Confirmed" };
     return { k: "games", t: rem + " game" + (rem === 1 ? "" : "s") + " left" };
   };
@@ -2820,7 +2821,7 @@ function r32BoardHTML() {
     const known = code && !tbd && S.teams[code];
     return `<span class="r32-side">
       <span class="r32-flag">${known ? flag(code) : `<span class="r32-tbdf">?</span>`}</span>
-      <span class="r32-id"><span class="r32-nm${known ? "" : " r32-tbd"}">${known ? esc(S.teams[code].name) : "Best 3rd"}</span><span class="r32-seed">${tbd ? "Best 3rd — undecided" : s.lbl}</span></span>
+      <span class="r32-id"><span class="r32-nm${known ? "" : " r32-tbd"}">${known ? esc(S.teams[code].name) : "Best 3rd"}</span><span class="r32-seed">${tbd ? "one of the best 3rd places" : s.lbl}</span></span>
     </span>`;
   };
   let confirmed = 0;
@@ -2904,7 +2905,7 @@ function renderGroups() {
     `<div class="gwrap">${GROUPS.map((g, i) => `<div class="gcol">${groupTable(g, i)}</div>`).join("")}</div>
      <div class="legend"><span class="l1"><i></i>Top 2 advance to the Round of 32</span><span class="l3"><i></i>3rd place: eight best advance</span><button class="legend-about" data-about>ⓘ How the format works</button></div>
      ${thirdRaceHTML()}
-     ${projR32HTML()}`;
+     ${r32BoardHTML()}`;
   if (el.__sig === html) return;                           // groups unchanged (e.g. a minute tick elsewhere) — no flicker
   el.__sig = html;
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -3398,7 +3399,6 @@ function renderSimDash() {
     <div class="pdash-sep"><span>Build your own</span></div>
     <p class="pdash-intro">${ICO.spark} Keep up to three scenarios — a gut pick, the chalk, a wildcard. Tap one to build it, all the way to a champion. Saved on this device.</p>
     <div class="pdash">${S.simBox.slots.map(card).join("")}</div>`;
-  const editCta = el.querySelector("[data-sim-edit]"); if (editCta) editCta.onclick = () => { S.simView = "edit"; renderSim(); };
   $$("[data-slot-open]", el).forEach(b => b.onclick = () => { setActiveSlot(+b.dataset.slotOpen); S.simView = "edit"; renderSim(); });
   $$("[data-slot-rename]", el).forEach(b => b.onclick = async () => {
     const i = +b.dataset.slotRename, cur = S.simBox.slots[i];
@@ -4833,6 +4833,8 @@ async function boot() {
     if (w22) { openWc2022(); return; }
     const hl = e.target.closest("[data-hero-live]");   // the Matches hero → open the match modal (Live folded into it, build 329)
     if (hl) { openMatch(hl.dataset.heroLive); return; }
+    const se = e.target.closest("[data-sim-edit]");   // "Make your own picks" on the R32 board (Predict OR Tables) → open the predictor editor
+    if (se) { S.simView = "edit"; nav("sim"); return; }
     const mid = e.target.closest("[data-mid]");   // hero, match card, or a record row (never a dialog)
     if (mid && mid.tagName !== "DIALOG") { openMatch(mid.dataset.mid); }
   });
