@@ -319,7 +319,7 @@ body.bg-paused #bg span{animation-play-state:paused;will-change:auto}
 /* low-key one-liner under the win-prob bar — exact-scoreline odds are small, so it stays a quiet footnote */
 .sl-line{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin:-2px 0 14px}
 .sl-cap{font-family:var(--disp);font-weight:600;font-size:11.5px;color:var(--ink-soft);margin-right:1px}
-.sl-chip{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-weight:600;font-size:11.5px;color:var(--ink);font-variant-numeric:tabular-nums;border:1px solid var(--line);border-radius:999px;padding:2px 8px}
+.sl-chip{display:inline-flex;align-items:baseline;gap:5px;font-family:var(--mono);font-weight:600;font-size:11.5px;color:var(--ink);font-variant-numeric:tabular-nums;border:1px solid var(--line);border-radius:999px;padding:2px 8px}
 .sl-chip i{font-style:normal;font-size:10px;font-weight:400;color:var(--ink-soft)}
 /* live commentary feed — colour-coded key moments, newest-first while live */
 .lcm{position:relative;margin-bottom:8px}
