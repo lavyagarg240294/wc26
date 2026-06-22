@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "345";  // shown in footer; bump with the ?v= asset version
+const BUILD = "346";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -318,16 +318,38 @@ function applyKickoffs() {
     m.utc = ko || m._utc0;
   }
 }
-const ST = { SCHED: "SCHED", LIVE: "LIVE", HT: "HT", FT: "FT" };
+const ST = { SCHED: "SCHED", LIVE: "LIVE", HT: "HT", FT: "FT", PP: "PP", SUSP: "SUSP", ABD: "ABD", CANC: "CANC", AWD: "AWD" };
+// Every status declares, in one place, how it behaves everywhere - so an abnormal game (postponed / suspended /
+// abandoned / cancelled / awarded) is handled by data, not by scattered conditionals that each have to remember it.
+//   final  → counts as a real result (folds into the table, bracket, records, prediction grading)
+//   live   → an in-play game (pulses, shows the running clock)
+//   score  → has a real scoreline to display
+//   void   → it happened/was scheduled but yields no result (abandoned-pending / cancelled)
+//   abn    → abnormal: show an honest badge, never treat its scoreline as a normal full-time
+const STATE = {
+  SCHED: {},
+  LIVE:  { live: true, score: true },
+  HT:    { live: true, score: true, lbl: "Half-time", tag: "HT" },
+  FT:    { final: true, score: true, lbl: "Full time", tag: "FT" },
+  PP:    { lbl: "Postponed", tag: "PP", abn: true },
+  SUSP:  { score: true, lbl: "Suspended", tag: "Susp", abn: true, paused: true },
+  ABD:   { score: true, lbl: "Abandoned", tag: "Abd", abn: true, void: true },
+  CANC:  { lbl: "Cancelled", tag: "Canc", abn: true, void: true },
+  AWD:   { final: true, score: true, lbl: "Awarded", tag: "Awd", abn: true },
+};
+const stMeta = st => STATE[st] || STATE.SCHED;   // an unknown status fails safe to "scheduled-ish" (never final, never live)
+const isLiveSt = st => !!stMeta(st).live;
+const isFinalSt = st => !!stMeta(st).final;       // FT or AWD - the only states that count as a result
+const isAbnormal = st => !!stMeta(st).abn;
 function status(m) {
   const r = res(m);
   // The FIFA feed is authoritative for status - trust it. (We used to promote a "started by our clock but
   // still SCHED" match to LIVE to mask feed lag, but openfootball's static kickoff times don't always match
-  // the real schedule, so that faked a live 0–0 on the wrong match. The feed says which game is actually live.)
+  // the real schedule, so that faked a live 0-0 on the wrong match. The feed says which game is actually live.)
   if (r?.st) {
     // A feed stuck on LIVE/HT long past any real match length is stale (the score loop lagged or stopped) - treat it
-    // as finished so the hero stops showing it "live" and it drops into Earlier results. Group ≈ 90+HT+stoppage
-    // (~125′); knockouts allow extra time + penalties (~160′).
+    // as finished so the hero stops showing it "live" and it drops into Earlier results. Only LIVE/HT are coerced;
+    // an explicit abnormal state (suspended/postponed/...) is trusted as-is and shown honestly, never faked to FT.
     if ((r.st === ST.LIVE || r.st === ST.HT) && Date.now() - +new Date(m.utc) > (m.stage === "group" ? 125 : 160) * 60000) return ST.FT;
     return r.st;
   }
@@ -338,7 +360,7 @@ function status(m) {
 // also fires when a LIVE/HT row is stuck past full time (the feed lagged). Standings + qualification math must only
 // fold in feed-final results - never a stale-live score the feed hasn't closed - so the table and the Q/out badges
 // never disagree. UI ("still live?", "upcoming vs past") keeps using status() so a stuck match still drops out of live.
-const isFeedFinal = m => { const r = res(m); return !!r && r.st === ST.FT && r.h != null; };
+const isFeedFinal = m => { const r = res(m); return !!r && isFinalSt(r.st) && r.h != null; };   // FT or an awarded result, with a score
 // live match clock: exact minute from the feed if present, else an estimate from kickoff
 // (the free feed often only flags "live" with no minute). Estimate allows for a 15′ half-time.
 function clockStr(m, r) {
@@ -348,13 +370,14 @@ function clockStr(m, r) {
   const est = real <= 45 ? real : Math.max(46, real - 15);
   return (est >= 90 ? "90+" : est) + "′";
 }
-const remInGroup = g => S.matches.filter(m => m.group === g && status(m) !== ST.FT).length;
+const remInGroup = g => S.matches.filter(m => m.group === g && !isFeedFinal(m)).length;   // not yet a confirmed result (incl. live/suspended/postponed)
 function slotInfo(m, side) {
   const s = m[side];
   if (s.team && S.teams[s.team]) return { code: s.team, name: S.teams[s.team].name };   // a fixed (group-stage) team
   const r = res(m);
-  // if the match itself is under way or finished, both teams are literally confirmed - trust the feed's codes
-  if (r && (r.st === ST.LIVE || r.st === ST.HT || r.st === ST.FT)) {
+  // if the match has kicked off in any form (live, finished, suspended or abandoned), both teams are literally
+  // confirmed - trust the feed's codes (only the not-yet-played states fall through to the seed-lock logic)
+  if (r && (isLiveSt(r.st) || isFinalSt(r.st) || r.st === ST.SUSP || r.st === ST.ABD)) {
     const code = r[side === "home" ? "ht" : "at"] || winnerFeed(s);
     if (code && S.teams[code]) return { code, name: S.teams[code].name };
   }
@@ -374,8 +397,8 @@ function winnerFeed(s) {
   const fm = S.matches.find(x => x.num === num && x.stage !== "group");
   if (!fm) return null;
   const r = res(fm);
-  if (!r || r.st !== ST.FT) return null;
-  if (r.h === r.a && r.hp == null && r.ap == null) return null;   // FT level but penalties not in the feed yet - leave unresolved, don't guess (and propagate) a winner
+  if (!r || !isFinalSt(r.st)) return null;   // only a confirmed result (FT or awarded) advances a winner - never a suspended/abandoned partial
+  if (r.h === r.a && r.hp == null && r.ap == null) return null;   // level but penalties not in the feed yet - leave unresolved, don't guess (and propagate) a winner
   const hWin = r.h > r.a || (r.h === r.a && (r.hp ?? -1) > (r.ap ?? -1));
   const h = slotInfo(fm, "home").code, a = slotInfo(fm, "away").code;
   if (!h || !a) return null;
@@ -479,7 +502,7 @@ function groupOutlook(g) {
   const gm = S.matches.filter(m => m.group === g);
   const codes = [...new Set(gm.flatMap(m => [m.home.team, m.away.team]).filter(Boolean))];
   if (codes.length < 4) return null;
-  const done = m => res(m)?.st === ST.FT && res(m)?.h != null;
+  const done = m => isFinalSt(res(m)?.st) && res(m)?.h != null;
   const played = gm.filter(done), rem = gm.filter(m => !done(m));
   if (!played.length || !rem.length) return null;          // only meaningful once underway, before it's settled
   const base = {}; codes.forEach(c => base[c] = 0);
@@ -639,6 +662,7 @@ function celebrateGoals(prev, now) {
       announce(`Goal! ${S.teams[scorer]?.name || ""}. ${score}.`);   // raw text - announce() sets textContent
     } else if (a.st !== b.st && b.st === ST.HT) announce(`Half-time. ${score}.`);
     else if (a.st !== b.st && b.st === ST.FT) announce(`Full time. ${score}.`);
+    else if (a.st !== b.st && isAbnormal(b.st)) announce(`${stMeta(b.st).lbl}. ${score}.`);   // postponed / suspended / abandoned / ...
   }
 }
 // polite screen-reader live region; clear-then-set so an identical message re-announces
@@ -695,6 +719,7 @@ function renderTicker() {
     const mid = [ST.LIVE, ST.HT].includes(st)
       ? `<span class="tk-live">● ${r?.h ?? 0}–${r?.a ?? 0}</span>`
       : st === ST.FT ? (r?.h != null ? `<b>${r.h}–${r.a}</b> FT` : `<b>FT</b>`)
+      : isAbnormal(st) ? `${r?.h != null ? `<b>${r.h}–${r.a}</b> ` : ""}${stMeta(st).tag}`
       : `<span class="tk-acc">${timeStr(m.utc)}</span>`;
     const nmH = s => s.code ? `${esc(S.teams[s.code]?.name || s.code)} ${flag(s.code)}` : "TBD";
     const nmA = s => s.code ? `${flag(s.code)} ${esc(S.teams[s.code]?.name || s.code)}` : "TBD";
@@ -739,14 +764,15 @@ function matchCard(m, i, opts = {}) {
   const r = res(m), st = status(m);
   const fav = isFavMatch(m);
   const stageL = m.group ? `Group ${m.group}` : m.stage === "third" ? "3rd place" : m.round;
-  const live = st === ST.LIVE || st === ST.HT;
-  const score = r && r.h != null;   // a real, feed-reported scoreline
+  const live = isLiveSt(st), abn = isAbnormal(st), fin = isFinalSt(st);
+  const score = r && r.h != null;   // a real, feed-reported scoreline (incl. a suspended/abandoned/awarded one)
   const sh = r?.h ?? 0, sa = r?.a ?? 0;   // display score - a live match with no goal data shows 0–0
-  const winH = score && st === ST.FT && (r.h > r.a || (r.h === r.a && (r.hp ?? -1) > (r.ap ?? -1)));
-  const winA = score && st === ST.FT && (r.a > r.h || (r.h === r.a && (r.ap ?? -1) > (r.hp ?? -1)));
+  const winH = score && fin && (r.h > r.a || (r.h === r.a && (r.hp ?? -1) > (r.ap ?? -1)));   // crown a winner only on a real result, never a partial
+  const winA = score && fin && (r.a > r.h || (r.h === r.a && (r.ap ?? -1) > (r.hp ?? -1)));
   const badge = st === ST.LIVE ? `<span class="badge live">${clockStr(m, r) || "Live"}</span>`
     : st === ST.HT ? `<span class="badge live">HT</span>`
     : st === ST.FT ? `<span class="badge ft">FT</span>`
+    : abn ? `<span class="badge abn badge-${st.toLowerCase()}">${stMeta(st).tag}</span>`
     : "";   // scheduled: kickoff time already shows on the left - don't repeat it on the right
   const teamRow = (s, key, lost) =>
     `<div class="mcard-team ${s.ph ? "is-ph" : ""} ${lost ? "is-lost" : ""}">` +
@@ -761,12 +787,12 @@ function matchCard(m, i, opts = {}) {
       <div class="mcard-time">${timeStr(m.utc)}<small>${fmt(m.utc, { day: "numeric", month: "short" })}</small></div>
       <div class="mcard-teams">${teamRow(h, "home", winA)}${teamRow(a, "away", winH)}</div>
       <div class="mcard-right">${(score || live)
-        ? `<div class="mcard-score${live ? " is-live" : ""}"><span class="${winA ? "lo" : ""}">${sh}</span><span class="${winH ? "lo" : ""}">${sa}</span>${r?.hp != null ? `<span class="pens">(${r.hp}–${r.ap} pens)</span>` : ""}</div>${live ? badge : ""}`
+        ? `<div class="mcard-score${live ? " is-live" : ""}${abn ? " is-abn" : ""}"><span class="${winA ? "lo" : ""}">${sh}</span><span class="${winH ? "lo" : ""}">${sa}</span>${r?.hp != null ? `<span class="pens">(${r.hp}–${r.ap} pens)</span>` : ""}</div>${(live || abn) ? badge : ""}`
         : badge}</div>
     </div>
     ${(() => { const s = matchStakes(m); return s && s.definitive ? `<div class="mcard-stake">${s.lines[0]}</div>` : ""; })()}
     ${opts.sub !== false ? `<div class="mcard-sub"><span class="grp">${esc(stageL)}</span><span>${esc(m.stadium)}</span><span>${esc(m.city)}</span><span class="mcard-go">Details ›</span></div>` : ""}
-    ${(() => { if (!document.body.classList.contains("expert") || st === ST.FT) return ""; const wp = winProb(m); if (!wp) return ""; const ph = Math.round(wp.h*100), pd = Math.round(wp.d*100), pa = 100-ph-pd; return `<div class="mcard-wp"><span class="mcard-wp-bar"><span class="mcard-wp-h" style="width:${ph}%"></span><span class="mcard-wp-d" style="width:${pd}%"></span></span><span class="mcard-wp-tx">${ph}% · D ${pd}% · ${pa}%</span></div>`; })()}
+    ${(() => { if (!document.body.classList.contains("expert") || isFinalSt(st) || isAbnormal(st)) return ""; const wp = winProb(m); if (!wp) return ""; const ph = Math.round(wp.h*100), pd = Math.round(wp.d*100), pa = 100-ph-pd; return `<div class="mcard-wp"><span class="mcard-wp-bar"><span class="mcard-wp-h" style="width:${ph}%"></span><span class="mcard-wp-d" style="width:${pd}%"></span></span><span class="mcard-wp-tx">${ph}% · D ${pd}% · ${pa}%</span></div>`; })()}
     </div>
     <button class="mcard-star ${sv ? "is-on" : ""}" data-save="${m.id}" aria-pressed="${sv}" aria-label="${sv ? "Remove from saved" : "Save match"}" title="${sv ? "Remove from saved" : "Save match"}">${sv ? "★" : "☆"}</button>
   </div>`;
@@ -1026,7 +1052,7 @@ const hostCode = m => HOST_OF[(m.city || "").split(", ").pop()] || null;
 // groups during the group stage by construction (there is no shared-opponent path to carry it).
 let _eloCache = null, _eloSig = "";
 function eloSeq() {
-  const done = S.matches.filter(m => status(m) === ST.FT && res(m)?.h != null).sort((x, y) => x.utc.localeCompare(y.utc));
+  const done = S.matches.filter(m => isFinalSt(status(m)) && res(m)?.h != null).sort((x, y) => x.utc.localeCompare(y.utc));
   const sig = done.length + ":" + Object.keys(S.efi || {}).length;
   if (_eloCache && _eloSig === sig) return _eloCache;
   const seed = c => S.teams[c]?.elo || 1700, K = 22, DRIFT = 70;
@@ -1087,7 +1113,7 @@ function liveReds(r) {
 // and the whole overlay is gated off until a side has ≥2 games, so early-tournament odds are untouched.
 let _adCache = null, _adSig = "";
 function attackDefence() {
-  const done = S.matches.filter(m => status(m) === ST.FT && res(m)?.h != null).sort((x, y) => x.utc.localeCompare(y.utc));
+  const done = S.matches.filter(m => isFinalSt(status(m)) && res(m)?.h != null).sort((x, y) => x.utc.localeCompare(y.utc));
   const sig = done.length + ":" + Object.keys(S.efi || {}).length;
   if (_adCache && _adSig === sig) return _adCache;
   const rec = {};   // code → [{att, def, opp, wt}]: attack = xG/goals FOR, def = conceded; same 0.7xG/0.3goals blend as eloSeq
@@ -1123,9 +1149,9 @@ function attackDefence() {
 // EXACTLY from the live table via _qualScan (no heuristics). Mutually exclusive; fires only once a final-round
 // permutation is decided (so it stays dormant until matchday 3). Returns null when no clear stake applies.
 function stakeAdjust(m) {
-  if (m.stage !== "group" || !m.group || status(m) === ST.FT) return null;
+  if (m.stage !== "group" || !m.group || isFinalSt(status(m))) return null;
   const g = m.group, H = m.home.team, A = m.away.team;
-  if (!H || !A || !S.matches.some(x => x.group === g && status(x) === ST.FT && res(x)?.h != null)) return null;
+  if (!H || !A || !S.matches.some(x => x.group === g && isFinalSt(status(x)) && res(x)?.h != null)) return null;
   const through = c => _qualScan(g, c).clinched, gone = c => _qualScan(g, c).out;
   // 1) a draw sends BOTH through - neither already safe, yet a draw here guarantees top-two for each (cap the draw, ease the goals)
   if (!through(H) && !through(A) && _qualScan(g, H, m.id, "d").clinched && _qualScan(g, A, m.id, "d").clinched)
@@ -1143,7 +1169,7 @@ function stakeAdjust(m) {
 // for showing "what the model predicted before kickoff" in the match modal regardless of state.
 function winProb(m, pre = false) {
   const hc = slotInfo(m, "home").code, ac = slotInfo(m, "away").code, st = status(m), r = res(m);
-  if (!hc || !ac || (st === ST.FT && !pre)) return null;
+  if (!hc || !ac || (isFinalSt(st) && !pre)) return null;
   const live = (st === ST.LIVE || st === ST.HT) && !pre, ko = !m.group && m.stage !== "group";
   const nm = c => { const n = S.teams[c]?.name || c; return n.length > 14 ? n.slice(0, 13) + "…" : n; };
   const mu = ko ? 1.25 : 1.35, eloH = teamRating(hc), eloA = teamRating(ac);   // knockouts are played tighter → lower base rate
@@ -1154,7 +1180,7 @@ function winProb(m, pre = false) {
   if (ko) reasons.push({ key: "ko", dir: "N", mag: 0.08, text: "Knockout tie, played tighter" });
   // attack/defence game-character overlay - dormant until BOTH sides have ≥2 games, so today's odds are unchanged
   const ad = attackDefence(), adH = ad[hc], adA = ad[ac];
-  const ftN = S.matches.reduce((n, x) => n + (status(x) === ST.FT && res(x)?.h != null ? 1 : 0), 0);
+  const ftN = S.matches.reduce((n, x) => n + (isFinalSt(status(x)) && res(x)?.h != null ? 1 : 0), 0);
   const adW = 0.6 * Math.min(1, ftN / 24);   // global trust ramp: 0 before any games, ~0.6 by ~24 played
   if (adW > 0 && adH && adA && adH.n >= 2 && adA.n >= 2) {
     const mH = Math.max(0.7, Math.min(1.45, adH.A * adA.D)), mA = Math.max(0.7, Math.min(1.45, adA.A * adH.D));   // my attack × their (leaky=high) defence
@@ -1199,7 +1225,7 @@ function winProb(m, pre = false) {
   // base - cagey openers draw far more than a confident Elo split implies. Shrink decays to 0 by the knockouts.
   // A principled uncertainty knob from the research range (15-20%), NOT a fit to results.
   if (!live) {
-    const pld = c => S.matches.reduce((n, x) => n + (matchHasTeam(x, c) && status(x) === ST.FT ? 1 : 0), 0);
+    const pld = c => S.matches.reduce((n, x) => n + (matchHasTeam(x, c) && isFinalSt(status(x)) ? 1 : 0), 0);
     const sh = 0.18 * Math.max(0, 1 - (pld(hc) + pld(ac)) / 6);
     if (sh > 0) { probH = (1 - sh) * probH + sh * 0.35; probD = (1 - sh) * probD + sh * 0.30; probA = (1 - sh) * probA + sh * 0.35; }
   }
@@ -1283,9 +1309,9 @@ function _provPos(g) {                                    // FT + in-play provis
   return pos;
 }
 function matchStakes(m) {
-  if (m.stage !== "group" || !m.group || status(m) === ST.FT) return null;
+  if (m.stage !== "group" || !m.group || isFinalSt(status(m))) return null;
   const g = m.group, H = m.home.team, A = m.away.team;
-  if (!H || !A || !S.matches.some(x => x.group === g && status(x) === ST.FT && res(x)?.h != null)) return null;
+  if (!H || !A || !S.matches.some(x => x.group === g && isFinalSt(status(x)) && res(x)?.h != null)) return null;
   const nm = c => `<b>${esc(S.teams[c]?.name || c)}</b>`;
   const say = code => {
     if (_qualScan(g, code).clinched) return `${nm(code)} are through to the Round of 32.`;
@@ -1335,6 +1361,7 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
   const statusTag = st === ST.LIVE ? `<span class="md-tag live">● Live ${clockStr(m, r)}</span>`
     : st === ST.HT ? `<span class="md-tag live">Half-time</span>`
     : st === ST.FT ? `<span class="md-tag ft">Full time</span>`
+    : isAbnormal(st) ? `<span class="md-tag abn md-tag-${st.toLowerCase()}">${stMeta(st).lbl}</span>`
     : `<span class="md-tag soon">Upcoming</span>`;   // time/date live in the meta row below - no need to repeat it
   const side = (s, key) => `<div class="md-team ${s.code === S.fav ? "is-fav" : ""}${s.code ? " md-team-clk" : ""}"${s.code ? ` data-squad="${s.code}" role="button" tabindex="0" aria-label="Open ${esc(s.name)} details"` : ""}>
       <span class="md-flag">${s.code ? flag(s.code) : TBD_FLAG}</span>
@@ -1345,22 +1372,25 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
     : `<div class="md-vs">VS</div>`;
   const liveNow = st === ST.LIVE || st === ST.HT;
   $("#matchTitle").innerHTML = `<span class="md-stage">${esc(stageL)}</span>`;
-  const isFT = st === ST.FT;
+  const isFT = isFinalSt(st);                                  // FT or an awarded result - the "finished" detail layout
+  const hasResult = isFT || st === ST.SUSP || st === ST.ABD;   // also has a score/events to show (suspended/abandoned)
+  const upcoming = st === ST.SCHED || st === ST.PP;            // not yet played - the only states you'd add to a calendar
   // every section as its own piece (each returns "" when it doesn't apply), then ordered per match state below
   const pTop = `<div class="md-tagrow">${statusTag}
       <div class="md-actions">
         <button class="md-share" data-share-match="${id}" aria-label="Share this match" title="Share this match">${SHARE_SVG}</button>
-        ${isFT ? "" : `<button class="md-cal" data-cal="${id}" aria-label="Add to calendar" title="Add this match to your calendar">${CAL_SVG}</button>`}
+        ${upcoming ? `<button class="md-cal" data-cal="${id}" aria-label="Add to calendar" title="Add this match to your calendar">${CAL_SVG}</button>` : ""}
         <button class="md-save ${sv ? "is-on" : ""}" data-save="${id}" aria-pressed="${sv}" aria-label="${sv ? "Remove from saved" : "Save match"}" title="${sv ? "Remove from saved" : "Save match"}">${sv ? "★" : "☆"}</button>
       </div>
     </div>
     <div class="md-teams">${side(h, "home")}<div class="md-mid">${mid}</div>${side(a, "away")}</div>
+    ${r?.note ? `<div class="md-note">${esc(r.note)}</div>` : isAbnormal(st) ? `<div class="md-note">This match is ${stMeta(st).lbl.toLowerCase()}${st === ST.SUSP || st === ST.ABD ? " - the score shown is provisional, not a final result" : st === ST.PP ? " - it will be rescheduled" : ""}.</div>` : ""}
     ${koPath(m)}`;
   const pTimeline = r?.ev?.length ? mdTimeline(r, h.code, a.code) : (r?.gh?.length || r?.ga?.length) ? `<div class="md-goals">
       <div class="md-goals-col">${(r.gh || []).map(g => `<div class="md-goal">${ICO.ball} ${esc(g)}</div>`).join("")}</div>
       <div class="md-goals-col away">${(r.ga || []).map(g => `<div class="md-goal">${esc(g)} ${ICO.ball}</div>`).join("")}</div>
     </div>` : "";
-  const pKeyStats = mdKeyStats(r, m), pStats = mdStats(r, isFT), pEfi = mdEfi(m, isFT);
+  const pKeyStats = mdKeyStats(r, m), pStats = mdStats(r, hasResult), pEfi = mdEfi(m, hasResult);
   // win-prob: in-play for a live game (reflects the score), the model's pre-match call otherwise - plus its "why" drivers + top-3 scorelines
   const pre = !live, _wp = winProb(m, pre);
   const pWinProb = _wp ? winProbBlock(m, pre) + liveWhyChips(_wp) + liveScorelines(_wp) : "";
@@ -1368,7 +1398,7 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
   const pXiInline = r?.xi ? `<div class="eyebrow">${liveNow ? "Line-ups" : "Starting XI"}</div>${xiPanel(r.xi, h, a)}` : "";
   const pXiFold = r?.xi ? `<details class="md-fold"><summary><span>Starting XI</span><small>${esc([r.xi.h?.f, r.xi.a?.f].filter(Boolean).join(" v ")) || "line-ups & formations"}</small></summary><div class="md-fold-body">${xiPanel(r.xi, h, a)}</div></details>` : "";
   // "how they compare" rides along as a collapsed fold for live/finished games (it leads expanded in the upcoming branch)
-  const pCompareFold = (live || isFT) && pCompare ? `<details class="md-fold"><summary><span>How they compare</span><small>rankings &amp; tournament form</small></summary><div class="md-fold-body">${pCompare}</div></details>` : "";
+  const pCompareFold = (live || hasResult) && pCompare ? `<details class="md-fold"><summary><span>How they compare</span><small>rankings &amp; tournament form</small></summary><div class="md-fold-body">${pCompare}</div></details>` : "";
 
   const pMeta = `<div class="md-meta">
       <span>${fmt(m.utc, { weekday: "long", day: "numeric", month: "long" })}</span>
@@ -1382,7 +1412,7 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
   const middle = liveNow
     // live: analytics lead (win-prob + who's-on-top control), then the live feed, then the numbers, stars, deep dive, stakes
     ? [pWinProb, pControl, pComm, pKeyStats, pStars, pTimeline, pStats, pXiInline, pEfi, pCompareFold, pStakes]
-    : isFT
+    : hasResult
     // finished: the report leads, then key stats + control, stars, the full timeline & numbers, the model's call, the deep dive
     ? [pReport, pKeyStats, pControl, pStars, pTimeline, pStats, pXiInline, pEfi, pWinProb, pCompareFold, pStakes]
     : [pStakes, pCompare, pWinProb, pXiInline];   // upcoming: stakes + head-to-head compare + odds + (announced) line-ups
@@ -1424,16 +1454,16 @@ function heroStack(liveMatches, nextM) {
 function heroBlock(heroM, isLive, onLive) {
   const h = slotInfo(heroM, "home"), a = slotInfo(heroM, "away"), r = res(heroM), st = status(heroM);
   const live = isLive != null ? isLive : [ST.LIVE, ST.HT].includes(st);   // Matches tab passes it; Live tab derives the state
-  const ft = !live && st === ST.FT, clickable = !onLive;
-  const tag = live ? `${ballSVG("live-ball")} Live now` : ft ? `● Full time` : `${isFavMatch(heroM) ? "Your team · " : ""}Next kickoff`;
+  const ft = !live && isFinalSt(st), abn = !live && isAbnormal(st), result = ft || (abn && r?.h != null), clickable = !onLive;
+  const tag = live ? `${ballSVG("live-ball")} Live now` : ft ? `● Full time` : abn ? `● ${stMeta(st).lbl}` : `${isFavMatch(heroM) ? "Your team · " : ""}Next kickoff`;
   return `<div class="hero${onLive ? " hero-onlive" : ""}"${clickable ? ` data-hero-live="${heroM.id}" role="button" tabindex="0" aria-label="Follow ${esc(h.name)} v ${esc(a.name)} in the Live tab"` : ""}>
-    <div class="hero-tag ${live ? "is-live" : ft ? "is-ft" : ""}">
+    <div class="hero-tag ${live ? "is-live" : ft ? "is-ft" : abn ? "is-abn" : ""}">
       ${tag}<span style="color:var(--ink-soft);font-weight:600"> · ${esc(heroM.group ? "Group " + heroM.group : heroM.round)}</span>
       ${clickable ? `<span class="hero-actions"><span class="hero-go">Follow ›</span></span>` : ""}
     </div>
     <div class="hero-teams">
       <div class="hero-side"><span class="hero-flag">${h.code ? flag(h.code) : TBD_FLAG}</span><span class="hero-name">${esc(h.name)}</span></div>
-      <div class="hero-mid">${live || ft
+      <div class="hero-mid">${live || result
         ? `<span class="hero-score">${r?.h ?? 0}–${r?.a ?? 0}</span>${live
             ? `<span class="hero-livechip">${r?.st === ST.HT ? "Half-time" : (clockStr(heroM, r) || "Live")}</span>`
             : (r?.hp != null ? `<span class="hero-pens">${r.hp}–${r.ap} pens</span>` : "")}`
@@ -1479,7 +1509,7 @@ const marqueeOf = list => list.length ? list.slice().sort((a, b) => prestige(b) 
 // rest day with nothing left to play (the hero's next-kickoff card carries the gap instead).
 function matchOfDay() {
   const todayK = viewDay(new Date().toISOString());
-  return marqueeOf(S.matches.filter(m => status(m) !== ST.FT && viewDay(m.utc) === todayK));
+  return marqueeOf(S.matches.filter(m => { const st = status(m); return !isFinalSt(st) && !stMeta(st).void && viewDay(m.utc) === todayK; }));   // still to come today (excludes finished + void)
 }
 function motdBanner(m) {
   const h = slotInfo(m, "home"), a = slotInfo(m, "away");
@@ -1510,7 +1540,7 @@ function liveScorelines(wp) {
 }
 // a team's record + each result so far THIS World Cup (FT matches only)
 function teamWcRecord(code) {
-  const played = S.matches.filter(x => matchHasTeam(x, code) && status(x) === ST.FT).sort((p, q) => p.utc.localeCompare(q.utc));
+  const played = S.matches.filter(x => matchHasTeam(x, code) && isFinalSt(status(x))).sort((p, q) => p.utc.localeCompare(q.utc));
   let w = 0, d = 0, l = 0, gf = 0, ga = 0; const results = [];
   for (const x of played) {
     const r = res(x); if (!r || r.h == null) continue;
@@ -1605,7 +1635,7 @@ function renderMatches() {
 
   // 1A: finished games go into a collapsible "Earlier results"; live + upcoming show below
   const dayGroups = arr => { const d = {}; arr.forEach(m => (d[dayKey(m.utc)] ??= []).push(m)); return Object.entries(d).map(([k, ms]) => `<div class="dayhead ${k === todayK ? "is-today" : ""}">${dayLabel(ms[0].utc)} <small>${ms.length} match${ms.length > 1 ? "es" : ""}</small></div>` + ms.map((m, i) => matchCard(m, Math.min(i, 8))).join("")).join(""); };
-  const past = list.filter(m => status(m) === ST.FT);
+  const past = list.filter(m => isFinalSt(status(m)));
   const ahead = list.filter(m => status(m) !== ST.FT);
 
   const motd = matchOfDay();   // skip if it's already a hero card (live/next) - no point showing it twice
@@ -2208,7 +2238,7 @@ function teamMatchStats(code) {
 // minutes & rotation, built from each match's starting XI (xi) + substitutions (ev). Approximate
 // minutes (nominal 90' full-time): a starter not subbed = 90, subbed off at t = t, a sub on at t = 90−t.
 function teamRotation(code) {
-  const ms = S.matches.filter(m => matchHasTeam(m, code) && status(m) === ST.FT && res(m)?.xi).sort((a, b) => a.utc.localeCompare(b.utc));
+  const ms = S.matches.filter(m => matchHasTeam(m, code) && isFinalSt(status(m)) && res(m)?.xi).sort((a, b) => a.utc.localeCompare(b.utc));
   if (!ms.length) return null;
   const grid = ms.map(m => {
     const r = res(m), side = slotInfo(m, "home").code === code ? "h" : "a";
@@ -2716,7 +2746,7 @@ function openTeamCompare(aCode, bCode) {
 const TABLE_COLS = `<colgroup><col class="c-name"><col class="c-n"><col class="c-n"><col class="c-n"><col class="c-n"><col class="c-gd"><col class="c-pts"></colgroup>`;
 function groupTable(g, i) {
   const rows = standings(g);
-  const started = S.matches.some(x => x.group === g && status(x) === ST.FT && res(x)?.h != null);
+  const started = S.matches.some(x => x.group === g && isFinalSt(status(x)) && res(x)?.h != null);
   const qtag = code => {                                  // through / out-of-top-two markers (same engine as the stakes line)
     if (!started) return "";
     const q = _qualScan(g, code);
@@ -2739,7 +2769,7 @@ function thirdPlaceRace() {
   return rows.sort((a, b) => b.pts - a.pts || b.gd - a.gd || b.gf - a.gf || tiebreakRank(a.code) - tiebreakRank(b.code));
 }
 function thirdRaceHTML() {
-  const anyPlayed = S.matches.some(m => m.group && status(m) === ST.FT && res(m)?.h != null);
+  const anyPlayed = S.matches.some(m => m.group && isFinalSt(status(m)) && res(m)?.h != null);
   const rows = thirdPlaceRace();
   if (!anyPlayed || rows.length < 3) return "";
   const sign = n => (n > 0 ? "+" : "") + n;
@@ -2824,7 +2854,7 @@ let _r32Mode = "projected";   // "projected" (fill all slots) | "confirmed" (onl
 // the split-bracket: two halves flanking a central trophy; flag + 3-letter code per side, no boxes; the two ties in
 // each quarter that meet in the round of 16 are bracketed together. Toggle Projected (fill all) / Confirmed (locked).
 function r32BracketHTML() {
-  const anyPlayed = S.matches.some(m => m.group && status(m) === ST.FT && res(m)?.h != null);
+  const anyPlayed = S.matches.some(m => m.group && isFinalSt(status(m)) && res(m)?.h != null);
   if (!anyPlayed) return "";
   const { left, right } = r32Bracket();
   const sideEl = g => g.known
@@ -2960,7 +2990,7 @@ function roadToFinal(code) {
 function roadSection(code) {
   // only project a team's route once they've actually played - before that, standings are all level
   // and any "road" would be arbitrary tiebreak noise.
-  const teamPlayed = S.matches.some(m => matchHasTeam(m, code) && status(m) === ST.FT && res(m)?.h != null);
+  const teamPlayed = S.matches.some(m => matchHasTeam(m, code) && isFinalSt(status(m)) && res(m)?.h != null);
   if (!teamPlayed) {
     const next = S.matches.filter(m => matchHasTeam(m, code) && status(m) === ST.SCHED).sort((a, b) => a.utc.localeCompare(b.utc))[0];
     return `<div class="eyebrow">Road to the final</div><div class="empty">${esc(S.teams[code]?.name || code)}'s projected route opens once they kick off${next ? `, first up ${fmt(next.utc, { weekday: "short", day: "numeric", month: "short" })}` : ""}.</div>`;
@@ -3322,7 +3352,7 @@ function seedSimThirds() {
 
 // score the saved prediction against reality: predicted group top-2 vs live standings, and KO winners vs results
 function simScore() {
-  const fts = S.matches.filter(m => status(m) === ST.FT && res(m)?.h != null);
+  const fts = S.matches.filter(m => isFinalSt(status(m)) && res(m)?.h != null);
   if (!fts.length) return null;
   let gSpots = 0, gTotal = 0;
   GROUPS.forEach(g => {
@@ -3333,7 +3363,7 @@ function simScore() {
   });
   let koHit = 0, koDecided = 0;
   S.matches.filter(m => m.stage !== "group").forEach(m => {
-    const r = res(m); if (!(r && r.st === ST.FT && r.h != null)) return;
+    const r = res(m); if (!(r && isFinalSt(r.st) && r.h != null)) return;
     const hc = slotInfo(m, "home").code, ac = slotInfo(m, "away").code; if (!hc || !ac) return;
     const homeWon = r.h > r.a || (r.h === r.a && (r.hp ?? -1) > (r.ap ?? -1));
     const pick = S.sim.ko[m.num];
@@ -3517,7 +3547,7 @@ async function shareBracketImage() {
 // the R32 "as it stands" share card (item 2): the projected or confirmed Round of 32 split-bracket as a square card,
 // picking up whichever mode is on screen. 1080² - two columns of eight ties flank a central trophy.
 async function makeR32Blob(mode) {
-  const anyPlayed = S.matches.some(m => m.group && status(m) === ST.FT && res(m)?.h != null);
+  const anyPlayed = S.matches.some(m => m.group && isFinalSt(status(m)) && res(m)?.h != null);
   if (!anyPlayed) return null;
   try { await document.fonts.ready; } catch { /* system fonts */ }
   const W = 1080, H = 1080, c = document.createElement("canvas"); c.width = W; c.height = H; const x = c.getContext("2d");
@@ -3647,7 +3677,7 @@ async function sharePlayerCard(name, code) {
 // social); anything else deep-links into the live match view.
 function matchShareLink(m) {
   const base = (location.origin + location.pathname).replace(/\/(index\.html)?$/, "");
-  return status(m) === ST.FT ? `${base}/share/${m.num}.html` : `${base}/?match=${m.id}`;
+  return isFinalSt(status(m)) ? `${base}/share/${m.num}.html` : `${base}/?match=${m.id}`;
 }
 // Share a single match. Finished → hand over the link to the already-rendered result card. Upcoming/live → generate a
 // 1080² PREDICTION card (odds bar + projected score) and share the image with a tap-through link. Web Share files where
@@ -3656,7 +3686,7 @@ async function shareMatchCard(m) {
   const h = slotInfo(m, "home"), a = slotInfo(m, "away"), r = res(m), st = status(m);
   const link = matchShareLink(m), hn = h.code ? h.name : slotText(m, "home", h), an = a.code ? a.name : slotText(m, "away", a);
   const copyLink = async () => { try { await navigator.clipboard.writeText(link); flashToast("Match link copied. Share it!"); } catch { flashToast("Couldn't copy the link"); } };
-  if (st === ST.FT) {   // result card already exists; share its link
+  if (isFinalSt(st)) {   // result card already exists; share its link
     const title = r && r.h != null ? `${hn} ${r.h}–${r.a} ${an} · World Cup 2026` : `${hn} vs ${an} · World Cup 2026`;   // guard a FT row that briefly lacks a scoreline
     if (navigator.share) { try { await navigator.share({ title, url: link }); return; } catch (err) { if (err?.name === "AbortError") return; } }
     return copyLink();
@@ -4028,9 +4058,9 @@ function tournamentStats() {
   // Without this, an open Stats tab rebuilds and re-sorts everything every 30s on a busy matchday for zero visible change.
   // FT matches drive every leaderboard; LIVE matches are folded in for goals/assists only (the Boot + career records
   // tick over in real time), so the sig must change when a live score/event does - but not on the bare minute tick.
-  const sig = S.matches.reduce((s, m) => { const r = res(m), st = status(m); if (r?.h == null) return s; if (st === ST.FT) return s + `${m.num}:${r.h}-${r.a}:${(r.ev || []).length}:${r.stats ? 1 : 0};`; if (st === ST.LIVE || st === ST.HT) return s + `${m.num}L:${r.h}-${r.a}:${(r.ev || []).length};`; return s; }, "");
+  const sig = S.matches.reduce((s, m) => { const r = res(m), st = status(m); if (r?.h == null) return s; if (isFinalSt(st)) return s + `${m.num}:${r.h}-${r.a}:${(r.ev || []).length}:${r.stats ? 1 : 0};`; if (st === ST.LIVE || st === ST.HT) return s + `${m.num}L:${r.h}-${r.a}:${(r.ev || []).length};`; return s; }, "");
   if (_tsCache && _tsSig === sig) return _tsCache;
-  const fts = S.matches.filter(m => status(m) === ST.FT && res(m)?.h != null);
+  const fts = S.matches.filter(m => isFinalSt(status(m)) && res(m)?.h != null);
   const gf = {}, ga = {}, poss = {}, possN = {}, sot = {}, sotN = {}, yel = {}, red = {}, played = {}, scorers = {}, assists = {}, pyel = {}, pred = {}, cs = {}, conf = {}, keepers = {}, tstat = {}, statN = {};
   const TSTAT_KEYS = ["sh", "pass", "passT", "cross", "lball", "tkl", "intc", "clr", "blk", "sv", "off", "fls"];   // richer ESPN team stats → leaderboards + style
   let goals = 0, totYellow = 0, totRed = 0, totPen = 0, totOg = 0, totSot = 0;
@@ -4674,7 +4704,7 @@ function currentTheme() { return document.documentElement.dataset.theme || "ligh
 function isStillIn(code) {
   // A team is still competing if they have at least one confirmed non-FT appearance remaining
   return S.matches.some(m => {
-    if (status(m) === ST.FT) return false;
+    if (isFinalSt(status(m))) return false;
     const h = slotInfo(m, "home"), a = slotInfo(m, "away");
     return h.code === code || a.code === code;
   });

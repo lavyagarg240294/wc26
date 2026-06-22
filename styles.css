@@ -518,6 +518,12 @@ body.bg-paused #bg span{animation-play-state:paused;will-change:auto}
 .badge.live,.md-tag.live{background:var(--live);color:#fff;animation:pulse 1.4s infinite}
 .badge.ft,.md-tag.ft{background:var(--ink);color:var(--paper)}
 .badge.soon,.md-tag.soon{background:color-mix(in srgb,var(--acc1) 12%,var(--card));color:var(--acc-text);border:1px solid color-mix(in srgb,var(--acc1) 30%,transparent)}
+/* abnormal states (postponed / suspended / abandoned / cancelled / awarded): an amber "needs attention" badge - never the green of live or the solid ink of full-time, so a provisional game never reads as a real result */
+.badge.abn,.md-tag.abn{background:color-mix(in srgb,var(--gold) 16%,var(--card));color:var(--gold-text);border:1px solid color-mix(in srgb,var(--gold) 42%,transparent)}
+.mcard-score.is-abn{opacity:.7}
+.mcard-score.is-abn .lo{opacity:.3}
+.hero-tag.is-abn{color:var(--gold-text)}
+.md-note{margin:10px 0 0;font:500 12.5px/1.45 var(--body);color:var(--ink-soft);background:color-mix(in srgb,var(--gold) 9%,var(--card));border:1px solid color-mix(in srgb,var(--gold) 24%,transparent);border-radius:10px;padding:9px 13px}
 .mcard-sub{margin-top:9px;padding-top:9px;border-top:1px dashed var(--line);display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--ink-soft)}
 .mcard-sub .grp{font-family:var(--disp);font-weight:700;font-stretch:110%;letter-spacing:.05em;color:var(--acc-text)}
 .mcard-star{

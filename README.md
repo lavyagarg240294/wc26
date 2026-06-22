@@ -89,11 +89,16 @@ The favorite team, timezone and saved prediction live in each visitor's `localSt
 
 Edit anything, commit, push — every visitor sees it on their next load. **There is no build step for the site itself**; what's in the repo is the site.
 
-**Manual score fix** (rare): edit `data/results.json` directly. Minimal per-match shape:
+**Manual score fix / override** (rare): edit `data/results.json` directly. Minimal per-match shape:
 ```json
 "m12": { "st": "FT", "h": 2, "a": 1 }
 ```
 `st`: `SCHED` | `LIVE` | `HT` | `FT` · `h/a`: goals · `hp/ap`: penalties · `ht/at`: resolved team codes (knockouts) · `min`: live minute. The heavy per-match detail (`xi`: lineups · `ev`: goal/card/sub timeline · `stats`: `[home,away]` pairs) lives in `data/details.json` (same `matches` keys), split out so the polled `results.json` stays small. Tap any match card for the full detail view.
+
+**Abnormal states** — a match that doesn't finish normally is a first-class status, not a faked score. The feed parser maps FIFA / football-data signals to `PP` (postponed), `SUSP` (suspended), `ABD` (abandoned), `CANC` (cancelled) and `AWD` (awarded / walkover); the site shows an honest amber badge and an optional `note`, and — crucially — **only `FT` and `AWD` ever count** toward the tables, bracket, records and prediction grading. A suspended or abandoned game keeps its provisional scoreline on screen but is treated as "still to be decided" everywhere it matters, so a partial result can never corrupt a group table or advance a bracket. For a game the feed can't represent (an abandoned match awaiting a replay, an awarded result, a wrong score), pin the truth by hand: set `"manual": true` on the entry (with the corrected `st`/`h`/`a` and an optional `"note"`). **Manual-locked entries are never overwritten by the polling loop** — everything else keeps updating live. Example:
+```json
+"m41": { "st": "AWD", "h": 3, "a": 0, "manual": true, "note": "Awarded 3-0 (ineligible player)." }
+```
 
 **Share cards** are the one piece with npm build tooling (`scripts/make-share-cards.mjs` uses `satori` + `@resvg/resvg-js`; see `package.json`). They run only in their own Action — `node_modules` is gitignored and the core scores pipeline stays dependency-free. A few other assets are generated **once and committed** (no Action, no runtime cost): the social card (`scripts/make-og.py`, Pillow), the PWA icons (`scripts/make-icons.py`, Pillow), and the webcal calendars (`scripts/make-ics.mjs`, no deps).
 

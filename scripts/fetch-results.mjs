@@ -213,12 +213,17 @@ async function fromFifa(prev, needsPhotos) {
   for (const f of fixtures) {
     const x = fifaForFixture[f.id]; if (!x) continue;
     const kickoff = Date.parse(x.Date || f.utc);
-    const ms = x.MatchStatus;                       // 1 = upcoming, 0 = finished, 3 = live (documented)
-    let st;
-    if (ms === 1) st = "SCHED";
-    else if (ms === 3) st = "LIVE";
-    else if (Number.isFinite(kickoff) && now < kickoff) st = "SCHED";   // missing/odd status on a future kickoff → not a finished 0-0
-    else st = (kickoff && now >= kickoff && now < kickoff + 150 * 60000) ? "LIVE" : "FT"; // hedge ms 0
+    // documented FIFA MatchStatus codes: 0 finished · 1 upcoming · 3 live · 4 abandoned · 7 postponed · 8 cancelled · 12 line-ups out
+    const ms = x.MatchStatus;
+    const FIFA_ST = { 1: "SCHED", 3: "LIVE", 4: "ABD", 7: "PP", 8: "CANC", 12: "SCHED" };
+    let st = FIFA_ST[ms];
+    if (st == null) {
+      // ms 0 (finished) or a missing status: time-aware, so a still-running game the feed labelled early stays LIVE and a
+      // real final still recovers. A known-but-unrecognized code AFTER kickoff is treated as interrupted (SUSP), never a
+      // fabricated full-time score - so an abnormal/abandoned game can never leak a partial result into the table.
+      if (ms == null || ms === 0) st = (kickoff && now >= kickoff && now < kickoff + 150 * 60000) ? "LIVE" : "FT";
+      else st = (Number.isFinite(kickoff) && now < kickoff) ? "SCHED" : "SUSP";
+    }
 
     const entry = { st };
     // Persist the feed's real kickoff when it drifts from openfootball's static time (>1 min). The static
@@ -230,7 +235,7 @@ async function fromFifa(prev, needsPhotos) {
     // matches (home/away fixed by openfootball) flip score/pens/events so the client — which credits entry.h to
     // f.home.team — stays correct. The feed currently matches our orientation, so this is a latent safety net.
     const swap = f.stage === "group" && f.home.team && toOur[x.Home?.IdCountry] && f.home.team !== toOur[x.Home.IdCountry];
-    if (st !== "SCHED") {
+    if (st !== "SCHED" && st !== "PP" && st !== "CANC") {   // not-yet-played states carry no scoreline (a suspended/abandoned game keeps its partial one)
       const hs = swap ? x.AwayTeamScore : x.HomeTeamScore, as = swap ? x.HomeTeamScore : x.AwayTeamScore;
       const hps = swap ? x.AwayTeamPenaltyScore : x.HomeTeamPenaltyScore, aps = swap ? x.HomeTeamPenaltyScore : x.AwayTeamPenaltyScore;
       if (Number.isFinite(hs)) entry.h = hs;
@@ -320,10 +325,15 @@ async function fromWorldCup26() {
     let st;
     if (fin) st = "FT";
     else if (["ht", "half", "halftime", "half-time"].includes(te)) st = "HT";
-    else if (["notstarted", "", "scheduled", "tbd", "postponed"].includes(te)) st = "SCHED";
-    else st = "LIVE";
+    else if (["notstarted", "", "scheduled", "tbd"].includes(te)) st = "SCHED";
+    else if (te === "postponed") st = "PP";
+    else if (te.includes("suspend")) st = "SUSP";
+    else if (te.includes("abandon")) st = "ABD";
+    else if (te.includes("cancel")) st = "CANC";
+    else if (te.includes("award") || te.includes("walkover")) st = "AWD";
+    else st = "LIVE";   // anything else is a running clock ("67", "90+2", ...)
     const entry = { st };
-    if (st !== "SCHED") {
+    if (st !== "SCHED" && st !== "PP" && st !== "CANC") {   // not-yet-played states carry no scoreline
       const h = parseInt(g.home_score, 10), a = parseInt(g.away_score, 10);
       if (Number.isFinite(h)) entry.h = h;
       if (Number.isFinite(a)) entry.a = a;
@@ -364,7 +374,8 @@ async function fromFootballData() {
   const r = await fetch("https://api.football-data.org/v4/competitions/WC/matches", { headers: { "X-Auth-Token": TOKEN } });
   if (!r.ok) throw new Error("football-data HTTP " + r.status);
   const api = (await r.json()).matches || [];
-  const STATUS = s => s === "IN_PLAY" ? "LIVE" : s === "PAUSED" ? "HT" : s === "FINISHED" ? "FT" : "SCHED";
+  // football-data exposes clear strings - map the abnormal ones to first-class states instead of hiding them as SCHED
+  const STATUS = s => ({ IN_PLAY: "LIVE", PAUSED: "HT", FINISHED: "FT", SUSPENDED: "SUSP", POSTPONED: "PP", CANCELLED: "CANC", CANCELED: "CANC", AWARDED: "AWD" }[s] || "SCHED");
   const byDay = {};
   for (const f of fixtures) (byDay[f.utc.slice(0, 10)] ??= []).push(f);
   const matches = {};
@@ -556,11 +567,15 @@ try { await harvestSquad(c => photoIncomplete(c) || bioIncomplete(c)); } catch (
 // snapshot — a sparse fallback can then only UPDATE a fixture, never DELETE a finished score we already published.
 // (FIFA-primary already returns all 104 fixtures, so this is a no-op there.)
 matches = { ...prevMerged, ...matches };
+// MANUAL LOCK: for a game the feed can't represent (an abandoned/awarded match, a wrong scoreline, a replay), an
+// operator can pin the truth by hand-editing data/results.json - set "manual": true on the entry (with the corrected
+// st/h/a and an optional "note"). Locked entries are never overwritten while the loop keeps polling everything else.
+for (const id in prevMerged) if (prevMerged[id] && prevMerged[id].manual) matches[id] = prevMerged[id];
 
 // Split the payload: results.json keeps only the small scores/status fields (it's polled every ~60s by every
 // open page); the heavy per-match detail (timeline, lineups, team stats, fallback scorers) goes to details.json,
 // fetched by the client only when scores actually change. Keeps the hot-path file tiny once knockouts fill it.
-const SLIM = ["st", "h", "a", "hp", "ap", "ht", "at", "min", "ko"];
+const SLIM = ["st", "h", "a", "hp", "ap", "ht", "at", "min", "ko", "manual", "note"];   // manual/note: operator override fields, kept in the small polled file
 const slim = {}, detail = {};
 for (const [id, m] of Object.entries(matches)) {
   const s = {}, d = {};
