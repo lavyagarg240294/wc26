@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "333";  // shown in footer; bump with the ?v= asset version
+const BUILD = "334";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -2447,9 +2447,14 @@ function openPlayer(name, code) {
     </div>` : ""}
     ${logHtml}
     ${(boxHtml || acts) ? `<div class="eyebrow">In this match</div>${boxHtml ? `<div class="pl-box">${boxHtml}</div>` : ""}${acts ? `<div class="pl-acts">${acts}</div>` : ""}` : ""}
-    <button class="pl-compare" data-compare-seed="${esc(name)}|${code}">${ICO.compare} Compare with another player</button>`;
+    <div class="pl-foot">
+      <button class="pl-foot-btn" data-share-player="${esc(name)}|${code}">${SHARE_SVG} Share</button>
+      <button class="pl-foot-btn" data-compare-seed="${esc(name)}|${code}">${ICO.compare} Compare</button>
+    </div>`;
   const cmpBtn = $("#playerBody [data-compare-seed]");
   if (cmpBtn) cmpBtn.onclick = () => { const [n, c] = cmpBtn.dataset.compareSeed.split("|"); $("#playerDialog").close(); openCompareSearch({ name: n, code: c }); };
+  const shBtn = $("#playerBody [data-share-player]");
+  if (shBtn) shBtn.onclick = () => { const [n, c] = shBtn.dataset.sharePlayer.split("|"); sharePlayerCard(n, c); };
   showSheet($("#playerDialog"));
 }
 const ordinal = n => n + (["th", "st", "nd", "rd"][((n % 100) - 20) % 10] || ["th", "st", "nd", "rd"][n % 100] || "th");
@@ -3266,8 +3271,9 @@ function simScore() {
 // a shareable champion card — drawn on a canvas (same-origin flag SVG → not tainted), then offered via
 // the Web Share API (files) where supported, falling back to a download. Turns the prediction into reach.
 function rrect(x, X, Y, W, H, r) { x.beginPath(); x.moveTo(X + r, Y); x.arcTo(X + W, Y, X + W, Y + H, r); x.arcTo(X + W, Y + H, X, Y + H, r); x.arcTo(X, Y + H, X, Y, r); x.arcTo(X, Y, X + W, Y, r); x.closePath(); }
-async function shareChampionImage(code) {
-  const t = code && S.teams[code]; if (!t) { flashToast("Crown a champion first"); return; }
+// draw the 1080² champion card and resolve a PNG blob — shared by the image-only button and the full "share prediction"
+async function makeChampionBlob(code) {
+  const t = code && S.teams[code]; if (!t) return null;
   try { await document.fonts.ready; } catch { /* fall back to system fonts */ }
   const W = 1080, H = 1080, c = document.createElement("canvas"); c.width = W; c.height = H;
   const x = c.getContext("2d");
@@ -3288,15 +3294,86 @@ async function shareChampionImage(code) {
   x.fillStyle = "#1FD673"; x.font = "800 52px Archivo, sans-serif"; x.fillText("CHAMPIONS", W / 2, fy + fh + 226);
   x.fillStyle = "#7b8894"; x.font = "500 28px 'Spline Sans Mono', monospace"; x.fillText("July 19 · MetLife Stadium", W / 2, H - 112);
   x.fillStyle = "#5b6b7a"; x.font = "500 25px 'Spline Sans Mono', monospace"; x.fillText((location.host + location.pathname).replace(/\/$/, ""), W / 2, H - 62);
-  c.toBlob(async blob => {
-    if (!blob) { flashToast("Couldn't make the image"); return; }
-    const file = new File([blob], "my-wc26-champion.png", { type: "image/png" });
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      try { await navigator.share({ files: [file], title: `My World Cup 2026 champion: ${t.name}` }); return; } catch { /* cancelled → fall through to download */ }
+  return await new Promise(res => c.toBlob(res, "image/png"));
+}
+async function shareChampionImage(code) {
+  const t = code && S.teams[code]; if (!t) { flashToast("Crown a champion first"); return; }
+  const blob = await makeChampionBlob(code);
+  if (!blob) { flashToast("Couldn't make the image"); return; }
+  const file = new File([blob], "my-wc26-champion.png", { type: "image/png" });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: `My World Cup 2026 champion: ${t.name}` }); return; } catch { /* cancelled → fall through to download */ }
+  }
+  const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = "my-wc26-champion.png"; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 3000); flashToast("Champion card saved");
+}
+// "Share prediction" → when a champion is crowned, share the champion card image AND the deep-link together so the post
+// always carries a visual; otherwise (or where files can't be shared) fall back to sharing/copying just the link.
+async function sharePrediction() {
+  const link = location.origin + location.pathname + "#p=" + packSim();
+  const champ = S.sim.ko[104], t = champ && S.teams[champ];
+  if (t) {
+    const blob = await makeChampionBlob(champ);
+    if (blob && navigator.canShare) {
+      const file = new File([blob], "my-wc26-bracket.png", { type: "image/png" });
+      if (navigator.canShare({ files: [file] })) {
+        try { await navigator.share({ files: [file], text: `My World Cup 2026 winner: ${t.name}`, url: link }); return; } catch (err) { if (err?.name === "AbortError") return; }
+      }
     }
-    const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = "my-wc26-champion.png"; document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 3000); flashToast("Champion card saved");
-  }, "image/png");
+  }
+  if (navigator.share) { try { await navigator.share({ title: "My World Cup 2026 prediction", url: link }); return; } catch (err) { if (err?.name === "AbortError") return; } }
+  try { await navigator.clipboard.writeText(link); flashToast("Prediction link copied. Share it!"); }
+  catch { prompt("Copy your prediction link:", link); }
+}
+// a shareable player card: photo (loaded cross-origin so the canvas isn't tainted) + flag + this-tournament line.
+async function sharePlayerCard(name, code) {
+  const t = S.teams[code], bio = squadBio(name, code);
+  flashToast("Building card…");
+  try { await document.fonts.ready; } catch { /* fall back to system fonts */ }
+  const W = 1080, H = 1080, c = document.createElement("canvas"); c.width = W; c.height = H; const x = c.getContext("2d");
+  const g = x.createLinearGradient(0, 0, W, H); g.addColorStop(0, "#0c1a28"); g.addColorStop(1, "#08231b"); x.fillStyle = g; x.fillRect(0, 0, W, H);
+  const glow = (cx, cy, r, col) => { const rg = x.createRadialGradient(cx, cy, 0, cx, cy, r); rg.addColorStop(0, col); rg.addColorStop(1, "rgba(0,0,0,0)"); x.fillStyle = rg; x.fillRect(0, 0, W, H); };
+  glow(180, 160, 460, "rgba(11,163,96,.30)"); glow(920, 940, 480, "rgba(232,185,49,.22)");
+  x.textAlign = "center";
+  x.fillStyle = "#E8B931"; x.font = "700 34px Archivo, sans-serif"; x.fillText("FIFA WORLD CUP 2026", W / 2, 116);
+  // headshot — crossOrigin so toBlob stays allowed; cover-fit framed to the face
+  const pURL = atWidth(bestPhoto(name, code, bio?.n) || bio?.photo || "", 640);
+  let drew = false;
+  if (pURL) {
+    const im = new Image(); im.crossOrigin = "anonymous"; im.src = pURL;
+    try { await im.decode(); } catch { /* CORS/decoded failed → render without the photo */ }
+    if (im.naturalWidth) {
+      const pw = 430, ph = 430, px = W / 2 - pw / 2, py = 178, s = Math.max(pw / im.naturalWidth, ph / im.naturalHeight);
+      x.save(); rrect(x, px, py, pw, ph, 26); x.clip(); x.fillStyle = "rgba(255,255,255,.06)"; x.fillRect(px, py, pw, ph);
+      x.drawImage(im, px + (pw - im.naturalWidth * s) / 2, py, im.naturalWidth * s, im.naturalHeight * s); x.restore();
+      x.lineWidth = 2; x.strokeStyle = "rgba(255,255,255,.18)"; rrect(x, px, py, pw, ph, 26); x.stroke(); drew = true;
+    }
+  }
+  let y = drew ? 700 : 360;
+  const NM = pName(name, code).toUpperCase(); let fs = 86; x.fillStyle = "#fff"; x.font = `900 ${fs}px Archivo, sans-serif`;
+  while (x.measureText(NM).width > W - 130 && fs > 44) { fs -= 4; x.font = `900 ${fs}px Archivo, sans-serif`; }
+  x.fillText(NM, W / 2, y); y += 76;
+  if (t) {   // flag + team name, centred as one row
+    const fim = new Image(); fim.src = "assets/flags/" + code + ".svg"; try { await fim.decode(); } catch { /* text only */ }
+    const fh = 40, fw = fim.naturalWidth ? Math.round(fh * fim.naturalWidth / fim.naturalHeight) : 60;
+    x.font = "700 38px Archivo, sans-serif"; const tw = x.measureText(t.name).width, gap = 16, sx = W / 2 - (fw + gap + tw) / 2;
+    if (fim.naturalWidth) { x.save(); rrect(x, sx, y - fh + 6, fw, fh, 6); x.clip(); x.fillStyle = "#fff"; x.fillRect(sx, y - fh + 6, fw, fh); x.drawImage(fim, sx, y - fh + 6, fw, fh); x.restore(); x.lineWidth = 1.5; x.strokeStyle = "rgba(255,255,255,.2)"; rrect(x, sx, y - fh + 6, fw, fh, 6); x.stroke(); }
+    x.textAlign = "left"; x.fillStyle = "#cdd7df"; x.fillText(t.name, sx + fw + gap, y); x.textAlign = "center";
+  }
+  const wc = playerWC(name, code), isGK = bio?.pos === "GK";
+  let parts = wc.apps ? (isGK ? [`${wc.apps} PLAYED`, `${wc.cs} CLEAN SHEET${wc.cs !== 1 ? "S" : ""}`] : [`${wc.apps} PLAYED`, `${wc.g} GOAL${wc.g !== 1 ? "S" : ""}`, `${wc.a} ASSIST${wc.a !== 1 ? "S" : ""}`])
+    : [bio?.caps != null ? `${bio.caps} CAPS` : null, bio?.goals ? `${bio.goals} GOALS` : null].filter(Boolean);
+  if (parts.length) { x.fillStyle = "#1FD673"; x.font = "800 38px Archivo, sans-serif"; x.fillText(parts.join("    ·    "), W / 2, y + 80); }
+  x.fillStyle = "#7b8894"; x.font = "500 25px 'Spline Sans Mono', monospace"; x.fillText("WC·26 · your World Cup, in one page", W / 2, H - 100);
+  x.fillStyle = "#5b6b7a"; x.font = "500 23px 'Spline Sans Mono', monospace"; x.fillText((location.host + location.pathname).replace(/\/$/, ""), W / 2, H - 54);
+  const blob = await new Promise(res => c.toBlob(res, "image/png"));
+  if (!blob) { flashToast("Couldn't make the image"); return; }
+  const file = new File([blob], `wc26-${(code || "player").toLowerCase()}.png`, { type: "image/png" });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file], text: `${pName(name, code)} · World Cup 2026` }); return; } catch (err) { if (err?.name === "AbortError") return; }
+  }
+  const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = file.name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 3000); flashToast("Player card saved");
 }
 // the canonical share URL for a match: a finished game points at the Action-rendered result-card stub (it unfurls on
 // social); anything else deep-links into the live match view.
@@ -3312,7 +3389,7 @@ async function shareMatchCard(m) {
   const link = matchShareLink(m), hn = h.code ? h.name : slotText(m, "home", h), an = a.code ? a.name : slotText(m, "away", a);
   const copyLink = async () => { try { await navigator.clipboard.writeText(link); flashToast("Match link copied. Share it!"); } catch { flashToast("Couldn't copy the link"); } };
   if (st === ST.FT) {   // result card already exists; share its link
-    const title = r && r.h != null ? `${hn} ${r.h}–${r.a} ${an} · WC 2026` : `${hn} vs ${an} · WC 2026`;   // guard a FT row that briefly lacks a scoreline
+    const title = r && r.h != null ? `${hn} ${r.h}–${r.a} ${an} · World Cup 2026` : `${hn} vs ${an} · World Cup 2026`;   // guard a FT row that briefly lacks a scoreline
     if (navigator.share) { try { await navigator.share({ title, url: link }); return; } catch (err) { if (err?.name === "AbortError") return; } }
     return copyLink();
   }
@@ -3362,7 +3439,7 @@ async function shareMatchCard(m) {
     if (!blob) { flashToast("Couldn't make the image"); return; }
     const file = new File([blob], `wc26-${h.code || "home"}-${a.code || "away"}.png`, { type: "image/png" });
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      try { await navigator.share({ files: [file], text: `${hn} v ${an} · WC 2026 prediction`, url: link }); return; } catch (err) { if (err?.name === "AbortError") return; }
+      try { await navigator.share({ files: [file], text: `${hn} v ${an} · World Cup 2026`, url: link }); return; } catch (err) { if (err?.name === "AbortError") return; }
     }
     try { await navigator.clipboard.writeText(link); flashToast("Match link copied. Share it!"); }
     catch { const u = URL.createObjectURL(blob); const el = document.createElement("a"); el.href = u; el.download = file.name; document.body.appendChild(el); el.click(); el.remove(); setTimeout(() => URL.revokeObjectURL(u), 3000); flashToast("Prediction card saved"); }
@@ -3554,11 +3631,7 @@ function renderSimEditor() {
     if (c) confetti(c.c1, c.c2);
   };
   $("#simReset").onclick = () => { S.sim.order = {}; S.sim.thirds = []; S.sim.ko = {}; seedSimThirds(); saveSim(); renderSim(); };
-  $("#simShare").onclick = async () => {
-    const url = location.origin + location.pathname + "#p=" + packSim();
-    try { await navigator.clipboard.writeText(url); flashToast("Prediction link copied. Share it!"); }
-    catch { prompt("Copy your prediction link:", url); }
-  };
+  $("#simShare").onclick = sharePrediction;
   $("#simShareImg")?.addEventListener("click", () => shareChampionImage(S.sim.ko[104]));
   // the bracket needs measurable dimensions to lay out its tree, so only when step 3 is expanded — and re-lay it
   // out whenever that section is opened
