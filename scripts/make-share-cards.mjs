@@ -26,10 +26,15 @@ const h = (type, props = {}, ...children) => ({ type, props: { ...props, childre
 const tname = code => teams[code]?.name || code;
 const kit = code => teams[code]?.c1 || "#0D1B2A";
 const esc = s => String(s ?? "");
+// inline the self-hosted flag SVG as a data URI so satori can draw the real flag (recognisable; kit colours alone
+// collide for same-coloured teams). Falls back to a kit-colour bar if a flag file is missing.
+const flagURI = code => { try { return "data:image/svg+xml;base64," + Buffer.from(readFileSync(`assets/flags/${code}.svg`)).toString("base64"); } catch { return null; } };
 
-function teamBlock(code, align) {
+function teamBlock(code) {
+  const fl = code && flagURI(code);
   return h("div", { style: { display: "flex", flexDirection: "column", alignItems: "center", width: "420px" } },
-    h("div", { style: { display: "flex", width: "90px", height: "12px", borderRadius: "6px", background: kit(code), marginBottom: "26px" } }),
+    fl ? h("img", { src: fl, width: 138, height: 92, style: { borderRadius: "8px", marginBottom: "26px", border: "1px solid rgba(13,27,42,.14)", objectFit: "cover" } })
+       : h("div", { style: { display: "flex", width: "90px", height: "12px", borderRadius: "6px", background: kit(code), marginBottom: "26px" } }),
     h("div", { style: { display: "flex", fontSize: tname(code).length > 14 ? "44px" : "56px", fontWeight: 800, color: "#0D1B2A", textAlign: "center", lineHeight: 1.05 } }, tname(code)));
 }
 
@@ -46,11 +51,11 @@ function card(f, r) {
       h("div", { style: { display: "flex", fontSize: "24px", fontWeight: 700, color: "#5B6B7A" } }, stage)),
     // teams + score
     h("div", { style: { display: "flex", flex: 1, alignItems: "center", justifyContent: "space-between" } },
-      teamBlock(hc, "left"),
+      teamBlock(hc),
       h("div", { style: { display: "flex", flexDirection: "column", alignItems: "center" } },
         h("div", { style: { display: "flex", fontSize: "104px", fontWeight: 800, color: "#0D1B2A" } }, score),
         h("div", { style: { display: "flex", fontSize: "22px", fontWeight: 700, letterSpacing: "2px", color: r.st === "FT" ? "#5B6B7A" : "#FF3B30", marginTop: "10px" } }, r.st === "FT" ? (pens || "FULL TIME") : "LIVE")),
-      teamBlock(ac, "right")),
+      teamBlock(ac)),
     // bottom
     h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "2px solid #E4E9E3", paddingTop: "26px" } },
       h("div", { style: { display: "flex", fontSize: "22px", color: "#5B6B7A", maxWidth: "820px", overflow: "hidden" } }, scorers || " "),
