@@ -16,8 +16,12 @@ for (const [code, t] of Object.entries(teams)) if (t.name) NAME2CODE[norm(t.name
 Object.assign(NAME2CODE, {   // jfjelstul / historical spellings → current code
   westgermany: "DE", korearepublic: "KR", unitedstates: "US", iriran: "IR", turkey: "TR",
   czechrepublic: "CZ", bosniaandherzegovina: "BA", ivorycoast: "CI", capeverde: "CV", usa: "US",
+  zaire: "CD",   // DR Congo competed as Zaire in 1974 (the same nation, renamed) — FIFA's own continuity
 });
+// a current team that played under a different name back then → surfaced as a "(as …)" note in the head-to-head
+const FORMER = { westgermany: "West Germany", zaire: "Zaire" };
 const code = name => NAME2CODE[norm(name)] || null;
+const resolve = name => ({ code: NAME2CODE[norm(name)] || null, was: FORMER[norm(name)] || null });
 const CUR = new Set(Object.keys(teams));
 
 function roundOf(stage) {
@@ -45,10 +49,10 @@ function parseCSVLine(line) {
 }
 
 const out = {};
-const add = (h, a, hs, as_, y, r, ph, pa) => {
+const add = (h, a, hs, as_, y, r, ph, pa, fh, fa) => {
   if (!CUR.has(h) || !CUR.has(a) || h === a) return;
   const key = [h, a].sort().join("|");
-  (out[key] ||= []).push({ y, r, h, a, hs, as: as_, ...(ph != null ? { ph, pa } : {}) });
+  (out[key] ||= []).push({ y, r, h, a, hs, as: as_, ...(ph != null ? { ph, pa } : {}), ...(fh ? { fh } : {}), ...(fa ? { fa } : {}) });
 };
 
 // ---- jfjelstul, men's only ----
@@ -62,10 +66,10 @@ let jf = 0; const jfYears = new Set();
 for (const line of lines.slice(1)) {
   const r = parseCSVLine(line);
   if (/women/i.test(r[iT])) continue;                        // NB: /men's/ alone also matches "Women's" — exclude explicitly
-  const h = code(r[iH]), a = code(r[iA]); if (!h || !a) continue;
+  const H_ = resolve(r[iH]), A_ = resolve(r[iA]); if (!H_.code || !A_.code) continue;
   const y = +(r[iT].match(/^(\d{4})/) || [])[1];
   const pens = r[iPen] === "1" || r[iPen] === "TRUE";
-  add(h, a, +r[iHs], +r[iAs], y, roundOf(r[iS]), pens ? +r[iHp] : null, pens ? +r[iAp] : null);
+  add(H_.code, A_.code, +r[iHs], +r[iAs], y, roundOf(r[iS]), pens ? +r[iHp] : null, pens ? +r[iAp] : null, H_.was, A_.was);
   jfYears.add(y); jf++;
 }
 

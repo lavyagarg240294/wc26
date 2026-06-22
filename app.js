@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "337";  // shown in footer; bump with the ?v= asset version
+const BUILD = "338";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -2883,8 +2883,8 @@ function wcH2HBlock(a, b) {
     const as = m.h === a ? m.hs : m.as, bs = m.h === a ? m.as : m.hs, ap = m.h === a ? m.ph : m.pa, bp = m.h === a ? m.pa : m.ph;
     if (as > bs || (as === bs && ap != null && ap > bp)) wa++; else if (bs > as || (as === bs && ap != null && bp > ap)) wb++; else d++;
   }
-  const rows = ms.map(m => `<div class="h2h-row"><span class="h2h-yr">${m.y}</span><span class="h2h-rd">${esc(m.r)}</span>
-    <span class="h2h-sc"><span class="fl">${flag(m.h)}</span> <b>${m.hs}–${m.as}</b> <span class="fl">${flag(m.a)}</span>${m.ph != null ? `<span class="h2h-pen">pens ${m.ph}–${m.pa}</span>` : ""}</span></div>`).join("");
+  const rows = ms.map(m => { const was = m.fh || m.fa; return `<div class="h2h-row"><span class="h2h-yr">${m.y}</span><span class="h2h-rd">${esc(m.r)}${was ? ` <span class="h2h-was">as ${esc(was)}</span>` : ""}</span>
+    <span class="h2h-sc"><span class="fl">${flag(m.h)}</span> <b>${m.hs}–${m.as}</b> <span class="fl">${flag(m.a)}</span>${m.ph != null ? `<span class="h2h-pen">pens ${m.ph}–${m.pa}</span>` : ""}</span></div>`; }).join("");
   return `<div class="eyebrow">Past World Cup meetings <span class="h2h-count">${ms.length}</span></div>
     <div class="h2h-sum"><b>${nm(a)}</b> ${wa} · ${d} draw${d !== 1 ? "s" : ""} · ${wb} <b>${nm(b)}</b></div>
     <div class="h2h-list">${rows}</div>`;
