@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "330";  // shown in footer; bump with the ?v= asset version
+const BUILD = "331";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1486,8 +1486,10 @@ function liveWhyChips(wp) {
 // the model's discarded top-3 most-likely scorelines, as tiles
 function liveScorelines(wp) {
   if (!wp?.predicted?.length) return "";
-  const tiles = wp.predicted.slice(0, 3).map(s => `<div class="sl-tile"><b>${s.h}–${s.a}</b><i>${Math.round(s.p * 100)}%</i></div>`).join("");
-  return `<div class="eyebrow">Most likely scores</div><div class="sl-tiles">${tiles}</div>`;
+  // deliberately low-key: exact-scoreline odds are inherently small, so this rides as a quiet one-line footnote
+  // under the win-probability bar rather than a row of attention-grabbing cards
+  const chips = wp.predicted.slice(0, 3).map(s => `<span class="sl-chip">${s.h}–${s.a}<i>${Math.round(s.p * 100)}%</i></span>`).join("");
+  return `<div class="sl-line"><span class="sl-cap">Likeliest scorelines</span>${chips}</div>`;
 }
 // a team's record + each result so far THIS World Cup (FT matches only)
 function teamWcRecord(code) {

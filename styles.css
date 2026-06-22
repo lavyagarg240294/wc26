@@ -316,12 +316,11 @@ body.bg-paused #bg span{animation-play-state:paused;will-change:auto}
 .why-chip.why-live{border-color:color-mix(in srgb,var(--live) 40%,var(--line));color:var(--live)}
 .why-chip.why-live .why-dir{color:var(--live)}
 /* top-3 most-likely scoreline tiles */
-.sl-tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
-.sl-tile{display:flex;flex-direction:column;align-items:center;gap:3px;padding:11px 6px;border-radius:var(--r-sm);background:var(--card);border:1px solid var(--line);box-shadow:var(--shadow)}
-.sl-tile b{font-family:var(--mono);font-weight:700;font-size:20px;color:var(--ink);font-variant-numeric:tabular-nums}
-.sl-tile i{font-style:normal;font-family:var(--mono);font-size:11px;color:var(--ink-soft)}
-.sl-tile.sl-top{border-color:color-mix(in srgb,var(--acc1) 45%,var(--line));background:color-mix(in srgb,var(--acc1) 7%,var(--card))}
-.sl-tile.sl-top i{color:var(--acc-text);font-weight:700}
+/* low-key one-liner under the win-prob bar — exact-scoreline odds are small, so it stays a quiet footnote */
+.sl-line{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin:-2px 0 14px}
+.sl-cap{font-family:var(--disp);font-weight:600;font-size:11.5px;color:var(--ink-soft);margin-right:1px}
+.sl-chip{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-weight:600;font-size:11.5px;color:var(--ink);font-variant-numeric:tabular-nums;border:1px solid var(--line);border-radius:999px;padding:2px 8px}
+.sl-chip i{font-style:normal;font-size:10px;font-weight:400;color:var(--ink-soft)}
 /* live commentary feed — colour-coded key moments, newest-first while live */
 .lcm{position:relative;margin-bottom:8px}
 /* full play-by-play in a fixed scrollable window (newest first while live) */
