@@ -809,8 +809,11 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .sim-firsthint b{color:var(--ink);font-weight:700}
 .sim-firsthint svg{vertical-align:-2px;margin-right:2px}
 .sim-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
-.sim-share-row{display:flex;gap:8px;margin-top:12px}        /* Share prediction + Champion card, right under the champion banner */
-.sim-share-row .btn{flex:1;text-align:center;padding:11px 10px}
+.sim-share{margin-top:14px}                                  /* the two share cards (hero bracket + winner) + link, under the champion banner */
+.sim-share-lbl{font:600 11px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);text-align:center;margin-bottom:9px}
+.sim-share-hero{width:100%;text-align:center;justify-content:center;padding:14px 12px;font-size:15px}
+.sim-share-row{display:flex;gap:8px;margin-top:8px}
+.sim-share-row .btn{flex:1;text-align:center;justify-content:center;padding:11px 10px}
 .sim-actions-foot{margin-top:18px}                          /* just Shuffle / Start over at the very bottom now */
 .step-n{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--acc-deep);color:#fff;font-family:var(--mono);font-size:12px;font-weight:700;flex:0 0 22px}
 /* collapsible Predict steps — each step is its own tappable section, collapsed by default so the whole flow
@@ -1049,9 +1052,13 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .r32-mid{width:40px;text-align:center;font:600 10px/1 var(--mono);color:var(--ink-soft)}
 .r32board-foot{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin:14px 2px 0}
 .r32board-foot>span{flex:1 1 240px;font:500 11.5px/1.45 var(--body);color:var(--ink-soft)}
+.r32board-acts{display:flex;align-items:center;gap:8px;flex:0 0 auto}
 .r32board-cta{display:inline-flex;align-items:center;gap:6px;font:700 12px/1 var(--disp);color:#fff;background:var(--acc-deep);border:none;border-radius:999px;padding:9px 16px;cursor:pointer;transition:filter .15s}
 .r32board-cta .ico{width:14px;height:14px}
 .r32board-cta:hover{filter:brightness(1.07)}
+.r32board-share{display:inline-flex;align-items:center;gap:6px;font:700 12px/1 var(--disp);color:var(--ink-soft);background:var(--line);border:none;border-radius:999px;padding:9px 14px;cursor:pointer;transition:color .15s,background .15s}
+.r32board-share .ico{width:14px;height:14px}
+.r32board-share:hover{color:var(--ink);background:color-mix(in srgb,var(--ink-soft) 18%,var(--card))}
 .pdash-sep{display:flex;align-items:center;gap:12px;margin:6px 2px 14px;font:800 12px/1 var(--disp);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft)}
 .pdash-sep::after{content:"";flex:1;height:1px;background:var(--line)}
 /* split-bracket "Round of 32 — as it stands": two halves flanking a central trophy, flags-only ties */

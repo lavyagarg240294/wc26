@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "339";  // shown in footer; bump with the ?v= asset version
+const BUILD = "340";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -2868,7 +2868,10 @@ function r32BracketHTML() {
     <div class="r32board-head"><span class="r32board-eyebrow"><span class="r32board-dot"></span>Round of 32 — the road to the final</span>${toggle}</div>
     <div class="r32br-grid">${col(left, "l", 1)}${spine}${col(right, "r", 3)}</div>
     <div class="r32board-foot"><span>${_r32Mode === "projected" ? "Filled from the live standings — tap a tie for names, venue &amp; past meetings." : "Only mathematically-locked teams shown — the rest stay as seed slots."}</span>
-      <button class="r32board-cta" data-sim-edit>Make your own picks ${ICO.tap}</button></div>
+      <div class="r32board-acts">
+        <button class="r32board-share" data-r32share aria-label="Share this Round of 32">${ICO.camera} Share</button>
+        <button class="r32board-cta" data-sim-edit>Make your own picks ${ICO.tap}</button>
+      </div></div>
   </section>`;
 }
 // historical World Cup head-to-head (data/wc-h2h.json, built from the public jfjelstul set + 2022). Lazy-loaded.
@@ -3334,6 +3337,12 @@ function simScore() {
 // a shareable champion card — drawn on a canvas (same-origin flag SVG → not tainted), then offered via
 // the Web Share API (files) where supported, falling back to a download. Turns the prediction into reach.
 function rrect(x, X, Y, W, H, r) { x.beginPath(); x.moveTo(X + r, Y); x.arcTo(X + W, Y, X + W, Y + H, r); x.arcTo(X + W, Y + H, X, Y + H, r); x.arcTo(X, Y + H, X, Y, r); x.arcTo(X, Y, X + W, Y, r); x.closePath(); }
+// the app's line trophy (24×24 viewBox) rendered onto a canvas, centred at (cx,cy) at the given size
+function drawTrophy(x, cx, cy, size, color) {
+  const p = new Path2D("M7 4h10v4.5a5 5 0 0 1-10 0z M7 6.3H4.6A2.2 2.2 0 0 0 7 8.6M17 6.3h2.4A2.2 2.2 0 0 1 17 8.6M12 13.5v2.8M9.5 19.5h5M10 16.3h4");
+  x.save(); x.translate(cx - size / 2, cy - size / 2); x.scale(size / 24, size / 24);
+  x.strokeStyle = color; x.lineWidth = 2.1 * 24 / size; x.lineJoin = "round"; x.lineCap = "round"; x.stroke(p); x.restore();
+}
 // draw the 1080² champion card and resolve a PNG blob — shared by the image-only button and the full "share prediction"
 async function makeChampionBlob(code) {
   const t = code && S.teams[code]; if (!t) return null;
@@ -3387,6 +3396,193 @@ async function sharePrediction() {
   if (navigator.share) { try { await navigator.share({ title: "My World Cup 2026 prediction", url: link }); return; } catch (err) { if (err?.name === "AbortError") return; } }
   try { await navigator.clipboard.writeText(link); flashToast("Prediction link copied. Share it!"); }
   catch { prompt("Copy your prediction link:", link); }
+}
+// preload the flag SVGs (same-origin → the canvas stays untainted) used by the bracket cards, keyed by code
+async function loadFlags(codes) {
+  const out = {};
+  await Promise.all([...new Set(codes.filter(Boolean))].map(code => new Promise(res => {
+    const im = new Image(); im.onload = () => { out[code] = im; res(); }; im.onerror = () => res(); im.src = "assets/flags/" + code + ".svg";
+  })));
+  return out;
+}
+// the hero share card (item 4): the user's WHOLE predicted bracket — every pick, both halves of the draw funnelling
+// to their champion. Champion hero up top, the full knockout tree below as the proof. 1080×1350 portrait.
+async function makeBracketBlob() {
+  const alloc = allocateThirds(); if (alloc === "impossible") return null;
+  const champ = S.sim.ko[104], ct = champ && S.teams[champ];
+  try { await document.fonts.ready; } catch { /* system fonts */ }
+  const W = 1080, H = 1350, c = document.createElement("canvas"); c.width = W; c.height = H; const x = c.getContext("2d");
+  const bg = x.createLinearGradient(0, 0, W, H); bg.addColorStop(0, "#0c1a28"); bg.addColorStop(1, "#08231b"); x.fillStyle = bg; x.fillRect(0, 0, W, H);
+  const glow = (cx, cy, r, col) => { const rg = x.createRadialGradient(cx, cy, 0, cx, cy, r); rg.addColorStop(0, col); rg.addColorStop(1, "rgba(0,0,0,0)"); x.fillStyle = rg; x.fillRect(0, 0, W, H); };
+  glow(150, 150, 480, "rgba(11,163,96,.30)"); glow(940, 1230, 540, "rgba(232,185,49,.22)");
+
+  const ko = S.matches.filter(m => m.stage !== "group" && m.stage !== "third");
+  const slot = {}; ko.forEach(m => { const { h, a } = simSlots(m, alloc); slot[m.num] = { h, a, w: S.sim.ko[m.num] }; });
+  const flags = await loadFlags(ko.flatMap(m => [slot[m.num].h, slot[m.num].a]).concat(champ ? [champ] : []));
+
+  // ---- champion hero (top) ----
+  x.textAlign = "center";
+  x.fillStyle = "#E8B931"; x.font = "700 30px Archivo, sans-serif"; x.fillText("FIFA WORLD CUP 2026", W / 2, 82);
+  let heroBot = 150;
+  if (ct) {
+    x.fillStyle = "#9fb0bd"; x.font = "600 25px 'Instrument Sans', sans-serif"; x.fillText("MY PREDICTED CHAMPIONS", W / 2, 126);
+    const fim = flags[champ], fw = 190, fh = Math.round(fw * (fim ? fim.naturalHeight / fim.naturalWidth : 0.66)), fx = W / 2 - fw / 2, fy = 156;
+    x.save(); rrect(x, fx, fy, fw, fh, 12); x.clip(); x.fillStyle = "#fff"; x.fillRect(fx, fy, fw, fh); if (fim) x.drawImage(fim, fx, fy, fw, fh); x.restore();
+    x.lineWidth = 2; x.strokeStyle = "rgba(255,255,255,.22)"; rrect(x, fx, fy, fw, fh, 12); x.stroke();
+    let nm = ct.name.toUpperCase(), fs = 70; x.font = `900 ${fs}px Archivo, sans-serif`;
+    while (x.measureText(nm).width > W - 160 && fs > 40) { fs -= 4; x.font = `900 ${fs}px Archivo, sans-serif`; }
+    x.fillStyle = "#fff"; x.fillText(nm, W / 2, fy + fh + 74);
+    heroBot = fy + fh + 110;
+  } else {
+    x.fillStyle = "#fff"; x.font = "900 64px Archivo, sans-serif"; x.fillText("MY 2026 BRACKET", W / 2, 210);
+    heroBot = 250;
+  }
+  // divider label
+  x.fillStyle = "rgba(255,255,255,.12)"; x.fillRect(W / 2 - 300, heroBot + 6, 600, 1);
+  x.fillStyle = "#7f8e9b"; x.font = "700 21px 'Spline Sans Mono', monospace"; x.fillText("· MY FULL BRACKET ·", W / 2, heroBot + 1);
+
+  // ---- the full knockout tree ----
+  const colX = i => 28 + i * ((W - 56) / 9) + ((W - 56) / 9) / 2;
+  const COL = { L: { r32: 0, r16: 1, qf: 2, sf: 3 }, R: { r32: 8, r16: 7, qf: 6, sf: 5 } };
+  const bTop = heroBot + 44, bBot = H - 70, bH = bBot - bTop, pitch = bH / 8;
+  const pos = {};
+  ["L", "R"].forEach(side => {
+    S.matches.filter(m => m.stage === "r32" && simHalf(m.num) === side).sort((a, b) => a.num - b.num)
+      .forEach((m, i) => pos[m.num] = { x: colX(COL[side].r32), y: bTop + i * pitch + pitch / 2 });
+    ["r16", "qf", "sf"].forEach(st => S.matches.filter(m => m.stage === st && simHalf(m.num) === side).sort((a, b) => a.num - b.num)
+      .forEach(m => { const ys = [m.home.feeds, m.away.feeds].filter(Boolean).map(n => pos[n] && pos[n].y).filter(v => v != null); pos[m.num] = { x: colX(COL[side][st]), y: ys.length ? ys.reduce((s, v) => s + v, 0) / ys.length : bTop + bH / 2 }; }));
+  });
+  { const ys = [101, 102].map(n => pos[n] && pos[n].y).filter(v => v != null); pos[104] = { x: colX(4), y: ys.length ? ys.reduce((s, v) => s + v, 0) / ys.length : bTop + bH / 2 }; }
+
+  const PW = (W - 56) / 9 - 8, RH = 21, PH = RH * 2 + 7;
+  // connectors first (under the pills)
+  x.strokeStyle = "rgba(255,255,255,.16)"; x.lineWidth = 1.5;
+  const connect = (m) => {
+    const here = pos[m.num]; const half = simHalf(m.num);
+    const feeders = m.num === 104 ? [101, 102] : [m.home.feeds, m.away.feeds].filter(Boolean);
+    feeders.forEach(k => {
+      const f = pos[k]; if (!f) return;
+      const kHalf = simHalf(k), dir = kHalf === "R" ? 1 : -1;     // feeder sits on this side of `here`
+      const kEdge = f.x - dir * PW / 2, hEdge = here.x + dir * PW / 2, midX = (kEdge + hEdge) / 2;
+      x.beginPath(); x.moveTo(kEdge, f.y); x.lineTo(midX, f.y); x.lineTo(midX, here.y); x.lineTo(hEdge, here.y); x.stroke();
+    });
+  };
+  ko.forEach(m => { if (m.stage !== "r32") connect(m); });
+
+  const drawRow = (code, rx, ry, won) => {
+    if (won) { rrect(x, rx + 2, ry + 1, PW - 4, RH - 2, 5); x.fillStyle = "rgba(31,214,115,.17)"; x.fill(); }
+    const fw = 24, fh = 16, fy = ry + (RH - fh) / 2, fx = rx + 7, im = code && flags[code];
+    if (im) { x.save(); rrect(x, fx, fy, fw, fh, 3); x.clip(); x.fillStyle = "#fff"; x.fillRect(fx, fy, fw, fh); x.drawImage(im, fx, fy, fw, fh); x.restore(); x.lineWidth = 1; x.strokeStyle = "rgba(255,255,255,.2)"; rrect(x, fx, fy, fw, fh, 3); x.stroke(); }
+    x.textAlign = "left"; x.font = `${won ? "800" : "500"} 18px 'Spline Sans Mono', monospace`; x.fillStyle = won ? "#26DE8C" : (code ? "#aeb9c3" : "#54636f");
+    x.fillText(code ? tri(code) : "···", fx + fw + 7, ry + RH / 2 + 6);
+  };
+  const drawPill = (m) => {
+    const p = pos[m.num], s = slot[m.num], px = p.x - PW / 2, py = p.y - PH / 2;
+    rrect(x, px, py, PW, PH, 8); x.fillStyle = "rgba(255,255,255,.05)"; x.fill();
+    x.lineWidth = 1; x.strokeStyle = "rgba(255,255,255,.09)"; rrect(x, px, py, PW, PH, 8); x.stroke();
+    drawRow(s.h, px, py + 4, s.w && s.w === s.h); drawRow(s.a, px, py + 4 + RH, s.w && s.w === s.a);
+  };
+  ko.forEach(drawPill);
+  // mark the final with a gold accent ring + label
+  if (pos[104]) {
+    const p = pos[104]; x.lineWidth = 1.5; x.strokeStyle = "#E8B931"; rrect(x, p.x - PW / 2, p.y - PH / 2, PW, PH, 8); x.stroke();
+    x.textAlign = "center"; x.fillStyle = "#E8B931"; x.font = "700 14px 'Spline Sans Mono', monospace"; x.fillText("FINAL", p.x, p.y - PH / 2 - 9);
+  }
+
+  x.textAlign = "center"; x.fillStyle = "#5b6b7a"; x.font = "500 23px 'Spline Sans Mono', monospace";
+  x.fillText((location.host + location.pathname).replace(/\/$/, ""), W / 2, H - 30);
+  return await new Promise(res => c.toBlob(res, "image/png"));
+}
+// share the full predicted-bracket hero card (item 4) — Web Share files where supported, else download
+async function shareBracketImage() {
+  if (!S.sim.ko[104]) { flashToast("Crown a champion first"); return; }
+  flashToast("Building your bracket…");
+  const blob = await makeBracketBlob();
+  if (!blob) { flashToast("Couldn't make the image"); return; }
+  const file = new File([blob], "my-wc26-bracket.png", { type: "image/png" });
+  const champ = S.teams[S.sim.ko[104]];
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: "My World Cup 2026 bracket", text: `My World Cup 2026 bracket — champions: ${champ?.name || ""}` }); return; } catch (err) { if (err?.name === "AbortError") return; }
+  }
+  const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = "my-wc26-bracket.png"; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 3000); flashToast("Bracket card saved");
+}
+// the R32 "as it stands" share card (item 2): the projected or confirmed Round of 32 split-bracket as a square card,
+// picking up whichever mode is on screen. 1080² — two columns of eight ties flank a central trophy.
+async function makeR32Blob(mode) {
+  const anyPlayed = S.matches.some(m => m.group && status(m) === ST.FT && res(m)?.h != null);
+  if (!anyPlayed) return null;
+  try { await document.fonts.ready; } catch { /* system fonts */ }
+  const W = 1080, H = 1080, c = document.createElement("canvas"); c.width = W; c.height = H; const x = c.getContext("2d");
+  const bg = x.createLinearGradient(0, 0, W, H); bg.addColorStop(0, "#0c1a28"); bg.addColorStop(1, "#08231b"); x.fillStyle = bg; x.fillRect(0, 0, W, H);
+  const glow = (cx, cy, r, col) => { const rg = x.createRadialGradient(cx, cy, 0, cx, cy, r); rg.addColorStop(0, col); rg.addColorStop(1, "rgba(0,0,0,0)"); x.fillStyle = rg; x.fillRect(0, 0, W, H); };
+  glow(150, 150, 470, "rgba(11,163,96,.30)"); glow(940, 940, 500, "rgba(232,185,49,.22)");
+
+  const { left, right } = r32Bracket();
+  const flat = side => side.flatMap(g => g.pairs.flatMap(p => p.ties));
+  const L = flat(left), R = flat(right);
+  const infos = [...L, ...R].map(t => r32TieInfo(t, mode));
+  const flags = await loadFlags(infos.flatMap(i => [i.gh.code, i.ga.code]));
+
+  // header
+  x.textAlign = "center";
+  x.fillStyle = "#E8B931"; x.font = "700 30px Archivo, sans-serif"; x.fillText("FIFA WORLD CUP 2026", W / 2, 86);
+  x.fillStyle = "#fff"; x.font = "900 66px Archivo, sans-serif"; x.fillText("ROUND OF 32", W / 2, 158);
+  x.fillStyle = "#9fb0bd"; x.font = "600 27px 'Instrument Sans', sans-serif"; x.fillText("AS IT STANDS", W / 2, 200);
+  // mode chip
+  const chip = mode === "confirmed" ? "CONFIRMED" : "PROJECTED";
+  x.font = "700 22px 'Spline Sans Mono', monospace"; const cw = x.measureText(chip).width + 36;
+  rrect(x, W / 2 - cw / 2, 222, cw, 40, 20); x.fillStyle = "rgba(232,185,49,.16)"; x.fill(); x.fillStyle = "#E8B931"; x.fillText(chip, W / 2, 249);
+
+  // one tie: [flag tri]  v  [tri flag], centred on (cx, cy)
+  const drawSlot = (s, ax, outward) => {   // outward: +1 → flag sits on the right (so codes hug the centre 'v')
+    const fw = 30, fh = 20, gap = 7;
+    if (s.known && flags[s.code]) {
+      const triW = 44;
+      const fX = outward > 0 ? ax + triW + gap : ax, tX = outward > 0 ? ax : ax + fw + gap;
+      const im = flags[s.code], fy = -fh / 2;
+      x.save(); rrect(x, fX, fy, fw, fh, 4); x.clip(); x.fillStyle = "#fff"; x.fillRect(fX, fy, fw, fh); x.drawImage(im, fX, fy, fw, fh); x.restore();
+      x.lineWidth = 1.2; x.strokeStyle = "rgba(255,255,255,.22)"; rrect(x, fX, fy, fw, fh, 4); x.stroke();
+      x.textAlign = outward > 0 ? "right" : "left"; x.font = "800 28px 'Spline Sans Mono', monospace"; x.fillStyle = "#e7edf2";
+      x.fillText(tri(s.code), outward > 0 ? tX + triW : tX, 10);
+    } else {
+      x.textAlign = "center"; x.font = "700 24px 'Spline Sans Mono', monospace"; x.fillStyle = "#7f8e9b";
+      x.fillText(s.ph || "TBD", ax + 37, 9);
+    }
+  };
+  const drawTie = (info, cx, cy) => {
+    x.save(); x.translate(0, cy);
+    drawSlot(info.gh, cx - 130, +1);     // left side, codes toward centre
+    x.textAlign = "center"; x.font = "500 20px 'Spline Sans Mono', monospace"; x.fillStyle = "#6b7a88"; x.fillText("v", cx, 8);
+    drawSlot(info.ga, cx + 22, -1);      // right side
+    x.restore();
+  };
+
+  // two columns of 8, with a slightly bigger gap every 2 ties (the round-of-16 pairs)
+  const colY = i => 322 + i * 86 + Math.floor(i / 2) * 10 + 43;
+  const lx = 296, rx = W - 296;
+  L.forEach((t, i) => drawTie(infos[i], lx, colY(i)));
+  R.forEach((t, i) => drawTie(infos[i + 8], rx, colY(i)));
+  // central trophy + spine
+  x.strokeStyle = "rgba(255,255,255,.12)"; x.lineWidth = 1.5;
+  x.beginPath(); x.moveTo(W / 2, 322); x.lineTo(W / 2, 470); x.moveTo(W / 2, 610); x.lineTo(W / 2, 1004); x.stroke();
+  drawTrophy(x, W / 2, 540, 70, "#E8B931");
+
+  x.fillStyle = "#5b6b7a"; x.font = "500 23px 'Spline Sans Mono', monospace";
+  x.fillText((location.host + location.pathname).replace(/\/$/, ""), W / 2, H - 34);
+  return await new Promise(res => c.toBlob(res, "image/png"));
+}
+async function shareR32Image(mode) {
+  flashToast("Building card…");
+  const blob = await makeR32Blob(mode);
+  if (!blob) { flashToast("No games played yet"); return; }
+  const file = new File([blob], "wc26-round-of-32.png", { type: "image/png" });
+  const link = location.origin + location.pathname;
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: "World Cup 2026 — Round of 32", text: "The World Cup 2026 Round of 32 as it stands", url: link }); return; } catch (err) { if (err?.name === "AbortError") return; }
+  }
+  const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = "wc26-round-of-32.png"; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 3000); flashToast("Round of 32 card saved");
 }
 // a shareable player card: photo (loaded cross-origin so the canvas isn't tainted) + flag + this-tournament line.
 async function sharePlayerCard(name, code) {
@@ -3619,9 +3815,13 @@ function renderSimEditor() {
     ${step("simStep2", `<span class="step-n">2</span> Best third-placed teams <span class="tcount">${S.sim.thirds.length}/8</span>`, `<div class="thirds">${thirdChips}</div>`)}
     ${step("simStep3", `<span class="step-n">3</span> Tap winners to crown your champion ${TROPHY}`, simBracket)}
     ${champ ? championBanner(champ, true) : ""}
-    ${champ ? `<div class="sim-share-row">
-      <button class="btn" id="simShare">${ICO.link} Share prediction</button>
-      <button class="btn" id="simShareImg">${ICO.camera} Champion card</button>
+    ${champ ? `<div class="sim-share">
+      <div class="sim-share-lbl">Share your prediction</div>
+      <button class="btn sim-share-hero" id="simShareBracket">${ICO.camera} Share my full bracket</button>
+      <div class="sim-share-row">
+        <button class="btn ghost" id="simShareImg">${ICO.camera} Winner card</button>
+        <button class="btn ghost" id="simShare">${ICO.link} Share link</button>
+      </div>
     </div>` : ""}
     <div class="sim-actions sim-actions-foot">
       <button class="btn ghost" id="simFill"><span class="b-lg">Use live standings</span><span class="b-sm">Standings</span></button>
@@ -3694,6 +3894,7 @@ function renderSimEditor() {
   $("#simReset").onclick = () => { S.sim.order = {}; S.sim.thirds = []; S.sim.ko = {}; seedSimThirds(); saveSim(); renderSim(); };
   $("#simShare").onclick = sharePrediction;
   $("#simShareImg")?.addEventListener("click", () => shareChampionImage(S.sim.ko[104]));
+  $("#simShareBracket")?.addEventListener("click", shareBracketImage);
   window.scrollTo(0, keepY);   // the innerHTML rebuild resets scroll — restore where the user was
 }
 // ---- Predict step 3: the interactive converging knockout bracket (Option A) ----
@@ -5039,6 +5240,8 @@ async function boot() {
     if (hl) { openMatch(hl.dataset.heroLive); return; }
     const rm = e.target.closest("[data-r32mode]");   // bracket Projected/Confirmed toggle
     if (rm) { _r32Mode = rm.dataset.r32mode; RENDER[S.view](); return; }
+    const rsh = e.target.closest("[data-r32share]");   // share the Round-of-32 board as a card (in whichever mode is on)
+    if (rsh) { shareR32Image(_r32Mode); return; }
     const pjt = e.target.closest("[data-projtie]");   // a bracket tie → the projected-tie sheet (names, venue, odds, head-to-head)
     if (pjt) { openProjTie(pjt.dataset.projtie); return; }
     const se = e.target.closest("[data-sim-edit]");   // "Make your own picks" / "Build your own bracket" → open the predictor editor
