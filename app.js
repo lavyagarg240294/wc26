@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "346";  // shown in footer; bump with the ?v= asset version
+const BUILD = "347";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -347,10 +347,12 @@ function status(m) {
   // still SCHED" match to LIVE to mask feed lag, but openfootball's static kickoff times don't always match
   // the real schedule, so that faked a live 0-0 on the wrong match. The feed says which game is actually live.)
   if (r?.st) {
-    // A feed stuck on LIVE/HT long past any real match length is stale (the score loop lagged or stopped) - treat it
-    // as finished so the hero stops showing it "live" and it drops into Earlier results. Only LIVE/HT are coerced;
-    // an explicit abnormal state (suspended/postponed/...) is trusted as-is and shown honestly, never faked to FT.
-    if ((r.st === ST.LIVE || r.st === ST.HT) && Date.now() - +new Date(m.utc) > (m.stage === "group" ? 125 : 160) * 60000) return ST.FT;
+    // A feed stuck on LIVE/HT long past when the match should have ended (LIVE) or restarted the 2nd half (HT) is stale -
+    // the loop lagged/stopped, OR the game was suspended/abandoned and the feed froze. We can't tell which from a frozen
+    // row, so we coerce it OUT of "live" (the hero stops pulsing it) but mark it UNCONFIRMED (see isUnconfirmedFinal) -
+    // never asserting a clean full-time score on a guess. An explicit abnormal state is trusted as-is and shown honestly.
+    const mins = (Date.now() - +new Date(m.utc)) / 60000;
+    if ((r.st === ST.LIVE && mins > (m.stage === "group" ? 125 : 160)) || (r.st === ST.HT && mins > 90)) return ST.FT;
     return r.st;
   }
   // no feed row yet (only before the very first Action run): best-effort from the scheduled time
@@ -361,6 +363,10 @@ function status(m) {
 // fold in feed-final results - never a stale-live score the feed hasn't closed - so the table and the Q/out badges
 // never disagree. UI ("still live?", "upcoming vs past") keeps using status() so a stuck match still drops out of live.
 const isFeedFinal = m => { const r = res(m); return !!r && isFinalSt(r.st) && r.h != null; };   // FT or an awarded result, with a score
+// status() coerced this to FT to drop it out of "live", but the feed never actually closed it (still raw LIVE/HT) - so
+// the scoreline is PROVISIONAL, not a confirmed final. It might be a suspended/abandoned game, or just a feed that lagged
+// at full-time. Shown as "result to be confirmed", never crowned a winner, and never counted (isFeedFinal stays false).
+const isUnconfirmedFinal = m => { const r = res(m); return status(m) === ST.FT && r && r.st !== ST.FT && r.st !== ST.AWD; };
 // live match clock: exact minute from the feed if present, else an estimate from kickoff
 // (the free feed often only flags "live" with no minute). Estimate allows for a 15′ half-time.
 function clockStr(m, r) {
@@ -718,6 +724,7 @@ function renderTicker() {
     const h = slotInfo(m, "home"), a = slotInfo(m, "away"), r = res(m), st = status(m);
     const mid = [ST.LIVE, ST.HT].includes(st)
       ? `<span class="tk-live">● ${r?.h ?? 0}–${r?.a ?? 0}</span>`
+      : isUnconfirmedFinal(m) ? `${r?.h != null ? `<b>${r.h}–${r.a}</b> ` : ""}TBC`
       : st === ST.FT ? (r?.h != null ? `<b>${r.h}–${r.a}</b> FT` : `<b>FT</b>`)
       : isAbnormal(st) ? `${r?.h != null ? `<b>${r.h}–${r.a}</b> ` : ""}${stMeta(st).tag}`
       : `<span class="tk-acc">${timeStr(m.utc)}</span>`;
@@ -764,13 +771,14 @@ function matchCard(m, i, opts = {}) {
   const r = res(m), st = status(m);
   const fav = isFavMatch(m);
   const stageL = m.group ? `Group ${m.group}` : m.stage === "third" ? "3rd place" : m.round;
-  const live = isLiveSt(st), abn = isAbnormal(st), fin = isFinalSt(st);
+  const live = isLiveSt(st), unconf = isUnconfirmedFinal(m), fin = isFinalSt(st) && !unconf, abn = isAbnormal(st) || unconf;
   const score = r && r.h != null;   // a real, feed-reported scoreline (incl. a suspended/abandoned/awarded one)
   const sh = r?.h ?? 0, sa = r?.a ?? 0;   // display score - a live match with no goal data shows 0–0
-  const winH = score && fin && (r.h > r.a || (r.h === r.a && (r.hp ?? -1) > (r.ap ?? -1)));   // crown a winner only on a real result, never a partial
+  const winH = score && fin && (r.h > r.a || (r.h === r.a && (r.hp ?? -1) > (r.ap ?? -1)));   // crown a winner only on a confirmed result, never a partial/provisional one
   const winA = score && fin && (r.a > r.h || (r.h === r.a && (r.ap ?? -1) > (r.hp ?? -1)));
   const badge = st === ST.LIVE ? `<span class="badge live">${clockStr(m, r) || "Live"}</span>`
     : st === ST.HT ? `<span class="badge live">HT</span>`
+    : unconf ? `<span class="badge abn" title="The feed stopped updating before full-time - result not yet confirmed">TBC</span>`
     : st === ST.FT ? `<span class="badge ft">FT</span>`
     : abn ? `<span class="badge abn badge-${st.toLowerCase()}">${stMeta(st).tag}</span>`
     : "";   // scheduled: kickoff time already shows on the left - don't repeat it on the right
@@ -1353,13 +1361,14 @@ function stakesBlock(m) {
 }
 function openMatch(id, reuse) {   // reuse: re-render the body in place (a live poll) without re-animating the dialog
   const m = S.matches.find(x => x.id === id); if (!m) return;
-  const h = slotInfo(m, "home"), a = slotInfo(m, "away"), r = res(m), st = status(m);
+  const h = slotInfo(m, "home"), a = slotInfo(m, "away"), r = res(m), st = status(m), unconf = isUnconfirmedFinal(m);
   const live = st === ST.LIVE || st === ST.HT;
   const score = r && r.h != null;
   const stageL = m.group ? `Group ${m.group}` : m.stage === "third" ? "3rd place" : m.round;
   const sv = isSaved(id);
   const statusTag = st === ST.LIVE ? `<span class="md-tag live">● Live ${clockStr(m, r)}</span>`
     : st === ST.HT ? `<span class="md-tag live">Half-time</span>`
+    : unconf ? `<span class="md-tag abn">Result to be confirmed</span>`
     : st === ST.FT ? `<span class="md-tag ft">Full time</span>`
     : isAbnormal(st) ? `<span class="md-tag abn md-tag-${st.toLowerCase()}">${stMeta(st).lbl}</span>`
     : `<span class="md-tag soon">Upcoming</span>`;   // time/date live in the meta row below - no need to repeat it
@@ -1384,7 +1393,7 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
       </div>
     </div>
     <div class="md-teams">${side(h, "home")}<div class="md-mid">${mid}</div>${side(a, "away")}</div>
-    ${r?.note ? `<div class="md-note">${esc(r.note)}</div>` : isAbnormal(st) ? `<div class="md-note">This match is ${stMeta(st).lbl.toLowerCase()}${st === ST.SUSP || st === ST.ABD ? " - the score shown is provisional, not a final result" : st === ST.PP ? " - it will be rescheduled" : ""}.</div>` : ""}
+    ${r?.note ? `<div class="md-note">${esc(r.note)}</div>` : isAbnormal(st) ? `<div class="md-note">This match is ${stMeta(st).lbl.toLowerCase()}${st === ST.SUSP || st === ST.ABD ? " - the score shown is provisional, not a final result" : st === ST.PP ? " - it will be rescheduled" : ""}.</div>` : unconf ? `<div class="md-note">The feed stopped updating before full-time, so this result isn't confirmed yet - it may have been suspended, or the data source simply lagged. The score shown is provisional.</div>` : ""}
     ${koPath(m)}`;
   const pTimeline = r?.ev?.length ? mdTimeline(r, h.code, a.code) : (r?.gh?.length || r?.ga?.length) ? `<div class="md-goals">
       <div class="md-goals-col">${(r.gh || []).map(g => `<div class="md-goal">${ICO.ball} ${esc(g)}</div>`).join("")}</div>
@@ -1454,8 +1463,9 @@ function heroStack(liveMatches, nextM) {
 function heroBlock(heroM, isLive, onLive) {
   const h = slotInfo(heroM, "home"), a = slotInfo(heroM, "away"), r = res(heroM), st = status(heroM);
   const live = isLive != null ? isLive : [ST.LIVE, ST.HT].includes(st);   // Matches tab passes it; Live tab derives the state
-  const ft = !live && isFinalSt(st), abn = !live && isAbnormal(st), result = ft || (abn && r?.h != null), clickable = !onLive;
-  const tag = live ? `${ballSVG("live-ball")} Live now` : ft ? `● Full time` : abn ? `● ${stMeta(st).lbl}` : `${isFavMatch(heroM) ? "Your team · " : ""}Next kickoff`;
+  const unconf = !live && isUnconfirmedFinal(heroM);
+  const ft = !live && isFinalSt(st) && !unconf, abn = !live && (isAbnormal(st) || unconf), result = ft || (abn && r?.h != null), clickable = !onLive;
+  const tag = live ? `${ballSVG("live-ball")} Live now` : ft ? `● Full time` : unconf ? `● Result to be confirmed` : abn ? `● ${stMeta(st).lbl}` : `${isFavMatch(heroM) ? "Your team · " : ""}Next kickoff`;
   return `<div class="hero${onLive ? " hero-onlive" : ""}"${clickable ? ` data-hero-live="${heroM.id}" role="button" tabindex="0" aria-label="Follow ${esc(h.name)} v ${esc(a.name)} in the Live tab"` : ""}>
     <div class="hero-tag ${live ? "is-live" : ft ? "is-ft" : abn ? "is-abn" : ""}">
       ${tag}<span style="color:var(--ink-soft);font-weight:600"> · ${esc(heroM.group ? "Group " + heroM.group : heroM.round)}</span>
