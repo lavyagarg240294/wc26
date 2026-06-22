@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "334";  // shown in footer; bump with the ?v= asset version
+const BUILD = "336";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -2804,49 +2804,94 @@ function r32SeedInfo(sh) {
     : sh.startsWith("3rd") ? { lbl: "Best third place", g: null, third: true }
     : { lbl: sh || "To be decided", g: null };
 }
-function r32BoardHTML() {
-  const anyPlayed = S.matches.some(m => m.group && status(m) === ST.FT && res(m)?.h != null);
-  if (!anyPlayed) return "";
+// per-tie resolution shared by the bracket + the projected-tie sheet: guarded teams (TBD until a third-place slot is
+// mathematically settled), the seed labels, and an honest certainty verdict.
+function r32TieInfo(t) {
   const remOf = g => S.matches.filter(x => x.group === g && status(x) !== ST.FT).length;
   const allGroupsDone = GROUPS.every(g => remOf(g) === 0);
-  const ties = projectedR32();
-  const CIC = {
-    ok: _ico('<path d="M20 6 9 17l-5-5"/>'),
-    games: _ico('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
-    bubble: _ico('<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h16a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>'),
+  const sH = r32SeedInfo(t.m.home.short), sA = r32SeedInfo(t.m.away.short);
+  const guard = (code, s) => { const tbd = s.third && !allGroupsDone; return { code: tbd ? null : code, tbd, known: !!(code && !tbd && S.teams[code]) }; };
+  const gh = guard(t.h, sH), ga = guard(t.a, sA);
+  const rem = (sH.g ? remOf(sH.g) : 0) + (sA.g ? remOf(sA.g) : 0);
+  const verdict = ((sH.third || sA.third) && !allGroupsDone) ? { k: "bubble", t: "Spot still open" }
+    : (rem === 0 && t.h && t.a) ? { k: "ok", t: "Confirmed" }
+    : { k: "games", t: rem + " game" + (rem === 1 ? "" : "s") + " left" };
+  return { m: t.m, h: t.h, a: t.a, sH, sA, gh, ga, verdict };
+}
+// group the 16 projected ties into the actual bracket: two halves (one per semi), each with its two quarter-final
+// sections, derived from the fixtures' feed structure — so who's in the same quarter is exact, not assumed.
+function r32Bracket() {
+  const byNum = {}; S.matches.forEach(x => byNum[x.num] = x);
+  const feedsTo = {}; S.matches.forEach(m => ["home", "away"].forEach(s => { if (m[s] && m[s].feeds) feedsTo[m[s].feeds] = m.num; }));
+  const traceTo = (num, stage) => { let n = num; for (let i = 0; i < 6; i++) { const nx = feedsTo[n]; if (nx == null) return null; if (byNum[nx] && byNum[nx].stage === stage) return nx; n = nx; } return null; };
+  const groups = {};
+  for (const t of projectedR32()) { const qf = traceTo(t.m.num, "qf"); (groups[qf] ||= { qf, sf: traceTo(t.m.num, "sf"), ties: [] }).ties.push(t); }
+  const list = Object.values(groups); list.forEach(g => g.ties.sort((a, b) => a.m.num - b.m.num));
+  const sfs = [...new Set(list.map(g => g.sf))].filter(x => x != null).sort((a, b) => a - b);
+  const half = sf => list.filter(g => g.sf === sf).sort((a, b) => a.qf - b.qf);
+  return { left: half(sfs[0]), right: half(sfs[1]) };
+}
+// the split-bracket "Round of 32 — as it stands": two halves flanking a central trophy, flags-only ties that open the
+// projected-tie sheet (full names, venue, projection, past meetings). Replaces the old 16-row board (build 336).
+function r32BracketHTML() {
+  const anyPlayed = S.matches.some(m => m.group && status(m) === ST.FT && res(m)?.h != null);
+  if (!anyPlayed) return "";
+  const { left, right } = r32Bracket();
+  const tieEl = t => {
+    const info = r32TieInfo(t);
+    const fl = g => g.known ? `<span class="rb-fl">${flag(g.code)}</span>` : `<span class="rb-fl rb-tbd">?</span>`;
+    return `<button class="rb-tie rb-${info.verdict.k}" data-projtie="${t.m.id}" title="Match ${t.m.num} — tap for details" aria-label="Match ${t.m.num}">${fl(info.gh)}<span class="rb-v">v</span>${fl(info.ga)}</button>`;
   };
-  const verdict = (sH, sA, h, a) => {                       // honest per-tie certainty
-    const thirdPending = (sH.third || sA.third) && !allGroupsDone;
-    const rem = (sH.g ? remOf(sH.g) : 0) + (sA.g ? remOf(sA.g) : 0);
-    if (thirdPending) return { k: "bubble", t: "Spot still open" };   // a third-place qualifying place isn't settled yet
-    if (rem === 0 && h && a) return { k: "ok", t: "Confirmed" };
-    return { k: "games", t: rem + " game" + (rem === 1 ? "" : "s") + " left" };
-  };
-  const side = (code, s) => {
-    const locked = s.third ? allGroupsDone : (s.g ? remOf(s.g) === 0 : !!code);
-    const tbd = s.third && !locked;                         // never commit a nation to an unsettled third-place slot
-    const known = code && !tbd && S.teams[code];
-    return `<span class="r32-side">
-      <span class="r32-flag">${known ? flag(code) : `<span class="r32-tbdf">?</span>`}</span>
-      <span class="r32-id"><span class="r32-nm${known ? "" : " r32-tbd"}">${known ? esc(S.teams[code].name) : "Best 3rd"}</span><span class="r32-seed">${tbd ? "one of the best 3rd places" : s.lbl}</span></span>
-    </span>`;
-  };
-  let confirmed = 0;
-  const cards = ties.map(({ m, h, a }) => {
-    const sH = r32SeedInfo(m.home.short), sA = r32SeedInfo(m.away.short);
-    const v = verdict(sH, sA, h, a); if (v.k === "ok") confirmed++;
-    return `<button class="r32-card" data-mid="${m.id}">
-      <span class="r32-top"><span class="r32-no">Match ${m.num}</span><span class="r32-chip r32-chip-${v.k}">${CIC[v.k]}${v.t}</span></span>
-      <span class="r32-tie">${side(h, sH)}<span class="r32-mid">v</span>${side(a, sA)}</span>
-    </button>`;
-  }).join("");
-  return `<section class="r32board">
-    <div class="r32board-head"><span class="r32board-eyebrow"><span class="r32board-dot"></span>Round of 32 — as it stands</span>
-      <p class="r32board-sub">If the groups ended today · <b>${confirmed}</b> of 16 ties confirmed</p></div>
-    <div class="r32board-grid">${cards}</div>
-    <div class="r32board-foot"><span>Group winners &amp; runners-up plus the best-eight third places, routed through FIFA's slot rules.</span>
+  const qfBlock = (g, i) => `<div class="rb-qf"><span class="rb-qf-lbl">Quarter-final ${i}</span>${g.ties.map(tieEl).join("")}</div>`;
+  const col = (groups, s) => `<div class="rb-col">${groups.map((g, k) => qfBlock(g, s + k)).join("")}</div>`;
+  const spine = `<div class="rb-spine"><span class="rb-line"></span><span class="rb-trophy">${ICO.trophy}</span><span class="rb-final">Final</span><span class="rb-line"></span></div>`;
+  return `<section class="r32br">
+    <div class="r32board-head"><span class="r32board-eyebrow"><span class="r32board-dot"></span>Round of 32 — the road to the final</span>
+      <p class="r32board-sub">if the groups ended today · tap a tie for names, venue &amp; past meetings</p></div>
+    <div class="r32br-grid">${col(left, 1)}${spine}${col(right, 3)}</div>
+    <div class="r32board-foot"><span>The two halves of the draw — winners flow inward to the final.</span>
       <button class="r32board-cta" data-sim-edit>Make your own picks ${ICO.tap}</button></div>
   </section>`;
+}
+// historical World Cup head-to-head (data/wc-h2h.json, built from the public jfjelstul set + 2022). Lazy-loaded.
+let _wcH2H = null;
+async function loadWcH2H() { if (_wcH2H == null) { try { _wcH2H = await (await fetch("data/wc-h2h.json?v=" + BUILD)).json(); } catch { _wcH2H = {}; } } return _wcH2H; }
+function wcH2HBlock(a, b) {
+  const ms = (_wcH2H && _wcH2H[[a, b].sort().join("|")]) || [];
+  const nm = c => esc(S.teams[c]?.name || c);
+  if (!ms.length) return `<div class="eyebrow">Past World Cup meetings</div><p class="h2h-none">${nm(a)} and ${nm(b)} have never met at a World Cup — this would be their first.</p>`;
+  let wa = 0, d = 0, wb = 0;
+  for (const m of ms) {
+    const as = m.h === a ? m.hs : m.as, bs = m.h === a ? m.as : m.hs, ap = m.h === a ? m.ph : m.pa, bp = m.h === a ? m.pa : m.ph;
+    if (as > bs || (as === bs && ap != null && ap > bp)) wa++; else if (bs > as || (as === bs && ap != null && bp > ap)) wb++; else d++;
+  }
+  const rows = ms.map(m => `<div class="h2h-row"><span class="h2h-yr">${m.y}</span><span class="h2h-rd">${esc(m.r)}</span>
+    <span class="h2h-sc"><span class="fl">${flag(m.h)}</span> <b>${m.hs}–${m.as}</b> <span class="fl">${flag(m.a)}</span>${m.ph != null ? `<span class="h2h-pen">pens ${m.ph}–${m.pa}</span>` : ""}</span></div>`).join("");
+  return `<div class="eyebrow">Past World Cup meetings <span class="h2h-count">${ms.length}</span></div>
+    <div class="h2h-sum"><b>${nm(a)}</b> ${wa} · ${d} draw${d !== 1 ? "s" : ""} · ${wb} <b>${nm(b)}</b></div>
+    <div class="h2h-list">${rows}</div>`;
+}
+// the projected-tie sheet — opened by tapping a bracket tie: projected matchup, seeds, venue/date, the model's odds
+// (when both teams are known) and the historical World Cup head-to-head.
+async function openProjTie(id) {
+  const t = projectedR32().find(x => x.m.id === id); if (!t) return;
+  const info = r32TieInfo(t), m = t.m;
+  await loadWcH2H();
+  const teamHdr = (g, s) => `<div class="pt-team">
+      <span class="pt-fl">${g.known ? flag(g.code) : `<span class="rb-tbd pt-tbd">?</span>`}</span>
+      <b class="pt-nm${g.known ? "" : " pt-tbd-nm"}">${g.known ? esc(S.teams[g.code].name) : "Best 3rd place"}</b>
+      <span class="pt-seed">${s.third && !g.known ? "one of the best third places" : esc(s.lbl)}</span></div>`;
+  const both = info.gh.known && info.ga.known;
+  const odds = both ? winProbBlock({ ...m, home: { team: info.gh.code }, away: { team: info.ga.code } }, true) : "";
+  const h2h = both ? wcH2HBlock(info.gh.code, info.ga.code) : "";
+  const meta = `<div class="md-meta"><span>${fmt(m.utc, { weekday: "long", day: "numeric", month: "long" })}</span><span>${timeStr(m.utc)}</span><span>${esc(m.stadium)}</span><span>${esc(m.city)}</span></div>`;
+  $("#projTitle").innerHTML = `<span class="md-stage">Round of 32 · Match ${m.num}</span>`;
+  $("#projBody").innerHTML = `<div class="pt-tagrow"><span class="r32-chip r32-chip-${info.verdict.k}">${info.verdict.t}</span></div>
+    <div class="pt-teams">${teamHdr(info.gh, info.sH)}<span class="pt-v">v</span>${teamHdr(info.ga, info.sA)}</div>
+    ${meta}${odds}${h2h}
+    <p class="pt-note">Projected from the live group standings — it'll shift as results come in.</p>
+    <button class="pl-compare" data-sim-edit>${ICO.tap} Build your own bracket</button>`;
+  showSheet($("#projDialog"));
 }
 // a team's current-standings strength (for projecting knockout winners)
 function teamStrength(code) {
@@ -2912,7 +2957,7 @@ function renderGroups() {
     `<div class="gwrap">${GROUPS.map((g, i) => `<div class="gcol">${groupTable(g, i)}</div>`).join("")}</div>
      <div class="legend"><span class="l1"><i></i>Top 2 advance to the Round of 32</span><span class="l3"><i></i>3rd place: eight best advance</span><button class="legend-about" data-about>ⓘ How the format works</button></div>
      ${thirdRaceHTML()}
-     ${r32BoardHTML()}`;
+     ${r32BracketHTML()}`;
   if (el.__sig === html) return;                           // groups unchanged (e.g. a minute tick elsewhere) — no flicker
   el.__sig = html;
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -3474,7 +3519,7 @@ function renderSimDash() {
       </div>
     </div>`;
   };
-  el.innerHTML = viewH2("view-sim") + r32BoardHTML() + `
+  el.innerHTML = viewH2("view-sim") + r32BracketHTML() + `
     <div class="pdash-sep"><span>Build your own</span></div>
     <p class="pdash-intro">${ICO.spark} Keep up to three scenarios — a gut pick, the chalk, a wildcard. Tap one to build it, all the way to a champion. Saved on this device.</p>
     <div class="pdash">${S.simBox.slots.map(card).join("")}</div>`;
@@ -4908,8 +4953,10 @@ async function boot() {
     if (w22) { openWc2022(); return; }
     const hl = e.target.closest("[data-hero-live]");   // the Matches hero → open the match modal (Live folded into it, build 329)
     if (hl) { openMatch(hl.dataset.heroLive); return; }
-    const se = e.target.closest("[data-sim-edit]");   // "Make your own picks" on the R32 board (Predict OR Tables) → open the predictor editor
-    if (se) { S.simView = "edit"; nav("sim"); return; }
+    const pjt = e.target.closest("[data-projtie]");   // a bracket tie → the projected-tie sheet (names, venue, odds, head-to-head)
+    if (pjt) { openProjTie(pjt.dataset.projtie); return; }
+    const se = e.target.closest("[data-sim-edit]");   // "Make your own picks" / "Build your own bracket" → open the predictor editor
+    if (se) { const pd = $("#projDialog"); if (pd?.open) pd.close(); S.simView = "edit"; nav("sim"); return; }
     const mid = e.target.closest("[data-mid]");   // hero, match card, or a record row (never a dialog)
     if (mid && mid.tagName !== "DIALOG") { openMatch(mid.dataset.mid); }
   });
