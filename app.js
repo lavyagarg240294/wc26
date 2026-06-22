@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "342";  // shown in footer; bump with the ?v= asset version
+const BUILD = "343";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -4327,8 +4327,11 @@ function recordsPanel(s) {
       tg ? { name: S.teams[tg.code]?.name || tg.code, code: tg.code, v: tg.v, live: true, sub: "2026" } : null,
     ], { team: true }),
     card(ICO.spark, "Most goals in a match by a player", 5, [
-      e("Oleg Salenko", "RU", 5, "1994"), e("Emilio Butragueño", "ES", 4, "1986"), e("Eusébio", "PT", 4, "1966"),
-      mh ? { name: pName(mh.name, mh.code), code: mh.code, v: mh.v, live: true, tap: mh.name, sub: "2026" } : null,
+      e("Oleg Salenko", "RU", 5, "1994"),
+      e("Ernest Wilimowski", "PL", 4, "1938"), e("Sándor Kocsis", "HU", 4, "1954"), e("Just Fontaine", "FR", 4, "1958"),
+      e("Eusébio", "PT", 4, "1966"), e("Emilio Butragueño", "ES", 4, "1986"),
+      // a 2026 player only joins this list with a genuine record-class haul (4+); a routine hat-trick isn't "most goals in a match"
+      mh && mh.v >= 4 ? { name: pName(mh.name, mh.code), code: mh.code, v: mh.v, live: true, tap: mh.name, sub: "2026" } : null,
     ]),
     card(ICO.trophy, "Most World Cup titles", Infinity, [
       { name: "Brazil", code: "BR", v: 5, sub: "1958–2002" }, { name: "Italy", code: "IT", v: 4, sub: "1934–2006" }, { name: "Germany", code: "DE", v: 4, sub: "1954–2014" },
