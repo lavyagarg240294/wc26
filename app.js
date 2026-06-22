@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "344";  // shown in footer; bump with the ?v= asset version
+const BUILD = "345";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -4312,7 +4312,8 @@ function recordsPanel(s) {
     ]),
     card(ICO.calendar, "Most World Cups played", 5, [
       e("Antonio Carbajal", "MX", 5, "1950–66"), e("Lothar Matthäus", "DE", 5, "1982–98"), e("Rafael Márquez", "MX", 5, "2002–18"),
-      e("Gianluigi Buffon", "IT", 5, "1998–2014"), lt("Lionel Messi", "AR", 5, /messi/i, "2006"), lt("Cristiano Ronaldo", "PT", 5, /ronaldo/i, "2006"),
+      e("Gianluigi Buffon", "IT", 5, "1998–2014"), e("Andrés Guardado", "MX", 5, "2006–22"), e("Guillermo Ochoa", "MX", 5, "2006–22"),
+      lt("Lionel Messi", "AR", 5, /messi/i, "2006"), lt("Cristiano Ronaldo", "PT", 5, /ronaldo/i, "2006"),
     ]),
     card(ICO.net, "Most goals in a single World Cup", 13, [
       e("Just Fontaine", "FR", 13, "1958"), e("Sándor Kocsis", "HU", 11, "1954"), e("Gerd Müller", "DE", 10, "1970"),
@@ -4328,9 +4329,9 @@ function recordsPanel(s) {
     ], { team: true }),
     card(ICO.spark, "Most goals in a match by a player", 5, [
       e("Oleg Salenko", "RU", 5, "1994"),
-      e("Ernest Wilimowski", "PL", 4, "1938"), e("Gustav Wetterström", "SE", 4, "1938"), e("Ademir", "BR", 4, "1950"),
-      e("Sándor Kocsis", "HU", 4, "1954"), e("Just Fontaine", "FR", 4, "1958"), e("Eusébio", "PT", 4, "1966"),
-      e("Emilio Butragueño", "ES", 4, "1986"),
+      e("Ernest Wilimowski", "PL", 4, "1938"), e("Ademir", "BR", 4, "1950"), e("Sándor Kocsis", "HU", 4, "1954"),
+      e("Just Fontaine", "FR", 4, "1958"), e("Eusébio", "PT", 4, "1966"), e("Emilio Butragueño", "ES", 4, "1986"),
+      // NB: Wetterström (1938 vs Cuba) is deliberately omitted — FIFA's official record credits him with a hat-trick (3), not 4
       // a 2026 player only joins this list with a genuine record-class haul (4+); a routine hat-trick isn't "most goals in a match"
       mh && mh.v >= 4 ? { name: pName(mh.name, mh.code), code: mh.code, v: mh.v, live: true, tap: mh.name, sub: "2026" } : null,
     ]),
