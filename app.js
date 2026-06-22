@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "336";  // shown in footer; bump with the ?v= asset version
+const BUILD = "337";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -2798,58 +2798,76 @@ function projectedR32() {
 // per-tie certainty chip. Mounted atop Predict (before the build-your-own editor) AND in Tables (replacing the old
 // collapsed list, build 330). Third-place slots stay TBD until mathematically settled — a board this prominent must
 // never commit to a nation that can still change (the site's zero-error bar).
+// 3-letter codes for the bracket (flag + tricode). Standard FIFA tricodes for the 48.
+const TRI = { MX: "MEX", ZA: "RSA", KR: "KOR", CZ: "CZE", CA: "CAN", BA: "BIH", QA: "QAT", CH: "SUI", BR: "BRA", MA: "MAR", HT: "HAI", "GB-SCT": "SCO", US: "USA", PY: "PAR", AU: "AUS", TR: "TUR", DE: "GER", CW: "CUW", CI: "CIV", EC: "ECU", NL: "NED", JP: "JPN", TN: "TUN", NZ: "NZL", BE: "BEL", EG: "EGY", IR: "IRN", UZ: "UZB", ES: "ESP", CV: "CPV", SA: "KSA", UY: "URU", FR: "FRA", SN: "SEN", IQ: "IRQ", NO: "NOR", AR: "ARG", DZ: "ALG", AT: "AUT", JO: "JOR", PT: "POR", CD: "COD", CO: "COL", SE: "SWE", "GB-ENG": "ENG", HR: "CRO", GH: "GHA", PA: "PAN" };
+const tri = c => TRI[c] || String(c || "").replace("GB-", "").slice(0, 3).toUpperCase();
 function r32SeedInfo(sh) {
-  return /^1[A-L]$/.test(sh) ? { lbl: "Winners · Group " + sh[1], g: sh[1] }
-    : /^2[A-L]$/.test(sh) ? { lbl: "Runners-up · Group " + sh[1], g: sh[1] }
-    : sh.startsWith("3rd") ? { lbl: "Best third place", g: null, third: true }
-    : { lbl: sh || "To be decided", g: null };
+  return /^1[A-L]$/.test(sh) ? { lbl: "Winners · Group " + sh[1], g: sh[1], short: sh }
+    : /^2[A-L]$/.test(sh) ? { lbl: "Runners-up · Group " + sh[1], g: sh[1], short: sh }
+    : sh.startsWith("3rd") ? { lbl: "Best third place", g: null, third: true, short: "3rd" }
+    : { lbl: sh || "To be decided", g: null, short: sh || "?" };
 }
-// per-tie resolution shared by the bracket + the projected-tie sheet: guarded teams (TBD until a third-place slot is
-// mathematically settled), the seed labels, and an honest certainty verdict.
-function r32TieInfo(t) {
+// per-tie resolution for a given mode: "projected" fills every slot with the current projection (incl. best thirds);
+// "confirmed" only shows a team where its exact slot is mathematically locked, else a seed placeholder (e.g. "1A").
+function r32TieInfo(t, mode = "projected") {
   const remOf = g => S.matches.filter(x => x.group === g && status(x) !== ST.FT).length;
   const allGroupsDone = GROUPS.every(g => remOf(g) === 0);
   const sH = r32SeedInfo(t.m.home.short), sA = r32SeedInfo(t.m.away.short);
-  const guard = (code, s) => { const tbd = s.third && !allGroupsDone; return { code: tbd ? null : code, tbd, known: !!(code && !tbd && S.teams[code]) }; };
-  const gh = guard(t.h, sH), ga = guard(t.a, sA);
+  const resolve = (code, s) => {
+    const locked = s.third ? allGroupsDone : (s.g ? remOf(s.g) === 0 : !!code);
+    return code && S.teams[code] && (mode === "projected" || locked) ? { code, known: true } : { code: null, known: false, ph: s.short };
+  };
+  const gh = resolve(t.h, sH), ga = resolve(t.a, sA);
   const rem = (sH.g ? remOf(sH.g) : 0) + (sA.g ? remOf(sA.g) : 0);
   const verdict = ((sH.third || sA.third) && !allGroupsDone) ? { k: "bubble", t: "Spot still open" }
     : (rem === 0 && t.h && t.a) ? { k: "ok", t: "Confirmed" }
     : { k: "games", t: rem + " game" + (rem === 1 ? "" : "s") + " left" };
   return { m: t.m, h: t.h, a: t.a, sH, sA, gh, ga, verdict };
 }
-// group the 16 projected ties into the actual bracket: two halves (one per semi), each with its two quarter-final
-// sections, derived from the fixtures' feed structure — so who's in the same quarter is exact, not assumed.
+// group the 16 ties into the real bracket: halves (per semi) → quarter-final sections → the two round-of-16 pairs
+// inside each quarter (the matches whose winners meet next). All from the fixtures' feed chain.
 function r32Bracket() {
   const byNum = {}; S.matches.forEach(x => byNum[x.num] = x);
   const feedsTo = {}; S.matches.forEach(m => ["home", "away"].forEach(s => { if (m[s] && m[s].feeds) feedsTo[m[s].feeds] = m.num; }));
   const traceTo = (num, stage) => { let n = num; for (let i = 0; i < 6; i++) { const nx = feedsTo[n]; if (nx == null) return null; if (byNum[nx] && byNum[nx].stage === stage) return nx; n = nx; } return null; };
-  const groups = {};
-  for (const t of projectedR32()) { const qf = traceTo(t.m.num, "qf"); (groups[qf] ||= { qf, sf: traceTo(t.m.num, "sf"), ties: [] }).ties.push(t); }
-  const list = Object.values(groups); list.forEach(g => g.ties.sort((a, b) => a.m.num - b.m.num));
+  const qfs = {};
+  for (const t of projectedR32()) {
+    const qf = traceTo(t.m.num, "qf"), r16 = traceTo(t.m.num, "r16");
+    const g = (qfs[qf] ||= { qf, sf: traceTo(t.m.num, "sf"), r16: {} });
+    (g.r16[r16] ||= []).push(t);
+  }
+  const list = Object.values(qfs);
+  list.forEach(g => g.pairs = Object.entries(g.r16).map(([n, ties]) => ({ r16: +n, ties: ties.sort((a, b) => a.m.num - b.m.num) })).sort((a, b) => a.r16 - b.r16));
   const sfs = [...new Set(list.map(g => g.sf))].filter(x => x != null).sort((a, b) => a - b);
   const half = sf => list.filter(g => g.sf === sf).sort((a, b) => a.qf - b.qf);
   return { left: half(sfs[0]), right: half(sfs[1]) };
 }
-// the split-bracket "Round of 32 — as it stands": two halves flanking a central trophy, flags-only ties that open the
-// projected-tie sheet (full names, venue, projection, past meetings). Replaces the old 16-row board (build 336).
+let _r32Mode = "projected";   // "projected" (fill all slots) | "confirmed" (only mathematically-locked teams)
+// the split-bracket: two halves flanking a central trophy; flag + 3-letter code per side, no boxes; the two ties in
+// each quarter that meet in the round of 16 are bracketed together. Toggle Projected (fill all) / Confirmed (locked).
 function r32BracketHTML() {
   const anyPlayed = S.matches.some(m => m.group && status(m) === ST.FT && res(m)?.h != null);
   if (!anyPlayed) return "";
   const { left, right } = r32Bracket();
+  const sideEl = g => g.known
+    ? `<span class="rb-side">${flag(g.code)}<b class="rb-tri">${tri(g.code)}</b></span>`
+    : `<span class="rb-side rb-side-ph"><b class="rb-tri">${esc(g.ph)}</b></span>`;
   const tieEl = t => {
-    const info = r32TieInfo(t);
-    const fl = g => g.known ? `<span class="rb-fl">${flag(g.code)}</span>` : `<span class="rb-fl rb-tbd">?</span>`;
-    return `<button class="rb-tie rb-${info.verdict.k}" data-projtie="${t.m.id}" title="Match ${t.m.num} — tap for details" aria-label="Match ${t.m.num}">${fl(info.gh)}<span class="rb-v">v</span>${fl(info.ga)}</button>`;
+    const info = r32TieInfo(t, _r32Mode);
+    const nm = g => g.known ? S.teams[g.code].name : g.ph;
+    return `<button class="rb-tie" data-projtie="${t.m.id}" aria-label="${esc(nm(info.gh) + " v " + nm(info.ga))} — Round of 32 tie">${sideEl(info.gh)}<span class="rb-v">v</span>${sideEl(info.ga)}</button>`;
   };
-  const qfBlock = (g, i) => `<div class="rb-qf"><span class="rb-qf-lbl">Quarter-final ${i}</span>${g.ties.map(tieEl).join("")}</div>`;
-  const col = (groups, s) => `<div class="rb-col">${groups.map((g, k) => qfBlock(g, s + k)).join("")}</div>`;
+  const pair = p => `<div class="rb-r16">${p.ties.map(tieEl).join("")}</div>`;
+  const qfBlock = (g, i) => `<div class="rb-qf"><span class="rb-qf-lbl">Quarter-final ${i}</span>${g.pairs.map(pair).join("")}</div>`;
+  const col = (groups, side, s) => `<div class="rb-col rb-col-${side}">${groups.map((g, k) => qfBlock(g, s + k)).join("")}</div>`;
   const spine = `<div class="rb-spine"><span class="rb-line"></span><span class="rb-trophy">${ICO.trophy}</span><span class="rb-final">Final</span><span class="rb-line"></span></div>`;
+  const toggle = `<div class="rb-toggle" role="group" aria-label="Bracket fill">
+    <button class="rb-seg${_r32Mode === "projected" ? " on" : ""}" data-r32mode="projected">Projected</button>
+    <button class="rb-seg${_r32Mode === "confirmed" ? " on" : ""}" data-r32mode="confirmed">Confirmed</button></div>`;
   return `<section class="r32br">
-    <div class="r32board-head"><span class="r32board-eyebrow"><span class="r32board-dot"></span>Round of 32 — the road to the final</span>
-      <p class="r32board-sub">if the groups ended today · tap a tie for names, venue &amp; past meetings</p></div>
-    <div class="r32br-grid">${col(left, 1)}${spine}${col(right, 3)}</div>
-    <div class="r32board-foot"><span>The two halves of the draw — winners flow inward to the final.</span>
+    <div class="r32board-head"><span class="r32board-eyebrow"><span class="r32board-dot"></span>Round of 32 — the road to the final</span>${toggle}</div>
+    <div class="r32br-grid">${col(left, "l", 1)}${spine}${col(right, "r", 3)}</div>
+    <div class="r32board-foot"><span>${_r32Mode === "projected" ? "Filled from the live standings — tap a tie for names, venue &amp; past meetings." : "Only mathematically-locked teams shown — the rest stay as seed slots."}</span>
       <button class="r32board-cta" data-sim-edit>Make your own picks ${ICO.tap}</button></div>
   </section>`;
 }
@@ -2875,7 +2893,7 @@ function wcH2HBlock(a, b) {
 // (when both teams are known) and the historical World Cup head-to-head.
 async function openProjTie(id) {
   const t = projectedR32().find(x => x.m.id === id); if (!t) return;
-  const info = r32TieInfo(t), m = t.m;
+  const info = r32TieInfo(t, "projected"), m = t.m;
   await loadWcH2H();
   const teamHdr = (g, s) => `<div class="pt-team">
       <span class="pt-fl">${g.known ? flag(g.code) : `<span class="rb-tbd pt-tbd">?</span>`}</span>
@@ -2885,7 +2903,7 @@ async function openProjTie(id) {
   const odds = both ? winProbBlock({ ...m, home: { team: info.gh.code }, away: { team: info.ga.code } }, true) : "";
   const h2h = both ? wcH2HBlock(info.gh.code, info.ga.code) : "";
   const meta = `<div class="md-meta"><span>${fmt(m.utc, { weekday: "long", day: "numeric", month: "long" })}</span><span>${timeStr(m.utc)}</span><span>${esc(m.stadium)}</span><span>${esc(m.city)}</span></div>`;
-  $("#projTitle").innerHTML = `<span class="md-stage">Round of 32 · Match ${m.num}</span>`;
+  $("#projTitle").innerHTML = `<span class="md-stage">Round of 32 — projected tie</span>`;
   $("#projBody").innerHTML = `<div class="pt-tagrow"><span class="r32-chip r32-chip-${info.verdict.k}">${info.verdict.t}</span></div>
     <div class="pt-teams">${teamHdr(info.gh, info.sH)}<span class="pt-v">v</span>${teamHdr(info.ga, info.sA)}</div>
     ${meta}${odds}${h2h}
@@ -4953,6 +4971,8 @@ async function boot() {
     if (w22) { openWc2022(); return; }
     const hl = e.target.closest("[data-hero-live]");   // the Matches hero → open the match modal (Live folded into it, build 329)
     if (hl) { openMatch(hl.dataset.heroLive); return; }
+    const rm = e.target.closest("[data-r32mode]");   // bracket Projected/Confirmed toggle
+    if (rm) { _r32Mode = rm.dataset.r32mode; RENDER[S.view](); return; }
     const pjt = e.target.closest("[data-projtie]");   // a bracket tie → the projected-tie sheet (names, venue, odds, head-to-head)
     if (pjt) { openProjTie(pjt.dataset.projtie); return; }
     const se = e.target.closest("[data-sim-edit]");   // "Make your own picks" / "Build your own bracket" → open the predictor editor
