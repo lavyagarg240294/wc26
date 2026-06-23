@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "350";  // shown in footer; bump with the ?v= asset version
+const BUILD = "351";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -4069,7 +4069,7 @@ function tournamentStats() {
   const sig = S.matches.reduce((s, m) => { const r = res(m), st = status(m); if (r?.h == null) return s; if (isFinalSt(st)) return s + `${m.num}:${r.h}-${r.a}:${(r.ev || []).length}:${r.stats ? 1 : 0};`; if (st === ST.LIVE || st === ST.HT) return s + `${m.num}L:${r.h}-${r.a}:${(r.ev || []).length};`; return s; }, "");
   if (_tsCache && _tsSig === sig) return _tsCache;
   const fts = S.matches.filter(m => isFinalSt(status(m)) && res(m)?.h != null);
-  const gf = {}, ga = {}, poss = {}, possN = {}, sot = {}, sotN = {}, yel = {}, red = {}, played = {}, scorers = {}, assists = {}, pyel = {}, pred = {}, cs = {}, conf = {}, keepers = {}, tstat = {}, statN = {};
+  const gf = {}, ga = {}, poss = {}, possN = {}, sot = {}, sotN = {}, yel = {}, red = {}, played = {}, scorers = {}, assists = {}, pyel = {}, pred = {}, cs = {}, conf = {}, keepers = {}, tstat = {}, statN = {}, cardLog = {};
   const TSTAT_KEYS = ["sh", "pass", "passT", "cross", "lball", "tkl", "intc", "clr", "blk", "sv", "off", "fls"];   // richer ESPN team stats → leaderboards + style
   let goals = 0, totYellow = 0, totRed = 0, totPen = 0, totOg = 0, totSot = 0;
   const rec = { bigWin: null, hiScore: null, fastG: null, lateG: null, hiDraw: null, topMatch: null, mostCards: null, mostTackles: null, bestDef: null };
@@ -4118,8 +4118,8 @@ function tournamentStats() {
           if (!rec.lateG || mn > rec.lateG.mn) rec.lateG = { name: sc, code: tc, t: e.t, mn, mid: m.id };
         }
       }
-      if (e.k === "Y") { add(yel, tc); totYellow++; mYellow++; if (e.p) add(pyel, (resolvePlayer(e.p, tc, e.n)?.name || e.p) + "\t" + tc); }
-      else if (e.k === "R") { add(red, tc); totRed++; mRed++; if (e.p) add(pred, (resolvePlayer(e.p, tc, e.n)?.name || e.p) + "\t" + tc); }
+      if (e.k === "Y") { add(yel, tc); totYellow++; mYellow++; if (e.p) { const pk = (resolvePlayer(e.p, tc, e.n)?.name || e.p) + "\t" + tc; add(pyel, pk); (cardLog[pk] ||= []).push({ ko: m.utc, k: "Y" }); } }
+      else if (e.k === "R") { add(red, tc); totRed++; mRed++; if (e.p) { const pk = (resolvePlayer(e.p, tc, e.n)?.name || e.p) + "\t" + tc; add(pred, pk); (cardLog[pk] ||= []).push({ ko: m.utc, k: "R" }); } }
     }
     // per-match superlatives
     if (r.h === r.a && (r.h + r.a) > 0 && (!rec.hiDraw || (r.h + r.a) > rec.hiDraw.total))
@@ -4172,6 +4172,27 @@ function tournamentStats() {
   const cardList = [...new Set([...Object.keys(yel), ...Object.keys(red)])]
     .map(c => ({ code: c, y: yel[c] || 0, r: red[c] || 0, v: (yel[c] || 0) + (red[c] || 0) }))
     .sort((a, b) => b.v - a.v || b.r - a.r);
+  // suspension watch (accurate): a red, or every second yellow, earns a one-match ban - but the ban CLEARS once the
+  // player's team has played the next match, so a card never lingers here all tournament. For each booked player we
+  // find their latest ban-trigger (a red, or their 2nd/4th… cumulative yellow) and keep them only if their team's
+  // next match after it hasn't been played yet. (Counts come from finished matches, so a fresh card settles at FT.)
+  const teamSched = {};
+  for (const mm of S.matches) {
+    const ko = mm.utc, done = isFeedFinal(mm), h2 = slotInfo(mm, "home").code, a2 = slotInfo(mm, "away").code;
+    if (h2) (teamSched[h2] ||= []).push({ ko, done });
+    if (a2) (teamSched[a2] ||= []).push({ ko, done });
+  }
+  for (const c in teamSched) teamSched[c].sort((x, z) => (x.ko < z.ko ? -1 : x.ko > z.ko ? 1 : 0));
+  const suspendedList = [];
+  for (const pk in cardLog) {
+    const evs = cardLog[pk].slice().sort((x, z) => (x.ko < z.ko ? -1 : x.ko > z.ko ? 1 : 0));
+    let yc = 0, trigKo = null, reason = null;
+    for (const e of evs) { if (e.k === "R") { trigKo = e.ko; reason = "red"; } else if (++yc % 2 === 0) { trigKo = e.ko; reason = "yellows"; } }
+    if (!trigKo) continue;   // a single yellow is not a ban
+    const [name, code] = split(pk);
+    const next = (teamSched[code] || []).find(x => x.ko > trigKo);
+    if (next && !next.done) suspendedList.push({ name, code, reason });
+  }
   // team metrics are per-match (like FotMob) so a team that's played fewer games isn't ranked unfairly
   const perMatch = (tot, n) => Object.keys(tot).map(c => ({ code: c, v: tot[c] / (n[c] || 1) }));
   const pmT = fn => Object.keys(statN).map(c => ({ code: c, v: fn(c) / statN[c] })).sort((a, b) => b.v - a.v);   // per-game over teams with team-stats
@@ -4179,7 +4200,7 @@ function tournamentStats() {
   const _out = {
     pulse: { goals, matches: fts.length, perMatch: fts.length ? goals / fts.length : 0, yellows: totYellow, reds: totRed, pens: totPen, og: totOg, sot: totSot },
     records: rec,
-    scorers: scorerList, assisters: assistList, booked: bookedList,
+    scorers: scorerList, assisters: assistList, booked: bookedList, suspended: suspendedList,
     teamCards: cardList,
     // FIFA fair-play points (a real group tiebreaker): −1 per yellow, −3 per red (we can't tell a
     // second-yellow from a straight red, so reds are flat −3). Ranked cleanest-first across played teams.
@@ -4398,15 +4419,15 @@ function renderStats() {
   const bookedRow = (p, rank) => playerRow(p, rank, `<span class="card-tally">${p.y ? `<span class="ct ct-y">${p.y}</span>` : ""}${p.r ? `<span class="ct ct-r">${p.r}</span>` : ""}</span>`);
   // map a leaderboard to HTML with competition ranks. rowFn(item, rank, index); rows with an equal keyOf share a rank.
   const ranked = (rows, rowFn, keyOf) => { const rk = compRanks(rows, keyOf); return rows.map((x, i) => rowFn(x, rk[i], i)).join(""); };
-  // suspension watch: a red card or an accumulated 2nd yellow = a one-match ban. We list only players who will
-  // actually miss their next game - a lone yellow is far too common to flag (and the count is arbitrary).
+  // suspension watch: only players carrying an UNSERVED ban. A red, or every second yellow, is a one-match ban;
+  // crucially it clears the moment the player's team has played the next match, so a card never lingers here for
+  // the rest of the tournament (the accurate list, computed against the team schedule, is s.suspended).
   const suspRow = p => { const ph = bestPhoto(p.name, p.code); return `<div class="lead-row lead-player" data-player="${esc(p.name)}|${p.code}" role="button" tabindex="0">
     ${ph ? `<span class="lead-face" style="background-image:url('${ph}')"></span>` : `<span class="fl">${flag(p.code)}</span>`}
     <span class="lead-name">${esc(pName(p.name, p.code))}<small>${flag(p.code)} ${tname(p.code)}</small></span>
-    <span class="susp-tag is-ban">${p.r > 0 ? "Sent off: banned" : "2 yellows: banned"}</span></div>`; };
-  const suspended = s.booked.filter(p => p.r > 0 || p.y >= 2);
-  const suspHtml = suspended.length
-    ? `<div class="lead-card"><h4>Suspension watch <small>out of their next match</small></h4>${suspended.map(suspRow).join("")}</div>` : "";
+    <span class="susp-tag is-ban">${p.reason === "red" ? "Sent off: banned" : "Two yellows: banned"}</span></div>`; };
+  const suspHtml = s.suspended.length
+    ? `<div class="lead-card"><h4>Suspension watch <small>banned from their next match</small></h4>${s.suspended.map(suspRow).join("")}</div>` : "";
   const teamLead = (title, rows, fmt) => rows.length ? `<div class="lead-card"><h4>${title}</h4>${ranked(rows.slice(0, 5), (x, rank) => `<div class="lead-row" data-squad="${x.code}" role="button" tabindex="0">
     <span class="lead-rank">${rank}</span><span class="fl">${flag(x.code)}</span><span class="lead-name">${tname(x.code)}</span>
     <span class="lead-v">${fmt(x)}</span></div>`, fmt)}</div>` : "";
@@ -4453,8 +4474,9 @@ function renderStats() {
 
   // sections behind a segmented sub-nav so the tab grows down (not into one endless scroll)
   // discipline is split by subject: player bookings/suspensions go under Players, team cards/fair-play under Teams
-  const bookedCard = s.booked.length ? `<div class="lead-card"><h4>Booked players</h4>${ranked(s.booked.slice(0, 8), bookedRow, p => p.r + "," + p.y)}</div>` : "";
-  const playerDisc = (suspHtml || bookedCard) ? `<div class="eyebrow">Discipline</div><div class="lead-grid">${suspHtml}${bookedCard}</div>` : "";
+  const discInfo = infoBtn("Yellow and red cards shown in this tournament. A yellow is a booking (a caution); a straight red, or a second yellow in the same match, is a sending-off. A player misses the next match after a red, or after collecting two yellows in separate games - that shows under Suspension watch and clears the moment the ban is served. Single yellows are wiped after the quarter-finals. Tallies settle at full-time.", "How bookings & bans work");
+  const bookedCard = s.booked.length ? `<div class="lead-card"><h4>Booked players <small>yellow &amp; red cards</small></h4>${ranked(s.booked.slice(0, 8), bookedRow, p => p.r + "," + p.y)}</div>` : "";
+  const playerDisc = (suspHtml || bookedCard) ? `<div class="eyebrow">Discipline ${discInfo}</div><div class="lead-grid">${suspHtml}${bookedCard}</div>` : "";
   const teamDisc = (cardLead || fairLead) ? `<div class="eyebrow">Discipline</div><div class="lead-grid">${cardLead}${fairLead}</div>${s.fairPlay.length ? `<p class="sim-ko-hint">Fair play points (−1 a yellow, −3 a red) are a real group tiebreaker; fewer is cleaner. A red or second yellow also means a one-match ban (single yellows clear after the quarter-finals).</p>` : ""}` : "";
   const sections = [
     ["overview", "Overview", `<div class="eyebrow">Tournament so far</div><div class="stat-tiles">
