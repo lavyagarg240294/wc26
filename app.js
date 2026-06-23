@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "352";  // shown in footer; bump with the ?v= asset version
+const BUILD = "353";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -351,8 +351,10 @@ function status(m) {
     // the loop lagged/stopped, OR the game was suspended/abandoned and the feed froze. We can't tell which from a frozen
     // row, so we coerce it OUT of "live" (the hero stops pulsing it) but mark it UNCONFIRMED (see isUnconfirmedFinal) -
     // never asserting a clean full-time score on a guess. An explicit abnormal state is trusted as-is and shown honestly.
-    const mins = (Date.now() - +new Date(m.utc)) / 60000;
-    if ((r.st === ST.LIVE && mins > (m.stage === "group" ? 125 : 160)) || (r.st === ST.HT && mins > 90)) return ST.FT;
+    const mins = (Date.now() - +new Date(m.utc)) / 60000, ko = m.stage !== "group";
+    // a knockout can legitimately run far past 90' - extra time + a penalty shootout push real elapsed past ~170 min -
+    // so the "stuck feed" caps are much higher for knockouts, and the HT cap clears any extra-time half-time break too.
+    if ((r.st === ST.LIVE && mins > (ko ? 215 : 125)) || (r.st === ST.HT && mins > (ko ? 200 : 90))) return ST.FT;
     return r.st;
   }
   // no feed row yet (only before the very first Action run): best-effort from the scheduled time
@@ -370,11 +372,21 @@ const isUnconfirmedFinal = m => { const r = res(m); return status(m) === ST.FT &
 // live match clock: exact minute from the feed if present, else an estimate from kickoff
 // (the free feed often only flags "live" with no minute). Estimate allows for a 15′ half-time.
 function clockStr(m, r) {
-  if (r && r.min != null) return r.min + "′";
+  if (r && r.min != null) return String(r.min).replace(/\s+/g, "") + "′";   // feed clock verbatim - stoppage + extra time preserved ("45+2", "90+4", "105+1")
   const real = Math.floor((Date.now() - new Date(m.utc).getTime()) / 60000);
   if (real < 0) return "";
   const est = real <= 45 ? real : Math.max(46, real - 15);
   return (est >= 90 ? "90+" : est) + "′";
+}
+// the base minute the feed is counting, ignoring stoppage: "90+4" -> 90, "105" -> 105 (null if there's no feed minute)
+const liveBaseMin = r => { const x = r && r.min != null ? String(r.min).match(/\d+/) : null; return x ? +x[0] : null; };
+// a live knockout penalty shootout: pen scores present, on a level scoreline, while the game is still live
+const inShootout = (m, r) => m.stage !== "group" && !!r && r.hp != null && r.ap != null && r.h === r.a && isLiveSt(r.st);
+// concise live-phase text for badges/chips: stoppage preserved, extra time + shootout labelled honestly
+function liveLabel(m, r) {
+  if (inShootout(m, r)) return `Pens ${r.hp}–${r.ap}`;
+  const c = clockStr(m, r);
+  return (m.stage !== "group" && (liveBaseMin(r) ?? 0) > 90) ? `ET ${c}` : c;   // >90 base only happens in extra time (stoppage keeps the base at 45/90)
 }
 const remInGroup = g => S.matches.filter(m => m.group === g && !isFeedFinal(m)).length;   // not yet a confirmed result (incl. live/suspended/postponed)
 function slotInfo(m, side) {
@@ -776,7 +788,7 @@ function matchCard(m, i, opts = {}) {
   const sh = r?.h ?? 0, sa = r?.a ?? 0;   // display score - a live match with no goal data shows 0–0
   const winH = score && fin && (r.h > r.a || (r.h === r.a && (r.hp ?? -1) > (r.ap ?? -1)));   // crown a winner only on a confirmed result, never a partial/provisional one
   const winA = score && fin && (r.a > r.h || (r.h === r.a && (r.ap ?? -1) > (r.hp ?? -1)));
-  const badge = st === ST.LIVE ? `<span class="badge live">${clockStr(m, r) || "Live"}</span>`
+  const badge = st === ST.LIVE ? `<span class="badge live">${liveLabel(m, r) || "Live"}</span>`
     : st === ST.HT ? `<span class="badge live">HT</span>`
     : unconf ? `<span class="badge abn" title="The feed stopped updating before full-time - result not yet confirmed">TBC</span>`
     : st === ST.FT ? `<span class="badge ft">FT</span>`
@@ -1366,7 +1378,7 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
   const score = r && r.h != null;
   const stageL = m.group ? `Group ${m.group}` : m.stage === "third" ? "3rd place" : m.round;
   const sv = isSaved(id);
-  const statusTag = st === ST.LIVE ? `<span class="md-tag live">● Live ${clockStr(m, r)}</span>`
+  const statusTag = st === ST.LIVE ? `<span class="md-tag live">● ${liveLabel(m, r) || "Live"}</span>`
     : st === ST.HT ? `<span class="md-tag live">Half-time</span>`
     : unconf ? `<span class="md-tag abn">Result to be confirmed</span>`
     : st === ST.FT ? `<span class="md-tag ft">Full time</span>`
@@ -1475,7 +1487,7 @@ function heroBlock(heroM, isLive, onLive) {
       <div class="hero-side"><span class="hero-flag">${h.code ? flag(h.code) : TBD_FLAG}</span><span class="hero-name">${esc(h.name)}</span></div>
       <div class="hero-mid">${live || result
         ? `<span class="hero-score">${r?.h ?? 0}–${r?.a ?? 0}</span>${live
-            ? `<span class="hero-livechip">${r?.st === ST.HT ? "Half-time" : (clockStr(heroM, r) || "Live")}</span>`
+            ? `<span class="hero-livechip">${r?.st === ST.HT ? "Half-time" : (liveLabel(heroM, r) || "Live")}</span>`
             : (r?.hp != null ? `<span class="hero-pens">${r.hp}–${r.ap} pens</span>` : "")}`
         : `<span class="hero-vs">VS</span>`}</div>
       <div class="hero-side"><span class="hero-flag">${a.code ? flag(a.code) : TBD_FLAG}</span><span class="hero-name">${esc(a.name)}</span></div>

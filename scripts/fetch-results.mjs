@@ -24,6 +24,9 @@ const UA = "Mozilla/5.0 (compatible; wc26-bot/1.0; +https://github.com/lavyagarg
 const loc = v => Array.isArray(v) ? (v[0]?.Description || "") : (typeof v === "string" ? v : "");
 // "90'+8'" -> 90.08 (sort key that keeps stoppage time after the base minute)
 const minKey = s => { const m = String(s || "").match(/(\d+)(?:'?\+(\d+))?/); return m ? Number(m[1]) + (m[2] ? Number(m[2]) / 100 : 0) : 0; };
+// the live match clock as the feed counts it, PRESERVING stoppage + extra time: "45'+2'" -> "45+2", "90'+3'" -> "90+3",
+// "67'" -> "67", "105'+1'" -> "105+1", "120'" -> "120". Returns null for non-numeric inputs ("HT", "").
+const liveClock = s => { const m = String(s ?? "").match(/(\d{1,3})(?:\D*?\+\s*(\d{1,2}))?/); return m ? (m[2] ? `${m[1]}+${m[2]}` : m[1]) : null; };
 
 /* ---------------- primary: api.fifa.com ---------------- */
 const FIFA = "https://api.fifa.com/api/v3";
@@ -242,8 +245,7 @@ async function fromFifa(prev, needsPhotos) {
       if (Number.isFinite(as)) entry.a = as;
       if (Number.isFinite(hps)) entry.hp = hps;
       if (Number.isFinite(aps)) entry.ap = aps;
-      const mt = parseInt(x.MatchTime, 10);
-      if ((st === "LIVE" || st === "HT") && Number.isFinite(mt)) entry.min = mt;   // a minute is only meaningful while live
+      if (st === "LIVE" || st === "HT") { const mc = liveClock(x.MatchTime); if (mc) entry.min = mc; }   // keep the feed's clock verbatim - stoppage + extra time included ("45+2", "90+4", "105+1")
     }
     if (f.stage !== "group") {                      // resolve knockout teams for the bracket (carry feed orientation)
       if (x.Home?.IdCountry && toOur[x.Home.IdCountry]) entry.ht = toOur[x.Home.IdCountry];
@@ -337,8 +339,8 @@ async function fromWorldCup26() {
       const h = parseInt(g.home_score, 10), a = parseInt(g.away_score, 10);
       if (Number.isFinite(h)) entry.h = h;
       if (Number.isFinite(a)) entry.a = a;
-      const min = parseInt(g.time_elapsed, 10);
-      if (Number.isFinite(min)) entry.min = min;
+      const mc = liveClock(g.time_elapsed);
+      if (mc) entry.min = mc;   // preserve stoppage ("90+2") rather than truncating to the base minute
       const gh = parseScorers(g.home_scorers), ga = parseScorers(g.away_scorers);
       if (gh.length) entry.gh = gh;
       if (ga.length) entry.ga = ga;
