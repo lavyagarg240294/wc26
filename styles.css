@@ -1188,8 +1188,6 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .sim-back{flex:0 0 auto;display:inline-flex;align-items:center;gap:3px;padding:8px 14px;border-radius:99px;border:1px solid var(--line);background:var(--card);font-weight:700;font-size:13px;color:var(--ink-soft);cursor:pointer;transition:all .15s}
 .sim-back:hover{border-color:var(--acc-text);color:var(--acc-text)}
 .sim-edname{font-family:var(--disp);font-weight:800;font-stretch:110%;font-size:17px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.srow.just-moved{animation:swapUp .35s cubic-bezier(.2,.9,.3,1.3)}
-@keyframes swapUp{0%{transform:translateY(14px);opacity:.4}100%{transform:none;opacity:1}}
 .thirds{display:flex;flex-wrap:wrap;gap:8px}
 .tchip{display:flex;align-items:center;gap:7px;padding:9px 13px;border-radius:99px;border:1.5px solid var(--line);background:var(--card);font-size:13px;font-weight:600;transition:all .18s}
 .tchip .gl{font-family:var(--mono);font-size:10px;color:var(--ink-soft)}

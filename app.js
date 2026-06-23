@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "347";  // shown in footer; bump with the ?v= asset version
+const BUILD = "348";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -3031,7 +3031,7 @@ function renderGroups() {
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const prev = {};                                          // capture row positions for a FLIP when standings reorder
   if (!reduce) el.querySelectorAll("tr[data-code]").forEach(tr => prev[tr.dataset.g + tr.dataset.code] = tr.getBoundingClientRect().top);
-  el.innerHTML = viewH2("view-groups") + html;
+  paint(el, html);   // morph (not innerHTML replace) so a Projected/Confirmed toggle updates only what changed - no entrance-animation replay, no scroll jump
   if (!reduce && Object.keys(prev).length) el.querySelectorAll("tr[data-code]").forEach(tr => {
     const old = prev[tr.dataset.g + tr.dataset.code]; if (old == null) return;
     const dy = old - tr.getBoundingClientRect().top;
@@ -3782,10 +3782,10 @@ function renderSimDash() {
       </div>
     </div>`;
   };
-  el.innerHTML = viewH2("view-sim") + r32BracketHTML() + `
+  paint(el, r32BracketHTML() + `
     <div class="pdash-sep"><span>Build your own</span></div>
     <p class="pdash-intro">${ICO.spark} Keep up to three scenarios - a gut pick, the favourites, a wildcard. Tap one to build it, all the way to a champion. Saved on this device.</p>
-    <div class="pdash">${S.simBox.slots.map(card).join("")}</div>`;
+    <div class="pdash">${S.simBox.slots.map(card).join("")}</div>`);   // morph, so the Projected/Confirmed toggle doesn't re-animate the dash
   $$("[data-slot-open]", el).forEach(b => b.onclick = () => { setActiveSlot(+b.dataset.slotOpen); S.simView = "edit"; renderSim(); window.scrollTo(0, 0); });   // a freshly opened scenario starts at the top, not the dash's scroll position
   $$("[data-slot-rename]", el).forEach(b => b.onclick = async () => {
     const i = +b.dataset.slotRename, cur = S.simBox.slots[i];
@@ -3853,7 +3853,7 @@ function renderSimEditor() {
   // re-renders. The intro + actions sit at the BOTTOM so the steps and bracket get the top of the page.
   const stepOpen = id => firstRender ? id === "simStep3" : openSteps.has(id);
   const step = (id, head, body) => `<details class="sim-step" id="${id}"${stepOpen(id) ? " open" : ""}><summary class="eyebrow">${head}<span class="sim-chev" aria-hidden="true">▾</span></summary><div class="sim-step-body">${body}</div></details>`;
-  el.innerHTML = viewH2("view-sim") + `
+  paint(el, `
     <div class="sim-edhead">
       <button class="sim-back" id="simBack" aria-label="Back to your scenarios">‹ Scenarios</button>
       <span class="sim-edname">${esc(S.simBox.slots[S.simBox.active].name)}</span>
@@ -3876,7 +3876,7 @@ function renderSimEditor() {
       <button class="btn ghost" id="simShuffle"><span class="b-lg">Shuffle it all</span><span class="b-sm">Shuffle</span></button>
       <button class="btn ghost" id="simReset"><span class="b-lg">Start over</span><span class="b-sm">Reset</span></button>
       ${champ ? "" : `<button class="btn" id="simShare">${ICO.link} Share prediction</button>`}
-    </div>`;
+    </div>`);   // morph instead of innerHTML: reordering a group / picking a third updates only those rows - no jerk, no scroll reset
 
   $("#simBack").onclick = () => { S.simView = "dash"; renderSim(); };
   $("#simFill").onclick = () => { S.sim.order = {}; S.sim.thirds = []; seedSimThirds(); pruneSim(); saveSim(); renderSim(); flashToast("Filled from current standings"); };
@@ -3892,9 +3892,7 @@ function renderSimEditor() {
     [o[j], o[i]] = [o[i], o[j]];
     // moved team may no longer be the group's third → drop stale third picks
     S.sim.thirds = S.sim.thirds.filter(c => simOrder(groupOf(c))[2] === c);
-    pruneSim(); saveSim(); renderSim();
-    const row = $$(`.sgroup [data-g="${g}"] .up`, el).find(x => +x.dataset.i === j)?.closest(".srow");
-    row?.classList.add("just-moved");
+    pruneSim(); saveSim(); renderSim();   // morph updates the two rows' contents in place - a clean instant swap, no slide animation
   });
   // wire: thirds
   $$("[data-third]", el).forEach(b => b.onclick = () => {
@@ -3941,8 +3939,8 @@ function renderSimEditor() {
   };
   $("#simReset").onclick = () => { S.sim.order = {}; S.sim.thirds = []; S.sim.ko = {}; seedSimThirds(); saveSim(); renderSim(); };
   $("#simShare").onclick = sharePrediction;
-  $("#simShareImg")?.addEventListener("click", () => shareChampionImage(S.sim.ko[104]));
-  $("#simShareBracket")?.addEventListener("click", shareBracketImage);
+  const _ssImg = $("#simShareImg"); if (_ssImg) _ssImg.onclick = () => shareChampionImage(S.sim.ko[104]);   // .onclick (not addEventListener) so a morph re-render never stacks a 2nd handler
+  const _ssBr = $("#simShareBracket"); if (_ssBr) _ssBr.onclick = shareBracketImage;
   window.scrollTo(0, keepY);   // the innerHTML rebuild resets scroll - restore where the user was
 }
 // ---- Predict step 3: the interactive converging knockout bracket (Option A) ----
