@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "351";  // shown in footer; bump with the ?v= asset version
+const BUILD = "352";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -4202,10 +4202,6 @@ function tournamentStats() {
     records: rec,
     scorers: scorerList, assisters: assistList, booked: bookedList, suspended: suspendedList,
     teamCards: cardList,
-    // FIFA fair-play points (a real group tiebreaker): −1 per yellow, −3 per red (we can't tell a
-    // second-yellow from a straight red, so reds are flat −3). Ranked cleanest-first across played teams.
-    fairPlay: Object.keys(played).map(c => ({ code: c, y: yel[c] || 0, r: red[c] || 0, pts: (yel[c] || 0) + (red[c] || 0) * 3 }))
-      .sort((a, b) => a.pts - b.pts || a.y - b.y || a.code.localeCompare(b.code)),
     teamScored: perMatch(gf, played).sort((a, b) => b.v - a.v),
     teamConceded: perMatch(ga, played).sort((a, b) => a.v - b.v),
     cleanSheets: Object.entries(cs).map(([code, v]) => ({ code, v })).sort((a, b) => b.v - a.v),
@@ -4432,10 +4428,7 @@ function renderStats() {
     <span class="lead-rank">${rank}</span><span class="fl">${flag(x.code)}</span><span class="lead-name">${tname(x.code)}</span>
     <span class="lead-v">${fmt(x)}</span></div>`, fmt)}</div>` : "";
   const perGame = x => `${x.v.toFixed(1)}<small>/ match</small>`;
-  const fairLead = s.fairPlay.length ? `<div class="lead-card"><h4>Fair play <small>−1 per yellow, −3 per red · fewer is cleaner</small></h4>${ranked(s.fairPlay.slice(0, 5), (x, rank, i) => `<div class="lead-row ${rank === 1 ? "lead-fair-top" : ""}" data-squad="${x.code}" role="button" tabindex="0">
-    <span class="lead-rank">${rank}</span><span class="fl">${flag(x.code)}</span><span class="lead-name">${tname(x.code)}</span>
-    <span class="lead-v">${x.pts}<small>pts</small></span></div>`, x => x.pts)}</div>` : "";
-  const cardLead = s.teamCards.length ? `<div class="lead-card"><h4>Team cards</h4>${ranked(s.teamCards.slice(0, 5), (x, rank) => `<div class="lead-row" data-squad="${x.code}" role="button" tabindex="0">
+  const cardLead = s.teamCards.length ? `<div class="lead-card"><h4>Team cards <small>yellow &amp; red cards</small></h4>${ranked(s.teamCards.slice(0, 5), (x, rank) => `<div class="lead-row" data-squad="${x.code}" role="button" tabindex="0">
     <span class="lead-rank">${rank}</span><span class="fl">${flag(x.code)}</span><span class="lead-name">${tname(x.code)}</span>
     <span class="lead-v card-tally"><span class="ct ct-y" title="${x.y} yellow">${x.y}</span><span class="ct ct-r" title="${x.r} red">${x.r}</span></span></div>`, x => x.v)}</div>` : "";
 
@@ -4477,7 +4470,7 @@ function renderStats() {
   const discInfo = infoBtn("Yellow and red cards shown in this tournament. A yellow is a booking (a caution); a straight red, or a second yellow in the same match, is a sending-off. A player misses the next match after a red, or after collecting two yellows in separate games - that shows under Suspension watch and clears the moment the ban is served. Single yellows are wiped after the quarter-finals. Tallies settle at full-time.", "How bookings & bans work");
   const bookedCard = s.booked.length ? `<div class="lead-card"><h4>Booked players <small>yellow &amp; red cards</small></h4>${ranked(s.booked.slice(0, 8), bookedRow, p => p.r + "," + p.y)}</div>` : "";
   const playerDisc = (suspHtml || bookedCard) ? `<div class="eyebrow">Discipline ${discInfo}</div><div class="lead-grid">${suspHtml}${bookedCard}</div>` : "";
-  const teamDisc = (cardLead || fairLead) ? `<div class="eyebrow">Discipline</div><div class="lead-grid">${cardLead}${fairLead}</div>${s.fairPlay.length ? `<p class="sim-ko-hint">Fair play points (−1 a yellow, −3 a red) are a real group tiebreaker; fewer is cleaner. A red or second yellow also means a one-match ban (single yellows clear after the quarter-finals).</p>` : ""}` : "";
+  const teamDisc = cardLead ? `<div class="eyebrow">Discipline ${discInfo}</div><div class="lead-grid">${cardLead}</div>` : "";
   const sections = [
     ["overview", "Overview", `<div class="eyebrow">Tournament so far</div><div class="stat-tiles">
       ${tile("Goals", s.pulse.goals)}${tile("Matches", s.pulse.matches)}
