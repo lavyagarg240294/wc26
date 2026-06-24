@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "356";  // shown in footer; bump with the ?v= asset version
+const BUILD = "357";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -221,9 +221,11 @@ const tlName = (s, code) => { const t = pName(s, code).trim().split(/\s+/).filte
 
 // real SVG flags (self-hosted) - emoji regional-indicator flags don't render on Windows, where the
 // whole flag-heavy UI would degrade to "BR"/"US" letter boxes. alt falls back to the code if a file 404s.
-function flag(code) {
+function flag(code, eager) {
   if (!code) return "";
-  return `<img class="flagimg" src="assets/flags/${code}.svg" alt="${esc(S.teams?.[code]?.name || "")}" loading="lazy" decoding="async">`;
+  // eager: the hero flags are big, above-the-fold and re-render constantly during a live match - lazy-loading them
+  // means a fresh <img> created off-screen by a re-render never loads, so they flash blank on scroll-back. Load now.
+  return `<img class="flagimg" src="assets/flags/${code}.svg" alt="${esc(S.teams?.[code]?.name || "")}"${eager ? "" : ` loading="lazy"`} decoding="async">`;
 }
 const TBD_FLAG = '<span class="flag-tbd" aria-hidden="true"></span>';   // placeholder flag for a fixture whose team isn't decided yet
 // consistent inline-SVG content icons (replacing eclectic emoji in stat/record headings). The thematic
@@ -1466,7 +1468,7 @@ let cdTimer = null, prevCd = {};
 function heroStack(liveMatches, nextM) {
   if (!liveMatches.length) return nextM ? heroBlock(nextM, false) : "";
   const head = liveMatches.length > 1
-    ? `<div class="hero-stack-head">${ballSVG("live-ball")} ${liveMatches.length} matches live now</div>` : "";
+    ? `<div class="hero-stack-head"><span class="hero-stack-pip" aria-hidden="true"></span>${liveMatches.length} matches live now</div>` : "";
   return head + `<div class="hero-stack">${liveMatches.map(m => heroBlock(m, true)).join("")}</div>`;
 }
 // The single hero card, used on BOTH the Matches tab (tappable → opens the Live tab) and the Live tab
@@ -1484,13 +1486,13 @@ function heroBlock(heroM, isLive, onLive) {
       ${clickable ? `<span class="hero-actions"><span class="hero-go">Follow ›</span></span>` : ""}
     </div>
     <div class="hero-teams">
-      <div class="hero-side"><span class="hero-flag">${h.code ? flag(h.code) : TBD_FLAG}</span><span class="hero-name">${esc(h.name)}</span></div>
+      <div class="hero-side"><span class="hero-flag">${h.code ? flag(h.code, true) : TBD_FLAG}</span><span class="hero-name">${esc(h.name)}</span></div>
       <div class="hero-mid">${live || result
         ? `<span class="hero-score">${r?.h ?? 0}–${r?.a ?? 0}</span>${live
             ? `<span class="hero-livechip">${r?.st === ST.HT ? "Half-time" : (liveLabel(heroM, r) || "Live")}</span>`
             : (r?.hp != null ? `<span class="hero-pens">${r.hp}–${r.ap} pens</span>` : "")}`
         : `<span class="hero-vs">VS</span>`}</div>
-      <div class="hero-side"><span class="hero-flag">${a.code ? flag(a.code) : TBD_FLAG}</span><span class="hero-name">${esc(a.name)}</span></div>
+      <div class="hero-side"><span class="hero-flag">${a.code ? flag(a.code, true) : TBD_FLAG}</span><span class="hero-name">${esc(a.name)}</span></div>
     </div>
     ${!ft ? (() => { const s = matchStakes(heroM); return s ? `<div class="hero-stakes">${s.lines[0]}</div>` : ""; })() : ""}
     ${!live && !ft && !onLive ? (() => { const wp = winProb(heroM); if (!wp) return "";   // pre-match only; on the Live tab the dedicated win-prob section below already covers it
