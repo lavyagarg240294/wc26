@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "359";  // shown in footer; bump with the ?v= asset version
+const BUILD = "360";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -4196,8 +4196,8 @@ function tournamentStats() {
   const teamSched = {};
   for (const mm of S.matches) {
     const ko = mm.utc, done = isFeedFinal(mm), h2 = slotInfo(mm, "home").code, a2 = slotInfo(mm, "away").code;
-    if (h2) (teamSched[h2] ||= []).push({ ko, done });
-    if (a2) (teamSched[a2] ||= []).push({ ko, done });
+    if (h2) (teamSched[h2] ||= []).push({ ko, done, opp: a2, m: mm });
+    if (a2) (teamSched[a2] ||= []).push({ ko, done, opp: h2, m: mm });
   }
   for (const c in teamSched) teamSched[c].sort((x, z) => (x.ko < z.ko ? -1 : x.ko > z.ko ? 1 : 0));
   const suspendedList = [];
@@ -4208,7 +4208,7 @@ function tournamentStats() {
     if (!trigKo) continue;   // a single yellow is not a ban
     const [name, code] = split(pk);
     const next = (teamSched[code] || []).find(x => x.ko > trigKo);
-    if (next && !next.done) suspendedList.push({ name, code, reason });
+    if (next && !next.done) suspendedList.push({ name, code, reason, miss: next });
   }
   // team metrics are per-match (like FotMob) so a team that's played fewer games isn't ranked unfairly
   const perMatch = (tot, n) => Object.keys(tot).map(c => ({ code: c, v: tot[c] / (n[c] || 1) }));
@@ -4429,16 +4429,21 @@ function renderStats() {
   const scorerRow = (p, rank) => playerRow(p, rank, `${p.goals}<small>${p.assists ? `${p.assists} ast` : "&nbsp;"}</small>`);
   const assistRow = (p, rank) => playerRow(p, rank, `${p.assists}<small>assist${p.assists > 1 ? "s" : ""}</small>`);
   const keeperRow = (p, rank) => playerRow(p, rank, `${p.cs}<small>clean sheet${p.cs !== 1 ? "s" : ""}</small>`);
-  const bookedRow = (p, rank) => playerRow(p, rank, `<span class="card-tally">${p.y ? `<span class="ct ct-y">${p.y}</span>` : ""}${p.r ? `<span class="ct ct-r">${p.r}</span>` : ""}</span>`);
+  // Golden Boot: show the leaders but never cut a tie - everyone level with the 12th-placed scorer stays in, else we'd
+  // show some players on N goals and silently drop others on the same N (e.g. Kane), which reads as an error.
+  const bootScorers = s.scorers.filter(p => p.goals >= (s.scorers[11]?.goals ?? 0));
   // map a leaderboard to HTML with competition ranks. rowFn(item, rank, index); rows with an equal keyOf share a rank.
   const ranked = (rows, rowFn, keyOf) => { const rk = compRanks(rows, keyOf); return rows.map((x, i) => rowFn(x, rk[i], i)).join(""); };
   // suspension watch: only players carrying an UNSERVED ban. A red, or every second yellow, is a one-match ban;
   // crucially it clears the moment the player's team has played the next match, so a card never lingers here for
   // the rest of the tournament (the accurate list, computed against the team schedule, is s.suspended).
-  const suspRow = p => { const ph = bestPhoto(p.name, p.code); return `<div class="lead-row lead-player" data-player="${esc(p.name)}|${p.code}" role="button" tabindex="0">
+  const suspRow = p => { const ph = bestPhoto(p.name, p.code), miss = p.miss;
+    const who = miss ? (miss.opp ? tname(miss.opp) : (miss.m.group ? `Group ${miss.m.group}` : esc(miss.m.round))) : "their next match";
+    const when = miss ? fmt(miss.m.utc, { day: "numeric", month: "short" }) : "";
+    return `<div class="lead-row lead-player" data-player="${esc(p.name)}|${p.code}" role="button" tabindex="0">
     ${ph ? `<span class="lead-face" style="background-image:url('${ph}')"></span>` : `<span class="fl">${flag(p.code)}</span>`}
-    <span class="lead-name">${esc(pName(p.name, p.code))}<small>${flag(p.code)} ${tname(p.code)}</small></span>
-    <span class="susp-tag is-ban">${p.reason === "red" ? "Sent off: banned" : "Two yellows: banned"}</span></div>`; };
+    <span class="lead-name">${esc(pName(p.name, p.code))}<small>${flag(p.code)} misses ${who}${when ? ` · ${when}` : ""}</small></span>
+    <span class="susp-tag is-ban">${p.reason === "red" ? "Sent off" : "Two yellows"}</span></div>`; };
   const suspHtml = s.suspended.length
     ? `<div class="lead-card"><h4>Suspension watch <small>banned from their next match</small></h4>${s.suspended.map(suspRow).join("")}</div>` : "";
   const teamLead = (title, rows, fmt) => rows.length ? `<div class="lead-card"><h4>${title}</h4>${ranked(rows.slice(0, 5), (x, rank) => `<div class="lead-row" data-squad="${x.code}" role="button" tabindex="0">
@@ -4483,11 +4488,12 @@ function renderStats() {
     <p class="sim-ko-hint">Combined record of every team in each confederation (P played, GF/GA goals for and against), ordered by points per game.</p>` : "";
 
   // sections behind a segmented sub-nav so the tab grows down (not into one endless scroll)
-  // discipline is split by subject: player bookings/suspensions go under Players, team cards/fair-play under Teams
+  // discipline is split by subject: player suspensions go under Players, team cards under Teams
   const discInfo = infoBtn("Yellow and red cards shown in this tournament. A yellow is a booking (a caution); a straight red, or a second yellow in the same match, is a sending-off. A player misses the next match after a red, or after collecting two yellows in separate games - that shows under Suspension watch and clears the moment the ban is served. Single yellows are wiped after the quarter-finals. Tallies settle at full-time.", "How bookings & bans work");
-  const bookedCard = s.booked.length ? `<div class="lead-card"><h4>Booked players <small>yellow &amp; red cards</small></h4>${ranked(s.booked.slice(0, 8), bookedRow, p => p.r + "," + p.y)}</div>` : "";
-  const playerDisc = (suspHtml || bookedCard) ? `<div class="eyebrow">Discipline ${discInfo}</div><div class="lead-grid">${suspHtml}${bookedCard}</div>` : "";
-  const teamDisc = cardLead ? `<div class="eyebrow">Discipline ${discInfo}</div><div class="lead-grid">${cardLead}</div>` : "";
+  // Single full-width card (like the Golden Boot) - the auto-fill .lead-grid would pin a lone card to one ~248px
+  // column and clip the "misses <opponent> · <date>" line, so render it directly instead.
+  const playerDisc = suspHtml ? `<div class="eyebrow">Discipline ${discInfo}</div>${suspHtml}` : "";
+  const teamDisc = cardLead ? `<div class="eyebrow">Discipline ${discInfo}</div>${cardLead}` : "";
   const sections = [
     ["overview", "Overview", `<div class="eyebrow">Tournament so far</div><div class="stat-tiles">
       ${tile("Goals", s.pulse.goals)}${tile("Matches", s.pulse.matches)}
@@ -4498,7 +4504,7 @@ function renderStats() {
       <div class="eyebrow">Records so far</div>${recordsHtml}
       ${confHtml}`],
     ["players", "Players", `
-      ${s.scorers.length ? `<div class="eyebrow">${ICO.ball} Golden Boot</div><div class="lead-card lead-scorers">${ranked(s.scorers.slice(0, 12), scorerRow, p => p.goals)}</div>` : ""}
+      ${s.scorers.length ? `<div class="eyebrow">${ICO.ball} Golden Boot</div><div class="lead-card lead-scorers">${ranked(bootScorers, scorerRow, p => p.goals)}</div>` : ""}
       ${s.assisters.length ? `<div class="eyebrow">Playmakers · assists</div><div class="lead-card lead-scorers">${ranked(s.assisters.slice(0, 8), assistRow, p => p.assists)}</div>` : ""}
       ${s.keepers.length ? `<div class="eyebrow">${ICO.glove} Goalkeepers · clean sheets</div><div class="lead-card lead-scorers">${ranked(s.keepers.slice(0, 8), keeperRow, p => p.cs)}</div>` : ""}
       ${playerDisc}
