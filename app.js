@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "360";  // shown in footer; bump with the ?v= asset version
+const BUILD = "361";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -660,7 +660,7 @@ function goalCelebration(code) {
   goalHorn();
   const toast = document.createElement("div");
   toast.className = "goal-toast";
-  toast.innerHTML = `${ballSVG("goal-ball")}<div class="goal-txt"><b>GOAL!</b>${code ? `<span>${flag(code)} ${esc(S.teams[code].name)}</span>` : ""}</div>`;
+  toast.innerHTML = `${ballSVG("goal-ball")}<div class="goal-txt"><b>GOAL!</b>${code ? `<span class="gt-team">${flag(code, true)}<span class="gt-name">${esc(S.teams[code].name)}</span></span>` : ""}</div>`;
   document.body.appendChild(toast);
   setTimeout(() => toast.remove(), 2700);
 }
