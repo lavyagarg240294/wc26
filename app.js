@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "354";  // shown in footer; bump with the ?v= asset version
+const BUILD = "355";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -2965,7 +2965,7 @@ async function openSimTie(num) {
   const odds = winProbBlock({ ...m, home: { team: h }, away: { team: a } }, true);
   const h2h = wcH2HBlock(h, a);
   const meta = `<div class="md-meta"><span>${fmt(m.utc, { weekday: "long", day: "numeric", month: "long" })}</span><span>${timeStr(m.utc)}</span><span>${esc(m.stadium)}</span><span>${esc(m.city)}</span></div>`;
-  const pickBtn = code => `<button class="btn${pick === code ? "" : " ghost"} st-pick" data-simtie-pick="${m.num}|${code}">${flag(code)} ${esc(shortName(code))}${pick === code ? " ✓" : ""}</button>`;
+  const pickBtn = code => `<button class="btn${pick === code ? "" : " ghost"} st-pick" data-simtie-pick="${m.num}|${code}">${flag(code)} ${esc(shortName(code))}</button>`;
   $("#projTitle").innerHTML = `<span class="md-stage">${esc(round)} - your matchup</span>`;
   $("#projBody").innerHTML = `<div class="pt-teams">${teamHdr(h)}<span class="pt-v">v</span>${teamHdr(a)}</div>
     ${meta}${odds}${h2h}
@@ -3853,7 +3853,7 @@ function renderSimEditor() {
     : simBracketHTML(alloc);
 
   // prominent "north star": the champion you're building toward - tap to jump to the knockout bracket
-  const koMatches = S.matches.filter(m => m.stage !== "group");
+  const koMatches = S.matches.filter(m => m.stage !== "group" && m.stage !== "third");   // the 31 ties on the path to the champion; the 3rd-place playoff isn't part of the bracket
   const koPicked = koMatches.filter(m => S.sim.ko[m.num] != null).length;
   const champTeaser = `<button class="sim-goal ${champ ? "is-set" : ""}" id="simGoal" type="button">
     <span class="sg-cup">${TROPHY}</span>
