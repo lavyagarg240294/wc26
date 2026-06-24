@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "353";  // shown in footer; bump with the ?v= asset version
+const BUILD = "354";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1643,10 +1643,15 @@ function renderMatches() {
   // next-kickoff card carries the countdown.
   const liveMatches = S.matches.filter(m => [ST.LIVE, ST.HT].includes(status(m)))
     .sort((a, b) => a.utc.localeCompare(b.utc));
-  const nextM = liveMatches.length ? null
-    // include a SCHED match whose kickoff just passed (feed not yet flipped to LIVE) so the hero never goes blank
-    // in that gap; the countdown clamps to 0 and re-polls. Bounded to ~2.5h overdue so a stuck fixture isn't pinned.
-    : S.matches.filter(m => status(m) === ST.SCHED && new Date(m.utc).getTime() > now.getTime() - 9e6).sort((a, b) => a.utc.localeCompare(b.utc))[0];
+  // include a SCHED match whose kickoff just passed (feed not yet flipped to LIVE) so the hero never goes blank in that
+  // gap; the countdown clamps to 0 and re-polls. Bounded to ~2.5h overdue so a stuck fixture isn't pinned.
+  const nextCands = liveMatches.length ? []
+    : S.matches.filter(m => status(m) === ST.SCHED && new Date(m.utc).getTime() > now.getTime() - 9e6).sort((a, b) => a.utc.localeCompare(b.utc));
+  // several games can share the next kickoff (every group's final round does - both go off together to stop collusion).
+  // The hero is one tappable spotlight, so within that slot pick the most worth watching: your followed team first, else
+  // the marquee (the same prestige score as Match of the day). The rest of the slot stay one tap down in the list below.
+  const nextSlot = nextCands.filter(m => m.utc === nextCands[0]?.utc);
+  const nextM = nextSlot.sort((a, b) => (!!isFavMatch(b) - !!isFavMatch(a)) || prestige(b) - prestige(a) || a.num - b.num)[0] || null;
   const heroIds = new Set([...liveMatches.map(m => m.id), ...(nextM ? [nextM.id] : [])]);
   const f = S.filters;
   let list = S.matches.slice().sort((a, b) => a.utc.localeCompare(b.utc));
