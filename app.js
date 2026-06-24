@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "355";  // shown in footer; bump with the ?v= asset version
+const BUILD = "356";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -3777,7 +3777,7 @@ function renderSim() {
 // lets a user keep a gut pick, the favourites and a wildcard side by side.
 function renderSimDash() {
   const el = $("#view-sim");
-  const koMatches = S.matches.filter(m => m.stage !== "group");
+  const koMatches = S.matches.filter(m => m.stage !== "group" && m.stage !== "third");   // the 31 path-to-champion ties; the 3rd-place playoff isn't part of the bracket
   const koTotal = koMatches.length || 1;
   const card = (slot, i) => {
     const champ = slot.ko[104], valid = champ && S.teams[champ];
@@ -3919,22 +3919,23 @@ function renderSimEditor() {
     else if (S.sim.thirds.length < 8) S.sim.thirds.push(c);
     pruneSim(); saveSim(); renderSim();
   });
-  // wire: converging-bracket picks - tap a side to send it through; completing a round collapses to the next
+  // wire: converging-bracket picks - tap a side to send it through. We deliberately do NOT auto-jump to the next round
+  // on completion: it was sudden, and it only fired the FIRST time a round was completed, so a revisit/edit stranded you
+  // on a done round. Instead a clear "Continue to <next round>" button appears at the foot once a round is full.
   $$("[data-sim-pick]", el).forEach(b => b.onclick = e => {
     const [num, code] = b.dataset.simPick.split("|");
     const n = +num;
-    const roundMs = S.matches.filter(m => m.stage === SIM_ROUNDS[_simRound].st);
-    const wasComplete = roundMs.every(m => S.sim.ko[m.num] != null);
     const before = S.sim.ko[n];
     S.sim.ko[n] = code;
     pruneSim(); saveSim();
-    const nowComplete = roundMs.every(m => S.sim.ko[m.num] != null);
-    _simRound = (!wasComplete && nowComplete) ? simFrontier() : Math.min(_simRound, simFrontier());
+    _simRound = Math.min(_simRound, simFrontier());   // stay on this round; only clamp if an edit just un-finished a predecessor
     if (n === 104 && before !== code) { const t = S.teams[code]; confetti(t.c1, t.c2, { x: e.clientX || innerWidth / 2, y: e.clientY || innerHeight / 2 }); }
     renderSim();
   });
   // wire: round breadcrumb (step back to revise an earlier round, or forward to the live one)
   $$("[data-sim-round]", el).forEach(b => b.onclick = () => { _simRound = +b.dataset.simRound; renderSim(); });
+  // wire: the explicit "continue to the next round" button (replaces the old auto-jump)
+  $$("[data-sim-continue]", el).forEach(b => b.onclick = () => { _simRound = +b.dataset.simContinue; renderSim(); });
   // wire: actions
   $("#simShuffle").onclick = () => {
     GROUPS.forEach(g => S.sim.order[g] = simOrder(g).slice().sort(() => Math.random() - .5));
@@ -4027,13 +4028,18 @@ function simBracketHTML(alloc) {
 
   const left = ms.filter(m => simHalf(m.num) === "L"), right = ms.filter(m => simHalf(m.num) === "R");
   const spine = `<div class="sb-spine"><span class="rb-line"></span><span class="rb-trophy">${ICO.trophy}</span><span class="rb-line"></span></div>`;
+  // once every tie in this round is picked, swap the how-to tip for a clear "continue to the next round" button (we no
+  // longer auto-jump). Suppressed once the champion is crowned - there's nothing left to continue to.
+  const foot = (total > 0 && picked === total && S.sim.ko[104] == null)
+    ? `<button class="btn sb-continue" data-sim-continue="${_simRound + 1}" style="width:100%;text-align:center;justify-content:center;margin-top:12px;"><b>${round.name} done.</b>&nbsp;Continue to ${SIM_ROUNDS[_simRound + 1].name} →</button>`
+    : `<p class="sb-tip">Tap a flag to send that team through. Win the round and the bracket closes in on the trophy.</p>`;
   return `<div class="simbr">${head}
     <div class="r32br-grid simbr-grid">
       <div class="rb-col sb-col-l">${left.map(tieEl).join("")}</div>
       ${spine}
       <div class="rb-col sb-col-r">${right.map(tieEl).join("")}</div>
     </div>
-    <p class="sb-tip">Tap a flag to send that team through. Win the round and the bracket closes in on the trophy.</p>
+    ${foot}
   </div>`;
 }
 function simMatch(m, i, alloc) {
