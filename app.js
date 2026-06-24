@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "358";  // shown in footer; bump with the ?v= asset version
+const BUILD = "359";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -432,9 +432,6 @@ const matchHasTeam = (m, code) => slotInfo(m, "home").code === code || slotInfo(
 const CAL_SVG = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>`;
 const SHARE_SVG = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.85 3.99M15.4 6.51l-6.8 3.98"/></svg>`;
 const REFRESH_SVG = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>`;
-// webcal:// URL to a committed static calendar (data/ics/…) for an auto-updating subscription.
-// Derived from the current page so it works wherever the site is hosted.
-const webcalURL = file => "webcal://" + location.origin.replace(/^https?:\/\//, "") + location.pathname.replace(/[^/]*$/, "") + "data/ics/" + file;
 const icsEsc = s => String(s).replace(/[\\;,]/g, m => "\\" + m).replace(/\n/g, "\\n");
 const icsStamp = iso => new Date(iso).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
 function icsFold(line) { let o = ""; while (line.length > 73) { o += line.slice(0, 73) + "\r\n "; line = line.slice(73); } return o + line; }
@@ -5182,16 +5179,6 @@ async function boot() {
   $$("[data-nav]").forEach(b => b.onclick = e => { e.preventDefault(); if (b.dataset.nav === "sim") S.simView = "dash"; nav(b.dataset.nav); });
   $("#settingsChip").onclick = () => $("#settingsDialog").showModal();
   $("#tzRow").onclick = () => { $("#settingsDialog").close(); $("#tzDialog").showModal(); };
-  // Subscribe to the auto-updating feed. iOS/macOS hand webcal:// straight to Calendar; Android/desktop usually
-  // have no webcal handler (it silently does nothing), so there we copy the URL and open Google Calendar's add-by-URL.
-  $("#calSubscribe").onclick = () => {
-    const webcal = webcalURL("all.ics"), https = webcal.replace(/^webcal:\/\//, "https://");
-    if (/iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent)) { location.href = webcal; return; }
-    try { navigator.clipboard?.writeText(https); } catch { /* clipboard blocked - the Google tab still opens */ }
-    window.open("https://calendar.google.com/calendar/u/0/r?cid=" + encodeURIComponent(https), "_blank", "noopener");
-    flashToast("Calendar URL copied. Paste it into your calendar app if it doesn't open");
-  };
-  $("#calDownload").onclick = () => downloadICS(S.matches.slice().sort((a, b) => a.utc.localeCompare(b.utc)), "FIFA World Cup 2026");
   const _fillBuild = () => { const b = $("#devStoryBuild"); if (b) b.textContent = "build " + BUILD; };
   $("#aboutSiteBtn").onclick = () => { _fillBuild(); showSheet($("#aboutSiteDialog")); };   // single About sheet; tournament format lives in the Tables legend's "How the format works"
   $("#devStoryBtn")?.addEventListener("click", () => { _fillBuild(); const t = $("#aboutTech"); if (t) t.open = true; showSheet($("#aboutSiteDialog")); setTimeout(() => $("#aboutTech")?.scrollIntoView({ block: "start" }), 90); });   // "i" by the build → About, with the technical story expanded (the number itself keeps its egg)
