@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "357";  // shown in footer; bump with the ?v= asset version
+const BUILD = "358";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -809,7 +809,7 @@ function matchCard(m, i, opts = {}) {
       <div class="mcard-time">${timeStr(m.utc)}<small>${fmt(m.utc, { day: "numeric", month: "short" })}</small></div>
       <div class="mcard-teams">${teamRow(h, "home", winA)}${teamRow(a, "away", winH)}</div>
       <div class="mcard-right">${(score || live)
-        ? `<div class="mcard-score${live ? " is-live" : ""}${abn ? " is-abn" : ""}"><span class="${winA ? "lo" : ""}">${sh}</span><span class="${winH ? "lo" : ""}">${sa}</span>${r?.hp != null ? `<span class="pens">(${r.hp}–${r.ap} pens)</span>` : ""}</div>${(live || abn) ? badge : ""}`
+        ? `<div class="mcard-score${live ? " is-live" : ""}${abn ? " is-abn" : ""}"><span class="${winA ? "lo" : ""}">${sh}</span><span class="${winH ? "lo" : ""}">${sa}</span>${r?.hp != null ? `<span class="pens">(${r.hp}–${r.ap}p)</span>` : ""}</div>${(live || abn) ? badge : ""}`
         : badge}</div>
     </div>
     ${(() => { const s = matchStakes(m); return s && s.definitive ? `<div class="mcard-stake">${s.lines[0]}</div>` : ""; })()}
@@ -1391,7 +1391,7 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
       <span class="md-name ${s.ph ? "is-ph" : ""}">${esc(slotText(m, key, s))}</span>
       ${s.code ? `<span class="md-teaminfo">${esc(S.teams[s.code].conf || "")}${fifaRankOf(s.code) ? ` · <span class="md-rank" title="FIFA World Ranking">#${fifaRankOf(s.code)}</span>` : ""}${S.teams[s.code].titles ? ` · ${TROPHY} ${S.teams[s.code].titles}` : ""}</span>` : ""}</div>`;
   const mid = (score || live)
-    ? `<div class="md-score">${r?.h ?? 0}<span>–</span>${r?.a ?? 0}</div>${r?.hp != null ? `<div class="md-pens">${r.hp}–${r.ap} on penalties</div>` : ""}`
+    ? `<div class="md-score">${r?.h ?? 0}<span>–</span>${r?.a ?? 0}</div>${r?.hp != null ? `<div class="md-pens">(${r.hp}–${r.ap}p)</div>` : ""}`
     : `<div class="md-vs">VS</div>`;
   const liveNow = st === ST.LIVE || st === ST.HT;
   $("#matchTitle").innerHTML = `<span class="md-stage">${esc(stageL)}</span>`;
@@ -1490,7 +1490,7 @@ function heroBlock(heroM, isLive, onLive) {
       <div class="hero-mid">${live || result
         ? `<span class="hero-score">${r?.h ?? 0}–${r?.a ?? 0}</span>${live
             ? `<span class="hero-livechip">${r?.st === ST.HT ? "Half-time" : (liveLabel(heroM, r) || "Live")}</span>`
-            : (r?.hp != null ? `<span class="hero-pens">${r.hp}–${r.ap} pens</span>` : "")}`
+            : (r?.hp != null ? `<span class="hero-pens">(${r.hp}–${r.ap}p)</span>` : "")}`
         : `<span class="hero-vs">VS</span>`}</div>
       <div class="hero-side"><span class="hero-flag">${a.code ? flag(a.code, true) : TBD_FLAG}</span><span class="hero-name">${esc(a.name)}</span></div>
     </div>
@@ -1825,7 +1825,6 @@ function myTeamBlock() {
         </div>
       </div>
       <button class="btn ghost team-change" id="ctaChange">Change</button></div>
-    ${mine.length ? `<div class="team-actions"><button class="btn ghost ics-btn" id="icsTeam">${CAL_SVG} Add ${esc(t.name)}'s matches to calendar</button></div>` : ""}
     ${S.squads?.[S.fav]?.players?.length ? `<details class="th-squad"><summary><span>${esc(t.name)}'s squad</span><small>${S.squads[S.fav].players.length} players · tap to view</small></summary>${heroSquad(S.fav)}</details>` : heroSquad(S.fav)}`;
 }
 function myTeamFixtures() {
@@ -1847,7 +1846,7 @@ function teamsLandscapeBanner() {
   const codes = Object.keys(S.teams), notIn = codes.filter(c => !S.wc22.teams[c]);
   const back = codes.length - notIn.length, debut = notIn.filter(c => S.teams[c]?.best === "First appearance").length;
   return `<div class="wc22-land">
-    <div class="wc22-land-hd"><b>Since Qatar 2022</b><span class="wc22-exp">32 → 48 teams</span></div>
+    <div class="wc22-land-hd"><b>Since Qatar 2022</b><span class="wc22-exp">32→48 teams</span></div>
     <div class="wc22-land-stats"><span><b>${back}</b> back from 2022</span><span><b>${debut}</b> on debut</span><span><b>${notIn.length - debut}</b> returning</span></div>
     ${S.wc22.matches?.length ? `<button class="wc22-results-btn" data-wc22>Qatar 2022 · full results ›</button>` : ""}
   </div>`;
@@ -1902,15 +1901,11 @@ function renderTeams() {
   const isMap = _teamsView === "map";
   const toggle = `<span class="tv-toggle">${[["grid", "Grid"], ["map", "Map"]].map(([k, lbl]) => `<button class="tv-btn ${_teamsView === k ? "is-on" : ""}" data-tview="${k}">${lbl}</button>`).join("")}</span>`;
   const body = isMap ? `<div class="teams-map" id="teamsMap"><div class="wmap-load">Loading the world map…</div></div>` : `<div class="teamsgrid">${grid}</div>`;
-  paint(el, head + teamsLandscapeBanner() + `<div class="eyebrow tv-eyebrow">All teams <span style="color:var(--ink-soft);font-weight:600">, ${isMap ? "tap a nation" : "tap for detail"}</span>${toggle}</div>` + body + (S.fav ? myTeamFixtures() : ""));
+  paint(el, head + teamsLandscapeBanner() + `<div class="eyebrow tv-eyebrow">All teams<span style="color:var(--ink-soft);font-weight:600">, ${isMap ? "tap a nation" : "tap for detail"}</span>${toggle}</div>` + body);
   $$("[data-tview]", el).forEach(b => b.onclick = () => { _teamsView = b.dataset.tview; renderTeams(); });
   if (isMap) renderTeamsMap();
   const cta = $("#ctaPick", el); if (cta) cta.onclick = () => $("#teamDialog").showModal();
   const chg = $("#ctaChange", el); if (chg) chg.onclick = () => $("#teamDialog").showModal();
-  const ics = $("#icsTeam", el);
-  if (ics) ics.onclick = () => downloadICS(
-    S.matches.filter(isFavMatch).sort((a, b) => a.utc.localeCompare(b.utc)),
-    `${S.teams[S.fav].name} · World Cup 2026`);
 }
 let _teamsView = "grid", _worldMap = null;   // Teams tab: grid vs world-map view; the basemap SVG is fetched once, on first map open
 const popStr = n => n == null ? "" : n >= 1e6 ? (n / 1e6).toFixed(n >= 1e8 ? 0 : 1) + "M" : n >= 1e3 ? (n / 1e3).toFixed(0) + "k" : "" + n;
@@ -2924,7 +2919,7 @@ function wcH2HBlock(a, b) {
     if (as > bs || (as === bs && ap != null && ap > bp)) wa++; else if (bs > as || (as === bs && ap != null && bp > ap)) wb++; else d++;
   }
   const rows = ms.map(m => { const was = m.fh || m.fa; return `<div class="h2h-row"><span class="h2h-yr">${m.y}</span><span class="h2h-rd">${esc(m.r)}${was ? ` <span class="h2h-was">as ${esc(was)}</span>` : ""}</span>
-    <span class="h2h-sc"><span class="fl">${flag(m.h)}</span> <b>${m.hs}–${m.as}</b> <span class="fl">${flag(m.a)}</span>${m.ph != null ? `<span class="h2h-pen">pens ${m.ph}–${m.pa}</span>` : ""}</span></div>`; }).join("");
+    <span class="h2h-sc"><span class="fl">${flag(m.h)}</span> <b>${m.hs}–${m.as}</b> <span class="fl">${flag(m.a)}</span>${m.ph != null ? `<span class="h2h-pen">(${m.ph}–${m.pa}p)</span>` : ""}</span></div>`; }).join("");
   return `<div class="eyebrow">Past World Cup meetings <span class="h2h-count">${ms.length}</span></div>
     <div class="h2h-sum"><b>${nm(a)}</b> ${wa} · ${d} draw${d !== 1 ? "s" : ""} · ${wb} <b>${nm(b)}</b></div>
     <div class="h2h-list">${rows}</div>`;

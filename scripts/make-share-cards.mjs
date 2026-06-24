@@ -42,7 +42,7 @@ function card(f, r) {
   const hc = f.home.team || r.ht, ac = f.away.team || r.at;   // knockouts: fixture slots are placeholders → use the resolved teams from the result
   const stage = f.group ? `Group ${f.group}` : (f.round || "Knockout");
   const score = (r.h != null) ? `${r.h} – ${r.a}` : "vs";
-  const pens = r.hp != null ? `${r.hp}–${r.ap} pens` : "";
+  const pens = r.hp != null ? `(${r.hp}–${r.ap}p)` : "";
   const scorers = (r.ev || []).filter(e => ["G", "P", "OG"].includes(e.k)).map(e => `${esc(e.p)} ${esc(e.t)}`).slice(0, 6).join("   ·   ");
   return h("div", { style: { display: "flex", flexDirection: "column", width: "1200px", height: "630px", background: "#FAFBF9", padding: "64px 72px", fontFamily: "Archivo" } },
     // top bar
