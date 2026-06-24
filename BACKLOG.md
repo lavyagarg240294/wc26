@@ -90,6 +90,7 @@ Status: ✅ shipped · ⬜ backlog. Effort: S < a session · M ≈ a session · 
 - ✅ **Lite / data-saver mode** — a Settings toggle that suppresses the hot-linked player photos (the bulk of as-you-browse image weight) and falls back to flags everywhere; skips the `photos.json` fetch entirely when enabled at load, lazy-loads it if turned off later. → Settings.
 
 ### G. Platform & scale  _(do before knockouts)_
+- ⬜ **Android APK (sideload, no Play Store)** — wrap the PWA as a TWA via Bubblewrap (`@bubblewrap/cli`) → a signed `app-release-signed.apk`. This machine is ready (Node, **JDK 17**, Android SDK at `~/Library/Android/sdk`, `adb`, `gh`). Borderless/fullscreen needs `assetlinks.json` at the github.io **domain root** → create a `lavyagarg240294.github.io` user-repo; skip it and it still installs (thin URL bar). Auto-reflects every site push, no rebuild. **Remember:** back up the keystore + password (a lost key = can't update the same install). Widgets + background goal-push are native add-ons, separate & larger. **M**
 - ✅ **Self-hosted SVG flags** — real flags from `assets/flags/` (fixes emoji-flag breakage on Windows).
 - ✅ **Self-hosted fonts** — Archivo / Instrument Sans / Spline Sans Mono served locally (no Google dependency), SW-cached.
 - ✅ **Test suite + CI** — `node --test` data-integrity + smoke tests; a Tests workflow on code/static-data pushes.
