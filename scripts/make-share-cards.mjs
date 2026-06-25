@@ -63,11 +63,11 @@ function card(f, r) {
 }
 
 function stub(f, r, num) {
-  const hc = f.home.team || r.ht, ac = f.away.team || r.at, title = `${tname(hc)} v ${tname(ac)} — WC 2026`;
+  const hc = f.home.team || r.ht, ac = f.away.team || r.at, title = `${tname(hc)} v ${tname(ac)} · WC 2026`;
   return `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <title>${esc(title)}</title>
 <meta property="og:title" content="${esc(title)}">
-<meta property="og:description" content="FIFA World Cup 2026 · ${f.group ? "Group " + f.group : esc(f.round || "")} — live scores, lineups & stats on WC·26.">
+<meta property="og:description" content="FIFA World Cup 2026 · ${f.group ? "Group " + f.group : esc(f.round || "")} - live scores, lineups & stats on WC·26.">
 <meta property="og:image" content="${SITE}/assets/og/${num}.png">
 <meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">

@@ -1,7 +1,7 @@
 {
-  "name": "FIFA World Cup 2026 — Live scores & predictor",
+  "name": "FIFA World Cup 2026 · Live scores & predictor",
   "short_name": "World Cup 26",
-  "description": "Live scores, lineups, match stats, the Golden Boot race and a full bracket predictor — every match in your timezone.",
+  "description": "Live scores, lineups, match stats, the Golden Boot race and a full bracket predictor - every match in your timezone.",
   "start_url": ".",
   "scope": ".",
   "display": "standalone",
