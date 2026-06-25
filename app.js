@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "361";  // shown in footer; bump with the ?v= asset version
+const BUILD = "362";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1461,12 +1461,11 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
 let cdTimer = null, prevCd = {};
 // The hero area. Stacked (vertical), not a swipe carousel: when two games kick off at once both stay visible
 // at a glance with zero gestures - a carousel would hide the second match behind an undiscoverable swipe and
-// add interaction cost for no benefit when there are only ever a handful. A header labels the count when >1.
+// add interaction cost for no benefit when there are only ever a handful. Each card carries its own "Live now"
+// label, so the stack needs no separate count header above it.
 function heroStack(liveMatches, nextM) {
   if (!liveMatches.length) return nextM ? heroBlock(nextM, false) : "";
-  const head = liveMatches.length > 1
-    ? `<div class="hero-stack-head"><span class="hero-stack-pip" aria-hidden="true"></span>${liveMatches.length} matches live now</div>` : "";
-  return head + `<div class="hero-stack">${liveMatches.map(m => heroBlock(m, true)).join("")}</div>`;
+  return `<div class="hero-stack">${liveMatches.map(m => heroBlock(m, true)).join("")}</div>`;
 }
 // The single hero card, used on BOTH the Matches tab (tappable → opens the Live tab) and the Live tab
 // (onLive: same look, but you're already following so no "Follow" CTA / self-navigation). Renders live

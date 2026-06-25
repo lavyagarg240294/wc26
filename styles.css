@@ -232,8 +232,6 @@ body.bg-paused #bg span{animation-play-state:paused;will-change:auto}
 
 /* ---------- hero ---------- */
 .hero-stack{display:flex;flex-direction:column;gap:14px}
-.hero-stack-head{display:flex;align-items:center;gap:8px;font-family:var(--disp);font-weight:800;font-stretch:110%;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--live);margin-bottom:12px}
-.hero-stack-pip{width:9px;height:9px;border-radius:50%;background:var(--live);flex:none;box-shadow:0 0 0 3px color-mix(in srgb,var(--live) 22%,transparent)}
 .hero-stack .hero{animation-duration:.42s}
 .hero{
   position:relative;overflow:hidden;cursor:pointer;
