@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "367";  // shown in footer; bump with the ?v= asset version
+const BUILD = "368";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1430,6 +1430,14 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
   const pXiFold = r?.xi ? `<details class="md-fold"><summary><span>Starting XI</span><small>${esc([r.xi.h?.f, r.xi.a?.f].filter(Boolean).join(" v ")) || "line-ups & formations"}</small></summary><div class="md-fold-body">${xiPanel(r.xi, h, a)}</div></details>` : "";
   // "how they compare" rides along as a collapsed fold for live/finished games (it leads expanded in the upcoming branch)
   const pCompareFold = (live || hasResult) && pCompare ? `<details class="md-fold"><summary><span>How they compare</span><small>rankings &amp; tournament form</small></summary><div class="md-fold-body">${pCompare}</div></details>` : "";
+  // past World Cup meetings - shown when there's a story to tell: the two have met at a WC before (any match), or it's
+  // a knockout tie (where even a first meeting is a storyline). Skips the "never met" line on a routine group game.
+  // Both teams must be resolved; lazy-load the dataset then re-render in place (until loaded, render nothing - never a
+  // wrong "never met"). Reuses wcH2HBlock from the bracket-tie sheets.
+  const bothKnown = !!h.code && !!a.code;
+  if (bothKnown && _wcH2H == null) loadWcH2H().then(() => { const md = $("#matchDialog"); if (md?.open && md.dataset.openMid === id) openMatch(id, true); });
+  const h2hPair = (bothKnown && _wcH2H) ? _wcH2H[[h.code, a.code].sort().join("|")] : null;
+  const pH2H = (bothKnown && _wcH2H != null && ((h2hPair && h2hPair.length) || m.stage !== "group")) ? wcH2HBlock(h.code, a.code) : "";
 
   const pMeta = `<div class="md-meta">
       <span>${fmt(m.utc, { weekday: "long", day: "numeric", month: "long" })}</span>
@@ -1442,11 +1450,11 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
   // order by state so each opens with what you came for (Live folds in here - no separate tab as of build 329).
   const middle = liveNow
     // live: analytics lead (win-prob + who's-on-top control), then the live feed, then the numbers, stars, deep dive, stakes
-    ? [pWinProb, pControl, pComm, pKeyStats, pStars, pTimeline, pStats, pXiInline, pEfi, pCompareFold, pStakes]
+    ? [pWinProb, pControl, pComm, pKeyStats, pStars, pTimeline, pStats, pXiInline, pEfi, pCompareFold, pStakes, pH2H]
     : hasResult
     // finished: the report leads, then key stats + control, stars, the full timeline & numbers, the model's call, the deep dive
-    ? [pReport, pKeyStats, pControl, pStars, pTimeline, pStats, pXiInline, pEfi, pWinProb, pCompareFold, pStakes]
-    : [pStakes, pCompare, pWinProb, pXiInline];   // upcoming: stakes + head-to-head compare + odds + (announced) line-ups
+    ? [pReport, pKeyStats, pControl, pStars, pTimeline, pStats, pXiInline, pEfi, pWinProb, pCompareFold, pStakes, pH2H]
+    : [pStakes, pCompare, pWinProb, pH2H, pXiInline];   // upcoming: stakes + compare + odds + past WC meetings + (announced) line-ups
   const _body = pTop + middle.join("") + pMeta;
   const mb = $("#matchBody");
   if (reuse) paint(mb, _body);                       // live poll: morph the body in place - score/minute/timeline/stats update while expanded folds, scroll & loaded commentary survive
