@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "363";  // shown in footer; bump with the ?v= asset version
+const BUILD = "364";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -4493,7 +4493,7 @@ function renderStats() {
     if (hold.length === 1) return recRow(d.ic, d.label, d.sub(hold[0]), d.val(hold[0]), d.attr(hold[0]));
     const isOpen = _recOpen.has(d.key), headVal = d.sharedVal ? d.sharedVal(hold) : d.val(hold[0]), hVal = d.holderVal;
     return `<div class="rec-row is-shared${isOpen ? " is-open" : ""}" data-recmore="${d.key}" role="button" tabindex="0" aria-expanded="${isOpen}">
-      <span class="rec-ic">${d.ic}</span><span class="rec-tx"><b>${d.label}</b><small>Shared by ${hold.length} ${d.noun}</small></span><span class="rec-v">${headVal}</span>${recChev}</div>`
+      <span class="rec-ic">${d.ic}</span><span class="rec-tx"><b>${d.label}</b><small>Shared by ${hold.length} ${d.noun}${recChev}</small></span><span class="rec-v">${headVal}</span></div>`
       + `<div class="rec-holders"${isOpen ? "" : " hidden"}>${hold.map(h => `<div class="rec-hrow" ${d.attr(h)} role="button" tabindex="0"><span class="hr-t">${d.sub(h)}</span>${hVal ? `<span class="hr-v">${hVal(h)}</span>` : ""}</div>`).join("")}</div>`;
   }).filter(Boolean);
   const recordsHtml = recItems.length

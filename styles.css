@@ -1581,8 +1581,8 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .rec-v{font-family:var(--mono);font-weight:700;font-size:18px;font-variant-numeric:tabular-nums;text-align:right;display:flex;flex-direction:column;align-items:flex-end;line-height:1.1;flex:0 0 auto}
 .rec-v small{font-weight:500;font-size:9px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.02em}
 /* joint records: a "Shared by N" headline that expands to every tied co-holder */
-.rec-row.is-shared .rec-tx small{color:var(--acc-text);font-weight:600}
-.rec-chev{flex:0 0 auto;width:15px;height:15px;margin-left:6px;color:var(--ink-soft);opacity:.5;transition:transform .2s}
+.rec-row.is-shared .rec-tx small{color:var(--acc-text);font-weight:600;display:inline-flex;align-items:center;gap:4px;overflow:visible}
+.rec-chev{flex:0 0 auto;width:13px;height:13px;opacity:.7;transition:transform .2s}   /* inherits the subtitle colour; sits right after "Shared by N" */
 .rec-row.is-open .rec-chev{transform:rotate(180deg)}
 .rec-holders{display:flex;flex-direction:column;padding:2px 14px 12px 52px;background:color-mix(in srgb,var(--acc1) 5%,transparent);border-top:1px solid color-mix(in srgb,var(--line) 55%,transparent)}
 .rec-holders[hidden]{display:none}
