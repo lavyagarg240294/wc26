@@ -46,7 +46,7 @@ The 2026 knockouts are the focus as the groups wrap. A deep readiness study (202
 **Next** (S unless noted)
 - ⬜ **Activate the live bracket** — flip the flag at KO, verify advance/grey-out on real R32 results, and polish the `W##`/`L##` feed-slot placeholders (the app otherwise never shows match numbers).
 - ✅ **Past World Cup meetings on the match modal** (build 368) — surfaces `wcH2HBlock` + `wc-h2h.json` (268 records) when there's a story: the two have met at a WC before (any match), or it's a knockout tie. Skips the "never met" line on a routine group game. Live now on group games with history.
-- ⬜ **Win-probability swing chart** — "% to advance" across a match with goal markers; honest uncertainty, no false precision. Works on finished matches now. **M.**
+- ✅ **Win-probability swing chart** (build 370) — the model's read across a match ("home win, draw counts half") sampled at kickoff + each goal, ending at the result; goal dots in the scorer's colour. `winProb` gained an `at`-state override (single source of truth). On the finished-match modal, only when there were goals.
 - ⬜ **Honest xG "created vs scored"** — from `efi.json` (a static aggregate, not a fake timeline).
 - ⬜ **"A booking here → banned for the [next round]"** — extend Suspension watch with the named next opponent.
 - ⬜ **Upset / seeding framing** — Elo *blended with current group form* (pre-tournament Elo alone is stale by KO).
