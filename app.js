@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "366";  // shown in footer; bump with the ?v= asset version
+const BUILD = "367";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -2888,6 +2888,31 @@ function r32Bracket() {
 let _r32Mode = "projected";   // "projected" (fill all slots) | "confirmed" (only mathematically-locked teams)
 // the split-bracket: two halves flanking a central trophy; flag + 3-letter code per side, no boxes; the two ties in
 // each quarter that meet in the round of 16 are bracketed together. Toggle Projected (fill all) / Confirmed (locked).
+
+// Read-only "knockout as it stands": every KO round stacked, each tie resolved from ACTUAL results via slotInfo -
+// winner bold, the team that loses greyed out, the score on a played/live tie; tap a tie to open the match. Built but
+// GATED OFF (SHOW_LIVE_BRACKET) until the knockouts are underway and its advancement can be verified against real
+// results; ?bracket=1 force-shows it for testing. Resolution reuses slotInfo/winnerFeed (already proven for the R32).
+const SHOW_LIVE_BRACKET = false;
+function liveBracketHTML() {
+  const rounds = [["r32", "Round of 32"], ["r16", "Round of 16"], ["qf", "Quarter-finals"], ["sf", "Semi-finals"], ["third", "Third-place play-off"], ["final", "Final"]];
+  const tieEl = m => {
+    const h = slotInfo(m, "home"), a = slotInfo(m, "away"), r = res(m), st = status(m);
+    const fin = isFinalSt(st) && r && r.h != null, live = isLiveSt(st);
+    const winH = fin && (r.h > r.a || (r.h === r.a && (r.hp ?? -1) > (r.ap ?? -1)));
+    const winA = fin && (r.a > r.h || (r.h === r.a && (r.ap ?? -1) > (r.hp ?? -1)));
+    const side = (s, won, lost) => `<span class="lb-side${won ? " lb-won" : ""}${lost ? " lb-lost" : ""}">${s.code ? flag(s.code) : TBD_FLAG}<b>${s.code ? tri(s.code) : esc(s.short || "?")}</b></span>`;
+    const mid = fin ? `<span class="lb-sc">${r.h}–${r.a}${r.hp != null ? `<small>(${r.hp}–${r.ap}p)</small>` : ""}</span>`
+      : live ? `<span class="lb-sc lb-live">${r?.h ?? 0}–${r?.a ?? 0}</span>`
+      : `<span class="lb-v">v</span>`;
+    return `<div class="lb-tie" data-mid="${m.id}" role="button" tabindex="0">${side(h, winH, winA)}${mid}${side(a, winA, winH)}</div>`;
+  };
+  const cols = rounds.map(([st, name]) => {
+    const ms = S.matches.filter(m => m.stage === st).sort((a, b) => a.num - b.num);
+    return ms.length ? `<div class="lb-round"><div class="lb-rh">${name}</div><div class="lb-ties">${ms.map(tieEl).join("")}</div></div>` : "";
+  }).join("");
+  return `<div class="livebr"><div class="eyebrow">Knockout bracket · as it stands ${infoBtn("Filled from the live results as the knockouts are played - winners advance, the team that loses is greyed out. Tap a tie to open the match. A slot shows its seed (e.g. 1E, or Best third) until the team is decided.", "How the live bracket fills in")}</div>${cols}</div>`;
+}
 function r32BracketHTML() {
   const anyPlayed = S.matches.some(m => m.group && isFinalSt(status(m)) && res(m)?.h != null);
   if (!anyPlayed) return "";
@@ -3810,7 +3835,8 @@ function renderSimDash() {
       </div>
     </div>`;
   };
-  paint(el, r32BracketHTML() + `
+  const liveBr = (SHOW_LIVE_BRACKET || new URLSearchParams(location.search).get("bracket") === "1") ? liveBracketHTML() : "";
+  paint(el, liveBr + r32BracketHTML() + `
     <div class="pdash-sep"><span>Build your own</span></div>
     <p class="pdash-intro">${ICO.spark} Keep up to three scenarios - a gut pick, the favourites, a wildcard. Tap one to build it, all the way to a champion. Saved on this device.</p>
     <div class="pdash">${S.simBox.slots.map(card).join("")}</div>`);   // morph, so the Projected/Confirmed toggle doesn't re-animate the dash

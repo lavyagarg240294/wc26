@@ -1067,6 +1067,23 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .pdash-sep{display:flex;align-items:center;gap:12px;margin:6px 2px 14px;font:800 12px/1 var(--disp);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft)}
 .pdash-sep::after{content:"";flex:1;height:1px;background:var(--line)}
 /* split-bracket "Round of 32 — as it stands": two halves flanking a central trophy, flags-only ties */
+/* read-only "knockout as it stands" - rounds stacked, ties in a responsive grid; winner bold, loser greyed */
+.livebr{margin:2px 0 22px;animation:rise .45s both}
+.lb-round{margin:0 0 16px}
+.lb-rh{font-family:var(--disp);font-weight:800;font-stretch:110%;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);margin:0 0 8px}
+.lb-ties{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px}
+.lb-tie{display:flex;align-items:center;gap:8px;padding:9px 12px;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);cursor:pointer;font-size:13px;transition:background .15s}
+.lb-tie:hover{background:color-mix(in srgb,var(--acc1) 7%,transparent)}
+.lb-side{display:flex;align-items:center;gap:6px;flex:1;min-width:0;font-weight:600}
+.lb-side b{font-family:var(--mono);font-weight:700;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lb-side .flagimg{width:20px;height:14px;flex:0 0 auto;border-radius:2px;object-fit:cover;box-shadow:0 1px 1px rgba(13,27,42,.3)}
+.lb-tie .lb-side:last-child{flex-direction:row-reverse;text-align:right}
+.lb-won b{color:var(--ink);font-weight:800}
+.lb-lost{opacity:.4;filter:grayscale(.7)}
+.lb-sc{font-family:var(--mono);font-weight:700;font-size:13px;flex:0 0 auto;color:var(--ink);text-align:center}
+.lb-sc small{font-weight:500;font-size:10px;color:var(--ink-soft);margin-left:3px}
+.lb-sc.lb-live{color:var(--live)}
+.lb-v{font-size:11px;color:var(--ink-soft);flex:0 0 auto}
 .r32br{margin:2px 0 24px;animation:rise .45s both}
 .r32br .r32board-head{align-items:center}
 .rb-toggle{display:inline-flex;background:var(--line);border-radius:999px;padding:2px;gap:2px;flex:0 0 auto}
