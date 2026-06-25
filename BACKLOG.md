@@ -1,6 +1,6 @@
 # WC·26 — Feature backlog & information architecture
 
-_Refreshed at build 65 (2026-06-13). Free/keyless sources only; no backend; no build step for the site itself._
+_Refreshed at build 367 (2026-06-25). Free/keyless sources only; no backend; no build step for the site itself._
 
 ---
 
@@ -34,9 +34,38 @@ We're going to add a lot. The rule is **grow down (depth), not wide (tabs)**, an
 
 ---
 
+## Knockout stage — active track (R32 ≈ Jun 28)
+
+The 2026 knockouts are the focus as the groups wrap. A deep readiness study (2026-06-25) confirmed the core engines are correct against FIFA's format: the R32 best-third allocation (backtracking constraint solver), the pts→GD→GF→ranking tiebreakers, extra-time + penalties, and winner propagation.
+
+**Shipped**
+- ✅ **Readiness fixes** (build 365) — shootout result in the runtime share path (title + canvas); R32 slot-lock uses confirmed results (`isFeedFinal`), not a stuck-LIVE feed coerced to FT; a third-place tie is never mislabelled "Confirmed" while unresolved.
+- ✅ **Knockout stakes line** (build 366) — "Loser out · winner into the [round]" / "Winner lifts the trophy." on every KO card (`koStakeLine`, reuses `koPath`'s feed chain).
+- ✅ **Live "as it stands" bracket** (build 367) — read-only R32→Final, each tie resolved from actual results via `slotInfo`; winner bold, loser greyed. **Built but GATED OFF** (`const SHOW_LIVE_BRACKET = false`; `?bracket=1` previews it).
+
+**Next** (S unless noted)
+- ⬜ **Activate the live bracket** — flip the flag at KO, verify advance/grey-out on real R32 results, and polish the `W##`/`L##` feed-slot placeholders (the app otherwise never shows match numbers).
+- ⬜ **H2H on the knockout match modal** — surface the existing `wcH2HBlock` + `wc-h2h.json` (268 records) on KO ties. The history source now exists, so the old "Head-to-head" backlog item is unblocked.
+- ⬜ **Win-probability swing chart** — "% to advance" across a match with goal markers; honest uncertainty, no false precision. Works on finished matches now. **M.**
+- ⬜ **Honest xG "created vs scored"** — from `efi.json` (a static aggregate, not a fake timeline).
+- ⬜ **"A booking here → banned for the [next round]"** — extend Suspension watch with the named next opponent.
+- ⬜ **Upset / seeding framing** — Elo *blended with current group form* (pre-tournament Elo alone is stale by KO).
+- ⬜ **Prominent live penalty score**; **"Fight for bronze"** framing for the third-place play-off.
+
+## Won't build — data-honesty boundary
+
+These would require faking data we don't have, and break the zero-error bar:
+- **Per-kick penalty detail** — the feed gives only the aggregate `hp`/`ap`, never who took/scored/missed each kick.
+- **Per-minute xG timeline** — xG is a post-match aggregate, not minute-by-minute.
+- **Live-refining extra-time win-prob** — the model treats ET/penalties as a flat 50-50.
+- **Positional / heatmaps, live per-player stats, live injuries/suspensions** — not in the free feed.
+- **Global prediction leaderboard, betting odds** — need a backend / paid feed.
+
+---
+
 ## Detailed feature list
 
-Status: ✅ shipped · ⬜ backlog. Effort: S < a session · M ≈ a session · L multi-session. → = where it lives.
+Status: ✅ shipped · ⬜ backlog · ❌ dropped. Effort: S < a session · M ≈ a session · L multi-session. → = where it lives.
 
 ### A. Matches & live match detail
 - ✅ Live scores (self-relaunching 1-min polling Action)
@@ -45,9 +74,9 @@ Status: ✅ shipped · ⬜ backlog. Effort: S < a session · M ≈ a session · 
 - ✅ **Match stats** (possession, shots, on-target, corners, fouls) + match-flow **momentum**
 - ✅ **Player profiles** — tap any name (timeline / pitch / Boot / squad)
 - ⬜ **Venue + weather** — kickoff conditions per match (open-meteo, keyless; city→lat/long static). → Match sheet + small card chip. **M**
-- ⬜ **Head-to-head** — recent meetings between the two teams. → Match sheet. **M–L** (needs a history source)
+- 🟡 **Head-to-head** — history source now built (`wc-h2h.json`, 268 WC meetings) and shown on the projected-tie sheet; surfacing it on the live KO match modal is in the knockout track above. → Match sheet. **S** remaining.
 - ✅ **Win-probability** — a Poisson model from team ratings (World Cup pedigree + current-tournament form) on the match sheet, shown pre-match (a lean) and updated in-play by the live scoreline + minutes remaining; clearly labelled an estimate.
-- ⬜ **Penalty shootout detail** — kick-by-kick in KO ties. → Match sheet. **S**
+- ❌ **Penalty shootout detail (kick-by-kick)** — not buildable: the feed exposes only the aggregate `hp`/`ap`, never per-kick taker/outcome. The honest version (a prominent shootout score) is in the knockout track. See "Won't build".
 - ✅ **Match of the day** — a gold banner under the hero highlighting the marquee fixture in the next slate of games (scored by stage weight + the teams' World Cup pedigree + host bonus); hidden when it's already the hero. → Matches.
 - ✅ **Day in review** — a date-navigable digest (tap any day header, or browse with ‹ ›) split into two areas: a **recap** (results, total goals, top scorer, biggest result) and a **preview** (a gold "One to watch" marquee pick + the rest of the day's fixtures). → Matches. Pure client, zero payload.
 
@@ -78,7 +107,7 @@ Status: ✅ shipped · ⬜ backlog. Effort: S < a session · M ≈ a session · 
 - ✅ **Goalkeepers · clean sheets** (per-keeper) — credits the starting GK (pos 0 in the lineup) with each shutout; leaderboard in the Players sub-section, tapping through to the keeper's profile.
 - ✅ **Suspension watch** — Discipline sub-section flags who's banned next match (red / 2nd yellow) and who's "on a yellow", derived from the card tallies. Note explains FIFA clears single yellows after the QF.
 - ✅ **Records & superlatives** — biggest win, highest-scoring match, fastest & latest goals (each taps through to its match/player). → Records sub-section. _Comebacks / longest-unbeaten still open (need lead-change tracking)._
-- ✅ **Fair play table** (cleanest teams) — FIFA fair-play points (−1 yellow / −3 red) ranked in Stats → Discipline. _Most-fouled / most-minutes still open._
+- ❌ **Fair play table** — built then removed: fair-play points need official conduct records we can't compute exactly from the free feed, so it was dropped rather than show an inexact ranking. _Most-fouled / most-minutes need data we don't have._
 
 ### F. Personalisation, chrome & settings
 - ✅ Team theming, timezone picker, jump-to-now, new-version refresh nudge, **installable PWA**
@@ -105,15 +134,14 @@ Status: ✅ shipped · ⬜ backlog. Effort: S < a session · M ≈ a session · 
 
 ---
 
-## Suggested order
-1. **Foundation A — Stats sub-nav** (unlocks E with no clutter).
-2. **Foundation B — Settings sheet** (unlocks F; declutters the topbar).
-3. Quick wins into the new homes: **assists race**, **clean sheets**, **suspension watch** (Stats), **dark mode** (Settings).
-4. **Team detail sheet / road-to-final** (the big Teams upgrade).
-5. **Records**, **venue+weather**, **search**, then scale (#G).
+## Suggested order (current)
+_The IA foundations (Stats sub-nav, Settings sheet) and the big Teams/Stats upgrades from the original order have all shipped. Current focus is the knockout track:_
+1. **Now → R32:** H2H on the KO modal → win-prob swing chart → polish the live bracket's placeholders so it's ready to flip on. (All verifiable today.)
+2. **At R32 kickoff:** activate the live bracket (verify advance/grey-out) → "banned for the next round" → upset framing → prominent penalty score → "Fight for bronze".
+3. **Around / after the knockouts:** Android APK (#G) → venue + weather (A) → the bigger bets: buzz/social tab, qualification permutations (C — revive the dead `groupOutlook`).
 
 ## Known issues / watch
-- **`results.json` growth** — see G; fine now, split before knockouts.
+- **`results.json` / `details.json` split** — done (G): the 60s-polled `results.json` is scores/status only; heavy `ev`/`xi`/`stats` live in `details.json`, fetched only when scores change.
 - **Squad ↔ feed name matching** — profiles fuzzy-match squad full names to FIFA short-name photo keys; misses fall back to the flag (graceful).
 
 When adding data fields, update in order: the schema note in `CLAUDE.md`, the writer script, then the renderer.
