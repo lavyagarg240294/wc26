@@ -1580,6 +1580,17 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .rec-tx small .flagimg{margin:0 4px 0 2px;vertical-align:-.12em}   /* breathing room so "Germany v Curaçao" with its two flags isn't cramped */
 .rec-v{font-family:var(--mono);font-weight:700;font-size:18px;font-variant-numeric:tabular-nums;text-align:right;display:flex;flex-direction:column;align-items:flex-end;line-height:1.1;flex:0 0 auto}
 .rec-v small{font-weight:500;font-size:9px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.02em}
+/* joint records: a "Shared by N" headline that expands to every tied co-holder */
+.rec-row.is-shared .rec-tx small{color:var(--acc-text);font-weight:600}
+.rec-chev{flex:0 0 auto;width:15px;height:15px;margin-left:6px;color:var(--ink-soft);opacity:.5;transition:transform .2s}
+.rec-row.is-open .rec-chev{transform:rotate(180deg)}
+.rec-holders{display:flex;flex-direction:column;padding:2px 14px 12px 52px;background:color-mix(in srgb,var(--acc1) 5%,transparent);border-top:1px solid color-mix(in srgb,var(--line) 55%,transparent)}
+.rec-holders[hidden]{display:none}
+.rec-hrow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 2px;border-top:1px solid color-mix(in srgb,var(--line) 45%,transparent);cursor:pointer;font-size:13px}
+.rec-hrow:first-child{border-top:none}
+.rec-hrow:hover{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
+.rec-hrow .hr-t{display:flex;align-items:center;gap:5px;min-width:0;color:var(--ink);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rec-hrow .hr-v{font-family:var(--mono);font-size:12px;font-weight:700;color:var(--ink-soft);flex:0 0 auto}
 /* all-time records pill */
 .atr-intro{font-size:13px;color:var(--ink-soft);margin:-4px 0 12px;line-height:1.5}
 .atr{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden;margin-bottom:12px;animation:rise .45s both;animation-delay:calc(var(--i,0)*45ms)}

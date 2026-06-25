@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "362";  // shown in footer; bump with the ?v= asset version
+const BUILD = "363";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -4077,6 +4077,7 @@ function championBanner(code, predicted) {
 
 /* ---------------- tournament stats (team + player) ---------------- */
 let _tsCache = null, _tsSig = "";
+const _recOpen = new Set();   // which joint-record rows the user has expanded (persists across live-poll re-renders)
 function tournamentStats() {
   // memoise: the ~15 leaderboards depend only on FT scores/events/stats, never the live minute that ticks every poll.
   // Without this, an open Stats tab rebuilds and re-sorts everything every 30s on a busy matchday for zero visible change.
@@ -4088,7 +4089,8 @@ function tournamentStats() {
   const gf = {}, ga = {}, poss = {}, possN = {}, sot = {}, sotN = {}, yel = {}, red = {}, played = {}, scorers = {}, assists = {}, pyel = {}, pred = {}, cs = {}, conf = {}, keepers = {}, tstat = {}, statN = {}, cardLog = {};
   const TSTAT_KEYS = ["sh", "pass", "passT", "cross", "lball", "tkl", "intc", "clr", "blk", "sv", "off", "fls"];   // richer ESPN team stats → leaderboards + style
   let goals = 0, totYellow = 0, totRed = 0, totPen = 0, totOg = 0, totSot = 0;
-  const rec = { bigWin: null, hiScore: null, fastG: null, lateG: null, hiDraw: null, topMatch: null, mostCards: null, mostTackles: null, bestDef: null };
+  const rec = {};   // each record resolves to an ARRAY of all holders tied at the top value (joint records) - see topTies, post-loop
+  const recC = { bigWin: [], hiScore: [], fastG: [], lateG: [], hiDraw: [], topMatch: [], mostCards: [], mostTackles: [], bestDef: [] };
   const add = (o, k, n = 1) => { if (k) o[k] = (o[k] || 0) + n; };
   const addConf = (code, gfv, gav, diff) => {   // a team's match folded into its confederation's collective record
     const k = S.teams[code]?.conf; if (!k) return;
@@ -4114,10 +4116,8 @@ function tournamentStats() {
     // records: biggest winning margin (tiebreak by total goals) + highest-scoring match
     const margin = Math.abs(r.h - r.a), total = r.h + r.a;
     const win = r.h >= r.a ? { w: hc, l: ac, ws: r.h, ls: r.a } : { w: ac, l: hc, ws: r.a, ls: r.h };
-    if (margin > 0 && (!rec.bigWin || margin > rec.bigWin.margin || (margin === rec.bigWin.margin && total > rec.bigWin.total)))
-      rec.bigWin = { mid: m.id, num: m.num, total, margin, ...win };
-    if (total > 0 && (!rec.hiScore || total > rec.hiScore.total))
-      rec.hiScore = { mid: m.id, num: m.num, total, hc, ac, h: r.h, a: r.a };
+    if (margin > 0) recC.bigWin.push({ mid: m.id, num: m.num, total, margin, ...win });
+    if (total > 0) recC.hiScore.push({ mid: m.id, num: m.num, total, hc, ac, h: r.h, a: r.a });
     const matchGoals = {};
     let mYellow = 0, mRed = 0;
     for (const e of (r.ev || [])) {
@@ -4129,34 +4129,26 @@ function tournamentStats() {
         add(scorers, sc + "\t" + tc); if (e.a) add(assists, (resolvePlayer(e.a, tc, e.an, "out")?.name || e.a) + "\t" + tc);   // own goals excluded from the Boot
         const mk = sc + "\t" + tc; matchGoals[mk] = (matchGoals[mk] || 0) + 1;
         const mn = evMin(e.t);   // fastest / latest goal of the tournament (by the player who scored it)
-        if (mn >= 1) {
-          if (!rec.fastG || mn < rec.fastG.mn) rec.fastG = { name: sc, code: tc, t: e.t, mn, mid: m.id };
-          if (!rec.lateG || mn > rec.lateG.mn) rec.lateG = { name: sc, code: tc, t: e.t, mn, mid: m.id };
-        }
+        if (mn >= 1) { const gR = { name: sc, code: tc, t: e.t, mn, mid: m.id }; recC.fastG.push(gR); recC.lateG.push(gR); }
       }
       if (e.k === "Y") { add(yel, tc); totYellow++; mYellow++; if (e.p) { const pk = (resolvePlayer(e.p, tc, e.n)?.name || e.p) + "\t" + tc; add(pyel, pk); (cardLog[pk] ||= []).push({ ko: m.utc, k: "Y" }); } }
       else if (e.k === "R") { add(red, tc); totRed++; mRed++; if (e.p) { const pk = (resolvePlayer(e.p, tc, e.n)?.name || e.p) + "\t" + tc; add(pred, pk); (cardLog[pk] ||= []).push({ ko: m.utc, k: "R" }); } }
     }
     // per-match superlatives
-    if (r.h === r.a && (r.h + r.a) > 0 && (!rec.hiDraw || (r.h + r.a) > rec.hiDraw.total))
-      rec.hiDraw = { mid: m.id, hc, ac, h: r.h, a: r.a, total: r.h + r.a };
+    if (r.h === r.a && (r.h + r.a) > 0) recC.hiDraw.push({ mid: m.id, hc, ac, h: r.h, a: r.a, total: r.h + r.a });
     for (const [mk, cnt] of Object.entries(matchGoals)) {
-      if (cnt >= 2 && (!rec.topMatch || cnt > rec.topMatch.v)) {
-        const ti = mk.indexOf("\t"); const tc2 = mk.slice(ti + 1);
-        rec.topMatch = { name: mk.slice(0, ti), code: tc2, opp: tc2 === hc ? ac : hc, v: cnt, mid: m.id };
-      }
+      if (cnt >= 2) { const ti = mk.indexOf("\t"), tc2 = mk.slice(ti + 1); recC.topMatch.push({ name: mk.slice(0, ti), code: tc2, opp: tc2 === hc ? ac : hc, v: cnt, mid: m.id }); }
     }
     const mCards = mYellow + mRed;
-    if (mCards > 0 && (!rec.mostCards || mCards > rec.mostCards.total))
-      rec.mostCards = { mid: m.id, hc, ac, y: mYellow, r: mRed, total: mCards };
+    if (mCards > 0) recC.mostCards.push({ mid: m.id, hc, ac, y: mYellow, r: mRed, total: mCards });
     // most tackles by a team in a match (team stat), + best individual defensive display (key-performer data)
     if (Array.isArray(r.stats?.tkl)) {
       const [ht, at] = r.stats.tkl, top = ht >= at ? { code: hc, v: ht, opp: ac } : { code: ac, v: at, opp: hc };
-      if (top.v > 0 && (!rec.mostTackles || top.v > rec.mostTackles.v)) rec.mostTackles = { ...top, mid: m.id };
+      if (top.v > 0) recC.mostTackles.push({ ...top, mid: m.id });
     }
     for (const L of (r.lead || [])) {
       if (L.k !== "defensiveInterventions" || !L.n || !(+L.v > 0)) continue;
-      if (!rec.bestDef || +L.v > rec.bestDef.v) rec.bestDef = { name: resolvePlayer(L.n, L.c)?.name || L.n, code: L.c, v: +L.v, opp: L.c === hc ? ac : hc, mid: m.id };
+      recC.bestDef.push({ name: resolvePlayer(L.n, L.c)?.name || L.n, code: L.c, v: +L.v, opp: L.c === hc ? ac : hc, mid: m.id });
     }
     if (r.stats?.poss) { add(poss, hc, r.stats.poss[0]); add(possN, hc); add(poss, ac, r.stats.poss[1]); add(possN, ac); }
     if (r.stats?.sot) { add(sot, hc, r.stats.sot[0]); add(sotN, hc); add(sot, ac, r.stats.sot[1]); add(sotN, ac); totSot += (r.stats.sot[0] || 0) + (r.stats.sot[1] || 0); }
@@ -4165,6 +4157,18 @@ function tournamentStats() {
       for (const k of TSTAT_KEYS) if (Array.isArray(r.stats[k])) { (tstat[k] ||= {}); add(tstat[k], hc, r.stats[k][0]); add(tstat[k], ac, r.stats[k][1]); }
     }
   }
+  // resolve each record to ALL holders tied at the top value (a joint record shows every co-holder, never just the
+  // first by match order). keyFn returns a single sortable number; bigWin folds its total tiebreak into the key.
+  const topTies = (arr, keyFn) => { if (!arr.length) return []; let best = -Infinity; for (const x of arr) { const k = keyFn(x); if (k > best) best = k; } return arr.filter(x => keyFn(x) === best); };
+  rec.bigWin = topTies(recC.bigWin, x => x.margin * 100 + x.total);
+  rec.hiScore = topTies(recC.hiScore, x => x.total);
+  rec.fastG = topTies(recC.fastG, x => -x.mn);
+  rec.lateG = topTies(recC.lateG, x => x.mn);
+  rec.hiDraw = topTies(recC.hiDraw, x => x.total);
+  rec.topMatch = topTies(recC.topMatch, x => x.v);
+  rec.mostCards = topTies(recC.mostCards, x => x.total);
+  rec.mostTackles = topTies(recC.mostTackles, x => x.v);
+  rec.bestDef = topTies(recC.bestDef, x => x.v);
   // LIVE matches: fold goals + assists into the Boot and the all-time career records in real time - a goal counts the
   // moment it's given, even mid-match. (The match-level records above stay FT-only; they need a finished result.)
   for (const m of S.matches) {
@@ -4453,20 +4457,45 @@ function renderStats() {
     <span class="lead-rank">${rank}</span><span class="fl">${flag(x.code)}</span><span class="lead-name">${tname(x.code)}</span>
     <span class="lead-v card-tally"><span class="ct ct-y" title="${x.y} yellow">${x.y}</span><span class="ct ct-r" title="${x.r} red">${x.r}</span></span></div>`, x => x.v)}</div>` : "";
 
-  // records / superlatives - each row taps through to its match or the player who scored
+  // records / superlatives - each row taps to its match or player. A record tied at the top value becomes a
+  // "Shared by N" row that expands to list every co-holder, so we never bill one of them as THE record-setter.
   const rc = s.records;
   const recRow = (ic, label, sub, val, attr) => `<div class="rec-row" ${attr} role="button" tabindex="0">
     <span class="rec-ic">${ic}</span><span class="rec-tx"><b>${label}</b><small>${sub}</small></span><span class="rec-v">${val}</span></div>`;
-  const recItems = [];
-  if (rc.bigWin) { const r = rc.bigWin; recItems.push(recRow(ICO.spark, "Biggest win", `${flag(r.w)} ${tname(r.w)} beat ${flag(r.l)} ${tname(r.l)}`, `${r.ws}–${r.ls}`, `data-mid="${r.mid}"`)); }
-  if (rc.hiScore) { const r = rc.hiScore; recItems.push(recRow(ICO.net, "Highest-scoring match", `${flag(r.hc)} ${tname(r.hc)} v ${flag(r.ac)} ${tname(r.ac)}`, `${r.h}–${r.a}<small>${r.total} goals</small>`, `data-mid="${r.mid}"`)); }
-  if (rc.hiDraw) { const r = rc.hiDraw; recItems.push(recRow(ICO.net, "Highest-scoring draw", `${flag(r.hc)} ${tname(r.hc)} v ${flag(r.ac)} ${tname(r.ac)}`, `${r.h}–${r.a}`, `data-mid="${r.mid}"`)); }
-  if (rc.topMatch) { const r = rc.topMatch; recItems.push(recRow(ICO.ball, "Best individual haul", `${flag(r.code)} ${esc(r.name)}${r.opp ? ` vs ${flag(r.opp)} ${tname(r.opp)}` : ""}`, `${r.v} goals`, `data-player="${esc(r.name)}|${r.code}"`)); }
-  if (rc.fastG) { const r = rc.fastG; recItems.push(recRow(ICO.bolt, "Fastest goal", `${flag(r.code)} ${esc(r.name)}`, esc(r.t), `data-player="${esc(r.name)}|${r.code}"`)); }
-  if (rc.lateG) { const r = rc.lateG; recItems.push(recRow(ICO.clock, "Latest goal", `${flag(r.code)} ${esc(r.name)}`, esc(r.t), `data-player="${esc(r.name)}|${r.code}"`)); }
-  if (rc.mostCards) { const r = rc.mostCards; recItems.push(recRow(ICO.spark, "Most cards in a match", `${flag(r.hc)} ${tname(r.hc)} v ${flag(r.ac)} ${tname(r.ac)}`, `<span class="card-tally"><span class="ct ct-y">${r.y}</span>${r.r ? `<span class="ct ct-r">${r.r}</span>` : ""}</span>`, `data-mid="${r.mid}"`)); }
-  if (rc.mostTackles) { const r = rc.mostTackles; recItems.push(recRow(ICO.shield, "Most tackles by a team", `${flag(r.code)} ${tname(r.code)}${r.opp ? ` vs ${flag(r.opp)} ${tname(r.opp)}` : ""}`, `${r.v}`, `data-mid="${r.mid}"`)); }
-  if (rc.bestDef) { const r = rc.bestDef; recItems.push(recRow(ICO.shield, "Best defensive display", `${flag(r.code)} ${esc(pName(r.name, r.code))}${r.opp ? ` vs ${flag(r.opp)} ${tname(r.opp)}` : ""}`, `${r.v}<small>actions</small>`, `data-player="${esc(r.name)}|${r.code}"`)); }
+  const recChev = `<svg class="rec-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>`;
+  const matchSub = r => `${flag(r.hc)} ${tname(r.hc)} v ${flag(r.ac)} ${tname(r.ac)}`;
+  const cardsVal = r => `<span class="card-tally"><span class="ct ct-y">${r.y}</span>${r.r ? `<span class="ct ct-r">${r.r}</span>` : ""}</span>`;
+  // val: the single-holder value. sharedVal: the headline when tied (the shared metric, where holders differ).
+  // holderVal: per-co-holder value, only where it adds info (e.g. each tied match's own scoreline).
+  const recDefs = [
+    { key: "bigWin", ic: ICO.spark, label: "Biggest win", noun: "matches", attr: r => `data-mid="${r.mid}"`,
+      sub: r => `${flag(r.w)} ${tname(r.w)} beat ${flag(r.l)} ${tname(r.l)}`, val: r => `${r.ws}–${r.ls}` },
+    { key: "hiScore", ic: ICO.net, label: "Highest-scoring match", noun: "matches", attr: r => `data-mid="${r.mid}"`,
+      sub: matchSub, val: r => `${r.h}–${r.a}<small>${r.total} goals</small>`, sharedVal: hs => `${hs[0].total}<small>goals</small>`, holderVal: r => `${r.h}–${r.a}` },
+    { key: "hiDraw", ic: ICO.net, label: "Highest-scoring draw", noun: "matches", attr: r => `data-mid="${r.mid}"`,
+      sub: matchSub, val: r => `${r.h}–${r.a}` },
+    { key: "topMatch", ic: ICO.ball, label: "Best individual haul", noun: "players", attr: r => `data-player="${esc(r.name)}|${r.code}"`,
+      sub: r => `${flag(r.code)} ${esc(r.name)}${r.opp ? ` vs ${flag(r.opp)} ${tname(r.opp)}` : ""}`, val: r => `${r.v} goals` },
+    { key: "fastG", ic: ICO.bolt, label: "Fastest goal", noun: "players", attr: r => `data-player="${esc(r.name)}|${r.code}"`,
+      sub: r => `${flag(r.code)} ${esc(r.name)}`, val: r => esc(r.t) },
+    { key: "lateG", ic: ICO.clock, label: "Latest goal", noun: "players", attr: r => `data-player="${esc(r.name)}|${r.code}"`,
+      sub: r => `${flag(r.code)} ${esc(r.name)}`, val: r => esc(r.t) },
+    { key: "mostCards", ic: ICO.spark, label: "Most cards in a match", noun: "matches", attr: r => `data-mid="${r.mid}"`,
+      sub: matchSub, val: cardsVal, sharedVal: hs => `${hs[0].total}<small>cards</small>`, holderVal: cardsVal },
+    { key: "mostTackles", ic: ICO.shield, label: "Most tackles by a team", noun: "matches", attr: r => `data-mid="${r.mid}"`,
+      sub: r => `${flag(r.code)} ${tname(r.code)}${r.opp ? ` vs ${flag(r.opp)} ${tname(r.opp)}` : ""}`, val: r => `${r.v}` },
+    { key: "bestDef", ic: ICO.shield, label: "Best defensive display", noun: "players", attr: r => `data-player="${esc(r.name)}|${r.code}"`,
+      sub: r => `${flag(r.code)} ${esc(pName(r.name, r.code))}${r.opp ? ` vs ${flag(r.opp)} ${tname(r.opp)}` : ""}`, val: r => `${r.v}<small>actions</small>` },
+  ];
+  const recItems = recDefs.map(d => {
+    const hold = rc[d.key] || [];
+    if (!hold.length) return "";
+    if (hold.length === 1) return recRow(d.ic, d.label, d.sub(hold[0]), d.val(hold[0]), d.attr(hold[0]));
+    const isOpen = _recOpen.has(d.key), headVal = d.sharedVal ? d.sharedVal(hold) : d.val(hold[0]), hVal = d.holderVal;
+    return `<div class="rec-row is-shared${isOpen ? " is-open" : ""}" data-recmore="${d.key}" role="button" tabindex="0" aria-expanded="${isOpen}">
+      <span class="rec-ic">${d.ic}</span><span class="rec-tx"><b>${d.label}</b><small>Shared by ${hold.length} ${d.noun}</small></span><span class="rec-v">${headVal}</span>${recChev}</div>`
+      + `<div class="rec-holders"${isOpen ? "" : " hidden"}>${hold.map(h => `<div class="rec-hrow" ${d.attr(h)} role="button" tabindex="0"><span class="hr-t">${d.sub(h)}</span>${hVal ? `<span class="hr-v">${hVal(h)}</span>` : ""}</div>`).join("")}</div>`;
+  }).filter(Boolean);
   const recordsHtml = recItems.length
     ? `<div class="lead-card rec-card">${recItems.join("")}</div><p class="sim-ko-hint">Tap a record to open the match or player.</p>`
     : `<div class="empty">Records fill in as matches are played.</div>`;
@@ -5340,6 +5369,12 @@ async function boot() {
     if (sti) { openSimTie(sti.dataset.simInfo); return; }
     const se = e.target.closest("[data-sim-edit]");   // "Make your own picks" / "Build your own bracket" → open the predictor editor
     if (se) { const pd = $("#projDialog"); if (pd?.open) pd.close(); S.simView = "edit"; nav("sim"); return; }
+    const rmore = e.target.closest("[data-recmore]");   // a joint-record headline → expand/collapse its co-holders
+    if (rmore) { const key = rmore.dataset.recmore, list = rmore.nextElementSibling, open = !_recOpen.has(key);
+      open ? _recOpen.add(key) : _recOpen.delete(key);
+      rmore.classList.toggle("is-open", open); rmore.setAttribute("aria-expanded", open ? "true" : "false");
+      if (list?.classList.contains("rec-holders")) { open ? list.removeAttribute("hidden") : list.setAttribute("hidden", ""); }
+      return; }
     const mid = e.target.closest("[data-mid]");   // hero, match card, or a record row (never a dialog)
     if (mid && mid.tagName !== "DIALOG") { openMatch(mid.dataset.mid); }
   });
