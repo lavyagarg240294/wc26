@@ -34,7 +34,6 @@ These are deliberate, not accidental:
 | `reports.json` | credited match reports from ESPN's free `summary` feed, keyed by match number | scores Action |
 | `commentary/<num>.json` | heavy live play-by-play, one file per match so the client lazy-loads only what a popup opens | scores Action |
 | `squads.json` | 26-man squads (from official FIFA squad lists; caps/goals frozen at tournament start) | static + optional refresh |
-| `ics/*.ics` | static per-team + all-matches calendars for webcal subscription | `make-ics.mjs`, one-off |
 
 The empty-state files (`results`/`reports`) are seeded `{"matches":{}}` so the site works before the first Action run. The client always reads one merged object per match via `res()`.
 
@@ -43,7 +42,6 @@ The empty-state files (`results`/`reports`) are seeded `{"matches":{}}` so the s
 - **`fetch-results.mjs`** — the data engine (Node 20 ESM). **Primary source: `api.fifa.com/api/v3`** (free, no key) for live score + minute, plus an event timeline and lineups per in-play match. It joins feed rows to fixtures **by team pair, never by match number** (FIFA's numbering isn't chronological — joining on it once wrote a live score onto the wrong fixture). **Fallbacks:** worldcup26.ir → football-data.org (needs `FOOTBALL_DATA_TOKEN`). It then enriches with team **stats**, a credited **report**, and **commentary** from one ESPN `summary` call. Writes the slim `results.json` and heavy `details.json` separately, each only when its half changed. `--dry-run` tests without writing.
 - **`fetch-squads.mjs`** — *optional*. Refreshes caps/goals/club from API-Football (needs `API_FOOTBALL_KEY`). The committed squads already ship from official FIFA lists, so this isn't required to run the site.
 - **`make-icons.py`** / **`make-og.py`** — Pillow, one-shot. Generate the PWA/home-screen icons and the 1200×630 social card from the site's centre-circle mark.
-- **`make-ics.mjs`** — one-off, no deps. Generates the webcal calendars (keep the VEVENT format in sync with `matchVEVENT()` in `app.js`).
 - **`make-share-cards.mjs`** — build-time only, and the one place with npm deps (`satori` + `@resvg/resvg-js`). Renders a per-finished-match OG card + a `share/<num>.html` redirect stub. The site itself stays dependency-free; `node_modules` is gitignored.
 
 ### Service worker & PWA

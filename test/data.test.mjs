@@ -6,7 +6,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync, existsSync, readdirSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 
 const J = p => JSON.parse(readFileSync(p, "utf8"));
@@ -87,14 +87,8 @@ test("a self-hosted SVG flag exists for every team", () => {
   }
 });
 
-test("webcal calendars present (all + per team)", () => {
-  assert.ok(existsSync("data/ics/all.ics"), "all.ics exists");
-  const files = new Set(readdirSync("data/ics"));
-  for (const c of codes) assert.ok(files.has(`${c}.ics`), `${c}.ics exists`);
-});
-
 test("app.js, scripts and config parse (syntax smoke test)", () => {
-  for (const f of ["app.js", "scripts/fetch-results.mjs", "scripts/fetch-squads.mjs", "scripts/make-ics.mjs", "scripts/make-share-cards.mjs"]) {
+  for (const f of ["app.js", "scripts/fetch-results.mjs", "scripts/fetch-squads.mjs", "scripts/make-share-cards.mjs"]) {
     assert.doesNotThrow(() => execFileSync("node", ["--check", f], { stdio: "pipe" }), `${f} parses`);
   }
   assert.doesNotThrow(() => J("site.webmanifest"), "site.webmanifest is valid JSON");

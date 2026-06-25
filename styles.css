@@ -1242,12 +1242,6 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .ts-setfav,.ts-compare{margin:10px 0 2px;display:inline-flex;align-items:center;gap:6px;padding:7px 13px;border-radius:99px;font-weight:600;font-size:13px;cursor:pointer;border:1px solid var(--line);background:transparent;color:var(--ink-soft);transition:color .15s,border-color .15s,background .15s}
 .ts-setfav:hover,.ts-compare:hover{color:var(--acc-text);border-color:color-mix(in srgb,var(--acc1) 45%,var(--line));background:color-mix(in srgb,var(--acc1) 6%,transparent)}
 .ts-fav-tag{margin:10px 0 2px;font-size:12px;font-weight:700;color:var(--gold-text);letter-spacing:.02em}
-/* team-sheet calendar actions (subscribe via webcal + download .ics) */
-.ts-cal{display:flex;gap:8px;margin:0 0 6px}
-.ts-cal-btn{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:9px 12px;border-radius:12px;font-weight:600;font-size:13px;text-decoration:none;cursor:pointer;border:1px solid var(--line);background:color-mix(in srgb,var(--acc1) 8%,var(--card));color:var(--acc-text);transition:background .15s,border-color .15s}
-.ts-cal-btn:hover{background:color-mix(in srgb,var(--acc1) 14%,var(--card));border-color:color-mix(in srgb,var(--acc1) 40%,var(--line))}
-.ts-cal-btn.ghost{background:transparent;color:var(--ink-soft)}
-.ts-cal-btn.ghost:hover{color:var(--ink);background:color-mix(in srgb,var(--ink) 4%,transparent)}
 /* "Since 2022" — last-World-Cup finish + squad continuity (continuing vs new) */
 .s22-card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);padding:13px 15px;margin:2px 0 10px}
 .s22-card.s22-absent{display:flex;flex-direction:column;gap:2px}
