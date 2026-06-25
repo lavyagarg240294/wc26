@@ -507,6 +507,7 @@ body.bg-paused #bg span{animation-play-state:paused;will-change:auto}
 .mcard-team .fl{font-size:17px;width:26px;text-align:center;flex:0 0 26px}
 .mcard-team.is-ph{color:var(--ink-soft);font-weight:500;font-style:italic}
 .mcard-team.is-lost{opacity:.5}
+.mcard-team .qx{margin-left:0;flex:0 0 auto;font-size:9px;padding:1px 5px;vertical-align:0}   /* qualified/out badge, sized for the card row; gap handles spacing */
 .mcard-right{display:flex;flex-direction:column;align-items:flex-end;gap:5px}
 .mcard-score{font-family:var(--mono);font-weight:700;font-size:17px;font-variant-numeric:tabular-nums;display:flex;flex-direction:column;gap:5px;line-height:1.2;padding-left:18px}
 .mcard-score .lo{opacity:.45;font-weight:400}
@@ -2081,7 +2082,7 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
   .mcard-team{white-space:normal}
   /* italic placeholder names (e.g. "Runner-up Group F") lean past their box — the overflow:hidden the
      line-clamp needs would shave the final glyph, so reserve a few px of trailing room for the slant */
-  .mcard-team>span:last-child{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.2;padding-inline-end:4px}
+  .mcard-team .mct-name{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.2;padding-inline-end:4px}
   .teamsgrid{grid-template-columns:1fr 1fr;gap:8px}
   .teamcard{padding:10px 11px;gap:8px}
   .teamcard .fl{font-size:21px}

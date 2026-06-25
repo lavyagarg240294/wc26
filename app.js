@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "371";  // shown in footer; bump with the ?v= asset version
+const BUILD = "372";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -795,7 +795,7 @@ function matchCard(m, i, opts = {}) {
     : "";   // scheduled: kickoff time already shows on the left - don't repeat it on the right
   const teamRow = (s, key, lost) =>
     `<div class="mcard-team ${s.ph ? "is-ph" : ""} ${lost ? "is-lost" : ""}">` +
-    `<span class="fl">${s.code ? flag(s.code) : TBD_FLAG}</span><span>${esc(slotText(m, key, s))}</span></div>`;
+    `<span class="fl">${s.code ? flag(s.code) : TBD_FLAG}</span><span class="mct-name">${esc(slotText(m, key, s))}</span>${m.stage === "group" && s.code ? qualBadge(s.code) : ""}</div>`;   // group cards show the team's qualified/out marker (KO teams are all through, so it'd be redundant there)
   const sv = isSaved(m.id);
   // The card body is the primary button; the save-star is a SIBLING <button>, not nested inside it
   // (nesting two interactive controls is invalid ARIA - screen readers announce it ambiguously). The
@@ -2830,20 +2830,21 @@ function openTeamCompare(aCode, bCode) {
 
 /* ---------------- render: groups ---------------- */
 const TABLE_COLS = `<colgroup><col class="c-name"><col class="c-n"><col class="c-n"><col class="c-n"><col class="c-n"><col class="c-gd"><col class="c-pts"></colgroup>`;
+// a team's group-qualification status, shared by the group tables AND the group-match cards (one source of truth).
+// "in" = through to the last 32, "out" = can't make the top two, "" = undecided / not started / a 3rd-placed team
+// still in the best-third race. Group FINISHED → read off the final table (GD has settled any points ties: top two
+// through, 4th out, 3rd left to the best-third race); IN PROGRESS → the GD-safe points scan (no GD-dependent call).
+function qualStatus(code) {
+  const g = groupOf(code); if (!g) return "";
+  if (!S.matches.some(x => x.group === g && isFinalSt(status(x)) && res(x)?.h != null)) return "";
+  if (remInGroup(g) === 0) { const pos = standings(g).findIndex(r => r.code === code); return pos < 2 ? "in" : pos === 2 ? "" : "out"; }
+  const q = _qualScan(g, code);
+  return q.clinched ? "in" : q.out ? "out" : "";
+}
+function qualBadge(code) { const s = qualStatus(code); return s === "in" ? `<span class="qx qx-in" title="Through to the Round of 32">Q</span>` : s === "out" ? `<span class="qx qx-out" title="Cannot finish in the top two">out</span>` : ""; }
 function groupTable(g, i) {
   const rows = standings(g);
-  const started = S.matches.some(x => x.group === g && isFinalSt(status(x)) && res(x)?.h != null);
-  const qIn = `<span class="qx qx-in" title="Through to the Round of 32">Q</span>`;
-  const qOut = `<span class="qx qx-out" title="Cannot finish in the top two">out</span>`;
-  const qtag = code => {                                  // through / out-of-top-two markers
-    if (!started) return "";
-    // group FINISHED → read it off the final table: GD has decided any points ties, so the top two are through and 4th
-    // is out. 3rd is left blank - it's the best-third race (separate tracker) that decides whether it goes through.
-    if (remInGroup(g) === 0) { const pos = rows.findIndex(r => r.code === code); return pos < 2 ? qIn : pos === 2 ? "" : qOut; }
-    // group IN PROGRESS → conservative, GD-safe points scan (never makes a GD-dependent call while matches remain).
-    const q = _qualScan(g, code);
-    return q.clinched ? qIn : q.out ? qOut : "";
-  };
+  const qtag = qualBadge;   // through / out-of-top-two marker (shared with the group-match cards via qualStatus)
   return `<div class="gtable" style="--i:${i}"><h4>Group <span>${g}</span></h4>
     <table>${TABLE_COLS}<thead><tr><th>Team</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GD</th><th>Pts</th></tr></thead><tbody>
     ${rows.map((r, idx) => `<tr class="${idx < 2 ? "q1" : idx === 2 ? "q3" : ""} ${r.code === S.fav ? "is-fav" : ""}" data-g="${g}" data-code="${r.code}">
