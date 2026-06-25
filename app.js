@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "372";  // shown in footer; bump with the ?v= asset version
+const BUILD = "373";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -3018,7 +3018,7 @@ function wcH2HBlock(a, b) {
   const rows = ms.map(m => { const was = m.fh || m.fa; return `<div class="h2h-row"><span class="h2h-yr">${m.y}</span><span class="h2h-rd">${esc(m.r)}${was ? ` <span class="h2h-was">as ${esc(was)}</span>` : ""}</span>
     <span class="h2h-sc"><span class="fl">${flag(m.h)}</span> <b>${m.hs}–${m.as}</b> <span class="fl">${flag(m.a)}</span>${m.ph != null ? `<span class="h2h-pen">(${m.ph}–${m.pa}p)</span>` : ""}</span></div>`; }).join("");
   return `<div class="eyebrow">Past World Cup meetings <span class="h2h-count">${ms.length}</span></div>
-    <div class="h2h-sum"><b>${nm(a)}</b> ${wa} · ${d} draw${d !== 1 ? "s" : ""} · ${wb} <b>${nm(b)}</b></div>
+    <div class="h2h-sum"><b>${nm(a)}</b> ${wa} · Draw ${d} · <b>${nm(b)}</b> ${wb}</div>
     <div class="h2h-list">${rows}</div>`;
 }
 // the projected-tie sheet - opened by tapping a bracket tie: projected matchup, seeds, venue/date, the model's odds
