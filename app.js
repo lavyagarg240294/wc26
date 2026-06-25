@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "365";  // shown in footer; bump with the ?v= asset version
+const BUILD = "366";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -809,7 +809,7 @@ function matchCard(m, i, opts = {}) {
         ? `<div class="mcard-score${live ? " is-live" : ""}${abn ? " is-abn" : ""}"><span class="${winA ? "lo" : ""}">${sh}</span><span class="${winH ? "lo" : ""}">${sa}</span>${r?.hp != null ? `<span class="pens">(${r.hp}–${r.ap}p)</span>` : ""}</div>${(live || abn) ? badge : ""}`
         : badge}</div>
     </div>
-    ${(() => { const s = matchStakes(m); return s && s.definitive ? `<div class="mcard-stake">${s.lines[0]}</div>` : ""; })()}
+    ${(() => { if (m.stage !== "group") { const k = koStakeLine(m); return k ? `<div class="mcard-stake">${k}</div>` : ""; } const s = matchStakes(m); return s && s.definitive ? `<div class="mcard-stake">${s.lines[0]}</div>` : ""; })()}
     ${opts.sub !== false ? `<div class="mcard-sub"><span class="grp">${esc(stageL)}</span><span>${esc(m.stadium)}</span><span>${esc(m.city)}</span><span class="mcard-go">Details ›</span></div>` : ""}
     ${(() => { if (!document.body.classList.contains("expert") || isFinalSt(st) || isAbnormal(st)) return ""; const wp = winProb(m); if (!wp) return ""; const ph = Math.round(wp.h*100), pd = Math.round(wp.d*100), pa = 100-ph-pd; return `<div class="mcard-wp"><span class="mcard-wp-bar"><span class="mcard-wp-h" style="width:${ph}%"></span><span class="mcard-wp-d" style="width:${pd}%"></span></span><span class="mcard-wp-tx">${ph}% · D ${pd}% · ${pa}%</span></div>`; })()}
     </div>
@@ -1041,6 +1041,17 @@ function koPath(m) {
   if (chain.length < 2) return "";
   const steps = chain.slice(1).map(x => STAGE_NAME[x.stage] || x.stage);   // rounds ahead, no global match numbers (we don't number matches)
   return `<div class="md-kopath"><span class="kp-label">Winner's road →</span> ${steps.join(`<span class="kp-arr">›</span>`)}</div>`;
+}
+// one-line knockout stake for a match card/modal: single-elimination framing + the round the winner advances to
+// (from the same feed chain koPath uses). Only for an unfinished knockout tie - a finished one shows its result.
+function koStakeLine(m) {
+  if (!m || m.stage === "group" || isFinalSt(status(m))) return "";
+  if (m.stage === "final") return "Winner lifts the trophy.";
+  if (m.stage === "third") return "The third-place play-off.";
+  const tgt = {}; S.matches.forEach(x => { if (x.stage !== "group") [x.home, x.away].forEach(s => { if (s.feeds != null) tgt[s.feeds] = x.num; }); });
+  const next = S.matches.find(x => x.num === tgt[m.num]);
+  const nm = next ? STAGE_NAME[next.stage] : null;
+  return nm ? `Loser out · winner into the ${nm}.` : "Loser out.";
 }
 // win-probability - a bivariate-Poisson goals model. Team strength is each side's World Football Elo rating
 // (seeded snapshot in teams.json), nudged by current-tournament form; the Elo gap sets the goal supremacy that
