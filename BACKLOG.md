@@ -45,7 +45,7 @@ The 2026 knockouts are the focus as the groups wrap. A deep readiness study (202
 
 **Next** (S unless noted)
 - ⬜ **Activate the live bracket** — flip the flag at KO, verify advance/grey-out on real R32 results, and polish the `W##`/`L##` feed-slot placeholders (the app otherwise never shows match numbers).
-- ⬜ **H2H on the knockout match modal** — surface the existing `wcH2HBlock` + `wc-h2h.json` (268 records) on KO ties. The history source now exists, so the old "Head-to-head" backlog item is unblocked.
+- ✅ **Past World Cup meetings on the match modal** (build 368) — surfaces `wcH2HBlock` + `wc-h2h.json` (268 records) when there's a story: the two have met at a WC before (any match), or it's a knockout tie. Skips the "never met" line on a routine group game. Live now on group games with history.
 - ⬜ **Win-probability swing chart** — "% to advance" across a match with goal markers; honest uncertainty, no false precision. Works on finished matches now. **M.**
 - ⬜ **Honest xG "created vs scored"** — from `efi.json` (a static aggregate, not a fake timeline).
 - ⬜ **"A booking here → banned for the [next round]"** — extend Suspension watch with the named next opponent.
@@ -74,7 +74,7 @@ Status: ✅ shipped · ⬜ backlog · ❌ dropped. Effort: S < a session · M �
 - ✅ **Match stats** (possession, shots, on-target, corners, fouls) + match-flow **momentum**
 - ✅ **Player profiles** — tap any name (timeline / pitch / Boot / squad)
 - ⬜ **Venue + weather** — kickoff conditions per match (open-meteo, keyless; city→lat/long static). → Match sheet + small card chip. **M**
-- 🟡 **Head-to-head** — history source now built (`wc-h2h.json`, 268 WC meetings) and shown on the projected-tie sheet; surfacing it on the live KO match modal is in the knockout track above. → Match sheet. **S** remaining.
+- ✅ **Head-to-head** — `wc-h2h.json` (268 WC meetings) shown on the projected-tie/bracket-tie sheets and (build 368) on the match modal itself, when there's a story (prior WC meeting, or any knockout tie). → Match sheet.
 - ✅ **Win-probability** — a Poisson model from team ratings (World Cup pedigree + current-tournament form) on the match sheet, shown pre-match (a lean) and updated in-play by the live scoreline + minutes remaining; clearly labelled an estimate.
 - ❌ **Penalty shootout detail (kick-by-kick)** — not buildable: the feed exposes only the aggregate `hp`/`ap`, never per-kick taker/outcome. The honest version (a prominent shootout score) is in the knockout track. See "Won't build".
 - ✅ **Match of the day** — a gold banner under the hero highlighting the marquee fixture in the next slate of games (scored by stage weight + the teams' World Cup pedigree + host bonus); hidden when it's already the hero. → Matches.
