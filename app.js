@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "364";  // shown in footer; bump with the ?v= asset version
+const BUILD = "365";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -2838,16 +2838,20 @@ function r32SeedInfo(sh) {
 // per-tie resolution for a given mode: "projected" fills every slot with the current projection (incl. best thirds);
 // "confirmed" only shows a team where its exact slot is mathematically locked, else a seed placeholder (e.g. "1A").
 function r32TieInfo(t, mode = "projected") {
-  const remOf = g => S.matches.filter(x => x.group === g && status(x) !== ST.FT).length;
-  const allGroupsDone = GROUPS.every(g => remOf(g) === 0);
+  // a group is "done" only when its results are feed-confirmed (isFeedFinal, via remInGroup) - NOT merely when status()
+  // has coerced a stuck-LIVE match to FT after the time cap. This keeps the verdict/lock in step with slotInfo's team
+  // resolution, so a stalled feed can never lock an R32 slot (or a third-place slot) onto a provisional result.
+  const allGroupsDone = GROUPS.every(g => remInGroup(g) === 0);
   const sH = r32SeedInfo(t.m.home.short), sA = r32SeedInfo(t.m.away.short);
   const resolve = (code, s) => {
-    const locked = s.third ? allGroupsDone : (s.g ? remOf(s.g) === 0 : !!code);
+    const locked = s.third ? allGroupsDone : (s.g ? remInGroup(s.g) === 0 : !!code);
     return code && S.teams[code] && (mode === "projected" || locked) ? { code, known: true } : { code: null, known: false, ph: s.short };
   };
   const gh = resolve(t.h, sH), ga = resolve(t.a, sA);
-  const rem = (sH.g ? remOf(sH.g) : 0) + (sA.g ? remOf(sA.g) : 0);
-  const verdict = ((sH.third || sA.third) && !allGroupsDone) ? { k: "bubble", t: "Spot still open" }
+  const rem = (sH.g ? remInGroup(sH.g) : 0) + (sA.g ? remInGroup(sA.g) : 0);
+  // a third-place tie stays "open" until every group is confirmed; it also stays open if (defensively) the allocation
+  // can't resolve its team even after the groups finish - so an unresolved slot is never mislabelled "Confirmed".
+  const verdict = ((sH.third || sA.third) && (!allGroupsDone || (sH.third && !t.h) || (sA.third && !t.a))) ? { k: "bubble", t: "Spot still open" }
     : (rem === 0 && t.h && t.a) ? { k: "ok", t: "Confirmed" }
     : { k: "games", t: rem + " game" + (rem === 1 ? "" : "s") + " left" };
   return { m: t.m, h: t.h, a: t.a, sH, sA, gh, ga, verdict };
@@ -3707,7 +3711,7 @@ async function shareMatchCard(m) {
   const link = matchShareLink(m), hn = h.code ? h.name : slotText(m, "home", h), an = a.code ? a.name : slotText(m, "away", a);
   const copyLink = async () => { try { await navigator.clipboard.writeText(link); flashToast("Match link copied. Share it!"); } catch { flashToast("Couldn't copy the link"); } };
   if (isFinalSt(st)) {   // result card already exists; share its link
-    const title = r && r.h != null ? `${hn} ${r.h}–${r.a} ${an} · World Cup 2026` : `${hn} vs ${an} · World Cup 2026`;   // guard a FT row that briefly lacks a scoreline
+    const title = r && r.h != null ? `${hn} ${r.h}–${r.a}${r.hp != null ? ` (${r.hp}–${r.ap}p)` : ""} ${an} · World Cup 2026` : `${hn} vs ${an} · World Cup 2026`;   // guard a FT row that briefly lacks a scoreline; include a shootout result
     if (navigator.share) { try { await navigator.share({ title, url: link }); return; } catch (err) { if (err?.name === "AbortError") return; } }
     return copyLink();
   }
@@ -3733,7 +3737,10 @@ async function shareMatchCard(m) {
   };
   await team(h.code, hn, 300); await team(a.code, an, 780);
   const scored = r && r.h != null, midY = fyTop + 128;
-  if (scored) { x.fillStyle = "#fff"; x.font = "800 92px Archivo, sans-serif"; x.fillText(`${r.h}–${r.a}`, W / 2, midY); }
+  if (scored) {
+    x.fillStyle = "#fff"; x.font = "800 92px Archivo, sans-serif"; x.fillText(`${r.h}–${r.a}`, W / 2, midY);
+    if (r.hp != null) { x.fillStyle = "#9fb0bd"; x.font = "700 40px Archivo, sans-serif"; x.fillText(`(${r.hp}–${r.ap} pens)`, W / 2, midY + 58); }   // knockout shootout result below the 90' score
+  }
   else { x.fillStyle = "#E8B931"; x.font = "800 56px Archivo, sans-serif"; x.fillText("VS", W / 2, midY - 16); }
   const wp = winProb(m);
   if (wp) {
