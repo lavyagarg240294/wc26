@@ -867,6 +867,14 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .wp-d{background:color-mix(in srgb,var(--ink) 20%,var(--line))}
 .wp-a{background:color-mix(in srgb,var(--ink) 70%,var(--line))}
 .wp-legend{display:flex;justify-content:space-between;gap:8px;margin-top:7px;font-size:12px;color:var(--ink-soft)}
+/* win-probability swing chart - "home winning" at the top, "away winning" at the bottom, goal dots in the scorer's colour */
+.ws-wrap{margin:4px 0 12px}
+.ws-lbl{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;color:var(--ink-soft)}
+.ws-lbl-a{margin-top:2px}
+.ws-svg{width:100%;height:auto;display:block;margin:3px 0;overflow:visible}
+.ws-mid{stroke:var(--line);stroke-width:1;stroke-dasharray:3 4}
+.ws-line{fill:none;stroke:var(--acc-text);stroke-width:2.2;stroke-linejoin:round;stroke-linecap:round}
+.ws-dot{stroke:var(--card);stroke-width:1.5}
 .wp-legend b{font-family:var(--mono);font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
 .wp-legend .flagimg{max-height:1.1em;vertical-align:-.18em}
 .wp-note{font-size:11px;line-height:1.45;color:var(--ink-soft);margin:8px 0 0}

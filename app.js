@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "369";  // shown in footer; bump with the ?v= asset version
+const BUILD = "370";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1197,10 +1197,10 @@ function stakeAdjust(m) {
 // retained to surface the most-likely scoreline, and each factor's signed supremacy shift is logged for the "why".
 // pre=true → the frozen PRE-MATCH estimate (ignores the live scoreline/clock/red-cards and works for finished games too),
 // for showing "what the model predicted before kickoff" in the match modal regardless of state.
-function winProb(m, pre = false) {
+function winProb(m, pre = false, at = null) {   // at = {h,a,min,reds}: evaluate the model at a past in-match state (for the swing series)
   const hc = slotInfo(m, "home").code, ac = slotInfo(m, "away").code, st = status(m), r = res(m);
-  if (!hc || !ac || (isFinalSt(st) && !pre)) return null;
-  const live = (st === ST.LIVE || st === ST.HT) && !pre, ko = !m.group && m.stage !== "group";
+  if (!hc || !ac || (isFinalSt(st) && !pre && !at)) return null;
+  const live = at ? true : ((st === ST.LIVE || st === ST.HT) && !pre), ko = !m.group && m.stage !== "group";
   const nm = c => { const n = S.teams[c]?.name || c; return n.length > 14 ? n.slice(0, 13) + "…" : n; };
   const mu = ko ? 1.25 : 1.35, eloH = teamRating(hc), eloA = teamRating(ac);   // knockouts are played tighter → lower base rate
   const supR = Math.max(-2.5, Math.min(2.5, (eloH - eloA) / 300));
@@ -1232,16 +1232,16 @@ function winProb(m, pre = false) {
     const hs = host === hc; lamH *= Math.exp(hs ? 0.13 : -0.06); lamA *= Math.exp(hs ? -0.06 : 0.13);
     reasons.push({ key: "host", dir: hs ? "H" : "A", mag: 0.19, text: `Host edge in ${(m.city || "").split(",")[0]}` });
   }
-  const remFrac = live ? Math.max(0.02, 1 - liveMinute(m, r) / 90) : 1;   // live: scale remaining goals by time left
+  const remFrac = at ? Math.max(0.02, 1 - at.min / 90) : live ? Math.max(0.02, 1 - liveMinute(m, r) / 90) : 1;   // live/at-state: scale remaining goals by time left
   lamH *= remFrac; lamA *= remFrac;
   if (live) {   // man-advantage from red cards, scaled by remaining time (a 90'+ red barely moves it)
-    const reds = liveReds(r), f = remFrac;
+    const reds = at ? (at.reds || { h: 0, a: 0 }) : liveReds(r), f = remFrac;
     if (reds.h) { lamH *= Math.pow(1 - 0.30 * f, reds.h); lamA *= Math.pow(1 + 0.35 * f, reds.h); }
     if (reds.a) { lamA *= Math.pow(1 - 0.30 * f, reds.a); lamH *= Math.pow(1 + 0.35 * f, reds.a); }
     if (reds.h !== reds.a) { const downH = reds.h > reds.a; reasons.push({ key: "redcard", dir: downH ? "A" : "H", mag: 0.6 * f + 0.2, dot: true, text: `${nm(downH ? hc : ac)} down to 10` }); }
   }
   lamH = Math.max(0.18, lamH); lamA = Math.max(0.18, lamA);
-  const lead = live && r && r.h != null ? r.h - r.a : 0, baseH = live ? r.h : 0, baseA = live ? r.a : 0;
+  const lead = at ? at.h - at.a : (live && r && r.h != null ? r.h - r.a : 0), baseH = at ? at.h : (live ? r.h : 0), baseA = at ? at.a : (live ? r.a : 0);
   let pH = 0, pD = 0, pA = 0, exH = 0, exA = 0; const cells = [];
   for (let rh = 0; rh < 9; rh++) for (let ra = 0; ra < 9; ra++) {
     const p = _pois(rh, lamH) * _pois(ra, lamA) * (live ? 1 : _dcTau(rh, ra, lamH, lamA)), fin = lead + rh - ra;
@@ -1269,6 +1269,44 @@ function winProb(m, pre = false) {
     adv: ko ? { h: probH + 0.5 * probD, a: probA + 0.5 * probD } : null,   // KO: a 90' draw → ET/pens, split 50/50
     predicted, drawMode: predicted[0] && predicted[0].h === predicted[0].a, xg: { h: exH / tot, a: exA / tot },
     reasons: reasons.sort((x, y) => y.mag - x.mag).slice(0, 3) };
+}
+// the win-probability SWING across a match: the model's "home win, draw counts half" read (= advance% for a KO),
+// re-evaluated at kickoff and after every goal/red, ending at the actual full-time outcome. Honest - it's the same
+// model as the bar, sampled at each event (no per-minute pretence). Returns null for a goalless game (nothing to show).
+function winProbSeries(m) {
+  const r = res(m), hc = slotInfo(m, "home").code, ac = slotInfo(m, "away").code;
+  if (!r || r.h == null || !hc || !ac) return null;
+  const evY = wp => wp ? wp.h + 0.5 * wp.d : null;
+  const at0 = winProb(m, false, { h: 0, a: 0, min: 0, reds: { h: 0, a: 0 } }); if (!at0) return null;
+  const pts = [{ min: 0, y: evY(at0) }];
+  let h = 0, a = 0, rh = 0, ra = 0;
+  const evs = (r.ev || []).filter(e => ["G", "P", "OG", "R"].includes(e.k) && e.tm).map(e => ({ ...e, mn: evMin(e.t) })).filter(e => e.mn >= 1).sort((x, z) => x.mn - z.mn);
+  for (const e of evs) {
+    if (e.k === "R") { if (e.tm === "h") rh++; else ra++; } else { if (e.tm === "h") h++; else a++; }
+    const wp = winProb(m, false, { h, a, min: Math.min(e.mn, 90), reds: { h: rh, a: ra } });
+    if (wp) pts.push({ min: Math.min(e.mn, 94), y: evY(wp), ev: e, goal: e.k !== "R" });
+  }
+  if (isFinalSt(status(m))) {   // a finished match ends at its real outcome (a KO shootout decides; a group draw sits at 0.5)
+    const ftY = r.h > r.a ? 1 : r.h < r.a ? 0 : (r.hp != null ? (r.hp > r.ap ? 1 : 0) : 0.5);
+    pts.push({ min: 95, y: ftY, ft: true });
+  }
+  return pts.length > 2 ? { pts, hc, ac } : null;
+}
+function winSwingChart(m) {
+  const s = winProbSeries(m); if (!s) return null;
+  const W = 300, H = 92, top = 7, bot = H - 7;
+  const xOf = mn => 6 + (mn / 95) * (W - 12), yOf = v => bot - v * (bot - top);
+  const line = s.pts.map((p, i) => `${i ? "L" : "M"}${xOf(p.min).toFixed(1)} ${yOf(p.y).toFixed(1)}`).join(" ");
+  const dots = s.pts.filter(p => p.goal).map(p => `<circle cx="${xOf(p.min).toFixed(1)}" cy="${yOf(p.y).toFixed(1)}" r="3.4" class="ws-dot" style="fill:${S.teams[p.ev.tm === "h" ? s.hc : s.ac]?.c1 || "var(--acc-text)"}"/>`).join("");
+  return `<div class="eyebrow">Win-probability swing ${infoBtn("The model's read of the match - each side's chance of winning, with a draw counting half - re-figured at kickoff and after every goal, ending at the result. The same model as the win-probability bar, sampled at each event; a clearly-labelled estimate, not a live tracker.", "How the swing is read")}</div>
+    <div class="ws-wrap">
+      <div class="ws-lbl"><span class="fl">${flag(s.hc)}</span> ${esc(S.teams[s.hc]?.name || s.hc)} winning</div>
+      <svg class="ws-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="Win-probability swing across the match">
+        <line class="ws-mid" x1="6" y1="${yOf(0.5).toFixed(1)}" x2="${W - 6}" y2="${yOf(0.5).toFixed(1)}"/>
+        <path class="ws-line" d="${line}"/>${dots}
+      </svg>
+      <div class="ws-lbl ws-lbl-a"><span class="fl">${flag(s.ac)}</span> ${esc(S.teams[s.ac]?.name || s.ac)} winning</div>
+    </div>`;
 }
 function winProbBlock(m, pre = false) {
   const wp = winProb(m, pre); if (!wp) return "";
@@ -1426,6 +1464,7 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
   const pre = !live, _wp = winProb(m, pre);
   const pWinProb = _wp ? winProbBlock(m, pre) + liveWhyChips(_wp) + liveScorelines(_wp) : "";
   const pReport = mdReport(m), pComm = mdCommentaryShell(m), pStakes = stakesBlock(m), pCompare = matchCompare(m), pStars = liveStars(m), pControl = matchControlBar(m);
+  const pSwing = hasResult ? (winSwingChart(m) || "") : "";   // the win-probability swing across a finished match (only when there were goals)
   const pXiInline = r?.xi ? `<div class="eyebrow">${liveNow ? "Line-ups" : "Starting XI"}</div>${xiPanel(r.xi, h, a)}` : "";
   const pXiFold = r?.xi ? `<details class="md-fold"><summary><span>Starting XI</span><small>${esc([r.xi.h?.f, r.xi.a?.f].filter(Boolean).join(" v ")) || "line-ups & formations"}</small></summary><div class="md-fold-body">${xiPanel(r.xi, h, a)}</div></details>` : "";
   // "how they compare" rides along as a collapsed fold for live/finished games (it leads expanded in the upcoming branch)
@@ -1453,7 +1492,7 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
     ? [pWinProb, pControl, pComm, pKeyStats, pStars, pTimeline, pStats, pXiInline, pEfi, pCompareFold, pStakes, pH2H]
     : hasResult
     // finished: the report leads, then key stats + control, stars, the full timeline & numbers, the model's call, the deep dive
-    ? [pReport, pKeyStats, pControl, pStars, pTimeline, pStats, pXiInline, pEfi, pWinProb, pCompareFold, pStakes, pH2H]
+    ? [pReport, pKeyStats, pControl, pStars, pTimeline, pStats, pXiInline, pEfi, pWinProb, pSwing, pCompareFold, pStakes, pH2H]
     : [pStakes, pCompare, pWinProb, pH2H, pXiInline];   // upcoming: stakes + compare + odds + past WC meetings + (announced) line-ups
   const _body = pTop + middle.join("") + pMeta;
   const mb = $("#matchBody");
