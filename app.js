@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "373";  // shown in footer; bump with the ?v= asset version
+const BUILD = "374";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1542,19 +1542,24 @@ function heroBlock(heroM, isLive, onLive) {
   const unconf = !live && isUnconfirmedFinal(heroM);
   const ft = !live && isFinalSt(st) && !unconf, abn = !live && (isAbnormal(st) || unconf), result = ft || (abn && r?.h != null), clickable = !onLive;
   const tag = live ? `${ballSVG("live-ball")} Live now` : ft ? `● Full time` : unconf ? `● Result to be confirmed` : abn ? `● ${stMeta(st).lbl}` : `${isFavMatch(heroM) ? "Your team · " : ""}Next kickoff`;
+  // qualified / out marker under each team name (group heroes only); reserve the row on BOTH sides when either
+  // team has one, so the two big flags stay vertically aligned.
+  const grp = heroM.stage === "group";
+  const hq = grp && h.code ? qualBadge(h.code) : "", aq = grp && a.code ? qualBadge(a.code) : "";
+  const qline = badge => (hq || aq) ? `<span class="hero-qline">${badge}</span>` : "";
   return `<div class="hero${onLive ? " hero-onlive" : ""}"${clickable ? ` data-hero-live="${heroM.id}" role="button" tabindex="0" aria-label="Follow ${esc(h.name)} v ${esc(a.name)} in the Live tab"` : ""}>
     <div class="hero-tag ${live ? "is-live" : ft ? "is-ft" : abn ? "is-abn" : ""}">
       ${tag}<span style="color:var(--ink-soft);font-weight:600"> · ${esc(heroM.group ? "Group " + heroM.group : heroM.round)}</span>
       ${clickable ? `<span class="hero-actions"><span class="hero-go">Follow ›</span></span>` : ""}
     </div>
     <div class="hero-teams">
-      <div class="hero-side"><span class="hero-flag">${h.code ? flag(h.code, true) : TBD_FLAG}</span><span class="hero-name">${esc(h.name)}</span></div>
+      <div class="hero-side"><span class="hero-flag">${h.code ? flag(h.code, true) : TBD_FLAG}</span><span class="hero-name">${esc(h.name)}</span>${qline(hq)}</div>
       <div class="hero-mid">${live || result
         ? `<span class="hero-score">${r?.h ?? 0}–${r?.a ?? 0}</span>${live
             ? `<span class="hero-livechip">${r?.st === ST.HT ? "Half-time" : (liveLabel(heroM, r) || "Live")}</span>`
             : (r?.hp != null ? `<span class="hero-pens">(${r.hp}–${r.ap}p)</span>` : "")}`
         : `<span class="hero-vs">VS</span>`}</div>
-      <div class="hero-side"><span class="hero-flag">${a.code ? flag(a.code, true) : TBD_FLAG}</span><span class="hero-name">${esc(a.name)}</span></div>
+      <div class="hero-side"><span class="hero-flag">${a.code ? flag(a.code, true) : TBD_FLAG}</span><span class="hero-name">${esc(a.name)}</span>${qline(aq)}</div>
     </div>
     ${!ft ? (() => { const s = matchStakes(heroM); return s ? `<div class="hero-stakes">${s.lines[0]}</div>` : ""; })() : ""}
     ${!live && !ft && !onLive ? (() => { const wp = winProb(heroM); if (!wp) return "";   // pre-match only; on the Live tab the dedicated win-prob section below already covers it
@@ -2194,7 +2199,7 @@ function teamOverview(code) {
   const tiles = [
     t.apps != null ? `<div class="tp"><b>${t.apps}</b><span>World Cup${t.apps !== 1 ? "s" : ""}</span></div>` : "",
     titles ? `<div class="tp tp-gold"><b>${titles}×</b><span>Champion${titles !== 1 ? "s" : ""}</span></div>` : "",
-    `<div class="tp tp-wide tp-finish"><b>${debut ? "Debut" : "Best finish"}</b><span>${debut ? "First World Cup" : `${esc(finish)}${yr ? ` · ${esc(yr)}` : ""}`}</span></div>`,
+    `<div class="tp tp-wide tp-finish"><b>${debut ? "Debut" : esc(finish)}</b><span>${debut ? "First World Cup" : `Best finish${yr ? ` · ${esc(yr)}` : ""}`}</span></div>`,
   ].filter(Boolean).join("");
   return `<div class="ts-ped">${tiles}</div>
     ${coach ? `<div class="ts-coach"><span class="ts-coach-badge">${esc(initials(coach))}</span><span class="ts-coach-tx"><i>Head coach</i><b>${esc(coach)}</b></span></div>` : ""}`;
@@ -2382,13 +2387,11 @@ function since2022Section(code) {
   if (!c) { const debut = S.teams[code]?.best === "First appearance";
     return `<div class="eyebrow">Since 2022</div><div class="s22-card s22-absent"><b>${debut ? "World Cup debut" : "Did not play at Qatar 2022"}</b><span>${debut ? "Their first-ever World Cup." : "Back at the World Cup this year."}</span></div>`; }
   const cont = c.continuing.length, fresh = c.fresh.length, tot = cont + fresh, pct = tot ? Math.round(cont / tot * 100) : 0;
-  const names = arr => arr.map(p => esc(pName(p.name, code))).join(", ") || "None";
   return `<div class="eyebrow">Since 2022</div>
     <div class="s22-card">
-      <div class="s22-top"><span class="s22-finish s22-t${c.tier}">Qatar 2022: ${esc(c.finish)}</span><span class="s22-split"><b>${cont}</b> returning · <b>${fresh}</b> new</span></div>
-      <div class="s22-bar" role="img" aria-label="${cont} of ${tot} played in 2022"><i style="width:${pct}%"></i></div>
-      <details class="s22-det"><summary>${cont} carried over from the 2022 squad</summary><p>${names(c.continuing)}</p></details>
-      <details class="s22-det"><summary>${fresh} new since 2022</summary><p>${names(c.fresh)}</p></details>
+      <div class="s22-top"><span class="s22-finish s22-t${c.tier}">Qatar 2022: ${esc(c.finish)}</span></div>
+      <div class="s22-bar" role="img" aria-label="${cont} of ${tot} returning from 2022"><i style="width:${pct}%"></i></div>
+      <div class="s22-split"><b>${cont}</b> returning · <b>${fresh}</b> new</div>
     </div>`;
 }
 function openTeam(code) {
