@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "370";  // shown in footer; bump with the ?v= asset version
+const BUILD = "371";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -962,6 +962,10 @@ function matchControlBar(m) {
   add(s.sh, "shots"); add(s.sot, "on-target"); add(s.cor, "corners");
   if (pairs.length < 2) return "";                       // need a couple of independent signals before calling it "control"
   const hp = Math.round(pairs.reduce((t, [hv, av]) => t + hv / (hv + av), 0) / pairs.length * 100);
+  // on a FINISHED match, drop the bar when it just confirms a lopsided result (the winner also clearly on top) - it
+  // earns its place when it DIVERGES from the score (a side dominated but didn't win) or the game was close.
+  if (isFinalSt(status(m)) && r.h != null) { const margin = r.h - r.a, lead = hp - 50;
+    if (Math.abs(margin) >= 2 && Math.sign(margin) === Math.sign(lead) && Math.abs(lead) >= 12) return ""; }
   const info = infoBtn(`A derived index blending ${names.join(" + ")} into one share of the attacking initiative - a "who's on top" read, NOT minute-by-minute momentum (no time data exists in the feed).`, "How match control is worked out");
   return `<div class="eyebrow">Match control ${info}</div><div class="md-stats">${statBar([hp, 100 - hp], "Share of control", "%")}</div>`;
 }
@@ -1046,12 +1050,11 @@ function koPath(m) {
 // (from the same feed chain koPath uses). Only for an unfinished knockout tie - a finished one shows its result.
 function koStakeLine(m) {
   if (!m || m.stage === "group" || isFinalSt(status(m))) return "";
-  if (m.stage === "final") return "Winner lifts the trophy.";
-  if (m.stage === "third") return "The third-place play-off.";
+  if (m.stage === "final" || m.stage === "third") return "";   // the round label ("Final" / "3rd place") already says it - a stake line would only state the obvious
   const tgt = {}; S.matches.forEach(x => { if (x.stage !== "group") [x.home, x.away].forEach(s => { if (s.feeds != null) tgt[s.feeds] = x.num; }); });
   const next = S.matches.find(x => x.num === tgt[m.num]);
   const nm = next ? STAGE_NAME[next.stage] : null;
-  return nm ? `Loser out · winner into the ${nm}.` : "Loser out.";
+  return nm ? `Winner into the ${nm}.` : "";   // lead with the non-obvious half (the specific next round); "loser out" is inherent to a knockout
 }
 // win-probability - a bivariate-Poisson goals model. Team strength is each side's World Football Elo rating
 // (seeded snapshot in teams.json), nudged by current-tournament form; the Elo gap sets the goal supremacy that
@@ -1207,7 +1210,8 @@ function winProb(m, pre = false, at = null) {   // at = {h,a,min,reds}: evaluate
   const lamH0 = mu + supR / 2, lamA0 = mu - supR / 2;
   let lamH = lamH0, lamA = lamA0;
   const reasons = [];
-  if (ko) reasons.push({ key: "ko", dir: "N", mag: 0.08, text: "Knockout tie, played tighter" });
+  // (the lower knockout base scoring rate is already folded into `mu` above - deliberately NOT surfaced as a "why"
+  // chip: every knockout tie is a knockout, so the chip would only state the obvious.)
   // attack/defence game-character overlay - dormant until BOTH sides have ≥2 games, so today's odds are unchanged
   const ad = attackDefence(), adH = ad[hc], adA = ad[ac];
   const ftN = S.matches.reduce((n, x) => n + (isFinalSt(status(x)) && res(x)?.h != null ? 1 : 0), 0);
@@ -1290,7 +1294,11 @@ function winProbSeries(m) {
     const ftY = r.h > r.a ? 1 : r.h < r.a ? 0 : (r.hp != null ? (r.hp > r.ap ? 1 : 0) : 0.5);
     pts.push({ min: 95, y: ftY, ft: true });
   }
-  return pts.length > 2 ? { pts, hc, ac } : null;
+  let up = 0, down = 0;
+  for (let i = 1; i < pts.length; i++) { const d = pts[i].y - pts[i - 1].y; if (d > up) up = d; if (-d > down) down = -d; }
+  // only worth a chart if the read swung BOTH ways (a back-and-forth / comeback). A one-directional line - the
+  // favourite winning comfortably, a blowout, or a clean upset - just restates the result, so skip it.
+  return (pts.length > 2 && up >= 0.08 && down >= 0.08) ? { pts, hc, ac } : null;
 }
 function winSwingChart(m) {
   const s = winProbSeries(m); if (!s) return null;
@@ -1492,7 +1500,7 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
     ? [pWinProb, pControl, pComm, pKeyStats, pStars, pTimeline, pStats, pXiInline, pEfi, pCompareFold, pStakes, pH2H]
     : hasResult
     // finished: the report leads, then key stats + control, stars, the full timeline & numbers, the model's call, the deep dive
-    ? [pReport, pKeyStats, pControl, pStars, pTimeline, pStats, pXiInline, pEfi, pWinProb, pSwing, pCompareFold, pStakes, pH2H]
+    ? [pReport, pKeyStats, pControl, pStars, pTimeline, pStats, pXiInline, pEfi, (pSwing || pWinProb), pCompareFold, pStakes, pH2H]
     : [pStakes, pCompare, pWinProb, pH2H, pXiInline];   // upcoming: stakes + compare + odds + past WC meetings + (announced) line-ups
   const _body = pTop + middle.join("") + pMeta;
   const mb = $("#matchBody");
