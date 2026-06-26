@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "382";  // shown in footer; bump with the ?v= asset version
+const BUILD = "383";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1430,12 +1430,13 @@ function matchStakes(m) {
     if (s.stuck4) return "out";
     if (s.top3) return "third-safe";
     const win = code === H ? "h" : "a", lose = code === H ? "a" : "h";
-    if (_qualScan(g, code, m.id, "d").clinched) return "draw-through";
+    const d = _qualScan(g, code, m.id, "d");
+    if (d.clinched) return "draw-through";
     const w = _qualScan(g, code, m.id, win), l = _qualScan(g, code, m.id, lose);
     if (w.clinched && l.stuck4) return "win-or-bust";
     if (w.clinched) return "in-with-win";
-    if (l.stuck4 && w.top3) return "out-or-third";
-    if (l.stuck4) return "out-if-lose";
+    if (l.stuck4 && w.top3) return d.stuck4 ? "win-for-third" : "out-or-third";   // when a draw is ALSO out, only a win keeps the best-third hope alive
+    if (l.stuck4) return d.stuck4 ? "must-win" : "out-if-lose";                   // when a draw is ALSO out, a win is required - not merely "out if they lose"
     if (w.top3) return "third-with-win";
     return "live";
   };
@@ -1449,7 +1450,9 @@ function matchStakes(m) {
     case "win-or-bust": return `${n} go through with a win, out with a loss.`;
     case "in-with-win": return `${n} are through to the Round of 32 with a win.`;
     case "out-or-third": return `${n} are out if they lose - third, and alive for a best-third place, with a win.`;
+    case "win-for-third": return `${n} need a win to stay alive for a best-third place - a draw or a loss is out.`;
     case "out-if-lose": return `${n} are out if they lose.`;
+    case "must-win": return `${n} must win to stay alive - a draw or a loss sends them out.`;
     case "third-with-win": return `${n} reach at least third - a best-third lifeline - with a win.`;
     default: { const p = posOf(code); return p ? `${n} are ${ordinal(p)} in Group ${g} as it stands.` : (playedIn(code) ? `${n} are level on points in Group ${g} as it stands.` : null); }
   } };
@@ -1462,6 +1465,7 @@ function matchStakes(m) {
     case "win-or-bust": return "win or bust";
     case "in-with-win": return "in with a win";
     case "out-or-third": case "out-if-lose": return "out if they lose";
+    case "win-for-third": case "must-win": return "win or out";
     case "third-with-win": return "third with a win";
     default: return p ? `${ordinal(p)} as it stands` : "level";
   } };
@@ -2938,9 +2942,9 @@ function qualStatus(code) {
   if (!S.matches.some(x => x.group === g && isFinalSt(status(x)) && res(x)?.h != null)) return "";
   if (remInGroup(g) === 0) { const pos = standings(g).findIndex(r => r.code === code); return pos < 2 ? "in" : pos === 2 ? "" : "out"; }
   const q = _qualScan(g, code);
-  return q.clinched ? "in" : q.out ? "out" : "";
+  return q.clinched ? "in" : q.stuck4 ? "out" : "";   // "out" = stuck in 4th (4th never advances); a side that can still finish 3rd is alive for a best-third place, so it gets no "out" badge
 }
-function qualBadge(code) { const s = qualStatus(code); return s === "in" ? `<span class="qx qx-in" title="Through to the Round of 32">Q</span>` : s === "out" ? `<span class="qx qx-out" title="Cannot finish in the top two">out</span>` : ""; }
+function qualBadge(code) { const s = qualStatus(code); return s === "in" ? `<span class="qx qx-in" title="Through to the Round of 32">Q</span>` : s === "out" ? `<span class="qx qx-out" title="Out of the Round of 32">out</span>` : ""; }
 function groupTable(g, i) {
   const rows = standings(g);
   const qtag = qualBadge;   // through / out-of-top-two marker (shared with the group-match cards via qualStatus)
@@ -2965,16 +2969,18 @@ function thirdRaceHTML() {
   if (!anyPlayed || rows.length < 3) return "";
   const sign = n => (n > 0 ? "+" : "") + n;
   const ranks = compRanks(rows, r => r.pts + "|" + r.gd + "|" + r.gf);   // genuine 3rd-place criteria; teams level on all three share a rank
-  const cut = i => {                                                      // honest cut - a tie group straddling the 8th spot is undecided, not arbitrarily split
-    const first = ranks.indexOf(ranks[i]), last = ranks.lastIndexOf(ranks[i]);
+  const allDone = GROUPS.every(g => remInGroup(g) === 0);                 // the best-8 cut is only decided once every group has finished; until then the 3rd-placed points are still mutable
+  const cut = i => {
+    if (!allDone) return "";                                              // race undecided - no advance/eliminated styling while any group is still playing (a team shown "in" could finish out, and vice-versa)
+    const first = ranks.indexOf(ranks[i]), last = ranks.lastIndexOf(ranks[i]);   // honest cut - a tie group straddling the 8th spot is undecided, not arbitrarily split
     return last < 8 ? "tr-in" : first >= 8 ? "tr-out" : "tr-bubble";
   };
   return `<div class="eyebrow">Race for the best third places</div>
     <div class="third-race">${rows.map((r, i) => `<div class="tr-row ${cut(i)} ${r.code === S.fav ? "is-fav" : ""}" data-squad="${r.code}" role="button" tabindex="0">
       <span class="tr-rank">${ranks[i]}</span><span class="fl">${flag(r.code)}</span>
       <span class="tr-name">${esc(S.teams[r.code]?.name || r.code)}<small>Group ${r.group}</small></span>
-      <span class="tr-gd">${sign(r.gd)}</span><span class="tr-pts">${r.pts}<small>pts</small></span></div>${i === 7 && rows.length > 8 && ranks[7] !== ranks[8] ? `<div class="tr-cut"><span>Top 8 advance</span></div>` : ""}`).join("")}</div>
-    <p class="sim-ko-hint">Ranked by points, then goal difference, then goals scored: the eight best of twelve reach the Round of 32. Teams level on all three share a rank; FIFA then separates them on fair play, and finally a drawing of lots.</p>`;
+      <span class="tr-gd">${sign(r.gd)}</span><span class="tr-pts">${r.pts}<small>pts</small></span></div>${allDone && i === 7 && rows.length > 8 && ranks[7] !== ranks[8] ? `<div class="tr-cut"><span>Top 8 advance</span></div>` : ""}`).join("")}</div>
+    <p class="sim-ko-hint">${allDone ? "" : "As it stands - these standings shift as the remaining groups finish. "}Ranked by points, then goal difference, then goals scored: the eight best of twelve reach the Round of 32. Teams level on all three share a rank; FIFA then separates them on fair play, and finally a drawing of lots.</p>`;
 }
 // read-only "if the groups ended today" Round-of-32 - resolved purely from live standings (group
 // winners/runners-up + the best-8 thirds routed through FIFA's slot constraints). Never touches the
@@ -3205,7 +3211,7 @@ function roadToFinal(code) {
     path.push({ m: nm, opp: sib ? W[sib.feeds] : null });
     cur = nm;
   }
-  return { code, path, reachesFinal: cur.stage === "final" };
+  return { code, path, reachesFinal: cur.stage === "final" && W[cur.num] === code };   // the trophy is only for the team the model projects to actually WIN the final, not everyone whose hypothetical run ends at it
 }
 function roadSection(code) {
   // only project a team's route once they've actually played - before that, standings are all level
@@ -3216,7 +3222,22 @@ function roadSection(code) {
     return `<div class="eyebrow">Road to the final</div><div class="empty">${esc(S.teams[code]?.name || code)}'s projected route opens once they kick off${next ? `, first up ${fmt(next.utc, { weekday: "short", day: "numeric", month: "short" })}` : ""}.</div>`;
   }
   const road = roadToFinal(code);
-  if (!road) return `<div class="eyebrow">Road to the final</div><div class="empty">As it stands, ${esc(S.teams[code]?.name || code)} are projected to miss the Round of 32. A couple of group wins flips that.</div>`;
+  if (!road) {
+    const g = groupOf(code), nm = esc(S.teams[code]?.name || code), grpRem = g ? remInGroup(g) : 1;
+    let msg;
+    if (grpRem === 0) {                                   // group finished and not projected in - the outcome is settled, not "projected"
+      const pos = standings(g).findIndex(r => r.code === code) + 1;
+      if (pos === 3) msg = GROUPS.every(x => remInGroup(x) === 0)
+        ? `${nm} finished third in Group ${g} but missed the cut for the eight best third-placed teams.`
+        : `${nm} finished third in Group ${g}; as it stands that is just outside the eight best - settled once every group has finished.`;
+      else msg = `${nm} finished outside the top two of Group ${g} and are out of the Round of 32.`;
+    } else if (qualStatus(code) === "out") {              // group still going, but already mathematically out
+      msg = `${nm} can no longer reach the Round of 32.`;
+    } else {                                              // still alive, just not in the projected places yet
+      msg = `${nm} aren't in the projected Round of 32 as it stands, but their remaining Group ${g} game${grpRem > 1 ? "s" : ""} can still change that.`;
+    }
+    return `<div class="eyebrow">Road to the final</div><div class="empty">${msg}</div>`;
+  }
   const t = S.teams[code], reaches = road.reachesFinal;
   const steps = road.path.map(({ m, opp }) => {
     const oc = opp && S.teams[opp];
@@ -3227,7 +3248,7 @@ function roadSection(code) {
   }).join(`<span class="rdp-arr">›</span>`);
   return `<div class="eyebrow">Road to the final${reaches ? ` ${TROPHY}` : ""}</div>
     <div class="rdp${reaches ? " rdp-final" : ""}">${steps}${reaches ? `<span class="rdp-arr">›</span><div class="rdp-step rdp-cup"><span class="rdp-rd">Lift it</span><span class="rdp-opp">${TROPHY}</span></div>` : ""}</div>
-    <p class="sim-ko-hint">Projected from live standings: assumes ${esc(t.name)} keep winning, with the stronger projected team waiting in each tie. Tap a step to open that match.</p>`;
+    <p class="sim-ko-hint">Projected from live standings: assumes ${esc(t.name)} keep winning - their Round-of-32 draw first, then the stronger projected team waiting in each later tie. Tap a step to open that match.</p>`;
 }
 function renderGroups() {
   const el = $("#view-groups");
