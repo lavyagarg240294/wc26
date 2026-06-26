@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "378";  // shown in footer; bump with the ?v= asset version
+const BUILD = "379";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -2509,6 +2509,7 @@ function openTeam(code) {
         ? `<div class="ts-fav-tag">★ Your team</div>`
         : `<button class="ts-setfav" data-follow="${code}">★ Make ${esc(t.name)} my team</button>`}
       <button class="ts-compare" data-compare-team="${code}">${ICO.compare} Compare</button>
+      <button class="ts-compare" data-share-team="${code}">${SHARE_SVG} Share</button>
     </div>
     ${styleSection(code)}
     ${tmsHtml}
@@ -3876,10 +3877,15 @@ async function sharePlayerCard(name, code) {
     if (fim.naturalWidth) { x.save(); rrect(x, sx, y - fh + 6, fw, fh, 6); x.clip(); x.fillStyle = "#fff"; x.fillRect(sx, y - fh + 6, fw, fh); x.drawImage(fim, sx, y - fh + 6, fw, fh); x.restore(); x.lineWidth = 1.5; x.strokeStyle = "rgba(255,255,255,.2)"; rrect(x, sx, y - fh + 6, fw, fh, 6); x.stroke(); }
     x.textAlign = "left"; x.fillStyle = "#cdd7df"; x.fillText(t.name, sx + fw + gap, y); x.textAlign = "center";
   }
+  // position · club · age - a quiet identity line under the team
+  const posFull = { GK: "Goalkeeper", DF: "Defender", MF: "Midfielder", FW: "Forward" }[bio?.pos] || "";
+  const pAge = bio?.d ? ageFrom(bio.d) : null;
+  const meta = [posFull, bio?.club, pAge ? pAge + " yrs" : null].filter(Boolean).join("   ·   ");
+  if (meta) { let ms = 30; x.fillStyle = "#8b97a3"; x.font = `600 ${ms}px Archivo, sans-serif`; while (x.measureText(meta).width > W - 140 && ms > 19) { ms -= 2; x.font = `600 ${ms}px Archivo, sans-serif`; } x.fillText(meta, W / 2, y + 48); }
   const wc = playerWC(name, code), isGK = bio?.pos === "GK";
   let parts = wc.apps ? (isGK ? [`${wc.apps} PLAYED`, `${wc.cs} CLEAN SHEET${wc.cs !== 1 ? "S" : ""}`] : [`${wc.apps} PLAYED`, `${wc.g} GOAL${wc.g !== 1 ? "S" : ""}`, `${wc.a} ASSIST${wc.a !== 1 ? "S" : ""}`])
     : [bio?.caps != null ? `${bio.caps} CAPS` : null, bio?.goals ? `${bio.goals} GOALS` : null].filter(Boolean);
-  if (parts.length) { x.fillStyle = "#1FD673"; x.font = "800 38px Archivo, sans-serif"; x.fillText(parts.join("    ·    "), W / 2, y + 80); }
+  if (parts.length) { x.fillStyle = "#1FD673"; x.font = "800 38px Archivo, sans-serif"; x.fillText(parts.join("    ·    "), W / 2, y + 108); }
   x.fillStyle = "#7b8894"; x.font = "500 25px 'Spline Sans Mono', monospace"; x.fillText("WC·26 · your World Cup, in one page", W / 2, H - 100);
   x.fillStyle = "#5b6b7a"; x.font = "500 23px 'Spline Sans Mono', monospace"; x.fillText((location.host + location.pathname).replace(/\/$/, ""), W / 2, H - 54);
   const blob = await new Promise(res => c.toBlob(res, "image/png"));
@@ -3890,6 +3896,73 @@ async function sharePlayerCard(name, code) {
   }
   const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = file.name; document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 3000); flashToast("Player card saved");
+}
+// a shareable Team card: flag + name (kit-tinted), FIFA rank / confederation / group, World Cup pedigree, the
+// live group standing, and the team's leading scorer at WC2026. Same canvas pattern as the player card.
+async function shareTeamCard(code) {
+  const t = S.teams[code]; if (!t) return;
+  flashToast("Building card…");
+  try { await document.fonts.ready; } catch { /* system fonts */ }
+  const W = 1080, H = 1080, c = document.createElement("canvas"); c.width = W; c.height = H; const x = c.getContext("2d");
+  const g = x.createLinearGradient(0, 0, W, H); g.addColorStop(0, "#0c1a28"); g.addColorStop(1, "#08231b"); x.fillStyle = g; x.fillRect(0, 0, W, H);
+  const rgba = (hex, a) => { const n = parseInt((hex || "#0BA360").slice(1), 16); return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${a})`; };
+  const glow = (cx, cy, rd, col) => { const rg = x.createRadialGradient(cx, cy, 0, cx, cy, rd); rg.addColorStop(0, col); rg.addColorStop(1, "rgba(0,0,0,0)"); x.fillStyle = rg; x.fillRect(0, 0, W, H); };
+  glow(170, 150, 480, rgba(t.c1, .30)); glow(930, 950, 500, rgba(t.c2 && t.c2 !== t.c1 ? t.c2 : t.c1, .22));
+  x.textAlign = "center";
+  x.fillStyle = "#E8B931"; x.font = "700 34px Archivo, sans-serif"; x.fillText("FIFA WORLD CUP 2026", W / 2, 104);
+  // flag (large)
+  const fim = new Image(); fim.src = "assets/flags/" + code + ".svg"; try { await fim.decode(); } catch { /* text only */ }
+  const fh = 138, fw = fim.naturalWidth ? Math.round(fh * fim.naturalWidth / fim.naturalHeight) : 207, fx = W / 2 - fw / 2, fy = 168;
+  if (fim.naturalWidth) { x.save(); rrect(x, fx, fy, fw, fh, 12); x.clip(); x.fillStyle = "#fff"; x.fillRect(fx, fy, fw, fh); x.drawImage(fim, fx, fy, fw, fh); x.restore(); x.lineWidth = 2; x.strokeStyle = "rgba(255,255,255,.22)"; rrect(x, fx, fy, fw, fh, 12); x.stroke(); }
+  // kit-colour accent bars under the flag
+  x.fillStyle = t.c1 || "#0BA360"; rrect(x, W / 2 - 86, fy + fh + 24, 76, 8, 4); x.fill();
+  x.fillStyle = (t.c2 && t.c2 !== t.c1) ? t.c2 : "#E8B931"; rrect(x, W / 2 + 10, fy + fh + 24, 76, 8, 4); x.fill();
+  // team name
+  const NM = t.name.toUpperCase(); let fs = 90; x.fillStyle = "#fff"; x.font = `900 ${fs}px Archivo, sans-serif`;
+  while (x.measureText(NM).width > W - 110 && fs > 44) { fs -= 4; x.font = `900 ${fs}px Archivo, sans-serif`; }
+  const y = fy + fh + 116; x.fillText(NM, W / 2, y);
+  // identity row: FIFA rank · confederation · group
+  const rk = fifaRankOf(code), grp = groupOf(code);
+  const idParts = [rk ? `FIFA #${rk}` : null, t.conf || null, grp ? `Group ${grp}` : null].filter(Boolean);
+  if (idParts.length) { x.fillStyle = "#9aa7b2"; x.font = "600 31px Archivo, sans-serif"; x.fillText(idParts.join("   ·   "), W / 2, y + 52); }
+  // pedigree tiles: champions (if any) · best finish · World Cups
+  const debut = t.best === "First appearance", bestRound = (t.best || "").split(" · ")[0];
+  const tiles = [
+    t.titles ? [`${t.titles}×`, "CHAMPIONS"] : null,
+    t.titles ? null : (debut ? ["Debut", "FIRST WORLD CUP"] : (bestRound ? [bestRound, "BEST FINISH"] : null)),   // for a champion the best finish is just "Champions" - skip the repeat
+    t.apps != null ? [`${t.apps}`, `WORLD CUP${t.apps !== 1 ? "S" : ""}`] : null,
+  ].filter(Boolean);
+  const ty = y + 96, th = 132, tgap = 22, tw = Math.min(300, (W - 150 - tgap * (tiles.length - 1)) / tiles.length);
+  let tx = W / 2 - (tw * tiles.length + tgap * (tiles.length - 1)) / 2;
+  for (const [val, lbl] of tiles) {
+    x.fillStyle = "rgba(255,255,255,.05)"; rrect(x, tx, ty, tw, th, 18); x.fill(); x.lineWidth = 1; x.strokeStyle = "rgba(255,255,255,.10)"; rrect(x, tx, ty, tw, th, 18); x.stroke();
+    let vfs = 50; x.fillStyle = "#fff"; x.font = `900 ${vfs}px Archivo, sans-serif`;
+    while (x.measureText(val).width > tw - 28 && vfs > 22) { vfs -= 2; x.font = `900 ${vfs}px Archivo, sans-serif`; }
+    x.fillText(val, tx + tw / 2, ty + th / 2 + 4); x.fillStyle = "#8b97a3"; x.font = "700 19px Archivo, sans-serif"; x.fillText(lbl, tx + tw / 2, ty + th - 22);
+    tx += tw + tgap;
+  }
+  // this-tournament standing + qualification status
+  const tbl = grp ? standings(grp) : [], pos = tbl.findIndex(r => r.code === code) + 1, row = tbl[pos - 1], qs = qualStatus(code);
+  let sy = ty + th + 64;
+  if (row && row.p) {
+    x.fillStyle = "#cdd7df"; x.font = "700 30px Archivo, sans-serif"; x.fillText(`Group ${grp} · ${ordinal(pos)} · ${row.pts} pt${row.pts !== 1 ? "s" : ""} · ${row.w}W ${row.d}D ${row.l}L`, W / 2, sy);
+    if (qs === "in") { x.fillStyle = "#1FD673"; x.font = "800 26px Archivo, sans-serif"; x.fillText("THROUGH TO THE ROUND OF 32", W / 2, sy + 46); sy += 46; }
+    else if (qs === "out") { x.fillStyle = "#9aa7b2"; x.font = "700 26px Archivo, sans-serif"; x.fillText("Out of the Round of 32", W / 2, sy + 46); sy += 46; }
+  } else if (grp) { x.fillStyle = "#cdd7df"; x.font = "700 30px Archivo, sans-serif"; x.fillText(`Group ${grp}`, W / 2, sy); }
+  // leading scorer at this World Cup
+  const ts = (tournamentStats().scorers || []).find(p => p.code === code && p.goals > 0);
+  if (ts) { x.fillStyle = "#E8B931"; x.font = "700 27px Archivo, sans-serif"; x.fillText(`Top scorer · ${pName(ts.name, code)} · ${ts.goals} goal${ts.goals !== 1 ? "s" : ""}`, W / 2, sy + 56); }
+  // footer
+  x.fillStyle = "#7b8894"; x.font = "500 25px 'Spline Sans Mono', monospace"; x.fillText("WC·26 · your World Cup, in one page", W / 2, H - 100);
+  x.fillStyle = "#5b6b7a"; x.font = "500 23px 'Spline Sans Mono', monospace"; x.fillText((location.host + location.pathname).replace(/\/$/, ""), W / 2, H - 54);
+  const blob = await new Promise(res => c.toBlob(res, "image/png"));
+  if (!blob) { flashToast("Couldn't make the image"); return; }
+  const file = new File([blob], `wc26-${code.toLowerCase()}.png`, { type: "image/png" });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file], text: `${t.name} · World Cup 2026` }); return; } catch (err) { if (err?.name === "AbortError") return; }
+  }
+  const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = file.name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 3000); flashToast("Team card saved");
 }
 // the canonical share URL for a match: a finished game points at the Action-rendered result-card stub (it unfurls on
 // social); anything else deep-links into the live match view.
@@ -5552,6 +5625,8 @@ async function boot() {
     if (cal) { e.stopPropagation(); const m = S.matches.find(x => x.id === cal.dataset.cal); if (m) { const h = slotInfo(m, "home"), a = slotInfo(m, "away"); downloadICS([m], `${h.code ? h.name : slotText(m, "home", h)} v ${a.code ? a.name : slotText(m, "away", a)}`); } return; }
     const shm = e.target.closest("[data-share-match]");   // share a match: prediction card (upcoming/live) or result-card link (finished)
     if (shm) { e.stopPropagation(); const m = S.matches.find(x => x.id === shm.dataset.shareMatch); if (m) shareMatchCard(m); return; }
+    const sht = e.target.closest("[data-share-team]");   // "Share" from inside the team sheet → team card image
+    if (sht) { e.stopPropagation(); shareTeamCard(sht.dataset.shareTeam); return; }
     const cmt = e.target.closest("[data-compare-team]");   // "Compare" from inside the team sheet → pick a second team
     if (cmt) { e.stopPropagation(); $("#teamSheet").close(); openTeamCompareSearch(cmt.dataset.compareTeam); return; }
     const sq = e.target.closest("[data-squad]");
