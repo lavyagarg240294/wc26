@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "376";  // shown in footer; bump with the ?v= asset version
+const BUILD = "377";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -2030,6 +2030,19 @@ let _teamsView = "grid", _worldMap = null;   // Teams tab: grid vs world-map vie
 const popStr = n => n == null ? "" : n >= 1e6 ? (n / 1e6).toFixed(n >= 1e8 ? 0 : 1) + "M" : n >= 1e3 ? (n / 1e3).toFixed(0) + "k" : "" + n;
 // spelled-out population for captions, e.g. 48.8 million / 1.4 billion / 150 thousand
 const popWords = n => n == null ? "" : n >= 1e9 ? +(n / 1e9).toFixed(n >= 1e10 ? 1 : 2) + " billion" : n >= 1e6 ? +(n / 1e6).toFixed(n >= 1e8 ? 0 : 1) + " million" : n >= 1e3 ? Math.round(n / 1e3) + " thousand" : "" + n;
+// primary / most-widely-spoken language per nation (single label for the country card). The handful of genuinely
+// multilingual sides take their lingua-franca / most-spoken language; those judgment calls are surfaced for review.
+const LANG = {
+  AR: "Spanish", AT: "German", AU: "English", BA: "Bosnian", BE: "Dutch", BR: "Portuguese",
+  CA: "English", CD: "French", CH: "German", CI: "French", CO: "Spanish", CV: "Portuguese",
+  CW: "Papiamentu", CZ: "Czech", DE: "German", DZ: "Arabic", EC: "Spanish", EG: "Arabic",
+  ES: "Spanish", FR: "French", "GB-ENG": "English", "GB-SCT": "English", GH: "English",
+  HR: "Croatian", HT: "Haitian Creole", IQ: "Arabic", IR: "Persian", JO: "Arabic",
+  JP: "Japanese", KR: "Korean", MA: "Arabic", MX: "Spanish", NL: "Dutch", NO: "Norwegian",
+  NZ: "English", PA: "Spanish", PT: "Portuguese", PY: "Spanish", QA: "Arabic", SA: "Arabic",
+  SE: "Swedish", SN: "French", TN: "Arabic", TR: "Turkish", US: "English", UY: "Spanish",
+  UZ: "Uzbek", ZA: "English",
+};
 // the all-48-nations world map: a lazy-loaded equirectangular basemap with a kit-coloured dot at each country's
 // centroid (same projection as the basemap). Tap a dot to open that team. The 122KB map is fetched only here.
 async function renderTeamsMap() {
@@ -2509,7 +2522,7 @@ async function fillCountryMap(code) {
   if (_worldMap == null) { try { _worldMap = await (await fetch("assets/worldmap.svg?v=" + BUILD)).text(); } catch { _worldMap = ""; } }
   const host = $("#ctryMap"); if (!host || host.dataset.mapcode !== code) return;   // the sheet changed while loading
   const t = S.teams[code];
-  const cap = `<span class="ctry-map-name"><span class="fl">${flag(code)}</span> ${esc(t.name)}</span>${t.pop ? `<span class="ctry-map-pop">Population · <b>${popWords(t.pop)}</b></span>` : ""}`;
+  const cap = `<span class="ctry-map-name"><span class="fl">${flag(code)}</span> ${esc(t.name)}</span>${LANG[code] ? `<span class="ctry-map-pop">Language · <b>${esc(LANG[code])}</b></span>` : ""}${t.pop ? `<span class="ctry-map-pop">Population · <b>${popWords(t.pop)}</b></span>` : ""}`;
   const s = _countryShapes[code];
   if (!s) { host.classList.add("ctry-map-solo"); host.innerHTML = `<span class="ctry-map-cap">${cap}</span>`; return; }   // micro-states absent from the 110m set
   // widen the country's bounding box so the surrounding land shows around it, for a sense of where it sits
