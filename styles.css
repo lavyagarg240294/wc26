@@ -1366,6 +1366,9 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 /* best-finish tile: achievement value in the b, "Best finish · year" as the .tp span label. It's a soft fact,
    not a headline number, so nothing in this tile is bold - the value drops to the same medium weight as the label. */
 .tp-finish b{font-weight:600}
+/* the lone pedigree card spans the row; its subtext is a readable line (count · years · appearances), not the 9px uppercase tile label */
+.ts-ped .tp-finish{flex:1 1 100%}
+.tp-finish span{font-size:12.5px;text-transform:none;letter-spacing:0;font-weight:500;margin-top:1px}
 .ts-coach{display:flex;align-items:center;gap:11px;background:var(--card);border:1px solid var(--line);border-radius:13px;padding:10px 13px;box-shadow:var(--shadow);margin:0 0 6px}
 .ts-coach-badge{flex:0 0 auto;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:color-mix(in srgb,var(--acc1) 13%,var(--card));color:var(--acc-text);font-family:var(--disp);font-weight:800;font-size:13px;letter-spacing:.02em}
 .ts-coach-tx{display:flex;flex-direction:column;gap:1px;min-width:0}

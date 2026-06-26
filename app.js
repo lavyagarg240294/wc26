@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "379";  // shown in footer; bump with the ?v= asset version
+const BUILD = "380";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -633,9 +633,11 @@ const towardWhite = (hex, t) => { const n = parseInt(hex.slice(1), 16); const c 
 // the DARK-field counterpart of readableAccent: pick the kit colour that reads best on the dark paper, then lighten
 // it until it clears contrast - so a navy/blue accent doesn't vanish into the dark background as text.
 function readableAccentDark(c1, c2) {
-  const PAPER = "#FAFBF9", DARK = "#0E1822";
-  const best = [c1, c2].filter(Boolean).sort((a, b) => contrastRatio(b, PAPER) - contrastRatio(a, PAPER))[0] || "#0BA360";   // same base hue readableAccent picks, so the accent keeps its colour across themes
-  let t = 0; while (t < 0.9 && contrastRatio(towardWhite(best, t), DARK) < 4.2) t += 0.05;
+  const DARK = "#0E1822";
+  const sat = hex => { const n = parseInt((hex || "#000000").slice(1), 16); return Math.max(n >> 16 & 255, n >> 8 & 255, n & 255) - Math.min(n >> 16 & 255, n >> 8 & 255, n & 255); };
+  let best = (c2 && sat(c1) < 40) ? c2 : (c1 || c2 || "#0BA360");   // the primary kit colour is the team's identity, but a black/white/grey primary (England, Germany) yields to the colourful secondary
+  if (contrastRatio(best, DARK) >= 2.2) return best;   // a saturated kit colour (Spain red, Dutch orange) reads on the dark field - keep it PUNCHY rather than washing it toward white; only genuinely dark navies get lightened
+  let t = 0; while (t < 0.9 && contrastRatio(towardWhite(best, t), DARK) < 3.2) t += 0.05;
   return towardWhite(best, t);
 }
 
@@ -2276,12 +2278,12 @@ function teamOverview(code) {
   const titles = t.titles || 0, debut = t.best === "First appearance";
   const [finish, yr] = (t.best || "").split(" · ");
   const coach = teamCoach(code);
-  const tiles = [
-    t.apps != null ? `<div class="tp"><b>${t.apps}</b><span>World Cup${t.apps !== 1 ? "s" : ""}</span></div>` : "",
-    titles ? `<div class="tp tp-gold"><b>${titles}×</b><span>Champion${titles !== 1 ? "s" : ""}</span></div>` : "",
-    `<div class="tp tp-wide tp-finish"><b>${debut ? "Debut" : esc(finish)}</b><span>${debut ? "First World Cup" : `Best finish${yr ? ` · ${esc(yr)}` : ""}`}</span></div>`,
-  ].filter(Boolean).join("");
-  return `<div class="ts-ped">${tiles}</div>
+  // one pedigree statement: best finish (the headline) over "[Nx ·] year(s) · appearances". Titles fold in as the
+  // "Nx" count only when >1 (a single title is already implied by "Champions"); appearances live in the same line.
+  const head = debut ? "Debut" : esc(finish);
+  const sub = debut ? "First World Cup"
+    : [titles > 1 ? `${titles}×` : "", yr ? esc(yr) : "", t.apps != null ? `${t.apps} appearance${t.apps !== 1 ? "s" : ""}` : ""].filter(Boolean).join(" · ");
+  return `<div class="ts-ped"><div class="tp tp-finish"><b>${head}</b><span>${sub}</span></div></div>
     ${coach ? `<div class="ts-coach"><span class="ts-coach-badge">${esc(initials(coach))}</span><span class="ts-coach-tx"><i>Head coach</i><b>${esc(coach)}</b></span></div>` : ""}`;
 }
 // Static WC results 2002–2022. Keys: W=winner, F=finalist, 3rd=third, 4th=fourth, QF/R16/GS=round. Missing year = did not qualify.
@@ -3925,25 +3927,19 @@ async function shareTeamCard(code) {
   const rk = fifaRankOf(code), grp = groupOf(code);
   const idParts = [rk ? `FIFA #${rk}` : null, t.conf || null, grp ? `Group ${grp}` : null].filter(Boolean);
   if (idParts.length) { x.fillStyle = "#9aa7b2"; x.font = "600 31px Archivo, sans-serif"; x.fillText(idParts.join("   ·   "), W / 2, y + 52); }
-  // pedigree tiles: champions (if any) · best finish · World Cups
-  const debut = t.best === "First appearance", bestRound = (t.best || "").split(" · ")[0];
-  const tiles = [
-    t.titles ? [`${t.titles}×`, "CHAMPIONS"] : null,
-    t.titles ? null : (debut ? ["Debut", "FIRST WORLD CUP"] : (bestRound ? [bestRound, "BEST FINISH"] : null)),   // for a champion the best finish is just "Champions" - skip the repeat
-    t.apps != null ? [`${t.apps}`, `WORLD CUP${t.apps !== 1 ? "S" : ""}`] : null,
-  ].filter(Boolean);
-  const ty = y + 96, th = 132, tgap = 22, tw = Math.min(300, (W - 150 - tgap * (tiles.length - 1)) / tiles.length);
-  let tx = W / 2 - (tw * tiles.length + tgap * (tiles.length - 1)) / 2;
-  for (const [val, lbl] of tiles) {
-    x.fillStyle = "rgba(255,255,255,.05)"; rrect(x, tx, ty, tw, th, 18); x.fill(); x.lineWidth = 1; x.strokeStyle = "rgba(255,255,255,.10)"; rrect(x, tx, ty, tw, th, 18); x.stroke();
-    let vfs = 50; x.fillStyle = "#fff"; x.font = `900 ${vfs}px Archivo, sans-serif`;
-    while (x.measureText(val).width > tw - 28 && vfs > 22) { vfs -= 2; x.font = `900 ${vfs}px Archivo, sans-serif`; }
-    x.fillText(val, tx + tw / 2, ty + th / 2 + 4); x.fillStyle = "#8b97a3"; x.font = "700 19px Archivo, sans-serif"; x.fillText(lbl, tx + tw / 2, ty + th - 22);
-    tx += tw + tgap;
-  }
+  // pedigree: best finish (the headline) over a "[Nx ·] year(s) · appearances" line - one statement, no repeats
+  const debut = t.best === "First appearance", [bestRound, bestYr] = (t.best || "").split(" · ");
+  const pedHead = debut ? "Debut" : bestRound;
+  const pedSub = debut ? "First World Cup"
+    : [t.titles > 1 ? `${t.titles}×` : "", bestYr || "", t.apps != null ? `${t.apps} appearance${t.apps !== 1 ? "s" : ""}` : ""].filter(Boolean).join("   ·   ");
+  const py2 = y + 124;
+  x.fillStyle = "#fff"; let pfs = 54; x.font = `800 ${pfs}px Archivo, sans-serif`;
+  while (x.measureText(pedHead).width > W - 130 && pfs > 26) { pfs -= 2; x.font = `800 ${pfs}px Archivo, sans-serif`; }
+  x.fillText(pedHead, W / 2, py2);
+  if (pedSub) { x.fillStyle = "#9aa7b2"; x.font = "600 28px Archivo, sans-serif"; x.fillText(pedSub, W / 2, py2 + 48); }
   // this-tournament standing + qualification status
   const tbl = grp ? standings(grp) : [], pos = tbl.findIndex(r => r.code === code) + 1, row = tbl[pos - 1], qs = qualStatus(code);
-  let sy = ty + th + 64;
+  let sy = py2 + 116;
   if (row && row.p) {
     x.fillStyle = "#cdd7df"; x.font = "700 30px Archivo, sans-serif"; x.fillText(`Group ${grp} · ${ordinal(pos)} · ${row.pts} pt${row.pts !== 1 ? "s" : ""} · ${row.w}W ${row.d}D ${row.l}L`, W / 2, sy);
     if (qs === "in") { x.fillStyle = "#1FD673"; x.font = "800 26px Archivo, sans-serif"; x.fillText("THROUGH TO THE ROUND OF 32", W / 2, sy + 46); sy += 46; }
