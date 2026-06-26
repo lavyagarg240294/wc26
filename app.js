@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "374";  // shown in footer; bump with the ?v= asset version
+const BUILD = "375";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -809,7 +809,7 @@ function matchCard(m, i, opts = {}) {
         ? `<div class="mcard-score${live ? " is-live" : ""}${abn ? " is-abn" : ""}"><span class="${winA ? "lo" : ""}">${sh}</span><span class="${winH ? "lo" : ""}">${sa}</span>${r?.hp != null ? `<span class="pens">(${r.hp}–${r.ap}p)</span>` : ""}</div>${(live || abn) ? badge : ""}`
         : badge}</div>
     </div>
-    ${(() => { if (m.stage !== "group") { const k = koStakeLine(m); return k ? `<div class="mcard-stake">${k}</div>` : ""; } const s = matchStakes(m); return s && s.definitive ? `<div class="mcard-stake">${s.lines[0]}</div>` : ""; })()}
+    ${(() => { if (m.stage !== "group") { const k = koStakeLine(m); return k ? `<div class="mcard-stake">${k}</div>` : ""; } const s = matchStakes(m); return s && s.definitive ? `<div class="mcard-stake">${s.summary}</div>` : ""; })()}
     ${opts.sub !== false ? `<div class="mcard-sub"><span class="grp">${esc(stageL)}</span><span>${esc(m.stadium)}</span><span>${esc(m.city)}</span><span class="mcard-go">Details ›</span></div>` : ""}
     ${(() => { if (!document.body.classList.contains("expert") || isFinalSt(st) || isAbnormal(st)) return ""; const wp = winProb(m); if (!wp) return ""; const ph = Math.round(wp.h*100), pd = Math.round(wp.d*100), pa = 100-ph-pd; return `<div class="mcard-wp"><span class="mcard-wp-bar"><span class="mcard-wp-h" style="width:${ph}%"></span><span class="mcard-wp-d" style="width:${pd}%"></span></span><span class="mcard-wp-tx">${ph}% · D ${pd}% · ${pa}%</span></div>`; })()}
     </div>
@@ -1347,13 +1347,16 @@ function _basePts(g) {                                    // FT-only points - th
 // is X *guaranteed* top-two (≤1 other team can reach its points) and/or *out* of top-two (≥2 teams beat it)?
 function _qualScan(g, X, fixId, fixOut) {
   const teams = groupTeams(g), rem = S.matches.filter(m => m.group === g && !isFeedFinal(m));   // a stale-live match is "still to be decided" for guarantees, not folded in as final
-  let allTop2 = true, allOut = true;
+  let allTop1 = true, allTop2 = true, allTop3 = true, allOut = true, allStuck4 = true;
   const rec = (i, pts) => {
     if (i === rem.length) {
-      const px = pts[X]; let ge = 0, gt = 0;
+      const px = pts[X]; let ge = 0, gt = 0;          // others able to reach (ge) / already strictly above (gt) X's points
       for (const t of teams) if (t !== X) { if (pts[t] >= px) ge++; if (pts[t] > px) gt++; }
-      if (ge > 1) allTop2 = false;     // someone else could match/beat X → not guaranteed top-two here
-      if (gt < 2) allOut = false;      // fewer than two strictly above → X could still be top-two here
+      if (ge > 0) allTop1 = false;     // anyone can still reach X → topping the group isn't points-guaranteed
+      if (ge > 1) allTop2 = false;     // >1 can reach → not guaranteed top-two here
+      if (ge > 2) allTop3 = false;     // >2 can reach → X could be pushed to 4th here
+      if (gt < 2) allOut = false;      // fewer than two strictly above → X could still be top-two
+      if (gt < 3) allStuck4 = false;   // fewer than three strictly above → X can still climb out of 4th
       return;
     }
     const m = rem[i], h = m.home.team, a = m.away.team;
@@ -1364,7 +1367,9 @@ function _qualScan(g, X, fixId, fixOut) {
     }
   };
   rec(0, _basePts(g));
-  return { clinched: allTop2, out: allOut };
+  // clinched / out = guaranteed top-two / can't-reach-top-two (the original pair, GD-safe). New format also needs:
+  // top3 = can't finish 4th; stuck4 = can't escape 4th (= out of the R32, since 4th never advances); winGroup = tops the group.
+  return { clinched: allTop2, out: allOut, winGroup: allTop1, top3: allTop3, stuck4: allStuck4 };
 }
 function _provRows(g) {                                    // FT + in-play points/GD/GF per team in a group
   const rows = {}; groupTeams(g).forEach(c => rows[c] = { code: c, pts: 0, gd: 0, gf: 0 });
@@ -1384,44 +1389,91 @@ function _provPos(g) {                                    // FT + in-play provis
     .forEach((r, i) => pos[r.code] = i + 1);
   return pos;
 }
+// What this group match means for the Round of 32 - reasoned over every still-possible result of the group's
+// unfinished matches, points-only so each call survives goal-difference tiebreaks. The 48-team format takes the
+// top two of each group PLUS the eight best third-placed teams, so "out" means stuck in 4th (4th never advances),
+// not merely "out of the top two" - and a side that can still finish third is alive for a best-third place.
 function matchStakes(m) {
   if (m.stage !== "group" || !m.group || isFinalSt(status(m))) return null;
   const g = m.group, H = m.home.team, A = m.away.team;
   if (!H || !A || !S.matches.some(x => x.group === g && isFinalSt(status(x)) && res(x)?.h != null)) return null;
   const nm = c => `<b>${esc(S.teams[c]?.name || c)}</b>`;
-  const say = code => {
-    if (_qualScan(g, code).clinched) return `${nm(code)} are through to the Round of 32.`;
-    if (_qualScan(g, code).out) return `${nm(code)} can no longer finish in the top two.`;
-    const win = code === H ? "h" : "a", lose = code === H ? "a" : "h";
-    if (_qualScan(g, code, m.id, "d").clinched) return `A draw is enough to send ${nm(code)} through.`;
-    if (_qualScan(g, code, m.id, win).clinched) return `Win and ${nm(code)} are through.`;
-    if (_qualScan(g, code, m.id, lose).out) return `${nm(code)} drop out of the top two if they lose.`;
-    if (_qualScan(g, code, m.id, win).out) return `Even a win can't lift ${nm(code)} into the top two.`;
-    return null;
-  };
-  const lines = [say(H), say(A)].filter(Boolean);
-  if (lines.length) return { lines, definitive: true };          // crisp qualification call
-  // "As it stands" positions are only meaningful for teams that have actually played - a team on 0
-  // games is "Nth" purely by tiebreak among everyone tied on 0 points, which misreads as a real standing.
   const counted = x => { const r = res(x); return r && r.h != null && [ST.FT, ST.LIVE, ST.HT].includes(r.st); };
   const playedIn = code => S.matches.some(x => x.group === g && (x.home.team === code || x.away.team === code) && counted(x));
-  const pH = playedIn(H), pA = playedIn(A);
-  if (!pH && !pA) return { lines: [`Both sides open their Group ${g} campaign.`], definitive: false };
-  // A team's "position" is only real if it isn't dead-level with ANY other group member: when teams tie on
-  // points/GD/goals the order is decided purely by the alphabetical code tiebreak, which misreads as a real
-  // standing (the "Ecuador 3rd at 0–0" bug - and it also bites when a side is level with a THIRD team, not just
-  // its opponent, e.g. a group that opens with four draws). In that case say "level", never an ordinal.
-  const R = _provRows(g);
+  const R = _provRows(g), PP = _provPos(g);
+  // A team's "as it stands" position is only real if it isn't dead-level with another member (else the order is a
+  // pure alphabetical-code tiebreak, which misreads as a real standing - the "Ecuador 3rd at 0-0" bug).
   const levelWithAny = c => Object.values(R).some(o => o.code !== c && o.pts === R[c].pts && o.gd === R[c].gd && o.gf === R[c].gf);
-  if (pH && pA && R[H] && R[A] && R[H].pts === R[A].pts && R[H].gd === R[A].gd && R[H].gf === R[A].gf)
-    return { lines: [`${nm(H)} and ${nm(A)} are level in Group ${g} so far.`], definitive: false };
-  const p = _provPos(g), lvlH = pH && levelWithAny(H), lvlA = pA && levelWithAny(A);
-  if (lvlH && lvlA)   // both sit level - say it once, not "X are level on points and Y are level on points"
-    return { lines: [`${nm(H)} and ${nm(A)} are level on points in Group ${g} so far.`], definitive: false };
-  const parts = [];
-  if (pH) parts.push(lvlH ? `${nm(H)} are level on points` : `${nm(H)} are ${ordinal(p[H])}`);
-  if (pA) parts.push(lvlA ? `${nm(A)} are level on points` : `${nm(A)} are ${ordinal(p[A])}`);
-  return { lines: [`As it stands, ${parts.join(" and ")} in Group ${g}.`], definitive: false };
+  const posOf = c => (playedIn(c) && !levelWithAny(c)) ? PP[c] : 0;
+  // one honest R32 state per team, highest-priority first; the live conditionals fix THIS match's result.
+  const classify = code => {
+    const s = _qualScan(g, code);
+    if (s.winGroup) return "winGroup";
+    if (s.clinched) return "through";
+    if (s.stuck4) return "out";
+    if (s.top3) return "third-safe";
+    const win = code === H ? "h" : "a", lose = code === H ? "a" : "h";
+    if (_qualScan(g, code, m.id, "d").clinched) return "draw-through";
+    const w = _qualScan(g, code, m.id, win), l = _qualScan(g, code, m.id, lose);
+    if (w.clinched && l.stuck4) return "win-or-bust";
+    if (w.clinched) return "in-with-win";
+    if (l.stuck4 && w.top3) return "out-or-third";
+    if (l.stuck4) return "out-if-lose";
+    if (w.top3) return "third-with-win";
+    return "live";
+  };
+  const posTxt = c => { const p = posOf(c); return p ? ` (${ordinal(p)} as it stands)` : ""; };
+  const full = code => { const n = nm(code); switch (classify(code)) {     // the per-team sentence (match modal)
+    case "winGroup": return `${n} have won Group ${g} - through to the Round of 32.`;
+    case "through": return `${n} are through to the Round of 32${posTxt(code)}.`;
+    case "out": return `${n} are out of the Round of 32.`;
+    case "third-safe": return `${n} are assured of at least third${posTxt(code)} - through, or into the best-third race.`;
+    case "draw-through": return `A draw is enough to send ${n} through to the Round of 32.`;
+    case "win-or-bust": return `${n} go through with a win, out with a loss.`;
+    case "in-with-win": return `${n} are through to the Round of 32 with a win.`;
+    case "out-or-third": return `${n} are out if they lose - third, and alive for a best-third place, with a win.`;
+    case "out-if-lose": return `${n} are out if they lose.`;
+    case "third-with-win": return `${n} reach at least third - a best-third lifeline - with a win.`;
+    default: { const p = posOf(code); return p ? `${n} are ${ordinal(p)} in Group ${g} as it stands.` : (playedIn(code) ? `${n} are level on points in Group ${g} as it stands.` : null); }
+  } };
+  const short = code => { const p = posOf(code); switch (classify(code)) {  // the terse phrase (compact card / hero)
+    case "winGroup": return "win the group";
+    case "through": return `through${p ? ` (${ordinal(p)})` : ""}`;
+    case "out": return "out";
+    case "third-safe": return "third or better";
+    case "draw-through": return "through with a draw";
+    case "win-or-bust": return "win or bust";
+    case "in-with-win": return "in with a win";
+    case "out-or-third": case "out-if-lose": return "out if they lose";
+    case "third-with-win": return "third with a win";
+    default: return p ? `${ordinal(p)} as it stands` : "level";
+  } };
+  const stH = classify(H), stA = classify(A);
+  // neither side has a real R32 call yet - the "as it stands" standings fallback (guards unplayed sides + dead-level ties)
+  if (stH === "live" && stA === "live") {
+    if (!playedIn(H) && !playedIn(A)) { const l = `Both sides open their Group ${g} campaign.`; return { lines: [l], summary: l, definitive: false }; }
+    if (playedIn(H) && playedIn(A) && R[H].pts === R[A].pts && R[H].gd === R[A].gd && R[H].gf === R[A].gf) { const l = `${nm(H)} and ${nm(A)} are level in Group ${g} so far.`; return { lines: [l], summary: l, definitive: false }; }
+    const lvlH = playedIn(H) && levelWithAny(H), lvlA = playedIn(A) && levelWithAny(A);
+    if (lvlH && lvlA) { const l = `${nm(H)} and ${nm(A)} are level on points in Group ${g} so far.`; return { lines: [l], summary: l, definitive: false }; }
+    const parts = [];
+    if (playedIn(H)) parts.push(lvlH ? `${nm(H)} are level on points` : `${nm(H)} are ${ordinal(PP[H])}`);
+    if (playedIn(A)) parts.push(lvlA ? `${nm(A)} are level on points` : `${nm(A)} are ${ordinal(PP[A])}`);
+    if (!parts.length) return null;
+    const l = `As it stands, ${parts.join(" and ")} in Group ${g}.`; return { lines: [l], summary: l, definitive: false };
+  }
+  // at least one real call - a combined one-liner for the card/hero, the per-team detail for the modal
+  const THRU = ["winGroup", "through"], THIRD = ["out-or-third", "out-if-lose"];
+  let summary;
+  if (THRU.includes(stH) && THRU.includes(stA)) summary = (stH === "winGroup" || stA === "winGroup") ? `${nm(H)} and ${nm(A)} are both through to the Round of 32.` : `Both through to the Round of 32 - the winner tops Group ${g}.`;
+  else if (stH === "out" && stA === "out") summary = `Both out of the Round of 32.`;
+  else if (THIRD.includes(stH) && THIRD.includes(stA)) summary = `Third place is on the line - the winner stays alive for a best-third place, the loser is out.`;
+  else if (stH === "in-with-win" && stA === "in-with-win") summary = `Win and in - either side reaches the Round of 32 with a win.`;
+  else if (stH === "win-or-bust" && stA === "win-or-bust") summary = `Win or bust - the winner is through, the loser is out.`;
+  else if (stH === "third-safe" && stA === "third-safe") summary = `Both assured of at least third - through, or in the best-third race.`;
+  else { const sh = []; if (stH !== "live" || playedIn(H)) sh.push(`${nm(H)} ${short(H)}`); if (stA !== "live" || playedIn(A)) sh.push(`${nm(A)} ${short(A)}`); summary = sh.join(" · ") || null; }
+  const lines = [full(H), full(A)].filter(Boolean);
+  if (!lines.length) return null;
+  return { lines, summary, definitive: true };
 }
 function stakesBlock(m) {
   const s = matchStakes(m); if (!s) return "";
@@ -1561,7 +1613,7 @@ function heroBlock(heroM, isLive, onLive) {
         : `<span class="hero-vs">VS</span>`}</div>
       <div class="hero-side"><span class="hero-flag">${a.code ? flag(a.code, true) : TBD_FLAG}</span><span class="hero-name">${esc(a.name)}</span>${qline(aq)}</div>
     </div>
-    ${!ft ? (() => { const s = matchStakes(heroM); return s ? `<div class="hero-stakes">${s.lines[0]}</div>` : ""; })() : ""}
+    ${!ft ? (() => { const s = matchStakes(heroM); return s && s.summary ? `<div class="hero-stakes">${s.summary}</div>` : ""; })() : ""}
     ${!live && !ft && !onLive ? (() => { const wp = winProb(heroM); if (!wp) return "";   // pre-match only; on the Live tab the dedicated win-prob section below already covers it
       if (wp.ko && wp.adv) { const ph = Math.round(wp.adv.h * 100), pa = 100 - ph;   // knockout: show advance % (a 90' draw goes to ET/pens), no "draw" segment
         return `<div class="hero-wp" aria-label="${esc(h.name)} ${ph}% to advance, ${esc(a.name)} ${pa}%"><span class="hero-wp-bar"><i class="wp-h" style="width:${ph}%"></i><i class="wp-a" style="width:${pa}%"></i></span><span class="hero-wp-tx"><b>${ph}%</b><span>to advance</span><b>${pa}%</b></span></div>`; }
