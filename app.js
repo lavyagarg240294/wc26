@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "391";  // shown in footer; bump with the ?v= asset version
+const BUILD = "392";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -2562,13 +2562,6 @@ function openTeam(code) {
     ${countryMiniMap(code)}
     ${wcHistory(code)}
     ${since2022Section(code)}
-    <div class="ts-actrow">
-      ${isFav
-        ? `<div class="ts-fav-tag">★ Your team</div>`
-        : `<button class="ts-setfav" data-follow="${code}">★ Make ${esc(t.name)} my team</button>`}
-      <button class="ts-compare" data-compare-team="${code}">${ICO.compare} Compare</button>
-      <button class="ts-compare" data-share-team="${code}">${SHARE_SVG} Share</button>
-    </div>
     ${styleSection(code)}
     ${tmsHtml}
     ${sq ? `<details class="ts-squad" open><summary><span>Squad</span><small>${sq.players.length} players${teamCoach(code) ? ` · ${esc(teamCoach(code))}` : ""}</small></summary>${sv ? `<div class="ts-squadvit"><span class="tsv-lbl">Squad average</span>${sv.age ? `<span><b>${sv.age.toFixed(1)}</b> yrs</span>` : ""}${sv.height ? `<span><b>${(sv.height / 100).toFixed(2)}</b> m</span>` : ""}${sv.weight && sv.wN >= sv.n * 0.6 ? `<span><b>${Math.round(sv.weight)}</b> kg</span>` : ""}</div>` : ""}${rosterMarkup(sq, code)}</details>`
@@ -2578,7 +2571,14 @@ function openTeam(code) {
     ${group ? `<div class="eyebrow">Group ${group}</div><div class="gwrap">${groupTable(group, 0)}</div>
       <div class="legend"><span class="l1"><i></i>Top 2 advance</span><span class="l3"><i></i>3rd: possible best-8 spot</span></div>` : ""}
     ${roadSection(code)}
-    ${rotationSection(code)}`;
+    ${rotationSection(code)}
+    <div class="ts-actrow">
+      ${isFav
+        ? `<div class="ts-fav-tag">★ Your team</div>`
+        : `<button class="ts-setfav" data-follow="${code}">★ Make ${esc(t.name)} my team</button>`}
+      <button class="ts-compare" data-compare-team="${code}">${ICO.compare} Compare</button>
+      <button class="ts-compare" data-share-team="${code}">${SHARE_SVG} Share</button>
+    </div>`;
   $("#teamSheet").dataset.code = code;   // so loadWC2022() can re-render this sheet once the dataset lands
   showSheet($("#teamSheet"));
   fillCountryMap(code);   // lazy: drop in the country silhouette once the shapes file loads
@@ -4811,6 +4811,9 @@ function renderStats() {
   // Golden Boot: show the leaders but never cut a tie - everyone level with the 12th-placed scorer stays in, else we'd
   // show some players on N goals and silently drop others on the same N (e.g. Kane), which reads as an error.
   const bootScorers = s.scorers.filter(p => p.goals >= (s.scorers[11]?.goals ?? 0));
+  // Overview mini-board: top three scorers, but never split a tie at the cut - if several players are level with the
+  // 3rd-placed scorer, show them all (else we'd list some on N goals and silently hide a co-leader on the same N).
+  const bootTop3 = s.scorers.filter(p => p.goals >= (s.scorers[2]?.goals ?? 0));
   // map a leaderboard to HTML with competition ranks. rowFn(item, rank, index); rows with an equal keyOf share a rank.
   const ranked = (rows, rowFn, keyOf) => { const rk = compRanks(rows, keyOf); return rows.map((x, i) => rowFn(x, rk[i], i)).join(""); };
   // suspension watch: only players carrying an UNSERVED ban. A red, or every second yellow, is a one-match ban;
@@ -4909,6 +4912,7 @@ function renderStats() {
       ${tile("Shots on target", s.pulse.sot)}${tile("Penalties scored", s.pulse.pens)}${tile("Own goals", s.pulse.og)}
       <div class="stat-tile"><span class="stat-val card-val"><span class="cv cv-y">${s.pulse.yellows}</span><span class="cv cv-r">${s.pulse.reds}</span></span><span class="stat-lbl">Cards</span></div>
     </div>
+      ${bootTop3.length ? `<div class="eyebrow">${ICO.ball} Golden Boot</div><div class="lead-card lead-scorers">${ranked(bootTop3, scorerRow, p => p.goals)}</div>` : ""}
       <div class="eyebrow">Records so far</div>${recordsHtml}
       ${confHtml}`],
     ["players", "Players", `
@@ -5006,7 +5010,7 @@ const NEWS_STAR_RE = /\b(mbappe|messi|ronaldo|haaland|neymar|bellingham|vinicius
 const newsIsFootball = h => NEWS_FOOTBALL_RE.test(h.title) || NEWS_STAR_RE.test(h.title.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase());
 function renderPulse() {
   const el = $("#view-pulse"), b = S.buzz;
-  const intro = `<div class="pulse-intro"><h2>News</h2><p>The latest World Cup headlines from football desks worldwide, newest first. Each links out to its source.</p></div>`;
+  const intro = `<div class="pulse-intro"><p>The latest World Cup headlines from football desks worldwide, newest first. Each links out to its source.</p></div>`;
   // show whole headlines only: some desks (ESPN live blogs) ship a title the source itself truncated with "…" and an
   // editorial "Copy of " prefix. Strip the prefix and drop anything still cut off, so every card reads in full.
   const cleanHl = t => String(t || "").replace(/^\s*copy of\s+/i, "").trim();
@@ -5204,7 +5208,7 @@ function openChampOverlay() {
           <p class="champ-eye">Model estimate</p>
           <h2 class="champ-head">Championship odds</h2>
         </div>
-        <button class="champ-x" aria-label="Close">&#x2715;</button>
+        <button class="champ-x" aria-label="Close">✕</button>
       </div>
       <ol class="champ-list" id="champList"></ol>
       <p class="champ-note">Relative strength from current ratings · tap build number 7x to reopen</p>

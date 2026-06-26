@@ -1062,7 +1062,7 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 /* projected Round-of-32 board — the live "as it stands" bracket atop Predict */
 .r32board{margin:2px 0 24px;animation:rise .45s both}
 .r32board-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:0 2px 12px}
-.r32board-eyebrow{display:inline-flex;align-items:center;gap:8px;font:800 13px/1 var(--disp);letter-spacing:.05em;text-transform:uppercase;color:var(--ink)}
+.r32board-eyebrow{display:inline-flex;align-items:center;gap:8px;font-family:var(--disp);font-weight:700;font-stretch:118%;font-size:var(--fs-12);letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft)}
 .r32board-dot{width:8px;height:8px;border-radius:50%;background:var(--acc-text);box-shadow:0 0 0 4px color-mix(in srgb,var(--acc-text) 16%,transparent)}
 .r32board-sub{margin:0;font:500 11.5px/1.3 var(--mono);color:var(--ink-soft)}
 .r32board-sub b{color:var(--ink);font-weight:700}
@@ -1984,8 +1984,7 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .search-roll.is-hidden{opacity:0}
 /* ── The Pulse (fan reactions + press) ── */
 .pulse-intro{margin:2px 0 16px}
-.pulse-intro h2{font-family:var(--disp);font-weight:800;font-stretch:110%;font-size:var(--fs-display);letter-spacing:.02em;color:var(--ink)}
-.pulse-intro p{color:var(--ink-soft);font-size:var(--fs-14);margin-top:4px;max-width:58ch;line-height:1.5}
+.pulse-intro p{color:var(--ink-soft);font-size:var(--fs-14);max-width:58ch;line-height:1.5}
 .pulse-empty{display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center;padding:46px 20px;color:var(--ink-soft);animation:rise .5s both}
 .pulse-empty .ico{width:32px;height:32px;color:var(--acc-text);opacity:.55}
 .pulse-empty p{max-width:32ch;font-size:var(--fs-14);line-height:1.5}
@@ -2184,7 +2183,7 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .champ-ov.is-open .champ-panel{transform:none}
 .champ-ph{padding:18px 20px 0;display:flex;justify-content:space-between;align-items:flex-start;flex-shrink:0}
 .champ-titles{display:flex;flex-direction:column;gap:4px}
-.champ-eye{font-size:var(--fs-11);color:rgba(212,168,0,.7);letter-spacing:.05em;text-transform:uppercase;font-weight:600}
+.champ-eye{font-family:var(--disp);font-weight:700;font-stretch:118%;font-size:var(--fs-12);letter-spacing:.14em;text-transform:uppercase;color:rgba(212,168,0,.7)}
 .champ-head{font-size:22px;font-weight:600;color:#DDE0F0;line-height:1.2}
 .champ-sub{font-size:var(--fs-12);color:rgba(220,225,240,.4);margin-top:2px}
 .champ-x{width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.08);border:none;color:rgba(220,225,240,.6);font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .15s}
