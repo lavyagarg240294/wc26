@@ -54,7 +54,7 @@ function card(f, r) {
       teamBlock(hc),
       h("div", { style: { display: "flex", flexDirection: "column", alignItems: "center" } },
         h("div", { style: { display: "flex", fontSize: "104px", fontWeight: 800, color: "#0D1B2A" } }, score),
-        h("div", { style: { display: "flex", fontSize: "22px", fontWeight: 700, letterSpacing: "2px", color: r.st === "FT" ? "#5B6B7A" : "#FF3B30", marginTop: "10px" } }, r.st === "FT" ? (pens || "FULL TIME") : "LIVE")),
+        h("div", { style: { display: "flex", fontSize: "22px", fontWeight: 700, letterSpacing: "2px", color: r.st === "FT" ? "#5B6B7A" : "#D62518", marginTop: "10px" } }, r.st === "FT" ? (pens || "FULL TIME") : "LIVE")),
       teamBlock(ac)),
     // bottom
     h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "2px solid #E4E9E3", paddingTop: "26px" } },

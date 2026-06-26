@@ -53,7 +53,7 @@ centre_mark(img, (255, 255, 255), 120, 1035, 150, 205)
 
 d = ImageDraw.Draw(img)
 x = T(84)
-tracked(d, (x, T(96)), "JUNE 11 – JULY 19, 2026", fb(27), (45, 212, 191), 2.2)
+tracked(d, (x, T(96)), "JUNE 11 – JULY 19, 2026", fb(27), GOLD, 2.2)
 d.text((x, T(140)), "Your World Cup", font=fb(80), fill=(233, 238, 242))
 d.text((x, T(220)), "2026", font=fb(156), fill=GOLD, stroke_width=T(1.4), stroke_fill=GOLD)
 tag = fr(30)

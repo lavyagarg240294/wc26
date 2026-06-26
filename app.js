@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "386";  // shown in footer; bump with the ?v= asset version
+const BUILD = "387";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -3805,7 +3805,7 @@ async function makeBracketBlob() {
     if (won) { rrect(x, rx + 2, ry + 1, PW - 4, RH - 2, 5); x.fillStyle = "rgba(31,214,115,.17)"; x.fill(); }
     const fw = 24, fh = 16, fy = ry + (RH - fh) / 2, fx = rx + 7, im = code && flags[code];
     if (im) { x.save(); rrect(x, fx, fy, fw, fh, 3); x.clip(); x.fillStyle = "#fff"; x.fillRect(fx, fy, fw, fh); x.drawImage(im, fx, fy, fw, fh); x.restore(); x.lineWidth = 1; x.strokeStyle = "rgba(255,255,255,.2)"; rrect(x, fx, fy, fw, fh, 3); x.stroke(); }
-    x.textAlign = "left"; x.font = `${won ? "800" : "500"} 18px 'Spline Sans Mono', monospace`; x.fillStyle = won ? "#26DE8C" : (code ? "#aeb9c3" : "#54636f");
+    x.textAlign = "left"; x.font = `${won ? "800" : "500"} 18px 'Spline Sans Mono', monospace`; x.fillStyle = won ? "#1FD673" : (code ? "#aeb9c3" : "#54636f");
     x.fillText(code ? tri(code) : "···", fx + fw + 7, ry + RH / 2 + 6);
   };
   const drawPill = (m) => {
