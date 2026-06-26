@@ -8,8 +8,11 @@ S = 2                                  # supersample: render 2x, downscale = sha
 W, H = 1200 * S, 630 * S
 AB = "assets/fonts/archivo-700.woff"   # the site's display weight (woff loads in Pillow's FreeType)
 AR = "assets/fonts/archivo-400.woff"
+AV = "assets/fonts/archivo-3.woff2"    # variable Archivo (Weight 400-900), the Latin subset (U+0000-00FF) that has the digits - a REAL heavy weight for the big numeral, so no faux-bold stroke
 fb = lambda s: ImageFont.truetype(AB, int(s * S))
 fr = lambda s: ImageFont.truetype(AR, int(s * S))
+def fh(s):                             # heavy display weight (900) via the variable axis - matches the app's no-faux-bold rule
+    fo = ImageFont.truetype(AV, int(s * S)); fo.set_variation_by_axes([900, 100]); return fo   # [Weight, Width]
 def T(v): return int(v * S)
 
 GOLD = (232, 185, 49)
@@ -55,7 +58,7 @@ d = ImageDraw.Draw(img)
 x = T(84)
 tracked(d, (x, T(96)), "JUNE 11 – JULY 19, 2026", fb(27), GOLD, 2.2)
 d.text((x, T(140)), "Your World Cup", font=fb(80), fill=(233, 238, 242))
-d.text((x, T(220)), "2026", font=fb(156), fill=GOLD, stroke_width=T(1.4), stroke_fill=GOLD)
+d.text((x, T(220)), "2026", font=fh(156), fill=GOLD)
 tag = fr(30)
 d.text((x, T(426)), "All 104 matches in your timezone - live scores, a win", font=tag, fill=(179, 192, 203))
 d.text((x, T(466)), "probability per game, group tables and your own bracket.", font=tag, fill=(179, 192, 203))
