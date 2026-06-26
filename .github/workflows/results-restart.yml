@@ -22,7 +22,7 @@ jobs:
     steps:
       - name: Dispatch the scores loop only if none is running
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.LOOP_DISPATCH_PAT }}   # PAT (Actions:read+write) so the restart dispatch actually fires; GITHUB_TOKEN's workflow_dispatch was silently failing
           REPO: ${{ github.repository }}
         run: |
           # Don't keep the loop alive past the tournament (final 2026-07-19).

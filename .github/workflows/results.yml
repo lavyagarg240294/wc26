@@ -30,7 +30,7 @@ jobs:
         env:
           FOOTBALL_DATA_TOKEN: ${{ secrets.FOOTBALL_DATA_TOKEN }}
           API_FOOTBALL_KEY: ${{ secrets.API_FOOTBALL_KEY }}
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.LOOP_DISPATCH_PAT }}   # PAT (Actions:write) for the self-relaunch dispatch; GITHUB_TOKEN's workflow_dispatch was failing and froze the loop. The data push below uses checkout's own GITHUB_TOKEN, not this.
         run: |
           git config user.name "wc26-bot"
           git config user.email "actions@users.noreply.github.com"
