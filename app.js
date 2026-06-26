@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "387";  // shown in footer; bump with the ?v= asset version
+const BUILD = "388";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -3675,6 +3675,12 @@ function drawTrophy(x, cx, cy, size, color) {
   x.save(); x.translate(cx - size / 2, cy - size / 2); x.scale(size / 24, size / 24);
   x.strokeStyle = color; x.lineWidth = 2.1 * 24 / size; x.lineJoin = "round"; x.lineCap = "round"; x.stroke(p); x.restore();
 }
+// shared design tokens for the canvas share cards (champion, prediction, bracket, R32, player, team, match). De-duplicated
+// here so every generator references one font set + one green + one small grey scale, instead of hardcoding its own copy.
+const SHARE_FONT = { disp: "Archivo, sans-serif", body: "'Instrument Sans', sans-serif", mono: "'Spline Sans Mono', monospace" };
+const SHARE_GREEN = "#1FD673";   // single punchy green-on-dark for all share cards
+// a small neutral scale - five tiers from brightest to faintest. Card greys snap to the nearest tier.
+const SHARE_INK = { bright: "#e7edf2", base: "#cdd7df", soft: "#9fb0bd", dim: "#7f8e9b", faint: "#54636f" };
 // draw the 1080² champion card and resolve a PNG blob - shared by the image-only button and the full "share prediction"
 async function makeChampionBlob(code) {
   const t = code && S.teams[code]; if (!t) return null;
@@ -3686,18 +3692,18 @@ async function makeChampionBlob(code) {
   const glow = (cx, cy, r, col) => { const rg = x.createRadialGradient(cx, cy, 0, cx, cy, r); rg.addColorStop(0, col); rg.addColorStop(1, "rgba(0,0,0,0)"); x.fillStyle = rg; x.fillRect(0, 0, W, H); };
   glow(170, 150, 460, "rgba(11,163,96,.34)"); glow(930, 940, 480, "rgba(232,185,49,.24)");
   x.textAlign = "center";
-  x.fillStyle = "#E8B931"; x.font = "700 36px Archivo, sans-serif"; x.fillText("FIFA WORLD CUP 2026", W / 2, 132);
-  x.fillStyle = "#9fb0bd"; x.font = "600 30px 'Instrument Sans', sans-serif"; x.fillText("MY PREDICTED CHAMPION", W / 2, 198);
+  x.fillStyle = "#E8B931"; x.font = `700 36px ${SHARE_FONT.disp}`; x.fillText("FIFA WORLD CUP 2026", W / 2, 132);
+  x.fillStyle = SHARE_INK.soft; x.font = `600 30px ${SHARE_FONT.body}`; x.fillText("MY PREDICTED CHAMPION", W / 2, 198);
   const img = new Image(); img.src = "assets/flags/" + code + ".svg";
   try { await img.decode(); } catch { /* draw without the flag */ }
   const fw = 420, fh = Math.round(fw * ((img.naturalHeight / img.naturalWidth) || 0.66)), fx = W / 2 - fw / 2, fy = 300;
   x.save(); rrect(x, fx, fy, fw, fh, 16); x.clip(); x.fillStyle = "#fff"; x.fillRect(fx, fy, fw, fh);
   if (img.complete && img.naturalWidth) x.drawImage(img, fx, fy, fw, fh); x.restore();
   x.lineWidth = 2; x.strokeStyle = "rgba(255,255,255,.22)"; rrect(x, fx, fy, fw, fh, 16); x.stroke();
-  x.fillStyle = "#fff"; x.font = "900 96px Archivo, sans-serif"; x.fillText(t.name.toUpperCase(), W / 2, fy + fh + 152);
-  x.fillStyle = "#1FD673"; x.font = "800 52px Archivo, sans-serif"; x.fillText("CHAMPIONS", W / 2, fy + fh + 226);
-  x.fillStyle = "#7b8894"; x.font = "500 28px 'Spline Sans Mono', monospace"; x.fillText("July 19 · MetLife Stadium", W / 2, H - 112);
-  x.fillStyle = "#5b6b7a"; x.font = "500 25px 'Spline Sans Mono', monospace"; x.fillText((location.host + location.pathname).replace(/\/$/, ""), W / 2, H - 62);
+  x.fillStyle = "#fff"; x.font = `900 96px ${SHARE_FONT.disp}`; x.fillText(t.name.toUpperCase(), W / 2, fy + fh + 152);
+  x.fillStyle = SHARE_GREEN; x.font = `800 52px ${SHARE_FONT.disp}`; x.fillText("CHAMPIONS", W / 2, fy + fh + 226);
+  x.fillStyle = SHARE_INK.dim; x.font = `500 28px ${SHARE_FONT.mono}`; x.fillText("July 19 · MetLife Stadium", W / 2, H - 112);
+  x.fillStyle = SHARE_INK.faint; x.font = `500 25px ${SHARE_FONT.mono}`; x.fillText((location.host + location.pathname).replace(/\/$/, ""), W / 2, H - 62);
   return await new Promise(res => c.toBlob(res, "image/png"));
 }
 async function shareChampionImage(code) {
@@ -3754,24 +3760,24 @@ async function makeBracketBlob() {
 
   // ---- champion hero (top) ----
   x.textAlign = "center";
-  x.fillStyle = "#E8B931"; x.font = "700 30px Archivo, sans-serif"; x.fillText("FIFA WORLD CUP 2026", W / 2, 82);
+  x.fillStyle = "#E8B931"; x.font = `700 30px ${SHARE_FONT.disp}`; x.fillText("FIFA WORLD CUP 2026", W / 2, 82);
   let heroBot = 150;
   if (ct) {
-    x.fillStyle = "#9fb0bd"; x.font = "600 25px 'Instrument Sans', sans-serif"; x.fillText("MY PREDICTED CHAMPIONS", W / 2, 126);
+    x.fillStyle = SHARE_INK.soft; x.font = `600 25px ${SHARE_FONT.body}`; x.fillText("MY PREDICTED CHAMPIONS", W / 2, 126);
     const fim = flags[champ], fw = 190, fh = Math.round(fw * (fim ? fim.naturalHeight / fim.naturalWidth : 0.66)), fx = W / 2 - fw / 2, fy = 156;
     x.save(); rrect(x, fx, fy, fw, fh, 12); x.clip(); x.fillStyle = "#fff"; x.fillRect(fx, fy, fw, fh); if (fim) x.drawImage(fim, fx, fy, fw, fh); x.restore();
     x.lineWidth = 2; x.strokeStyle = "rgba(255,255,255,.22)"; rrect(x, fx, fy, fw, fh, 12); x.stroke();
-    let nm = ct.name.toUpperCase(), fs = 70; x.font = `900 ${fs}px Archivo, sans-serif`;
-    while (x.measureText(nm).width > W - 160 && fs > 40) { fs -= 4; x.font = `900 ${fs}px Archivo, sans-serif`; }
+    let nm = ct.name.toUpperCase(), fs = 70; x.font = `900 ${fs}px ${SHARE_FONT.disp}`;
+    while (x.measureText(nm).width > W - 160 && fs > 40) { fs -= 4; x.font = `900 ${fs}px ${SHARE_FONT.disp}`; }
     x.fillStyle = "#fff"; x.fillText(nm, W / 2, fy + fh + 74);
     heroBot = fy + fh + 110;
   } else {
-    x.fillStyle = "#fff"; x.font = "900 64px Archivo, sans-serif"; x.fillText("MY 2026 BRACKET", W / 2, 210);
+    x.fillStyle = "#fff"; x.font = `900 64px ${SHARE_FONT.disp}`; x.fillText("MY 2026 BRACKET", W / 2, 210);
     heroBot = 250;
   }
   // divider label
   x.fillStyle = "rgba(255,255,255,.12)"; x.fillRect(W / 2 - 300, heroBot + 6, 600, 1);
-  x.fillStyle = "#7f8e9b"; x.font = "700 21px 'Spline Sans Mono', monospace"; x.fillText("· MY FULL BRACKET ·", W / 2, heroBot + 1);
+  x.fillStyle = SHARE_INK.dim; x.font = `700 21px ${SHARE_FONT.mono}`; x.fillText("· MY FULL BRACKET ·", W / 2, heroBot + 1);
 
   // ---- the full knockout tree ----
   const colX = i => 28 + i * ((W - 56) / 9) + ((W - 56) / 9) / 2;
@@ -3805,7 +3811,7 @@ async function makeBracketBlob() {
     if (won) { rrect(x, rx + 2, ry + 1, PW - 4, RH - 2, 5); x.fillStyle = "rgba(31,214,115,.17)"; x.fill(); }
     const fw = 24, fh = 16, fy = ry + (RH - fh) / 2, fx = rx + 7, im = code && flags[code];
     if (im) { x.save(); rrect(x, fx, fy, fw, fh, 3); x.clip(); x.fillStyle = "#fff"; x.fillRect(fx, fy, fw, fh); x.drawImage(im, fx, fy, fw, fh); x.restore(); x.lineWidth = 1; x.strokeStyle = "rgba(255,255,255,.2)"; rrect(x, fx, fy, fw, fh, 3); x.stroke(); }
-    x.textAlign = "left"; x.font = `${won ? "800" : "500"} 18px 'Spline Sans Mono', monospace`; x.fillStyle = won ? "#1FD673" : (code ? "#aeb9c3" : "#54636f");
+    x.textAlign = "left"; x.font = `${won ? "800" : "500"} 18px ${SHARE_FONT.mono}`; x.fillStyle = won ? SHARE_GREEN : (code ? SHARE_INK.soft : SHARE_INK.faint);
     x.fillText(code ? tri(code) : "···", fx + fw + 7, ry + RH / 2 + 6);
   };
   const drawPill = (m) => {
@@ -3818,10 +3824,10 @@ async function makeBracketBlob() {
   // mark the final with a gold accent ring + label
   if (pos[104]) {
     const p = pos[104]; x.lineWidth = 1.5; x.strokeStyle = "#E8B931"; rrect(x, p.x - PW / 2, p.y - PH / 2, PW, PH, 8); x.stroke();
-    x.textAlign = "center"; x.fillStyle = "#E8B931"; x.font = "700 14px 'Spline Sans Mono', monospace"; x.fillText("FINAL", p.x, p.y - PH / 2 - 9);
+    x.textAlign = "center"; x.fillStyle = "#E8B931"; x.font = `700 14px ${SHARE_FONT.mono}`; x.fillText("FINAL", p.x, p.y - PH / 2 - 9);
   }
 
-  x.textAlign = "center"; x.fillStyle = "#5b6b7a"; x.font = "500 23px 'Spline Sans Mono', monospace";
+  x.textAlign = "center"; x.fillStyle = SHARE_INK.faint; x.font = `500 23px ${SHARE_FONT.mono}`;
   x.fillText((location.host + location.pathname).replace(/\/$/, ""), W / 2, H - 30);
   return await new Promise(res => c.toBlob(res, "image/png"));
 }
@@ -3858,12 +3864,12 @@ async function makeR32Blob(mode) {
 
   // header
   x.textAlign = "center";
-  x.fillStyle = "#E8B931"; x.font = "700 30px Archivo, sans-serif"; x.fillText("FIFA WORLD CUP 2026", W / 2, 86);
-  x.fillStyle = "#fff"; x.font = "900 66px Archivo, sans-serif"; x.fillText("ROUND OF 32", W / 2, 158);
-  x.fillStyle = "#9fb0bd"; x.font = "600 27px 'Instrument Sans', sans-serif"; x.fillText("AS IT STANDS", W / 2, 200);
+  x.fillStyle = "#E8B931"; x.font = `700 30px ${SHARE_FONT.disp}`; x.fillText("FIFA WORLD CUP 2026", W / 2, 86);
+  x.fillStyle = "#fff"; x.font = `900 66px ${SHARE_FONT.disp}`; x.fillText("ROUND OF 32", W / 2, 158);
+  x.fillStyle = SHARE_INK.soft; x.font = `600 27px ${SHARE_FONT.body}`; x.fillText("AS IT STANDS", W / 2, 200);
   // mode chip
   const chip = mode === "confirmed" ? "CONFIRMED" : "PROJECTED";
-  x.font = "700 22px 'Spline Sans Mono', monospace"; const cw = x.measureText(chip).width + 36;
+  x.font = `700 22px ${SHARE_FONT.mono}`; const cw = x.measureText(chip).width + 36;
   rrect(x, W / 2 - cw / 2, 222, cw, 40, 20); x.fillStyle = "rgba(232,185,49,.16)"; x.fill(); x.fillStyle = "#E8B931"; x.fillText(chip, W / 2, 249);
 
   // one tie: [flag tri]  v  [tri flag], centred on (cx, cy)
@@ -3875,17 +3881,17 @@ async function makeR32Blob(mode) {
       const im = flags[s.code], fy = -fh / 2;
       x.save(); rrect(x, fX, fy, fw, fh, 4); x.clip(); x.fillStyle = "#fff"; x.fillRect(fX, fy, fw, fh); x.drawImage(im, fX, fy, fw, fh); x.restore();
       x.lineWidth = 1.2; x.strokeStyle = "rgba(255,255,255,.22)"; rrect(x, fX, fy, fw, fh, 4); x.stroke();
-      x.textAlign = outward > 0 ? "right" : "left"; x.font = "800 28px 'Spline Sans Mono', monospace"; x.fillStyle = "#e7edf2";
+      x.textAlign = outward > 0 ? "right" : "left"; x.font = `800 28px ${SHARE_FONT.mono}`; x.fillStyle = SHARE_INK.bright;
       x.fillText(tri(s.code), outward > 0 ? tX + triW : tX, 10);
     } else {
-      x.textAlign = "center"; x.font = "700 24px 'Spline Sans Mono', monospace"; x.fillStyle = "#7f8e9b";
+      x.textAlign = "center"; x.font = `700 24px ${SHARE_FONT.mono}`; x.fillStyle = SHARE_INK.dim;
       x.fillText(s.ph || "TBD", ax + 37, 9);
     }
   };
   const drawTie = (info, cx, cy) => {
     x.save(); x.translate(0, cy);
     drawSlot(info.gh, cx - 130, +1);     // left side, codes toward centre
-    x.textAlign = "center"; x.font = "500 20px 'Spline Sans Mono', monospace"; x.fillStyle = "#6b7a88"; x.fillText("v", cx, 8);
+    x.textAlign = "center"; x.font = `500 20px ${SHARE_FONT.mono}`; x.fillStyle = SHARE_INK.dim; x.fillText("v", cx, 8);
     drawSlot(info.ga, cx + 22, -1);      // right side
     x.restore();
   };
@@ -3902,7 +3908,7 @@ async function makeR32Blob(mode) {
   x.beginPath(); x.moveTo(W / 2, colY(0) - 30); x.lineTo(W / 2, midY - 38); x.moveTo(W / 2, midY + 38); x.lineTo(W / 2, colY(7) + 30); x.stroke();
   drawTrophy(x, W / 2, midY, 70, "#E8B931");
 
-  x.fillStyle = "#5b6b7a"; x.font = "500 23px 'Spline Sans Mono', monospace";
+  x.fillStyle = SHARE_INK.faint; x.font = `500 23px ${SHARE_FONT.mono}`;
   x.fillText((location.host + location.pathname).replace(/\/$/, ""), W / 2, H - 34);
   return await new Promise(res => c.toBlob(res, "image/png"));
 }
@@ -3928,7 +3934,7 @@ async function sharePlayerCard(name, code) {
   const glow = (cx, cy, r, col) => { const rg = x.createRadialGradient(cx, cy, 0, cx, cy, r); rg.addColorStop(0, col); rg.addColorStop(1, "rgba(0,0,0,0)"); x.fillStyle = rg; x.fillRect(0, 0, W, H); };
   glow(180, 160, 460, "rgba(11,163,96,.30)"); glow(920, 940, 480, "rgba(232,185,49,.22)");
   x.textAlign = "center";
-  x.fillStyle = "#E8B931"; x.font = "700 34px Archivo, sans-serif"; x.fillText("FIFA WORLD CUP 2026", W / 2, 116);
+  x.fillStyle = "#E8B931"; x.font = `700 34px ${SHARE_FONT.disp}`; x.fillText("FIFA WORLD CUP 2026", W / 2, 116);
   // headshot - crossOrigin so toBlob stays allowed; cover-fit framed to the face
   const pURL = atWidth(bestPhoto(name, code, bio?.n) || bio?.photo || "", 640);
   let drew = false;
@@ -3943,27 +3949,27 @@ async function sharePlayerCard(name, code) {
     }
   }
   let y = drew ? 700 : 360;
-  const NM = pName(name, code).toUpperCase(); let fs = 86; x.fillStyle = "#fff"; x.font = `900 ${fs}px Archivo, sans-serif`;
-  while (x.measureText(NM).width > W - 130 && fs > 44) { fs -= 4; x.font = `900 ${fs}px Archivo, sans-serif`; }
+  const NM = pName(name, code).toUpperCase(); let fs = 86; x.fillStyle = "#fff"; x.font = `900 ${fs}px ${SHARE_FONT.disp}`;
+  while (x.measureText(NM).width > W - 130 && fs > 44) { fs -= 4; x.font = `900 ${fs}px ${SHARE_FONT.disp}`; }
   x.fillText(NM, W / 2, y); y += 76;
   if (t) {   // flag + team name, centred as one row
     const fim = new Image(); fim.src = "assets/flags/" + code + ".svg"; try { await fim.decode(); } catch { /* text only */ }
     const fh = 40, fw = fim.naturalWidth ? Math.round(fh * fim.naturalWidth / fim.naturalHeight) : 60;
-    x.font = "700 38px Archivo, sans-serif"; const tw = x.measureText(t.name).width, gap = 16, sx = W / 2 - (fw + gap + tw) / 2;
+    x.font = `700 38px ${SHARE_FONT.disp}`; const tw = x.measureText(t.name).width, gap = 16, sx = W / 2 - (fw + gap + tw) / 2;
     if (fim.naturalWidth) { x.save(); rrect(x, sx, y - fh + 6, fw, fh, 6); x.clip(); x.fillStyle = "#fff"; x.fillRect(sx, y - fh + 6, fw, fh); x.drawImage(fim, sx, y - fh + 6, fw, fh); x.restore(); x.lineWidth = 1.5; x.strokeStyle = "rgba(255,255,255,.2)"; rrect(x, sx, y - fh + 6, fw, fh, 6); x.stroke(); }
-    x.textAlign = "left"; x.fillStyle = "#cdd7df"; x.fillText(t.name, sx + fw + gap, y); x.textAlign = "center";
+    x.textAlign = "left"; x.fillStyle = SHARE_INK.base; x.fillText(t.name, sx + fw + gap, y); x.textAlign = "center";
   }
   // position · club · age - a quiet identity line under the team
   const posFull = { GK: "Goalkeeper", DF: "Defender", MF: "Midfielder", FW: "Forward" }[bio?.pos] || "";
   const pAge = bio?.d ? ageFrom(bio.d) : null;
   const meta = [posFull, bio?.club, pAge ? pAge + " yrs" : null].filter(Boolean).join("   ·   ");
-  if (meta) { let ms = 30; x.fillStyle = "#8b97a3"; x.font = `600 ${ms}px Archivo, sans-serif`; while (x.measureText(meta).width > W - 140 && ms > 19) { ms -= 2; x.font = `600 ${ms}px Archivo, sans-serif`; } x.fillText(meta, W / 2, y + 48); }
+  if (meta) { let ms = 30; x.fillStyle = SHARE_INK.dim; x.font = `600 ${ms}px ${SHARE_FONT.disp}`; while (x.measureText(meta).width > W - 140 && ms > 19) { ms -= 2; x.font = `600 ${ms}px ${SHARE_FONT.disp}`; } x.fillText(meta, W / 2, y + 48); }
   const wc = playerWC(name, code), isGK = bio?.pos === "GK";
   let parts = wc.apps ? (isGK ? [`${wc.apps} PLAYED`, `${wc.cs} CLEAN SHEET${wc.cs !== 1 ? "S" : ""}`] : [`${wc.apps} PLAYED`, `${wc.g} GOAL${wc.g !== 1 ? "S" : ""}`, `${wc.a} ASSIST${wc.a !== 1 ? "S" : ""}`])
     : [bio?.caps != null ? `${bio.caps} CAPS` : null, bio?.goals ? `${bio.goals} GOALS` : null].filter(Boolean);
-  if (parts.length) { x.fillStyle = "#1FD673"; x.font = "800 38px Archivo, sans-serif"; x.fillText(parts.join("    ·    "), W / 2, y + 108); }
-  x.fillStyle = "#7b8894"; x.font = "500 25px 'Spline Sans Mono', monospace"; x.fillText("WC·26 · your World Cup, in one page", W / 2, H - 100);
-  x.fillStyle = "#5b6b7a"; x.font = "500 23px 'Spline Sans Mono', monospace"; x.fillText((location.host + location.pathname).replace(/\/$/, ""), W / 2, H - 54);
+  if (parts.length) { x.fillStyle = SHARE_GREEN; x.font = `800 38px ${SHARE_FONT.disp}`; x.fillText(parts.join("    ·    "), W / 2, y + 108); }
+  x.fillStyle = SHARE_INK.dim; x.font = `500 25px ${SHARE_FONT.mono}`; x.fillText("WC·26 · your World Cup, in one page", W / 2, H - 100);
+  x.fillStyle = SHARE_INK.faint; x.font = `500 23px ${SHARE_FONT.mono}`; x.fillText((location.host + location.pathname).replace(/\/$/, ""), W / 2, H - 54);
   const blob = await new Promise(res => c.toBlob(res, "image/png"));
   if (!blob) { flashToast("Couldn't make the image"); return; }
   const file = new File([blob], `wc26-${(code || "player").toLowerCase()}.png`, { type: "image/png" });
@@ -3985,7 +3991,7 @@ async function shareTeamCard(code) {
   const glow = (cx, cy, rd, col) => { const rg = x.createRadialGradient(cx, cy, 0, cx, cy, rd); rg.addColorStop(0, col); rg.addColorStop(1, "rgba(0,0,0,0)"); x.fillStyle = rg; x.fillRect(0, 0, W, H); };
   glow(170, 150, 480, rgba(t.c1, .30)); glow(930, 950, 500, rgba(t.c2 && t.c2 !== t.c1 ? t.c2 : t.c1, .22));
   x.textAlign = "center";
-  x.fillStyle = "#E8B931"; x.font = "700 34px Archivo, sans-serif"; x.fillText("FIFA WORLD CUP 2026", W / 2, 104);
+  x.fillStyle = "#E8B931"; x.font = `700 34px ${SHARE_FONT.disp}`; x.fillText("FIFA WORLD CUP 2026", W / 2, 104);
   // flag (large)
   const fim = new Image(); fim.src = "assets/flags/" + code + ".svg"; try { await fim.decode(); } catch { /* text only */ }
   const fh = 138, fw = fim.naturalWidth ? Math.round(fh * fim.naturalWidth / fim.naturalHeight) : 207, fx = W / 2 - fw / 2, fy = 168;
@@ -3994,37 +4000,37 @@ async function shareTeamCard(code) {
   x.fillStyle = t.c1 || "#0BA360"; rrect(x, W / 2 - 86, fy + fh + 24, 76, 8, 4); x.fill();
   x.fillStyle = (t.c2 && t.c2 !== t.c1) ? t.c2 : "#E8B931"; rrect(x, W / 2 + 10, fy + fh + 24, 76, 8, 4); x.fill();
   // team name
-  const NM = t.name.toUpperCase(); let fs = 90; x.fillStyle = "#fff"; x.font = `900 ${fs}px Archivo, sans-serif`;
-  while (x.measureText(NM).width > W - 110 && fs > 44) { fs -= 4; x.font = `900 ${fs}px Archivo, sans-serif`; }
+  const NM = t.name.toUpperCase(); let fs = 90; x.fillStyle = "#fff"; x.font = `900 ${fs}px ${SHARE_FONT.disp}`;
+  while (x.measureText(NM).width > W - 110 && fs > 44) { fs -= 4; x.font = `900 ${fs}px ${SHARE_FONT.disp}`; }
   const y = fy + fh + 116; x.fillText(NM, W / 2, y);
   // identity row: FIFA rank · confederation · group
   const rk = fifaRankOf(code), grp = groupOf(code);
   const idParts = [rk ? `FIFA #${rk}` : null, t.conf || null, grp ? `Group ${grp}` : null].filter(Boolean);
-  if (idParts.length) { x.fillStyle = "#9aa7b2"; x.font = "600 31px Archivo, sans-serif"; x.fillText(idParts.join("   ·   "), W / 2, y + 52); }
+  if (idParts.length) { x.fillStyle = SHARE_INK.soft; x.font = `600 31px ${SHARE_FONT.disp}`; x.fillText(idParts.join("   ·   "), W / 2, y + 52); }
   // pedigree: best finish (the headline) over a "[Nx ·] year(s) · appearances" line - one statement, no repeats
   const debut = t.best === "First appearance", [bestRound, bestYr] = (t.best || "").split(" · ");
   const pedHead = debut ? "Debut" : bestRound;
   const pedSub = debut ? "First World Cup"
     : [bestYr || "", t.apps != null ? `${t.apps} appearance${t.apps !== 1 ? "s" : ""}` : ""].filter(Boolean).join("   ·   ");
   const py2 = y + 124;
-  x.fillStyle = "#fff"; let pfs = 54; x.font = `800 ${pfs}px Archivo, sans-serif`;
-  while (x.measureText(pedHead).width > W - 130 && pfs > 26) { pfs -= 2; x.font = `800 ${pfs}px Archivo, sans-serif`; }
+  x.fillStyle = "#fff"; let pfs = 54; x.font = `800 ${pfs}px ${SHARE_FONT.disp}`;
+  while (x.measureText(pedHead).width > W - 130 && pfs > 26) { pfs -= 2; x.font = `800 ${pfs}px ${SHARE_FONT.disp}`; }
   x.fillText(pedHead, W / 2, py2);
-  if (pedSub) { x.fillStyle = "#9aa7b2"; x.font = "600 28px Archivo, sans-serif"; x.fillText(pedSub, W / 2, py2 + 48); }
+  if (pedSub) { x.fillStyle = SHARE_INK.soft; x.font = `600 28px ${SHARE_FONT.disp}`; x.fillText(pedSub, W / 2, py2 + 48); }
   // this-tournament standing + qualification status
   const tbl = grp ? standings(grp) : [], pos = tbl.findIndex(r => r.code === code) + 1, row = tbl[pos - 1], qs = qualStatus(code);
   let sy = py2 + 116;
   if (row && row.p) {
-    x.fillStyle = "#cdd7df"; x.font = "700 30px Archivo, sans-serif"; x.fillText(`Group ${grp} · ${ordinal(pos)} · ${row.pts} pt${row.pts !== 1 ? "s" : ""} · ${row.w}W ${row.d}D ${row.l}L`, W / 2, sy);
-    if (qs === "in") { x.fillStyle = "#1FD673"; x.font = "800 26px Archivo, sans-serif"; x.fillText("THROUGH TO THE ROUND OF 32", W / 2, sy + 46); sy += 46; }
-    else if (qs === "out") { x.fillStyle = "#9aa7b2"; x.font = "700 26px Archivo, sans-serif"; x.fillText("Out of the Round of 32", W / 2, sy + 46); sy += 46; }
-  } else if (grp) { x.fillStyle = "#cdd7df"; x.font = "700 30px Archivo, sans-serif"; x.fillText(`Group ${grp}`, W / 2, sy); }
+    x.fillStyle = SHARE_INK.base; x.font = `700 30px ${SHARE_FONT.disp}`; x.fillText(`Group ${grp} · ${ordinal(pos)} · ${row.pts} pt${row.pts !== 1 ? "s" : ""} · ${row.w}W ${row.d}D ${row.l}L`, W / 2, sy);
+    if (qs === "in") { x.fillStyle = SHARE_GREEN; x.font = `800 26px ${SHARE_FONT.disp}`; x.fillText("THROUGH TO THE ROUND OF 32", W / 2, sy + 46); sy += 46; }
+    else if (qs === "out") { x.fillStyle = SHARE_INK.soft; x.font = `700 26px ${SHARE_FONT.disp}`; x.fillText("Out of the Round of 32", W / 2, sy + 46); sy += 46; }
+  } else if (grp) { x.fillStyle = SHARE_INK.base; x.font = `700 30px ${SHARE_FONT.disp}`; x.fillText(`Group ${grp}`, W / 2, sy); }
   // leading scorer at this World Cup
   const ts = (tournamentStats().scorers || []).find(p => p.code === code && p.goals > 0);
-  if (ts) { x.fillStyle = "#E8B931"; x.font = "700 27px Archivo, sans-serif"; x.fillText(`Top scorer · ${pName(ts.name, code)} · ${ts.goals} goal${ts.goals !== 1 ? "s" : ""}`, W / 2, sy + 56); }
+  if (ts) { x.fillStyle = "#E8B931"; x.font = `700 27px ${SHARE_FONT.disp}`; x.fillText(`Top scorer · ${pName(ts.name, code)} · ${ts.goals} goal${ts.goals !== 1 ? "s" : ""}`, W / 2, sy + 56); }
   // footer
-  x.fillStyle = "#7b8894"; x.font = "500 25px 'Spline Sans Mono', monospace"; x.fillText("WC·26 · your World Cup, in one page", W / 2, H - 100);
-  x.fillStyle = "#5b6b7a"; x.font = "500 23px 'Spline Sans Mono', monospace"; x.fillText((location.host + location.pathname).replace(/\/$/, ""), W / 2, H - 54);
+  x.fillStyle = SHARE_INK.dim; x.font = `500 25px ${SHARE_FONT.mono}`; x.fillText("WC·26 · your World Cup, in one page", W / 2, H - 100);
+  x.fillStyle = SHARE_INK.faint; x.font = `500 23px ${SHARE_FONT.mono}`; x.fillText((location.host + location.pathname).replace(/\/$/, ""), W / 2, H - 54);
   const blob = await new Promise(res => c.toBlob(res, "image/png"));
   if (!blob) { flashToast("Couldn't make the image"); return; }
   const file = new File([blob], `wc26-${code.toLowerCase()}.png`, { type: "image/png" });
@@ -4058,8 +4064,8 @@ async function shareMatchCard(m) {
   const glow = (cx, cy, rd, col) => { const rg = x.createRadialGradient(cx, cy, 0, cx, cy, rd); rg.addColorStop(0, col); rg.addColorStop(1, "rgba(0,0,0,0)"); x.fillStyle = rg; x.fillRect(0, 0, W, H); };
   glow(150, 140, 460, "rgba(11,163,96,.30)"); glow(940, 950, 480, "rgba(232,185,49,.22)");
   x.textAlign = "center";
-  x.fillStyle = "#E8B931"; x.font = "700 34px Archivo, sans-serif"; x.fillText("FIFA WORLD CUP 2026", W / 2, 108);
-  x.fillStyle = "#9fb0bd"; x.font = "600 27px 'Instrument Sans', sans-serif";
+  x.fillStyle = "#E8B931"; x.font = `700 34px ${SHARE_FONT.disp}`; x.fillText("FIFA WORLD CUP 2026", W / 2, 108);
+  x.fillStyle = SHARE_INK.soft; x.font = `600 27px ${SHARE_FONT.body}`;
   x.fillText(((m.group ? "Group " + m.group : (m.round || "")) + "  ·  " + fmt(m.utc, { weekday: "short", day: "numeric", month: "short" })).toUpperCase(), W / 2, 160);
   const fw = 250, fyTop = 235;
   const team = async (code, name, cx) => {
@@ -4068,35 +4074,35 @@ async function shareMatchCard(m) {
     const fx = cx - fw / 2, fy = fyTop;
     x.save(); rrect(x, fx, fy, fw, fh, 14); x.clip(); x.fillStyle = "#fff"; x.fillRect(fx, fy, fw, fh); if (im && im.naturalWidth) x.drawImage(im, fx, fy, fw, fh); x.restore();
     x.lineWidth = 2; x.strokeStyle = "rgba(255,255,255,.22)"; rrect(x, fx, fy, fw, fh, 14); x.stroke();
-    const up = name.toUpperCase(); let fs = 40; x.fillStyle = "#fff"; x.font = `800 ${fs}px Archivo, sans-serif`;
-    while (x.measureText(up).width > 400 && fs > 22) { fs -= 2; x.font = `800 ${fs}px Archivo, sans-serif`; }
+    const up = name.toUpperCase(); let fs = 40; x.fillStyle = "#fff"; x.font = `800 ${fs}px ${SHARE_FONT.disp}`;
+    while (x.measureText(up).width > 400 && fs > 22) { fs -= 2; x.font = `800 ${fs}px ${SHARE_FONT.disp}`; }
     x.fillText(up, cx, fy + fh + 56);
   };
   await team(h.code, hn, 300); await team(a.code, an, 780);
   const scored = r && r.h != null, midY = fyTop + 128;
   if (scored) {
-    x.fillStyle = "#fff"; x.font = "800 92px Archivo, sans-serif"; x.fillText(`${r.h}–${r.a}`, W / 2, midY);
-    if (r.hp != null) { x.fillStyle = "#9fb0bd"; x.font = "700 40px Archivo, sans-serif"; x.fillText(`(${r.hp}–${r.ap} pens)`, W / 2, midY + 58); }   // knockout shootout result below the 90' score
+    x.fillStyle = "#fff"; x.font = `800 92px ${SHARE_FONT.disp}`; x.fillText(`${r.h}–${r.a}`, W / 2, midY);
+    if (r.hp != null) { x.fillStyle = SHARE_INK.soft; x.font = `700 40px ${SHARE_FONT.disp}`; x.fillText(`(${r.hp}–${r.ap} pens)`, W / 2, midY + 58); }   // knockout shootout result below the 90' score
   }
-  else { x.fillStyle = "#E8B931"; x.font = "800 56px Archivo, sans-serif"; x.fillText("VS", W / 2, midY - 16); }
+  else { x.fillStyle = "#E8B931"; x.font = `800 56px ${SHARE_FONT.disp}`; x.fillText("VS", W / 2, midY - 16); }
   const wp = winProb(m);
   if (wp) {
     const ph = Math.round(wp.h * 100), pd = Math.round(wp.d * 100), pa = 100 - ph - pd;
     const bx = 130, bw = W - 260, by = 592, bh = 26;
-    x.font = "700 26px 'Instrument Sans', sans-serif";
-    x.textAlign = "left"; x.fillStyle = "#1FD673"; x.fillText(`${ph}%`, bx, by - 16);
-    x.textAlign = "center"; x.fillStyle = "#9fb0bd"; x.fillText(`Draw ${pd}%`, W / 2, by - 16);
-    x.textAlign = "right"; x.fillStyle = "#dbe3ea"; x.fillText(`${pa}%`, bx + bw, by - 16);
+    x.font = `700 26px ${SHARE_FONT.body}`;
+    x.textAlign = "left"; x.fillStyle = SHARE_GREEN; x.fillText(`${ph}%`, bx, by - 16);
+    x.textAlign = "center"; x.fillStyle = SHARE_INK.soft; x.fillText(`Draw ${pd}%`, W / 2, by - 16);
+    x.textAlign = "right"; x.fillStyle = SHARE_INK.bright; x.fillText(`${pa}%`, bx + bw, by - 16);
     let sx = bx; x.save(); rrect(x, bx, by, bw, bh, 13); x.clip();
-    for (const [p, col] of [[ph, "#1FD673"], [pd, "#64748b"], [pa, "#dbe3ea"]]) { const sw = bw * p / 100; x.fillStyle = col; x.fillRect(sx, by, sw, bh); sx += sw; }
+    for (const [p, col] of [[ph, SHARE_GREEN], [pd, SHARE_INK.faint], [pa, SHARE_INK.soft]]) { const sw = bw * p / 100; x.fillStyle = col; x.fillRect(sx, by, sw, bh); sx += sw; }
     x.restore(); x.textAlign = "center";
     if (wp.xg) {
-      x.fillStyle = "#7b8894"; x.font = "600 25px 'Instrument Sans', sans-serif"; x.fillText(scored ? "PROJECTED FINAL" : "PROJECTED SCORE", W / 2, by + 96);
-      x.fillStyle = "#fff"; x.font = "800 72px Archivo, sans-serif"; x.fillText(`${Math.round(wp.xg.h)}–${Math.round(wp.xg.a)}`, W / 2, by + 168);
+      x.fillStyle = SHARE_INK.dim; x.font = `600 25px ${SHARE_FONT.body}`; x.fillText(scored ? "PROJECTED FINAL" : "PROJECTED SCORE", W / 2, by + 96);
+      x.fillStyle = "#fff"; x.font = `800 72px ${SHARE_FONT.disp}`; x.fillText(`${Math.round(wp.xg.h)}–${Math.round(wp.xg.a)}`, W / 2, by + 168);
     }
   }
-  x.fillStyle = "#7b8894"; x.font = "500 25px 'Spline Sans Mono', monospace"; x.fillText("WC·26 · your World Cup, in one page", W / 2, H - 100);
-  x.fillStyle = "#5b6b7a"; x.font = "500 23px 'Spline Sans Mono', monospace"; x.fillText((location.host + location.pathname).replace(/\/$/, ""), W / 2, H - 54);
+  x.fillStyle = SHARE_INK.dim; x.font = `500 25px ${SHARE_FONT.mono}`; x.fillText("WC·26 · your World Cup, in one page", W / 2, H - 100);
+  x.fillStyle = SHARE_INK.faint; x.font = `500 23px ${SHARE_FONT.mono}`; x.fillText((location.host + location.pathname).replace(/\/$/, ""), W / 2, H - 54);
   c.toBlob(async blob => {
     if (!blob) { flashToast("Couldn't make the image"); return; }
     const file = new File([blob], `wc26-${h.code || "home"}-${a.code || "away"}.png`, { type: "image/png" });
