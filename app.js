@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "377";  // shown in footer; bump with the ?v= asset version
+const BUILD = "378";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -593,8 +593,12 @@ function applyTheme(animateFrom) {
   const root = document.documentElement;
   const t = S.fav && S.teams[S.fav];
   const k1 = t ? t.c1 : "", k2 = t ? t.c2 : "";   // raw kit colours (used as-is for confetti)
-  root.style.setProperty("--acc1", t ? readableAccent(k1, k2) : "var(--pitch)");   // contrast-guarded accent for text/buttons
+  root.style.setProperty("--acc1", t ? readableAccent(k1, k2) : "var(--pitch)");   // contrast-guarded accent for text/buttons (tuned for the light field)
   root.style.setProperty("--acc2", t ? (tooLight(k2) ? "#0D1B2A" : k2) : "#0D1B2A");
+  // dark mode: the light-field-darkened --acc1 is too dark to read as accent TEXT on the dark field (a navy kit
+  // vanishes). Use a lightened variant. Light mode / no fav fall back to the stylesheet (#0A7D45 / var(--acc1)).
+  if (t && root.dataset.theme === "dark") root.style.setProperty("--acc-text", readableAccentDark(k1, k2));
+  else root.style.removeProperty("--acc-text");
   $("#teamChipFlag").innerHTML = t ? flag(S.fav) : "⚽";
   $("#teamChipName").textContent = t ? t.name : "Pick a team";
   if (animateFrom && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
@@ -622,6 +626,17 @@ function readableAccent(c1, c2) {
   const best = [c1, c2].filter(Boolean).sort((a, b) => contrastRatio(b, PAPER) - contrastRatio(a, PAPER))[0] || "#0BA360";
   let f = 1; while (f > 0.15 && contrastRatio(scaleRGB(best, f), PAPER) < 3.5) f -= 0.05;
   return scaleRGB(best, f);
+}
+// mix a hex toward white by t (0..1): lightens AND desaturates, so even a pure/dark blue (which scaleRGB can't
+// brighten - its non-dominant channels being 0) lifts to a legible tint.
+const towardWhite = (hex, t) => { const n = parseInt(hex.slice(1), 16); const c = i => Math.round(i + (255 - i) * t); return "#" + ((1 << 24) + (c(n >> 16 & 255) << 16) + (c(n >> 8 & 255) << 8) + c(n & 255)).toString(16).slice(1); };
+// the DARK-field counterpart of readableAccent: pick the kit colour that reads best on the dark paper, then lighten
+// it until it clears contrast - so a navy/blue accent doesn't vanish into the dark background as text.
+function readableAccentDark(c1, c2) {
+  const PAPER = "#FAFBF9", DARK = "#0E1822";
+  const best = [c1, c2].filter(Boolean).sort((a, b) => contrastRatio(b, PAPER) - contrastRatio(a, PAPER))[0] || "#0BA360";   // same base hue readableAccent picks, so the accent keeps its colour across themes
+  let t = 0; while (t < 0.9 && contrastRatio(towardWhite(best, t), DARK) < 4.2) t += 0.05;
+  return towardWhite(best, t);
 }
 
 /* ---------------- confetti ---------------- */
@@ -2437,7 +2452,7 @@ function styleSection(code) {
     ["poss", "Possession", v => v.toFixed(0) + "%", "Average share of the ball. Formula: possession % across their matches."],
     ["passAcc", "Passing", v => v.toFixed(0) + "%", "Pass accuracy. Formula: completed passes ÷ passes attempted."],
     ["directness", "Direct play", v => v.toFixed(0) + "%", "How much they go long vs build patiently. Formula: long balls ÷ (passes + long balls)."],
-    ["pressPg", "Pressing", v => v.toFixed(0) + "/g", "Defensive activity. Formula: (tackles + interceptions) per match."],
+    ["pressPg", "Defending", v => v.toFixed(0) + "/g", "Defensive activity. Formula: (tackles + interceptions) per match."],
     ["shotsPg", "Attacking", v => v.toFixed(1) + "/g", "Shot volume. Formula: shots taken per match."],
   ];
   const pct = key => { const vs = me.map(x => x[key]), lo = Math.min(...vs), hi = Math.max(...vs); return hi > lo ? Math.round((mine[key] - lo) / (hi - lo) * 100) : 50; };
@@ -2867,7 +2882,7 @@ function openTeamCompare(aCode, bCode) {
     ["poss", "Possession", v => v.toFixed(0) + "%"],
     ["passAcc", "Passing", v => v.toFixed(0) + "%"],
     ["directness", "Direct play", v => v.toFixed(0) + "%"],
-    ["pressPg", "Pressing", v => v.toFixed(0)],
+    ["pressPg", "Defending", v => v.toFixed(0)],
     ["shotsPg", "Attacking", v => v.toFixed(1)],
   ].map(([k, lbl, f]) => axis(lbl, pctOf(k, A.style[k]), pctOf(k, B.style[k]), f(A.style[k]), f(B.style[k]))).join("") : "";
   const histStrip = T => { const h = WC_HIST[T.code]; if (!h) return ""; return [2002, 2006, 2010, 2014, 2018, 2022].map(y =>
@@ -5101,6 +5116,7 @@ function setDark(on) {
   const st = $("#themeState"); if (st) st.textContent = on ? "On" : "Off";
   $("#themeToggle")?.setAttribute("aria-pressed", String(on));
   const dc = $("#darkChip"); if (dc) { dc.setAttribute("aria-pressed", String(on)); dc.classList.toggle("is-on", on); }
+  applyTheme();   // recompute the team accent for the new field (the dark/light-readable --acc-text variant)
 }
 // a short synthesized stadium air-horn (no audio file needed); opt-in, fires on goals
 let _ac = null;
