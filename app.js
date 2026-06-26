@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "392";  // shown in footer; bump with the ?v= asset version
+const BUILD = "393";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1558,9 +1558,12 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
       <div class="md-goals-col away">${(r.ga || []).map(g => `<div class="md-goal">${esc(g)} ${ICO.ball}</div>`).join("")}</div>
     </div>` : "";
   const pKeyStats = mdKeyStats(r, m), pStats = mdStats(r, hasResult), pEfi = mdEfi(m, hasResult);
-  // win-prob: in-play for a live game (reflects the score), the model's pre-match call otherwise - plus its "why" drivers + top-3 scorelines
-  const pre = !live, _wp = winProb(m, pre);
-  const pWinProb = _wp ? winProbBlock(m, pre) + liveWhyChips(_wp) + liveScorelines(_wp) : "";
+  // win-prob: always the model's PRE-MATCH call. The in-play (live) estimate was dropped - it churned with every goal
+  // and added little once the score itself tells the story; the stable pre-match read is clearer. Pre-match also
+  // carries its "why" drivers + top-3 scorelines, but those are dropped once live (a pre-match "likeliest score" would
+  // read as misleading with goals already in).
+  const _wp = winProb(m, true);
+  const pWinProb = _wp ? winProbBlock(m, true) + (live ? "" : liveWhyChips(_wp) + liveScorelines(_wp)) : "";
   const pReport = mdReport(m), pComm = mdCommentaryShell(m), pStakes = stakesBlock(m), pCompare = matchCompare(m), pStars = liveStars(m), pControl = matchControlBar(m);
   const pSwing = hasResult ? (winSwingChart(m) || "") : "";   // the win-probability swing across a finished match (only when there were goals)
   const pXiInline = r?.xi ? `<div class="eyebrow">${liveNow ? "Line-ups" : "Starting XI"}</div>${xiPanel(r.xi, h, a)}` : "";
@@ -1586,8 +1589,9 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
     </div>`;
   // order by state so each opens with what you came for (Live folds in here - no separate tab as of build 329).
   const middle = liveNow
-    // live: analytics lead (win-prob + who's-on-top control), then the live feed, then the numbers, stars, deep dive, stakes
-    ? [pWinProb, pControl, pComm, pKeyStats, pStars, pTimeline, pStats, pXiInline, pEfi, pCompareFold, pStakes, pH2H]
+    // live: who's-on-top control + the live feed lead, then numbers, stars; the (pre-match) win-prob sits as a quieter
+    // reference lower down (it's no longer a live in-play estimate, so it shouldn't headline a live game)
+    ? [pControl, pComm, pKeyStats, pStars, pTimeline, pStats, pWinProb, pXiInline, pEfi, pCompareFold, pStakes, pH2H]
     : hasResult
     // finished: the report leads, then key stats + control, stars, the full timeline & numbers, the model's call, the deep dive
     ? [pReport, pKeyStats, pControl, pStars, pTimeline, pStats, pXiInline, pEfi, (pSwing || pWinProb), pCompareFold, pStakes, pH2H]
