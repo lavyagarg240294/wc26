@@ -1787,6 +1787,8 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .rchip-L{color:var(--live);background:color-mix(in srgb,var(--live) 13%,transparent)}
 .rchip-live{color:var(--ink);background:color-mix(in srgb,var(--ink) 6%,transparent);display:inline-flex;align-items:center;gap:5px}   /* an in-progress game: neutral score + a red LIVE tag, never a W/D/L verdict */
 .rchip-live small{font-size:8px;font-weight:800;letter-spacing:.05em;background:var(--live);color:#fff;padding:1px 4px;border-radius:4px}
+.rchip-tbc{color:var(--ink-soft);background:color-mix(in srgb,var(--ink) 6%,transparent);display:inline-flex;align-items:center;gap:5px}   /* a provisional score (suspended/abandoned/unconfirmed) - no W/D/L verdict, not "LIVE" */
+.rchip-tbc small{font-size:8px;font-weight:800;letter-spacing:.05em;background:var(--ink-soft);color:var(--card);padding:1px 4px;border-radius:4px}
 /* player match log */
 .plog{display:flex;flex-direction:column;gap:6px;margin:0 0 4px}
 .plog-row{display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:10px;padding:9px 12px;background:var(--card);border:1px solid var(--line);border-radius:10px;cursor:pointer;transition:background .15s}

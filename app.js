@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "383";  // shown in footer; bump with the ?v= asset version
+const BUILD = "384";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1971,8 +1971,9 @@ function myTeamFixtures() {
   const t = S.teams[S.fav];
   const mine = S.matches.filter(isFavMatch).sort((a, b) => a.utc.localeCompare(b.utc));
   const group = mine.find(m => m.group)?.group;
-  const upcoming = mine.filter(m => status(m) === ST.SCHED);
-  const done = mine.filter(m => status(m) !== ST.SCHED);
+  const upK = m => { const st = status(m); return st === ST.SCHED || st === ST.PP || st === ST.CANC; };   // postponed/cancelled have no result - keep them under fixtures, not "played"
+  const upcoming = mine.filter(upK);
+  const done = mine.filter(m => !upK(m));
   return `
     ${done.length ? `<div class="eyebrow">${esc(t.name)} · played</div>` + done.map((m, i) => matchCard(m, i)).join("") : ""}
     <div class="eyebrow">${esc(t.name)} · fixtures</div>
@@ -2400,9 +2401,11 @@ function teamMatchStats(code) {
     const r = res(m); if (!r || r.h == null) continue;
     const i = slotInfo(m, "home").code === code ? 0 : slotInfo(m, "away").code === code ? 1 : null;
     if (i == null) continue;
-    const s = r.stats || {}, gf = i === 0 ? r.h : r.a, ga = i === 0 ? r.a : r.h;
+    const s = r.stats || {}, gf = i === 0 ? r.h : r.a, ga = i === 0 ? r.a : r.h, st = status(m);
+    const penW = m.stage !== "group" && r.hp != null && r.ap != null ? ((i === 0 ? r.hp > r.ap : r.ap > r.hp) ? "W" : "L") : null;   // a level knockout is decided on penalties, never a draw
+    const kind = isFeedFinal(m) ? "fin" : isLiveSt(st) ? "live" : isUnconfirmedFinal(m) ? "tbc" : "abn";   // only a feed-confirmed final asserts a W/D/L; a stuck-live / suspended / abandoned score stays provisional, never "LIVE"
     rows.push({ mid: m.id, utc: m.utc, opp: i === 0 ? slotInfo(m, "away").code : slotInfo(m, "home").code,
-      wdl: gf > ga ? "W" : gf < ga ? "L" : "D", fin: isFinalSt(status(m)), gf, ga,
+      wdl: gf > ga ? "W" : gf < ga ? "L" : (penW || "D"), kind, tag: stMeta(st)?.tag || "", gf, ga,
       poss: Array.isArray(s.poss) ? Math.round(s.poss[i]) : null,
       sh: Array.isArray(s.sh) ? s.sh[i] : null, sot: Array.isArray(s.sot) ? s.sot[i] : null });
   }
@@ -2498,10 +2501,11 @@ function openTeam(code) {
   const all = S.matches.filter(m => matchHasTeam(m, code)).sort((a, b) => a.utc.localeCompare(b.utc));
   const group = groupOf(code), tbl = group ? standings(group) : [];
   const pos = tbl.findIndex(r => r.code === code) + 1, played = tbl.find(r => r.code === code)?.p || 0;
-  const done = all.filter(m => status(m) !== ST.SCHED), upcoming = all.filter(m => status(m) === ST.SCHED);
+  const upK = m => { const st = status(m); return st === ST.SCHED || st === ST.PP || st === ST.CANC; };   // a postponed or cancelled game has no result - it belongs under Fixtures, not Results/played
+  const done = all.filter(m => !upK(m)), upcoming = all.filter(upK);
   const sq = S.squads?.[code], isFav = code === S.fav, rk = fifaRankOf(code), sv = squadVitals(code);
   const tms = teamMatchStats(code);
-  const tmsHtml = tms.length ? `<div class="eyebrow">Match stats</div><div class="tms"><div class="tms-head"><span class="tms-opp">Opponent</span><span>Result</span><span>Poss</span><span>Shots</span><span>SoT</span></div>${tms.map(row => `<div class="tms-row" data-mid="${row.mid}" role="button" tabindex="0"><span class="tms-opp"><span class="fl">${flag(row.opp)}</span> ${esc(S.teams[row.opp]?.name || "TBD")}</span>${row.fin ? `<span class="rchip rchip-${row.wdl}">${row.wdl} ${row.gf}–${row.ga}</span>` : `<span class="rchip rchip-live">${row.gf}–${row.ga}<small>LIVE</small></span>`}<span class="tms-v">${row.poss != null ? row.poss + "%" : "–"}</span><span class="tms-v">${row.sh ?? "–"}</span><span class="tms-v">${row.sot ?? "–"}</span></div>`).join("")}</div>` : "";
+  const tmsHtml = tms.length ? `<div class="eyebrow">Match stats</div><div class="tms"><div class="tms-head"><span class="tms-opp">Opponent</span><span>Result</span><span>Poss</span><span>Shots</span><span>SoT</span></div>${tms.map(row => `<div class="tms-row" data-mid="${row.mid}" role="button" tabindex="0"><span class="tms-opp"><span class="fl">${flag(row.opp)}</span> ${esc(S.teams[row.opp]?.name || "TBD")}</span>${row.kind === "fin" ? `<span class="rchip rchip-${row.wdl}">${row.wdl} ${row.gf}–${row.ga}</span>` : row.kind === "live" ? `<span class="rchip rchip-live">${row.gf}–${row.ga}<small>LIVE</small></span>` : `<span class="rchip rchip-tbc">${row.gf}–${row.ga}<small>${esc(row.kind === "tbc" ? "TBC" : (row.tag || "TBC"))}</small></span>`}<span class="tms-v">${row.poss != null ? row.poss + "%" : "–"}</span><span class="tms-v">${row.sh ?? "–"}</span><span class="tms-v">${row.sot ?? "–"}</span></div>`).join("")}</div>` : "";
   $("#teamSheetTitle").innerHTML = `<span class="fl">${flag(code)}</span> ${esc(t.name)}`;
   $("#teamSheetBody").innerHTML = `
     <div class="ts-meta">${t.conf ? esc(t.conf) : ""}${rk ? ` · FIFA #${rk}` : ""}${group ? ` · Group ${group}` : ""}${played ? ` · <b>${ordinal(pos)}</b> after ${played} match${played > 1 ? "es" : ""}` : ""}</div>
@@ -4434,8 +4438,9 @@ function tournamentStats() {
     if (mCards > 0) recC.mostCards.push({ mid: m.id, hc, ac, y: mYellow, r: mRed, total: mCards });
     // most tackles by a team in a match (team stat), + best individual defensive display (key-performer data)
     if (Array.isArray(r.stats?.tkl)) {
-      const [ht, at] = r.stats.tkl, top = ht >= at ? { code: hc, v: ht, opp: ac } : { code: ac, v: at, opp: hc };
-      if (top.v > 0) recC.mostTackles.push({ ...top, mid: m.id });
+      const [ht, at] = r.stats.tkl;   // on an intra-match tie push BOTH teams - either could be a co-holder of the tournament max
+      if (ht > 0 && ht >= at) recC.mostTackles.push({ code: hc, v: ht, opp: ac, mid: m.id });
+      if (at > 0 && at >= ht) recC.mostTackles.push({ code: ac, v: at, opp: hc, mid: m.id });
     }
     for (const L of (r.lead || [])) {
       if (L.k !== "defensiveInterventions" || !L.n || !(+L.v > 0)) continue;
@@ -4449,9 +4454,9 @@ function tournamentStats() {
     }
   }
   // resolve each record to ALL holders tied at the top value (a joint record shows every co-holder, never just the
-  // first by match order). keyFn returns a single sortable number; bigWin folds its total tiebreak into the key.
+  // first by match order). keyFn returns a single sortable number.
   const topTies = (arr, keyFn) => { if (!arr.length) return []; let best = -Infinity; for (const x of arr) { const k = keyFn(x); if (k > best) best = k; } return arr.filter(x => keyFn(x) === best); };
-  rec.bigWin = topTies(recC.bigWin, x => x.margin * 100 + x.total);
+  rec.bigWin = topTies(recC.bigWin, x => x.margin);   // a "biggest win" is the MARGIN; a 7-1 and a 6-0 are both 6-goal wins - co-holders, not one ranked above the other
   rec.hiScore = topTies(recC.hiScore, x => x.total);
   rec.fastG = topTies(recC.fastG, x => -x.mn);
   rec.lateG = topTies(recC.lateG, x => x.mn);
@@ -4760,7 +4765,7 @@ function renderStats() {
   // holderVal: per-co-holder value, only where it adds info (e.g. each tied match's own scoreline).
   const recDefs = [
     { key: "bigWin", ic: ICO.spark, label: "Biggest win", noun: "matches", attr: r => `data-mid="${r.mid}"`,
-      sub: r => `${flag(r.w)} ${tname(r.w)} beat ${flag(r.l)} ${tname(r.l)}`, val: r => `${r.ws}–${r.ls}` },
+      sub: r => `${flag(r.w)} ${tname(r.w)} beat ${flag(r.l)} ${tname(r.l)}`, val: r => `${r.ws}–${r.ls}`, sharedVal: hs => `${hs[0].margin}-goal<small>win</small>`, holderVal: r => `${r.ws}–${r.ls}` },
     { key: "hiScore", ic: ICO.net, label: "Highest-scoring match", noun: "matches", attr: r => `data-mid="${r.mid}"`,
       sub: matchSub, val: r => `${r.h}–${r.a}<small>${r.total} goals</small>`, sharedVal: hs => `${hs[0].total}<small>goals</small>`, holderVal: r => `${r.h}–${r.a}` },
     { key: "hiDraw", ic: ICO.net, label: "Highest-scoring draw", noun: "matches", attr: r => `data-mid="${r.mid}"`,
