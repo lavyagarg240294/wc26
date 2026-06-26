@@ -1555,7 +1555,7 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .md-comm>summary::-webkit-details-marker{display:none}
 .md-comm-hint{font-family:var(--body);font-weight:500;font-size:11px;letter-spacing:.02em;text-transform:none;color:var(--ink-soft);opacity:.8}
 .md-comm[open]>summary{border-bottom:1px solid var(--line)}
-.md-comm-body{padding:4px 0 2px;max-height:380px;overflow-y:auto}
+.md-comm-body{padding:4px 0 2px}   /* grows naturally inside the sheet so the whole sheet scrolls as one - an inner max-height/overflow here trapped scroll-chaining at the end of the feed */
 .md-comm-body .md-credit{padding:2px 16px 8px}   /* the "Commentary: ESPN" line aligns with the rows instead of hugging the left edge */
 .md-comm-spin{padding:18px;text-align:center;color:var(--ink-soft);font-size:13px}
 .cm-row{display:grid;grid-template-columns:38px 1fr;gap:10px;align-items:baseline;padding:7px 16px;border-top:1px solid color-mix(in srgb,var(--line) 50%,transparent);font-size:13px;line-height:1.45}

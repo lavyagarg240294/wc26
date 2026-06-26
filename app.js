@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "388";  // shown in footer; bump with the ?v= asset version
+const BUILD = "389";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1468,18 +1468,22 @@ function matchStakes(m) {
     case "third-with-win": return `${n} reach at least third - a best-third lifeline - with a win.`;
     default: { const p = posOf(code); return p ? `${n} are ${ordinal(p)} in Group ${g} as it stands.` : (playedIn(code) ? `${n} are level on points in Group ${g} as it stands.` : null); }
   } };
-  const short = code => { const p = posOf(code); switch (classify(code)) {  // the terse phrase (compact card / hero)
-    case "winGroup": return "win the group";
-    case "through": return `through${p ? ` (${ordinal(p)})` : ""}`;
-    case "out": return "out";
-    case "third-safe": return "third or better";
-    case "draw-through": return "through with a draw";
-    case "win-or-bust": return "win or bust";
-    case "in-with-win": return "in with a win";
-    case "out-or-third": case "out-if-lose": return "out if they lose";
-    case "win-for-third": case "must-win": return "win or out";
-    case "third-with-win": return "third with a win";
-    default: return p ? `${ordinal(p)} as it stands` : "level";
+  // the short phrase follows the team name as a self-contained clause: what this side needs from THIS match and what
+  // that result secures (compact card / hero). Honest to the R32 format - third stays alive for a best-third place,
+  // out means stuck in 4th - and never asserts a GD-dependent placing.
+  const short = code => { const p = posOf(code); switch (classify(code)) {
+    case "winGroup": return `have already topped Group ${g} and reached the Round of 32`;
+    case "through": return `have already reached the Round of 32${p ? ` (${ordinal(p)} as it stands)` : ""}`;
+    case "out": return `can no longer reach the Round of 32`;
+    case "third-safe": return `have done enough to finish at least third, so they are through or in the best-third race`;
+    case "draw-through": return `reach the Round of 32 with a draw or a win here`;
+    case "win-or-bust": return `reach the Round of 32 with a win, but are out if they lose`;
+    case "in-with-win": return `reach the Round of 32 if they win`;
+    case "out-or-third": return `are out if they lose; a win or a draw keeps a best-third place alive`;
+    case "out-if-lose": return `are out if they lose, but a draw is enough to stay alive`;
+    case "win-for-third": case "must-win": return `must win to stay alive; a draw or a loss is out`;
+    case "third-with-win": return `keep a best-third place alive if they win`;
+    default: return p ? `sit ${ordinal(p)} in Group ${g} as it stands` : `are level on points in Group ${g}`;
   } };
   const stH = classify(H), stA = classify(A);
   // neither side has a real R32 call yet - the "as it stands" standings fallback (guards unplayed sides + dead-level ties)
@@ -1499,7 +1503,8 @@ function matchStakes(m) {
   let summary;
   if (THRU.includes(stH) && THRU.includes(stA)) summary = (stH === "winGroup" || stA === "winGroup") ? `${nm(H)} and ${nm(A)} are both through to the Round of 32.` : `Both through to the Round of 32 - the winner tops Group ${g}.`;
   else if (stH === "out" && stA === "out") summary = `Both out of the Round of 32.`;
-  else if (THIRD.includes(stH) && THIRD.includes(stA)) summary = `Third place is on the line - the winner stays alive for a best-third place, the loser is out.`;
+  else if (stH === "out-or-third" && stA === "out-or-third") summary = `A Round of 32 place is on the line - the winner stays alive for a best-third spot, the loser is out, a draw keeps both alive.`;
+  else if (THIRD.includes(stH) && THIRD.includes(stA)) summary = `Both sides are out if they lose - a win, or in places a draw, keeps a Round of 32 route alive.`;
   else if (stH === "in-with-win" && stA === "in-with-win") summary = `Win and in - either side reaches the Round of 32 with a win.`;
   else if (stH === "win-or-bust" && stA === "win-or-bust") summary = `Win or bust - the winner is through, the loser is out.`;
   else if (stH === "third-safe" && stA === "third-safe") summary = `Both assured of at least third - through, or in the best-third race.`;
@@ -2086,7 +2091,7 @@ function renderTeams() {
   const isMap = _teamsView === "map";
   const toggle = `<span class="tv-toggle">${[["grid", "Grid"], ["map", "Map"]].map(([k, lbl]) => `<button class="tv-btn ${_teamsView === k ? "is-on" : ""}" data-tview="${k}">${lbl}</button>`).join("")}</span>`;
   const body = isMap ? `<div class="teams-map" id="teamsMap"><div class="wmap-load">Loading the world map…</div></div>` : `<div class="teamsgrid">${grid}</div>`;
-  paint(el, head + teamsLandscapeBanner() + `<div class="eyebrow tv-eyebrow">All teams<span style="color:var(--ink-soft);font-weight:600">, ${isMap ? "tap a nation" : "tap for detail"}</span>${toggle}</div>` + body);
+  paint(el, head + teamsLandscapeBanner() + `<div class="eyebrow tv-eyebrow"><span>All teams<span style="color:var(--ink-soft);font-weight:600">, ${isMap ? "tap a nation" : "tap for detail"}</span></span>${toggle}</div>` + body);
   $$("[data-tview]", el).forEach(b => b.onclick = () => { _teamsView = b.dataset.tview; renderTeams(); });
   if (isMap) renderTeamsMap();
   const cta = $("#ctaPick", el); if (cta) cta.onclick = openTeamPicker;
@@ -2786,12 +2791,13 @@ function openSearchOverlay() {
   };
   setTimeout(() => inp.focus(), 60);
 }
+const _fold = s => (s || "").normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();   // accent-fold + lowercase, so "Mane" matches "Mané"
 function renderSearch(raw) {
-  const q = raw.trim().toLowerCase(), res = $("#searchResults"), cmp = !!compareSeed;
+  const q = _fold(raw.trim()), res = $("#searchResults"), cmp = !!compareSeed;
   const tname = c => esc(cname(c));
   if (compareTeamSeed) {   // team-compare mode: teams only, tapping picks the second team
     if (!q) { res.innerHTML = ""; return; }
-    const ts = SIDX.teams.filter(t => ((t.name || "").toLowerCase().includes(q) || t.code.toLowerCase() === q || (t.conf || "").toLowerCase().includes(q)) && t.code !== compareTeamSeed)
+    const ts = SIDX.teams.filter(t => (_fold(t.name).includes(q) || _fold(t.code) === q || _fold(t.conf).includes(q)) && t.code !== compareTeamSeed)
       .sort((a, b) => a.name.localeCompare(b.name)).slice(0, 10);
     res.innerHTML = ts.length ? `<div class="sr-label">Compare with…</div>` + ts.map(t =>
       `<button class="sr-row" data-compare-pick="${t.code}"><span class="fl">${flag(t.code)}</span><span class="sr-name">${esc(t.name)}<small>${esc(t.conf)}</small></span></button>`).join("")
@@ -2799,9 +2805,9 @@ function renderSearch(raw) {
     return;
   }
   if (!q) { res.innerHTML = ""; return; }   // empty state: the placeholder (rolling suggestions, or "Compare X with…") says it all
-  const has = s => (s || "").toLowerCase().includes(q);
+  const has = s => _fold(s).includes(q);
   // relevance: a word that *starts* with the query beats a mid-word hit (so "mess" → Messi, not a club coincidence)
-  const rank = s => { const n = (s || "").toLowerCase(); return n.startsWith(q) ? 0 : n.split(/\s+/).some(w => w.startsWith(q)) ? 1 : 2; };
+  const rank = s => { const n = _fold(s); return n.startsWith(q) ? 0 : n.split(/\s+/).some(w => w.startsWith(q)) ? 1 : 2; };
   const byRank = key => (a, b) => rank(key(a)) - rank(key(b)) || key(a).localeCompare(key(b));
   const players = SIDX.players.filter(p => (has(p.name) || has(p.club)) && !(cmp && p.name === compareSeed.name && p.code === compareSeed.code)).sort(byRank(p => p.name)).slice(0, cmp ? 12 : 8);
   const playerRowHtml = (p, attr) => { const ph = bestPhoto(p.name, p.code, p.n);
@@ -2810,7 +2816,7 @@ function renderSearch(raw) {
     res.innerHTML = players.length ? `<div class="sr-label">Compare with…</div>` + players.map(p => playerRowHtml(p, `data-compare="${esc(p.name)}|${p.code}"`)).join("") : `<div class="sr-hint">No players match “${esc(raw.trim())}”.</div>`;
     return;
   }
-  const teams = SIDX.teams.filter(t => has(t.name) || t.code.toLowerCase() === q || has(t.conf)).sort(byRank(t => t.name)).slice(0, 6);
+  const teams = SIDX.teams.filter(t => has(t.name) || _fold(t.code) === q || has(t.conf)).sort(byRank(t => t.name)).slice(0, 6);
   const matches = SIDX.matches.filter(m => has(m.hn) || has(m.an) || has(m.city) || has(m.stage)).slice(0, 6);
   const teamHtml = teams.length ? `<div class="sr-label">Teams</div>` + teams.map(t =>
     `<button class="sr-row" data-squad="${t.code}"><span class="fl">${flag(t.code)}</span><span class="sr-name">${esc(t.name)}<small>${esc(t.conf)}</small></span></button>`).join("") : "";
@@ -4441,7 +4447,7 @@ function tournamentStats() {
   const TSTAT_KEYS = ["sh", "pass", "passT", "cross", "lball", "tkl", "intc", "clr", "blk", "sv", "off", "fls"];   // richer ESPN team stats → leaderboards + style
   let goals = 0, totYellow = 0, totRed = 0, totPen = 0, totOg = 0, totSot = 0;
   const rec = {};   // each record resolves to an ARRAY of all holders tied at the top value (joint records) - see topTies, post-loop
-  const recC = { bigWin: [], hiScore: [], fastG: [], lateG: [], hiDraw: [], topMatch: [], mostCards: [], mostTackles: [], bestDef: [] };
+  const recC = { bigWin: [], hiScore: [], fastG: [], lateG: [], hiDraw: [], topMatch: [], mostCards: [], mostTackles: [], mostPasses: [], mostSot: [], bestDef: [] };
   const add = (o, k, n = 1) => { if (k) o[k] = (o[k] || 0) + n; };
   const addConf = (code, gfv, gav, diff) => {   // a team's match folded into its confederation's collective record
     const k = S.teams[code]?.conf; if (!k) return;
@@ -4492,11 +4498,21 @@ function tournamentStats() {
     }
     const mCards = mYellow + mRed;
     if (mCards > 0) recC.mostCards.push({ mid: m.id, hc, ac, y: mYellow, r: mRed, total: mCards });
-    // most tackles by a team in a match (team stat), + best individual defensive display (key-performer data)
+    // most tackles / passes / shots-on-target by a team in a match (team stats), + best individual defensive display (key-performer data)
     if (Array.isArray(r.stats?.tkl)) {
       const [ht, at] = r.stats.tkl;   // on an intra-match tie push BOTH teams - either could be a co-holder of the tournament max
       if (ht > 0 && ht >= at) recC.mostTackles.push({ code: hc, v: ht, opp: ac, mid: m.id });
       if (at > 0 && at >= ht) recC.mostTackles.push({ code: ac, v: at, opp: hc, mid: m.id });
+    }
+    if (Array.isArray(r.stats?.pass)) {
+      const [hp, ap] = r.stats.pass;   // completed passes; intra-match tie pushes BOTH as possible co-holders
+      if (hp > 0 && hp >= ap) recC.mostPasses.push({ code: hc, v: hp, opp: ac, mid: m.id });
+      if (ap > 0 && ap >= hp) recC.mostPasses.push({ code: ac, v: ap, opp: hc, mid: m.id });
+    }
+    if (Array.isArray(r.stats?.sot)) {
+      const [hs, as] = r.stats.sot;   // shots on target; intra-match tie pushes BOTH as possible co-holders
+      if (hs > 0 && hs >= as) recC.mostSot.push({ code: hc, v: hs, opp: ac, mid: m.id });
+      if (as > 0 && as >= hs) recC.mostSot.push({ code: ac, v: as, opp: hc, mid: m.id });
     }
     for (const L of (r.lead || [])) {
       if (L.k !== "defensiveInterventions" || !L.n || !(+L.v > 0)) continue;
@@ -4520,6 +4536,8 @@ function tournamentStats() {
   rec.topMatch = topTies(recC.topMatch, x => x.v);
   rec.mostCards = topTies(recC.mostCards, x => x.total);
   rec.mostTackles = topTies(recC.mostTackles, x => x.v);
+  rec.mostPasses = topTies(recC.mostPasses, x => x.v);
+  rec.mostSot = topTies(recC.mostSot, x => x.v);
   rec.bestDef = topTies(recC.bestDef, x => x.v);
   // LIVE matches: fold goals + assists into the Boot and the all-time career records in real time - a goal counts the
   // moment it's given, even mid-match. (The match-level records above stay FT-only; they need a finished result.)
@@ -4841,6 +4859,10 @@ function renderStats() {
     { key: "mostCards", ic: ICO.spark, label: "Most cards in a match", noun: "matches", attr: r => `data-mid="${r.mid}"`,
       sub: matchSub, val: cardsVal, sharedVal: hs => `${hs[0].total}<small>cards</small>`, holderVal: cardsVal },
     { key: "mostTackles", ic: ICO.shield, label: "Most tackles by a team", noun: "matches", attr: r => `data-mid="${r.mid}"`,
+      sub: r => `${flag(r.code)} ${tname(r.code)}${r.opp ? ` vs ${flag(r.opp)} ${tname(r.opp)}` : ""}`, val: r => `${r.v}` },
+    { key: "mostPasses", ic: ICO.compare, label: "Most passes by a team", noun: "matches", attr: r => `data-mid="${r.mid}"`,
+      sub: r => `${flag(r.code)} ${tname(r.code)}${r.opp ? ` vs ${flag(r.opp)} ${tname(r.opp)}` : ""}`, val: r => `${r.v}` },
+    { key: "mostSot", ic: ICO.net, label: "Most shots on target by a team", noun: "matches", attr: r => `data-mid="${r.mid}"`,
       sub: r => `${flag(r.code)} ${tname(r.code)}${r.opp ? ` vs ${flag(r.opp)} ${tname(r.opp)}` : ""}`, val: r => `${r.v}` },
     { key: "bestDef", ic: ICO.shield, label: "Best defensive display", noun: "players", attr: r => `data-player="${esc(r.name)}|${r.code}"`,
       sub: r => `${flag(r.code)} ${esc(pName(r.name, r.code))}${r.opp ? ` vs ${flag(r.opp)} ${tname(r.opp)}` : ""}`, val: r => `${r.v}<small>actions</small>` },
