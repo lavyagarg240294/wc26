@@ -22,7 +22,7 @@ jobs:
     steps:
       - name: Dispatch the scores loop only if none is running
         env:
-          GH_TOKEN: ${{ secrets.LOOP_DISPATCH_PAT }}   # PAT (Actions:read+write) so the restart dispatch actually fires; GITHUB_TOKEN's workflow_dispatch was silently failing
+          GH_TOKEN: ${{ secrets.LOOP_DISPATCH_PAT }}   # PAT (Actions:read+write) to dispatch the loop
           REPO: ${{ github.repository }}
         run: |
           # Don't keep the loop alive past the tournament (final 2026-07-19).
@@ -33,5 +33,7 @@ jobs:
             echo "scores loop already running ($active) — no-op"
           else
             echo "no scores loop running — dispatching one"
-            gh workflow run results.yml || echo "dispatch failed; will retry next cron"
+            # --repo is REQUIRED here: this job has no checkout, so without it gh errors "not a git
+            # repository" and the dispatch silently fails - the bug that left scores frozen for ~14h.
+            gh workflow run results.yml --repo "$REPO" || echo "dispatch failed; will retry next cron"
           fi
