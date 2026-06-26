@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "389";  // shown in footer; bump with the ?v= asset version
+const BUILD = "390";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -5808,7 +5808,12 @@ async function boot() {
     history.replaceState(null, "", location.pathname);
     setTimeout(() => openMatch(mq), 350);
   }
-  setInterval(refreshResults, 30 * 1000);   // scores: poll every 30s so the page catches each new commit sooner
+  // scores: poll adaptively - every 20s while anything is live (a goal / final whistle reaches the table + tables
+  // fast), 30s otherwise. Self-scheduling (not setInterval) so a slow fetch never overlaps the next tick.
+  (function schedulePoll() {
+    const live = S.matches.some(m => [ST.LIVE, ST.HT].includes(status(m)));
+    setTimeout(() => refreshResults().finally(schedulePoll), live ? 20000 : 30000);
+  })();
   setInterval(() => { refreshOpenCommentary(); loadBuzz(); }, 60 * 1000);   // commentary + buzz change slower - 60s is plenty
   // returning to a backgrounded tab is the classic "stale score" moment (the goal happened while you were away):
   // pull the latest immediately instead of waiting for the next poll. Throttled so quick tab-flicks don't spam.
