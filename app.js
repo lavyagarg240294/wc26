@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "385";  // shown in footer; bump with the ?v= asset version
+const BUILD = "386";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -601,6 +601,11 @@ function applyTheme(animateFrom) {
   else root.style.removeProperty("--acc-text");
   $("#teamChipFlag").innerHTML = t ? flag(S.fav) : "⚽";
   $("#teamChipName").textContent = t ? t.name : "Pick a team";
+  // once a team is picked the chip is just its flag (the name is redundant beside it); keep the prompt+name visible
+  // only while none is chosen. The name stays in the DOM for the accessible label / screen readers.
+  const chip = $("#teamChip");
+  chip.classList.toggle("flag-only", !!t);
+  chip.setAttribute("aria-label", t ? "Your team: " + t.name + " (change)" : "Pick your team");
   if (animateFrom && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
     const sw = $("#themeSweep"), r = animateFrom.getBoundingClientRect();
     sw.style.left = r.left + r.width / 2 - innerWidth + "px";
@@ -1727,26 +1732,53 @@ function teamWcRecord(code) {
   return { w, d, l, gf, ga, n: results.length, results };
 }
 // pre-match head-to-head: rank + this-tournament record compared, plus each side's results so far (brief score chips)
+// mirrored "playing style vs the field" bars for two teams: each metric is scaled to its min/max across all teams
+// this tournament, so the longer bar = more of that trait. Returns "" until BOTH sides have style data (i.e. played).
+// Shared by the match modal's matchup block AND the full team-vs-team compare sheet, so the two never drift apart.
+function teamStyleAxes(aCode, bCode) {
+  const styleList = tournamentStats().style || [];
+  const A = styleList.find(x => x.code === aCode), B = styleList.find(x => x.code === bCode);
+  if (!A || !B) return "";
+  const cA = S.teams[aCode]?.c1 || "var(--ink-soft)", cB = S.teams[bCode]?.c1 || "var(--ink-soft)";
+  const pctOf = (key, val) => { const vs = styleList.map(x => x[key]); const lo = Math.min(...vs), hi = Math.max(...vs); return hi > lo ? Math.round((val - lo) / (hi - lo) * 100) : 50; };
+  const axis = (label, aPct, bPct, aVal, bVal) => `<div class="cmpx">
+    <span class="cmpx-v cmpx-va">${aVal}</span>
+    <span class="cmpx-tk cmpx-l"><i style="width:${aPct}%;background:${cA}"></i></span>
+    <span class="cmpx-lbl">${label}</span>
+    <span class="cmpx-tk cmpx-r"><i style="width:${bPct}%;background:${cB}"></i></span>
+    <span class="cmpx-v cmpx-vb">${bVal}</span></div>`;
+  return [
+    ["poss", "Possession", v => v.toFixed(0) + "%"],
+    ["passAcc", "Passing", v => v.toFixed(0) + "%"],
+    ["directness", "Direct play", v => v.toFixed(0) + "%"],
+    ["pressPg", "Defending", v => v.toFixed(0)],
+    ["shotsPg", "Attacking", v => v.toFixed(1)],
+  ].map(([k, lbl, f]) => axis(lbl, pctOf(k, A[k]), pctOf(k, B[k]), f(A[k]), f(B[k]))).join("");
+}
 function matchCompare(m) {
   const h = slotInfo(m, "home"), a = slotInfo(m, "away");
   if (!h.code || !a.code) return "";
   const recA = teamWcRecord(h.code), recB = teamWcRecord(a.code), rkA = fifaRankOf(h.code), rkB = fifaRankOf(a.code);
+  const eloA = Math.round(teamRating(h.code)), eloB = Math.round(teamRating(a.code));
   const numRow = (label, av, bv, hi, da = av, db = bv) => {
     const aw = av != null && bv != null && av !== bv && (hi ? av > bv : av < bv);
     const bw = av != null && bv != null && av !== bv && (hi ? bv > av : bv < av);
     return `<div class="cmp-row"><span class="cmp-a ${aw ? "win" : ""}">${da ?? "–"}</span><span class="cmp-lbl">${label}</span><span class="cmp-b ${bw ? "win" : ""}">${db ?? "–"}</span></div>`;
   };
   const has = recA.n || recB.n;
+  const axes = teamStyleAxes(h.code, a.code);   // attacking / defending / possession etc., once both have played
   const resChips = (rec, own) => rec.n ? rec.results.map(x => `<span class="mc-res mc-res-${x.wdl}" data-mid="${x.mid}" role="button" tabindex="0" title="${esc(S.teams[own]?.name || own)} v ${esc(S.teams[x.opp]?.name || x.opp)}">${flag(own)} ${x.my}–${x.oga} ${flag(x.opp)}</span>`).join("") : `<span class="mc-none">No matches yet</span>`;
   return `<div class="eyebrow">How they compare</div>
     <div class="mc-cmp">
       <div class="mc-head"><span class="mc-team"><span class="fl">${flag(h.code)}</span>${esc(h.name)}</span><span class="mc-vs">vs</span><span class="mc-team mc-rt">${esc(a.name)}<span class="fl">${flag(a.code)}</span></span></div>
       <div class="cmp-rows">
+        ${numRow("Elo rating", eloA, eloB, true)}
         ${numRow("FIFA rank", rkA, rkB, false, rkA ? "#" + rkA : null, rkB ? "#" + rkB : null)}
         ${has ? `<div class="cmp-row"><span class="cmp-a">${recA.w}-${recA.d}-${recA.l}</span><span class="cmp-lbl">W-D-L</span><span class="cmp-b">${recB.w}-${recB.d}-${recB.l}</span></div>` : ""}
         ${has ? numRow("Goals for", recA.gf, recB.gf, true) : ""}
         ${has ? numRow("Goals against", recA.ga, recB.ga, false) : ""}
       </div>
+      ${axes ? `<div class="mc-styletitle">Playing style <span class="wp-est">vs the field</span>${infoBtn("Each bar scales a team's per-game figure against the highest and lowest in the tournament, so a longer bar means more of that trait. Possession and passing are share percentages; Direct play is how vertically a side moves the ball; Defending is pressing actions per game; Attacking is shots per game. A read on style, not a verdict on quality.", "How the style bars work")}</div><div class="cmpx-card">${axes}</div>` : ""}
       <div class="mc-reslabel">Results so far</div>
       <div class="mc-reswrap"><div class="mc-resrow">${resChips(recA, h.code)}</div><div class="mc-resrow">${resChips(recB, a.code)}</div></div>
     </div>`;
@@ -2881,8 +2913,6 @@ function openTeamCompare(aCode, bCode) {
   const A = teamCompareData(aCode), B = teamCompareData(bCode);
   const wp = h2hProb(aCode, bCode);
   const pa = Math.round(wp.a * 100), pd = Math.round(wp.d * 100), pb = 100 - pa - pd;
-  const styleList = tournamentStats().style || [];
-  const pctOf = (key, val) => { const vs = styleList.map(x => x[key]); const lo = Math.min(...vs), hi = Math.max(...vs); return hi > lo ? Math.round((val - lo) / (hi - lo) * 100) : 50; };
   const head = T => `<div class="cmp-p cmp-team">
     <span class="cmp-crest">${flag(T.code)}</span>
     <b>${esc(T.name)}</b><span>${esc(T.conf)}${T.rank ? ` · #${T.rank}` : ""}</span></div>`;
@@ -2893,20 +2923,8 @@ function openTeamCompare(aCode, bCode) {
     const bWin = an != null && bn != null && an !== bn && (higherWins ? bn > an : bn < an);
     return `<div class="cmp-row"><span class="cmp-a ${aWin ? "win" : ""}">${av ?? "–"}</span><span class="cmp-lbl">${label}</span><span class="cmp-b ${bWin ? "win" : ""}">${bv ?? "–"}</span></div>`;
   };
-  const axis = (label, aPct, bPct, aVal, bVal) => `<div class="cmpx">
-    <span class="cmpx-v cmpx-va">${aVal}</span>
-    <span class="cmpx-tk cmpx-l"><i style="width:${aPct}%;background:${A.c1}"></i></span>
-    <span class="cmpx-lbl">${label}</span>
-    <span class="cmpx-tk cmpx-r"><i style="width:${bPct}%;background:${B.c1}"></i></span>
-    <span class="cmpx-v cmpx-vb">${bVal}</span></div>`;
   const hasPlayed = A.played || B.played;
-  const styleRows = (A.style && B.style) ? [
-    ["poss", "Possession", v => v.toFixed(0) + "%"],
-    ["passAcc", "Passing", v => v.toFixed(0) + "%"],
-    ["directness", "Direct play", v => v.toFixed(0) + "%"],
-    ["pressPg", "Defending", v => v.toFixed(0)],
-    ["shotsPg", "Attacking", v => v.toFixed(1)],
-  ].map(([k, lbl, f]) => axis(lbl, pctOf(k, A.style[k]), pctOf(k, B.style[k]), f(A.style[k]), f(B.style[k]))).join("") : "";
+  const styleRows = teamStyleAxes(aCode, bCode);   // shared with the match modal's matchup block
   const histStrip = T => { const h = WC_HIST[T.code]; if (!h) return ""; return [2002, 2006, 2010, 2014, 2018, 2022].map(y =>
     `<div class="wch-chip" data-r="${h[y] || '-'}"><span class="wch-yr">’${String(y).slice(2)}</span><span class="wch-res">${h[y] || "–"}</span></div>`).join(""); };
   const hA = histStrip(A), hB = histStrip(B);

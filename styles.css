@@ -148,6 +148,10 @@ body.bg-paused #bg span{animation-play-state:paused;will-change:auto}
 /* the team name is the one topbar element that yields first: it truncates so the brand + icons keep
    their size and the bar never overflows, even when the OS scales text up */
 #teamChipName{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+/* a chosen team collapses the chip to just its flag - the name span stays for the a11y label only */
+.chip-team.flag-only{gap:0}
+.chip-team.flag-only #teamChipName{display:none}
+.chip-team.flag-only #teamChipFlag{font-size:16px}
 /* music toggle */
 .chip-icon{padding:9px 12px;gap:5px;min-height:38px;justify-content:center;flex-shrink:0}   /* comfortable tap target, never squished */
 .chip-icon .ic-music{display:block;color:var(--ink-soft);transition:color .2s}
@@ -1849,6 +1853,10 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .mc-team.mc-rt{justify-content:flex-end;text-align:right}
 .mc-vs{flex:0 0 auto;font-family:var(--mono);font-size:11px;color:var(--ink-soft);font-weight:700}
 .mc-reslabel{font-family:var(--disp);font-weight:700;font-stretch:106%;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);margin:12px 0 7px}
+.mc-styletitle{display:flex;align-items:center;gap:7px;font-family:var(--disp);font-weight:700;font-stretch:106%;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);margin:14px 0 5px}
+.mc-styletitle .wp-est{letter-spacing:.01em;text-transform:none}
+/* the style bars sit inside the matchup card already, so drop the nested card chrome and just space the rows */
+.mc-cmp .cmpx-card{background:transparent;border:none;box-shadow:none;padding:0}
 .mc-reswrap{display:grid;grid-template-columns:1fr 1fr;gap:6px 14px;align-items:start}
 .mc-resrow{display:flex;flex-direction:column;gap:6px;align-items:flex-start;min-width:0}
 .mc-resrow:last-child{align-items:flex-end}   /* away team's results mirror the header: right column, right-aligned */
