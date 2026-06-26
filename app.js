@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "384";  // shown in footer; bump with the ?v= asset version
+const BUILD = "385";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1102,7 +1102,7 @@ const hostCode = m => HOST_OF[(m.city || "").split(", ").pop()] || null;
 // groups during the group stage by construction (there is no shared-opponent path to carry it).
 let _eloCache = null, _eloSig = "";
 function eloSeq() {
-  const done = S.matches.filter(m => isFinalSt(status(m)) && res(m)?.h != null).sort((x, y) => x.utc.localeCompare(y.utc));
+  const done = S.matches.filter(m => isFeedFinal(m)).sort((x, y) => x.utc.localeCompare(y.utc));   // feed-confirmed only - never fold a stuck-live provisional score into the model (matches standings())
   const sig = done.length + ":" + Object.keys(S.efi || {}).length;
   if (_eloCache && _eloSig === sig) return _eloCache;
   const seed = c => S.teams[c]?.elo || 1700, K = 22, DRIFT = 70;
@@ -1163,7 +1163,7 @@ function liveReds(r) {
 // and the whole overlay is gated off until a side has ≥2 games, so early-tournament odds are untouched.
 let _adCache = null, _adSig = "";
 function attackDefence() {
-  const done = S.matches.filter(m => isFinalSt(status(m)) && res(m)?.h != null).sort((x, y) => x.utc.localeCompare(y.utc));
+  const done = S.matches.filter(m => isFeedFinal(m)).sort((x, y) => x.utc.localeCompare(y.utc));   // feed-confirmed only - never fold a stuck-live provisional score into the model (matches standings())
   const sig = done.length + ":" + Object.keys(S.efi || {}).length;
   if (_adCache && _adSig === sig) return _adCache;
   const rec = {};   // code → [{att, def, opp, wt}]: attack = xG/goals FOR, def = conceded; same 0.7xG/0.3goals blend as eloSeq
@@ -1307,8 +1307,9 @@ function winProbSeries(m) {
     const wp = winProb(m, false, { h, a, min: Math.min(e.mn, 90), reds: { h: rh, a: ra } });
     if (wp) pts.push({ min: Math.min(e.mn, 94), y: evY(wp), ev: e, goal: e.k !== "R" });
   }
-  if (isFinalSt(status(m))) {   // a finished match ends at its real outcome (a KO shootout decides; a group draw sits at 0.5)
-    const ftY = r.h > r.a ? 1 : r.h < r.a ? 0 : (r.hp != null ? (r.hp > r.ap ? 1 : 0) : 0.5);
+  if (isFinalSt(status(m))) {   // a finished match ends at its 90'/ET outcome. This axis is "winning, a draw counts
+    // half" - so a level match a shootout decided sits at 0.5: it WAS a draw, and a shootout is advancing, not winning.
+    const ftY = r.h > r.a ? 1 : r.h < r.a ? 0 : 0.5;
     pts.push({ min: 95, y: ftY, ft: true });
   }
   let up = 0, down = 0;
@@ -1337,14 +1338,20 @@ function winProbBlock(m, pre = false) {
   const wp = winProb(m, pre); if (!wp) return "";
   const h = slotInfo(m, "home"), a = slotInfo(m, "away");
   const ph = Math.round(wp.h * 100), pd = Math.round(wp.d * 100), pa = 100 - ph - pd;
-  const legend = wp.ko && wp.adv
-    ? `<div class="wp-legend"><span class="wp-lh"><b>${Math.round(wp.adv.h * 100)}%</b> ${flag(h.code)} <span class="wp-lname">${esc(h.name)}</span></span><span class="wp-ld">advance</span><span class="wp-la"><span class="wp-lname">${esc(a.name)}</span> ${flag(a.code)} <b>${Math.round(wp.adv.a * 100)}%</b></span></div>`
+  // knockout: the model reads "advance" (a 90' draw goes to ET/pens, split 50/50), so both the legend AND the bar
+  // drop the draw segment and show two advance shares - keeping the bar and its legend telling the same story.
+  const koAdv = wp.ko && wp.adv;
+  const ah = koAdv ? Math.round(wp.adv.h * 100) : 0, aa = 100 - ah;
+  const legend = koAdv
+    ? `<div class="wp-legend"><span class="wp-lh"><b>${ah}%</b> ${flag(h.code)} <span class="wp-lname">${esc(h.name)}</span></span><span class="wp-ld">advance</span><span class="wp-la"><span class="wp-lname">${esc(a.name)}</span> ${flag(a.code)} <b>${aa}%</b></span></div>`
     : `<div class="wp-legend"><span class="wp-lh"><b>${ph}%</b> ${flag(h.code)} <span class="wp-lname">${esc(h.name)}</span></span><span class="wp-ld">Draw <b>${pd}%</b></span><span class="wp-la"><span class="wp-lname">${esc(a.name)}</span> ${flag(a.code)} <b>${pa}%</b></span></div>`;
+  const bar = koAdv
+    ? `<div class="wp-bar" role="img" aria-label="${esc(h.name)} ${ah}% to advance, ${esc(a.name)} ${aa}% to advance"><span class="wp-h" style="width:${ah}%"></span><span class="wp-a" style="width:${aa}%"></span></div>`
+    : `<div class="wp-bar" role="img" aria-label="${esc(h.name)} ${ph}%, draw ${pd}%, ${esc(a.name)} ${pa}%"><span class="wp-h" style="width:${ph}%"></span><span class="wp-d" style="width:${pd}%"></span><span class="wp-a" style="width:${pa}%"></span></div>`;
   // the single "projected score" is dropped - the "Most likely scores" tiles (rendered just below) say it better
   return `<div class="eyebrow">Win probability <span class="wp-est">${wp.live ? "live estimate" : "pre-match estimate"}</span>${infoBtn("A Dixon-Coles goals model. Each side's strength is a World-Football Elo that updates after every result (blending in FIFA's expected goals), nudged by host advantage and, late in the groups, by what each team still needs to qualify. The most-likely scores below are the model's top scorelines. A clearly-labelled estimate, not a betting line.", "How win probability is calculated")}</div>
     <div class="wp">
-      <div class="wp-bar" role="img" aria-label="${esc(h.name)} ${ph}%, draw ${pd}%, ${esc(a.name)} ${pa}%">
-        <span class="wp-h" style="width:${ph}%"></span><span class="wp-d" style="width:${pd}%"></span><span class="wp-a" style="width:${pa}%"></span></div>
+      ${bar}
       ${legend}</div>`;
 }
 /* ---------------- stakes explainer ----------------
@@ -1699,8 +1706,13 @@ function liveScorelines(wp) {
   if (!wp?.predicted?.length) return "";
   // deliberately low-key: exact-scoreline odds are inherently small, so this rides as a quiet one-line footnote
   // under the win-probability bar rather than a row of attention-grabbing cards
-  const chips = wp.predicted.slice(0, 3).map(s => `<span class="sl-chip">${s.h}–${s.a}<i>${Math.round(s.p * 100)}%</i></span>`).join("");
-  return `<div class="sl-line"><span class="sl-cap">Likeliest scorelines</span>${chips}</div>`;
+  const chips = wp.predicted.slice(0, 3).map(s => {
+    const et = wp.ko && s.h === s.a;   // a knockout level after 90' isn't a final result - it goes to extra time / pens
+    return `<span class="sl-chip${et ? " sl-chip-et" : ""}">${s.h}–${s.a}<i>${Math.round(s.p * 100)}%</i>${et ? `<em title="Level after 90' - decided in extra time, then penalties">→&nbsp;ET</em>` : ""}</span>`;
+  }).join("");
+  // a knockout's tiles are 90-minute scores; say so, so a level "1–1" reads as "to ET/pens", not a drawn result
+  const cap = wp.ko ? "Likeliest scores at 90'" : "Likeliest scorelines";
+  return `<div class="sl-line"><span class="sl-cap">${cap}</span>${chips}</div>`;
 }
 // a team's record + each result so far THIS World Cup (FT matches only)
 function teamWcRecord(code) {
@@ -2967,6 +2979,22 @@ function thirdPlaceRace() {
   for (const g of GROUPS) { const t = standings(g)[2]; if (t) rows.push({ group: g, code: t.code, pts: t.pts, gd: t.gf - t.ga, gf: t.gf }); }
   return rows.sort((a, b) => b.pts - a.pts || b.gd - a.gd || b.gf - a.gf || tiebreakRank(a.code) - tiebreakRank(b.code));
 }
+// Is the best-8 third-place allocation fully settled by the criteria this app can compute (points, goal difference,
+// goals)? It is NOT when a group's 3rd is dead-level with its 4th (so the group's third-place team is itself in doubt),
+// or when the 8th and 9th thirds are dead-level (so the cut is in doubt). FIFA then separates teams on fair-play points
+// and finally a drawing of lots - neither of which we model - so a board must not crown a world-ranking guess as
+// "Confirmed". Conservative on purpose: if it can't be proven, the spot stays open (zero-error bar).
+function thirdsResolvable() {
+  for (const g of GROUPS) {
+    if (remInGroup(g) !== 0) continue;
+    const s = standings(g); if (s.length < 4) continue;
+    const a = s[2], b = s[3];
+    if (a.pts === b.pts && (a.gf - a.ga) === (b.gf - b.ga) && a.gf === b.gf) return false;   // 3rd and 4th dead-level
+  }
+  const tpr = thirdPlaceRace();
+  if (tpr.length > 8) { const a = tpr[7], b = tpr[8]; if (a.pts === b.pts && a.gd === b.gd && a.gf === b.gf) return false; }   // 8th and 9th dead-level
+  return true;
+}
 function thirdRaceHTML() {
   const anyPlayed = S.matches.some(m => m.group && isFinalSt(status(m)) && res(m)?.h != null);
   const rows = thirdPlaceRace();
@@ -3032,7 +3060,11 @@ function r32TieInfo(t, mode = "projected") {
   const rem = (sH.g ? remInGroup(sH.g) : 0) + (sA.g ? remInGroup(sA.g) : 0);
   // a third-place tie stays "open" until every group is confirmed; it also stays open if (defensively) the allocation
   // can't resolve its team even after the groups finish - so an unresolved slot is never mislabelled "Confirmed".
-  const verdict = ((sH.third || sA.third) && (!allGroupsDone || (sH.third && !t.h) || (sA.third && !t.a))) ? { k: "bubble", t: "Spot still open" }
+  // And: a slot still filled by OUR projection (not the feed's own team) stays open when the best-8 thirds aren't
+  // separable by the computable criteria - a dead-level cut is FIFA's to settle on fair-play / lots, never our guess.
+  const projThird = ((sH.third && !t.m.home.team) || (sA.third && !t.m.away.team));
+  const thirdUnsettled = (sH.third && !t.h) || (sA.third && !t.a) || (projThird && allGroupsDone && !thirdsResolvable());
+  const verdict = ((sH.third || sA.third) && (!allGroupsDone || thirdUnsettled)) ? { k: "bubble", t: "Spot still open" }
     : (rem === 0 && t.h && t.a) ? { k: "ok", t: "Confirmed" }
     : { k: "games", t: rem + " game" + (rem === 1 ? "" : "s") + " left" };
   return { m: t.m, h: t.h, a: t.a, sH, sA, gh, ga, verdict };
@@ -3597,7 +3629,7 @@ function seedSimThirds() {
 
 // score the saved prediction against reality: predicted group top-2 vs live standings, and KO winners vs results
 function simScore() {
-  const fts = S.matches.filter(m => isFinalSt(status(m)) && res(m)?.h != null);
+  const fts = S.matches.filter(m => isFeedFinal(m));   // feed-confirmed results only - a stuck-live coerced-FT score is provisional and never counted (matches standings())
   if (!fts.length) return null;
   let gSpots = 0, gTotal = 0;
   GROUPS.forEach(g => {
@@ -4378,9 +4410,9 @@ function tournamentStats() {
   // Without this, an open Stats tab rebuilds and re-sorts everything every 30s on a busy matchday for zero visible change.
   // FT matches drive every leaderboard; LIVE matches are folded in for goals/assists only (the Boot + career records
   // tick over in real time), so the sig must change when a live score/event does - but not on the bare minute tick.
-  const sig = S.matches.reduce((s, m) => { const r = res(m), st = status(m); if (r?.h == null) return s; if (isFinalSt(st)) return s + `${m.num}:${r.h}-${r.a}:${(r.ev || []).length}:${r.stats ? 1 : 0};`; if (st === ST.LIVE || st === ST.HT) return s + `${m.num}L:${r.h}-${r.a}:${(r.ev || []).length};`; return s; }, "");
+  const sig = S.matches.reduce((s, m) => { const r = res(m), st = status(m); if (r?.h == null) return s; if (isFeedFinal(m)) return s + `${m.num}:${r.h}-${r.a}:${(r.ev || []).length}:${r.stats ? 1 : 0};`; if (st === ST.LIVE || st === ST.HT || isUnconfirmedFinal(m)) return s + `${m.num}L:${r.h}-${r.a}:${(r.ev || []).length};`; return s; }, "");
   if (_tsCache && _tsSig === sig) return _tsCache;
-  const fts = S.matches.filter(m => isFinalSt(status(m)) && res(m)?.h != null);
+  const fts = S.matches.filter(m => isFeedFinal(m));   // feed-confirmed results only - a stuck-live coerced-FT score is provisional and never counted (matches standings())
   const gf = {}, ga = {}, poss = {}, possN = {}, sot = {}, sotN = {}, yel = {}, red = {}, played = {}, scorers = {}, assists = {}, pyel = {}, pred = {}, cs = {}, conf = {}, keepers = {}, tstat = {}, statN = {}, cardLog = {};
   const TSTAT_KEYS = ["sh", "pass", "passT", "cross", "lball", "tkl", "intc", "clr", "blk", "sv", "off", "fls"];   // richer ESPN team stats → leaderboards + style
   let goals = 0, totYellow = 0, totRed = 0, totPen = 0, totOg = 0, totSot = 0;
@@ -4426,8 +4458,8 @@ function tournamentStats() {
         const mn = evMin(e.t);   // fastest / latest goal of the tournament (by the player who scored it)
         if (mn >= 1) { const gR = { name: sc, code: tc, t: e.t, mn, mid: m.id }; recC.fastG.push(gR); recC.lateG.push(gR); }
       }
-      if (e.k === "Y") { add(yel, tc); totYellow++; mYellow++; if (e.p) { const pk = (resolvePlayer(e.p, tc, e.n)?.name || e.p) + "\t" + tc; add(pyel, pk); (cardLog[pk] ||= []).push({ ko: m.utc, k: "Y" }); } }
-      else if (e.k === "R") { add(red, tc); totRed++; mRed++; if (e.p) { const pk = (resolvePlayer(e.p, tc, e.n)?.name || e.p) + "\t" + tc; add(pred, pk); (cardLog[pk] ||= []).push({ ko: m.utc, k: "R" }); } }
+      if (e.k === "Y") { add(yel, tc); totYellow++; mYellow++; if (e.p) { const pk = (resolvePlayer(e.p, tc, e.n)?.name || e.p) + "\t" + tc; add(pyel, pk); (cardLog[pk] ||= []).push({ ko: m.utc, k: "Y", st: m.stage }); } }
+      else if (e.k === "R") { add(red, tc); totRed++; mRed++; if (e.p) { const pk = (resolvePlayer(e.p, tc, e.n)?.name || e.p) + "\t" + tc; add(pred, pk); (cardLog[pk] ||= []).push({ ko: m.utc, k: "R", st: m.stage }); } }
     }
     // per-match superlatives
     if (r.h === r.a && (r.h + r.a) > 0) recC.hiDraw.push({ mid: m.id, hc, ac, h: r.h, a: r.a, total: r.h + r.a });
@@ -4502,8 +4534,14 @@ function tournamentStats() {
   const suspendedList = [];
   for (const pk in cardLog) {
     const evs = cardLog[pk].slice().sort((x, z) => (x.ko < z.ko ? -1 : x.ko > z.ko ? 1 : 0));
-    let yc = 0, trigKo = null, reason = null;
-    for (const e of evs) { if (e.k === "R") { trigKo = e.ko; reason = "red"; } else if (++yc % 2 === 0) { trigKo = e.ko; reason = "yellows"; } }
+    let yc = 0, trigKo = null, reason = null, wiped = false;
+    for (const e of evs) {
+      // FIFA: a single (unpaired) yellow is cancelled after the quarter-finals, so it can't carry into the semis.
+      // An already-earned two-yellow ban (trigKo set in the group/KO) still stands - we only zero the pending single.
+      if (!wiped && (e.st === "sf" || e.st === "final")) { yc = 0; wiped = true; }
+      if (e.k === "R") { trigKo = e.ko; reason = "red"; }
+      else if (++yc % 2 === 0) { trigKo = e.ko; reason = "yellows"; }
+    }
     if (!trigKo) continue;   // a single yellow is not a ban
     const [name, code] = split(pk);
     const next = (teamSched[code] || []).find(x => x.ko > trigKo);
@@ -5079,12 +5117,21 @@ function currentTheme() { return document.documentElement.dataset.theme || "ligh
 
 /* ---------------- championship odds overlay ---------------- */
 function isStillIn(code) {
-  // A team is still competing if they have at least one confirmed non-FT appearance remaining
-  return S.matches.some(m => {
+  if (qualStatus(code) === "out") return false;   // mathematically out of the group - can't win the cup
+  // A confirmed non-final appearance still ahead keeps them in: a remaining group game, a locked Round-of-32 slot,
+  // or a knockout slot that winnerFeed() has already resolved them into (so a tie's winner stays in, the loser drops).
+  const hasUpcoming = S.matches.some(m => {
     if (isFinalSt(status(m))) return false;
     const h = slotInfo(m, "home"), a = slotInfo(m, "away");
     return h.code === code || a.code === code;
   });
+  if (hasUpcoming) return true;
+  // No resolved upcoming fixture. Before the knockouts start there's a gap: a team's group can be finished while the
+  // best-third slots are still unlocked (they resolve only once EVERY group is done), so a qualified best-third has no
+  // upcoming slot yet - keep anyone the projection has in the Round of 32. Once a knockout tie has actually been played
+  // the bracket is locked and slotInfo resolves every survivor forward, so "no upcoming" there means knocked out - drop them.
+  if (S.matches.some(m => m.stage !== "group" && isFeedFinal(m))) return false;
+  return projectedR32().some(t => t.h === code || t.a === code);
 }
 function champProbs() {
   const R = eloSeq();
