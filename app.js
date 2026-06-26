@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "375";  // shown in footer; bump with the ?v= asset version
+const BUILD = "376";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1704,7 +1704,7 @@ function matchCompare(m) {
     return `<div class="cmp-row"><span class="cmp-a ${aw ? "win" : ""}">${da ?? "–"}</span><span class="cmp-lbl">${label}</span><span class="cmp-b ${bw ? "win" : ""}">${db ?? "–"}</span></div>`;
   };
   const has = recA.n || recB.n;
-  const resChips = rec => rec.n ? rec.results.map(x => `<span class="mc-res mc-res-${x.wdl}" data-mid="${x.mid}" role="button" tabindex="0" title="${esc(S.teams[x.opp]?.name || x.opp)}">${flag(x.opp)} ${x.my}–${x.oga}</span>`).join("") : `<span class="mc-none">No matches yet</span>`;
+  const resChips = (rec, own) => rec.n ? rec.results.map(x => `<span class="mc-res mc-res-${x.wdl}" data-mid="${x.mid}" role="button" tabindex="0" title="${esc(S.teams[own]?.name || own)} v ${esc(S.teams[x.opp]?.name || x.opp)}">${flag(own)} ${x.my}–${x.oga} ${flag(x.opp)}</span>`).join("") : `<span class="mc-none">No matches yet</span>`;
   return `<div class="eyebrow">How they compare</div>
     <div class="mc-cmp">
       <div class="mc-head"><span class="mc-team"><span class="fl">${flag(h.code)}</span>${esc(h.name)}</span><span class="mc-vs">vs</span><span class="mc-team mc-rt">${esc(a.name)}<span class="fl">${flag(a.code)}</span></span></div>
@@ -1715,7 +1715,7 @@ function matchCompare(m) {
         ${has ? numRow("Goals against", recA.ga, recB.ga, false) : ""}
       </div>
       <div class="mc-reslabel">Results so far</div>
-      <div class="mc-reswrap"><div class="mc-resrow">${resChips(recA)}</div><div class="mc-resrow">${resChips(recB)}</div></div>
+      <div class="mc-reswrap"><div class="mc-resrow">${resChips(recA, h.code)}</div><div class="mc-resrow">${resChips(recB, a.code)}</div></div>
     </div>`;
 }
 // "Match stars" - large portrait cards of the goalscorers (live/FT), else each side's leading scorer (upcoming).
@@ -2369,7 +2369,7 @@ function teamMatchStats(code) {
     if (i == null) continue;
     const s = r.stats || {}, gf = i === 0 ? r.h : r.a, ga = i === 0 ? r.a : r.h;
     rows.push({ mid: m.id, utc: m.utc, opp: i === 0 ? slotInfo(m, "away").code : slotInfo(m, "home").code,
-      wdl: gf > ga ? "W" : gf < ga ? "L" : "D", gf, ga,
+      wdl: gf > ga ? "W" : gf < ga ? "L" : "D", fin: isFinalSt(status(m)), gf, ga,
       poss: Array.isArray(s.poss) ? Math.round(s.poss[i]) : null,
       sh: Array.isArray(s.sh) ? s.sh[i] : null, sot: Array.isArray(s.sot) ? s.sot[i] : null });
   }
@@ -2446,18 +2446,32 @@ function since2022Section(code) {
       <div class="s22-split"><b>${cont}</b> returning · <b>${fresh}</b> new</div>
     </div>`;
 }
+// squad-wide averages (age / height / weight), resolved via the same player-bio path the profiles use, so coverage
+// matches what we already show per player. Age + height are ~100% (squad list backfills); weight is feed-only, so
+// the caller gates it on coverage rather than printing an average over a third of the squad.
+function squadVitals(code) {
+  const sq = S.squads?.[code]; if (!sq?.players?.length) return null;
+  let aS = 0, aN = 0, hS = 0, hN = 0, wS = 0, wN = 0;
+  for (const p of sq.players) {
+    const b = playerBio(p.name, code, p.n, p.pos);
+    const a = b?.d ? ageFrom(b.d) : null; if (a) { aS += a; aN++; }
+    if (b?.h) { hS += b.h; hN++; }
+    if (b?.w) { wS += b.w; wN++; }
+  }
+  return { n: sq.players.length, age: aN ? aS / aN : null, height: hN ? hS / hN : null, weight: wN ? wS / wN : null, wN };
+}
 function openTeam(code) {
   const t = S.teams[code]; if (!t) return;
   const all = S.matches.filter(m => matchHasTeam(m, code)).sort((a, b) => a.utc.localeCompare(b.utc));
   const group = groupOf(code), tbl = group ? standings(group) : [];
   const pos = tbl.findIndex(r => r.code === code) + 1, played = tbl.find(r => r.code === code)?.p || 0;
   const done = all.filter(m => status(m) !== ST.SCHED), upcoming = all.filter(m => status(m) === ST.SCHED);
-  const sq = S.squads?.[code], isFav = code === S.fav;
+  const sq = S.squads?.[code], isFav = code === S.fav, rk = fifaRankOf(code), sv = squadVitals(code);
   const tms = teamMatchStats(code);
-  const tmsHtml = tms.length ? `<div class="eyebrow">Match stats</div><div class="tms"><div class="tms-head"><span class="tms-opp">Opponent</span><span>Result</span><span>Poss</span><span>Shots</span><span>SoT</span></div>${tms.map(row => `<div class="tms-row" data-mid="${row.mid}" role="button" tabindex="0"><span class="tms-opp"><span class="fl">${flag(row.opp)}</span> ${esc(S.teams[row.opp]?.name || "TBD")}</span><span class="rchip rchip-${row.wdl}">${row.wdl} ${row.gf}–${row.ga}</span><span class="tms-v">${row.poss != null ? row.poss + "%" : "–"}</span><span class="tms-v">${row.sh ?? "–"}</span><span class="tms-v">${row.sot ?? "–"}</span></div>`).join("")}</div>` : "";
+  const tmsHtml = tms.length ? `<div class="eyebrow">Match stats</div><div class="tms"><div class="tms-head"><span class="tms-opp">Opponent</span><span>Result</span><span>Poss</span><span>Shots</span><span>SoT</span></div>${tms.map(row => `<div class="tms-row" data-mid="${row.mid}" role="button" tabindex="0"><span class="tms-opp"><span class="fl">${flag(row.opp)}</span> ${esc(S.teams[row.opp]?.name || "TBD")}</span>${row.fin ? `<span class="rchip rchip-${row.wdl}">${row.wdl} ${row.gf}–${row.ga}</span>` : `<span class="rchip rchip-live">${row.gf}–${row.ga}<small>LIVE</small></span>`}<span class="tms-v">${row.poss != null ? row.poss + "%" : "–"}</span><span class="tms-v">${row.sh ?? "–"}</span><span class="tms-v">${row.sot ?? "–"}</span></div>`).join("")}</div>` : "";
   $("#teamSheetTitle").innerHTML = `<span class="fl">${flag(code)}</span> ${esc(t.name)}`;
   $("#teamSheetBody").innerHTML = `
-    <div class="ts-meta">${t.conf ? esc(t.conf) : ""}${group ? ` · Group ${group}` : ""}${played ? ` · <b>${ordinal(pos)}</b> after ${played} match${played > 1 ? "es" : ""}` : ""}</div>
+    <div class="ts-meta">${t.conf ? esc(t.conf) : ""}${rk ? ` · FIFA #${rk}` : ""}${group ? ` · Group ${group}` : ""}${played ? ` · <b>${ordinal(pos)}</b> after ${played} match${played > 1 ? "es" : ""}` : ""}</div>
     ${teamOverview(code)}
     ${countryMiniMap(code)}
     ${wcHistory(code)}
@@ -2470,7 +2484,7 @@ function openTeam(code) {
     </div>
     ${styleSection(code)}
     ${tmsHtml}
-    ${sq ? `<details class="ts-squad" open><summary><span>Squad</span><small>${sq.players.length} players${teamCoach(code) ? ` · ${esc(teamCoach(code))}` : ""}</small></summary>${rosterMarkup(sq, code)}</details>`
+    ${sq ? `<details class="ts-squad" open><summary><span>Squad</span><small>${sq.players.length} players${teamCoach(code) ? ` · ${esc(teamCoach(code))}` : ""}</small></summary>${sv ? `<div class="ts-squadvit"><span class="tsv-lbl">Squad average</span>${sv.age ? `<span><b>${sv.age.toFixed(1)}</b> yrs</span>` : ""}${sv.height ? `<span><b>${(sv.height / 100).toFixed(2)}</b> m</span>` : ""}${sv.weight && sv.wN >= sv.n * 0.6 ? `<span><b>${Math.round(sv.weight)}</b> kg</span>` : ""}</div>` : ""}${rosterMarkup(sq, code)}</details>`
         : `<div class="eyebrow">Squad</div><div class="empty">${esc(t.name)}'s squad isn't published yet. Check back closer to kickoff.</div>`}
     ${done.length ? `<div class="eyebrow">Results</div>${done.map((m, i) => matchCard(m, i)).join("")}` : ""}
     ${upcoming.length ? `<div class="eyebrow">Fixtures</div>${upcoming.map((m, i) => matchCard(m, i)).join("")}` : (done.length ? "" : `<div class="empty">Fixtures to be confirmed.</div>`)}

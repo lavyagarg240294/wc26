@@ -680,8 +680,8 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .tr-gd{font-family:var(--mono);font-size:12px;color:var(--ink-soft);width:34px;text-align:right;flex:0 0 34px;font-variant-numeric:tabular-nums}
 .tr-pts{font-family:var(--mono);font-weight:700;font-size:15px;font-variant-numeric:tabular-nums;display:flex;flex-direction:column;align-items:flex-end;line-height:1;width:30px}
 .tr-pts small{font-weight:500;font-size:9px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.02em}
-.tr-cut{position:relative;text-align:center;margin:7px 14px;border-top:2px dashed color-mix(in srgb,var(--gold) 50%,var(--line))}
-.tr-cut span{position:relative;top:-9px;font-family:var(--disp);font-weight:800;font-stretch:106%;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--gold-text);background:var(--card);padding:0 10px}
+.tr-cut{position:relative;height:0;margin:16px 14px;border-top:2px dashed color-mix(in srgb,var(--gold) 50%,var(--line))}
+.tr-cut span{position:absolute;top:0;left:50%;transform:translate(-50%,-50%);font-family:var(--disp);font-weight:800;font-stretch:106%;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--gold-text);background:var(--card);padding:0 10px;white-space:nowrap}
 /* projected Round of 32 (collapsible) */
 .proj{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);overflow:hidden;margin-top:10px;animation:rise .45s both}
 .proj>summary{list-style:none;cursor:pointer;display:flex;align-items:baseline;gap:10px;padding:13px 16px;font-family:var(--disp);font-weight:800;font-stretch:110%;font-size:13px;letter-spacing:.1em;text-transform:uppercase}
@@ -1370,6 +1370,10 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .ts-coach-tx{display:flex;flex-direction:column;gap:1px;min-width:0}
 .ts-coach-tx i{font-style:normal;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);font-weight:600}
 .ts-coach-tx b{font-weight:700;font-size:14px}
+/* squad-wide averages line inside the Squad section (age / height / weight) */
+.ts-squadvit{display:flex;flex-wrap:wrap;align-items:baseline;gap:5px 12px;margin:2px 0 12px;font-size:12.5px;color:var(--ink-soft)}
+.ts-squadvit .tsv-lbl{font-family:var(--disp);font-weight:700;font-stretch:106%;font-size:10px;letter-spacing:.06em;text-transform:uppercase;margin-right:2px}
+.ts-squadvit b{font-family:var(--mono);font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
 /* WC history chips (2002–2022) */
 .wch-grid{display:flex;gap:5px;flex-wrap:wrap;margin:2px 0 10px}
 .wch-chip{display:flex;flex-direction:column;align-items:center;gap:3px;padding:7px 6px;border-radius:9px;flex:1;min-width:42px;text-align:center;background:var(--line)}
@@ -1777,6 +1781,8 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .rchip-W{color:var(--pitch);background:color-mix(in srgb,var(--pitch) 14%,transparent)}
 .rchip-D{color:var(--ink-soft);background:color-mix(in srgb,var(--line) 55%,transparent)}
 .rchip-L{color:var(--live);background:color-mix(in srgb,var(--live) 13%,transparent)}
+.rchip-live{color:var(--ink);background:color-mix(in srgb,var(--ink) 6%,transparent);display:inline-flex;align-items:center;gap:5px}   /* an in-progress game: neutral score + a red LIVE tag, never a W/D/L verdict */
+.rchip-live small{font-size:8px;font-weight:800;letter-spacing:.05em;background:var(--live);color:#fff;padding:1px 4px;border-radius:4px}
 /* player match log */
 .plog{display:flex;flex-direction:column;gap:6px;margin:0 0 4px}
 .plog-row{display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:10px;padding:9px 12px;background:var(--card);border:1px solid var(--line);border-radius:10px;cursor:pointer;transition:background .15s}
