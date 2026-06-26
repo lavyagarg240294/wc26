@@ -477,7 +477,11 @@ async function enrichStats(matches, prev, prevReports) {
     }
   }
   if (!need.length) return;
-  const dates = [...new Set(need.map(f => f.utc.slice(0, 10).replace(/-/g, "")))];
+  // ESPN's scoreboard is keyed by US-local date, so a match kicking off 00:00-04:00 UTC (late US evening the day
+  // before) sits on the PREVIOUS day's board. Query each match's UTC date +/-1 so those boundary games are found;
+  // the minute-keyed byMin lookup below still pins the exact event by its true UTC kickoff + team codes.
+  const yyyymmdd = (ymd, delta = 0) => { const d = new Date(Date.UTC(+ymd.slice(0, 4), +ymd.slice(5, 7) - 1, +ymd.slice(8, 10)) + delta * 864e5); return `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, "0")}${String(d.getUTCDate()).padStart(2, "0")}`; };
+  const dates = [...new Set(need.flatMap(f => [yyyymmdd(f.utc.slice(0, 10), -1), yyyymmdd(f.utc.slice(0, 10), 0), yyyymmdd(f.utc.slice(0, 10), 1)]))];
   const byMin = {};                                        // UTC-minute → [{id, codes:Set<ourCode>}] (≥1 when matches kick off simultaneously)
   for (const d of dates) {
     try {
