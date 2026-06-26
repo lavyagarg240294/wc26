@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "381";  // shown in footer; bump with the ?v= asset version
+const BUILD = "382";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -2040,8 +2040,8 @@ function renderTeams() {
   paint(el, head + teamsLandscapeBanner() + `<div class="eyebrow tv-eyebrow">All teams<span style="color:var(--ink-soft);font-weight:600">, ${isMap ? "tap a nation" : "tap for detail"}</span>${toggle}</div>` + body);
   $$("[data-tview]", el).forEach(b => b.onclick = () => { _teamsView = b.dataset.tview; renderTeams(); });
   if (isMap) renderTeamsMap();
-  const cta = $("#ctaPick", el); if (cta) cta.onclick = () => $("#teamDialog").showModal();
-  const chg = $("#ctaChange", el); if (chg) chg.onclick = () => $("#teamDialog").showModal();
+  const cta = $("#ctaPick", el); if (cta) cta.onclick = openTeamPicker;
+  const chg = $("#ctaChange", el); if (chg) chg.onclick = openTeamPicker;
 }
 let _teamsView = "grid", _worldMap = null;   // Teams tab: grid vs world-map view; the basemap SVG is fetched once, on first map open
 const popStr = n => n == null ? "" : n >= 1e6 ? (n / 1e6).toFixed(n >= 1e8 ? 0 : 1) + "M" : n >= 1e3 ? (n / 1e3).toFixed(0) + "k" : "" + n;
@@ -5003,6 +5003,13 @@ function buildPickers() {
     $("#teamDialog").close(); applyTheme(); buildPickers(); RENDER[S.view]();
   };
 }
+// open the team picker fresh: clear any leftover search text and reset the list to all 48 (otherwise the dialog
+// reopens still showing the previous filter). Dispatch 'input' so the existing oninput rebuilds + rewires the list.
+function openTeamPicker() {
+  const s = $("#teamSearch");
+  if (s) { s.value = ""; s.dispatchEvent(new Event("input")); }
+  $("#teamDialog").showModal();
+}
 function syncTzLabels() {
   const tzl = $("#tzState"); if (tzl) tzl.textContent = `${tzCity().split(",")[0].trim()} · ${tzShort()}`;  // compact: City · GMT±N (no country / "auto" clutter)
   $("#footTz").textContent = `${tzCity()} · ${tzShort()}`;
@@ -5488,7 +5495,7 @@ async function boot() {
   $("#aboutSiteBtn").onclick = () => { _fillBuild(); showSheet($("#aboutSiteDialog")); };   // single About sheet; tournament format lives in the Tables legend's "How the format works"
   $("#devStoryBtn")?.addEventListener("click", () => { _fillBuild(); const t = $("#aboutTech"); if (t) t.open = true; showSheet($("#aboutSiteDialog")); setTimeout(() => $("#aboutTech")?.scrollIntoView({ block: "start" }), 90); });   // "i" by the build → About, with the technical story expanded (the number itself keeps its egg)
   const _footTz = $("#footTz"); if (_footTz) _footTz.onclick = () => $("#tzDialog").showModal();   // the "in your timezone" promise is now one tap from the footer
-  $("#teamChip").onclick = () => $("#teamDialog").showModal();
+  $("#teamChip").onclick = openTeamPicker;
   // first-launch onboarding - a short, skippable welcome shown once (any dismissal marks it seen)
   if (!localStorage.getItem("wc26.seen")) {
     const w = $("#welcomeDialog");
@@ -5496,7 +5503,7 @@ async function boot() {
       const tzl = $("#welcomeTz"); if (tzl) tzl.textContent = `${tzCity()} · ${tzShort()}`;
       const seen = () => localStorage.setItem("wc26.seen", "1");
       w.addEventListener("close", seen);   // also covers Escape / backdrop dismissal
-      $("#welcomePick").onclick = () => { seen(); w.close(); $("#teamDialog").showModal(); };
+      $("#welcomePick").onclick = () => { seen(); w.close(); openTeamPicker(); };
       $("#welcomeGo").onclick = () => { seen(); w.close(); };
       setTimeout(() => { if (w.isConnected && !w.open) w.showModal(); }, 700);
     }
