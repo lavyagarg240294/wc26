@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "380";  // shown in footer; bump with the ?v= asset version
+const BUILD = "381";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -2275,14 +2275,13 @@ function heroSquad(code) {
 // World Cup pedigree (titles · best finish · appearances) + the head coach - the "what this team is about" header
 function teamOverview(code) {
   const t = S.teams[code]; if (!t) return "";
-  const titles = t.titles || 0, debut = t.best === "First appearance";
+  const debut = t.best === "First appearance";
   const [finish, yr] = (t.best || "").split(" · ");
   const coach = teamCoach(code);
-  // one pedigree statement: best finish (the headline) over "[Nx ·] year(s) · appearances". Titles fold in as the
-  // "Nx" count only when >1 (a single title is already implied by "Champions"); appearances live in the same line.
+  // one pedigree statement: best finish (the headline) over "year(s) · appearances"
   const head = debut ? "Debut" : esc(finish);
   const sub = debut ? "First World Cup"
-    : [titles > 1 ? `${titles}×` : "", yr ? esc(yr) : "", t.apps != null ? `${t.apps} appearance${t.apps !== 1 ? "s" : ""}` : ""].filter(Boolean).join(" · ");
+    : [yr ? esc(yr) : "", t.apps != null ? `${t.apps} appearance${t.apps !== 1 ? "s" : ""}` : ""].filter(Boolean).join(" · ");
   return `<div class="ts-ped"><div class="tp tp-finish"><b>${head}</b><span>${sub}</span></div></div>
     ${coach ? `<div class="ts-coach"><span class="ts-coach-badge">${esc(initials(coach))}</span><span class="ts-coach-tx"><i>Head coach</i><b>${esc(coach)}</b></span></div>` : ""}`;
 }
@@ -3931,7 +3930,7 @@ async function shareTeamCard(code) {
   const debut = t.best === "First appearance", [bestRound, bestYr] = (t.best || "").split(" · ");
   const pedHead = debut ? "Debut" : bestRound;
   const pedSub = debut ? "First World Cup"
-    : [t.titles > 1 ? `${t.titles}×` : "", bestYr || "", t.apps != null ? `${t.apps} appearance${t.apps !== 1 ? "s" : ""}` : ""].filter(Boolean).join("   ·   ");
+    : [bestYr || "", t.apps != null ? `${t.apps} appearance${t.apps !== 1 ? "s" : ""}` : ""].filter(Boolean).join("   ·   ");
   const py2 = y + 124;
   x.fillStyle = "#fff"; let pfs = 54; x.font = `800 ${pfs}px Archivo, sans-serif`;
   while (x.measureText(pedHead).width > W - 130 && pfs > 26) { pfs -= 2; x.font = `800 ${pfs}px Archivo, sans-serif`; }
