@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "400";  // shown in footer; bump with the ?v= asset version
+const BUILD = "401";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -2144,6 +2144,19 @@ const LANG = {
   SE: "Swedish", SN: "French", TN: "Arabic", TR: "Turkish", US: "English", UY: "Spanish",
   UZ: "Uzbek", ZA: "English",
 };
+// Capital city per nation, for the team-sheet country card. Official / constitutional seat where a country has more
+// than one (Yamoussoukro not Abidjan for CI; Pretoria - the executive capital - for ZA; Amsterdam not The Hague for NL).
+const CAPITAL = {
+  AR: "Buenos Aires", AT: "Vienna", AU: "Canberra", BA: "Sarajevo", BE: "Brussels", BR: "Brasília",
+  CA: "Ottawa", CD: "Kinshasa", CH: "Bern", CI: "Yamoussoukro", CO: "Bogotá", CV: "Praia",
+  CW: "Willemstad", CZ: "Prague", DE: "Berlin", DZ: "Algiers", EC: "Quito", EG: "Cairo",
+  ES: "Madrid", FR: "Paris", "GB-ENG": "London", "GB-SCT": "Edinburgh", GH: "Accra",
+  HR: "Zagreb", HT: "Port-au-Prince", IQ: "Baghdad", IR: "Tehran", JO: "Amman",
+  JP: "Tokyo", KR: "Seoul", MA: "Rabat", MX: "Mexico City", NL: "Amsterdam", NO: "Oslo",
+  NZ: "Wellington", PA: "Panama City", PT: "Lisbon", PY: "Asunción", QA: "Doha", SA: "Riyadh",
+  SE: "Stockholm", SN: "Dakar", TN: "Tunis", TR: "Ankara", US: "Washington, D.C.", UY: "Montevideo",
+  UZ: "Tashkent", ZA: "Pretoria",
+};
 // the all-48-nations world map: a lazy-loaded equirectangular basemap with a kit-coloured dot at each country's
 // centroid (same projection as the basemap). Tap a dot to open that team. The 122KB map is fetched only here.
 async function renderTeamsMap() {
@@ -2626,7 +2639,7 @@ async function fillCountryMap(code) {
   if (_worldMap == null) { try { _worldMap = await (await fetch("assets/worldmap.svg?v=" + BUILD)).text(); } catch { _worldMap = ""; } }
   const host = $("#ctryMap"); if (!host || host.dataset.mapcode !== code) return;   // the sheet changed while loading
   const t = S.teams[code];
-  const cap = `<span class="ctry-map-name"><span class="fl">${flag(code)}</span> ${esc(t.name)}</span>${LANG[code] ? `<span class="ctry-map-pop">Language · <b>${esc(LANG[code])}</b></span>` : ""}${t.pop ? `<span class="ctry-map-pop">Population · <b>${popWords(t.pop)}</b></span>` : ""}`;
+  const cap = `<span class="ctry-map-name"><span class="fl">${flag(code)}</span> ${esc(t.name)}</span>${CAPITAL[code] ? `<span class="ctry-map-pop">Capital · <b>${esc(CAPITAL[code])}</b></span>` : ""}${LANG[code] ? `<span class="ctry-map-pop">Language · <b>${esc(LANG[code])}</b></span>` : ""}${t.pop ? `<span class="ctry-map-pop">Population · <b>${popWords(t.pop)}</b></span>` : ""}`;
   const s = _countryShapes[code];
   if (!s) { host.classList.add("ctry-map-solo"); host.innerHTML = `<span class="ctry-map-cap">${cap}</span>`; return; }   // micro-states absent from the 110m set
   // widen the country's bounding box so the surrounding land shows around it, for a sense of where it sits
