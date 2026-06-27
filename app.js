@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "396";  // shown in footer; bump with the ?v= asset version
+const BUILD = "397";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -4465,6 +4465,7 @@ function tournamentStats() {
   if (_tsCache && _tsSig === sig) return _tsCache;
   const fts = S.matches.filter(m => isFeedFinal(m));   // feed-confirmed results only - a stuck-live coerced-FT score is provisional and never counted (matches standings())
   const gf = {}, ga = {}, poss = {}, possN = {}, sot = {}, sotN = {}, yel = {}, red = {}, played = {}, scorers = {}, assists = {}, pyel = {}, pred = {}, cs = {}, conf = {}, keepers = {}, tstat = {}, statN = {}, cardLog = {};
+  const xgF = {}, golX = {}, xgN = {};   // xG "created" + goals scored IN the same xG-covered matches (so the comparison is fair) + per-team count
   const TSTAT_KEYS = ["sh", "pass", "passT", "cross", "lball", "tkl", "intc", "clr", "blk", "sv", "off", "fls"];   // richer ESPN team stats → leaderboards + style
   let goals = 0, totYellow = 0, totRed = 0, totPen = 0, totOg = 0, totSot = 0;
   const rec = {};   // each record resolves to an ARRAY of all holders tied at the top value (joint records) - see topTies, post-loop
@@ -4480,6 +4481,9 @@ function tournamentStats() {
     const r = res(m), hc = slotInfo(m, "home").code, ac = slotInfo(m, "away").code;
     add(played, hc); add(played, ac);
     add(gf, hc, r.h); add(ga, hc, r.a); add(gf, ac, r.a); add(ga, ac, r.h);
+    const efi = S.efi?.[m.num];   // official xG (post-match): "created vs scored" - align efi's home/away to our hc/ac
+    if (efi?.xg && hc && ac) { const xh = efi.home === hc ? efi.xg[0] : efi.xg[1], xa = efi.home === hc ? efi.xg[1] : efi.xg[0];
+      add(xgF, hc, xh); add(xgF, ac, xa); add(golX, hc, r.h); add(golX, ac, r.a); add(xgN, hc); add(xgN, ac); }
     if (r.a === 0) add(cs, hc); if (r.h === 0) add(cs, ac);   // clean sheets (shutouts)
     // per-keeper: credit the starting GK (pos 0 in the lineup) with the shutout / goals conceded
     const gkOf = side => (r.xi?.[side]?.xi || []).find(p => p[2] === 0) || null;   // the lineup row [num, name, pos]
@@ -4628,6 +4632,7 @@ function tournamentStats() {
     teamCards: cardList,
     teamScored: perMatch(gf, played).sort((a, b) => b.v - a.v),
     teamConceded: perMatch(ga, played).sort((a, b) => a.v - b.v),
+    finishing: Object.keys(xgF).map(c => ({ code: c, xg: xgF[c], goals: golX[c] || 0, delta: (golX[c] || 0) - xgF[c], n: xgN[c] })).filter(x => x.n > 0).sort((a, b) => b.delta - a.delta),
     cleanSheets: Object.entries(cs).map(([code, v]) => ({ code, v })).sort((a, b) => b.v - a.v),
     keepers: Object.entries(keepers).map(([k, o]) => { const [name, code] = split(k); return { name, code, ...o }; })
       .filter(x => x.cs > 0).sort((a, b) => b.cs - a.cs || a.ga - b.ga || b.app - a.app || a.name.localeCompare(b.name)),
@@ -4942,6 +4947,14 @@ function renderStats() {
   // column and clip the "misses <opponent> · <date>" line, so render it directly instead.
   const playerDisc = (suspHtml || riskHtml) ? `<div class="eyebrow">Discipline ${discInfo}</div>${suspHtml}${riskHtml}` : "";
   const teamDisc = cardLead ? `<div class="eyebrow">Discipline ${discInfo}</div>${cardLead}` : "";
+  // "Goals vs expected": official xG (chances created) against the goals actually scored, over the same matches.
+  const xgInfo = infoBtn("Expected goals (xG) scores the QUALITY of the chances a team created - the goals an average side would score from them. This compares that to the goals they actually got, across the matches FIFA has published xG for. Above the line = scoring more than their chances were worth (clinical finishing, or some luck); below = leaving goals out there. A read on finishing, not a verdict.", "Goals vs expected (xG)");
+  const finishRow = x => { const over = x.delta >= 0; return `<div class="lead-row" data-squad="${x.code}" role="button" tabindex="0"><span class="fl">${flag(x.code)}</span><span class="lead-name">${tname(x.code)}<small>${x.goals} ${x.goals === 1 ? "goal" : "goals"} from ${x.xg.toFixed(1)} xG</small></span><span class="xg-delta ${over ? "over" : "under"}">${over ? "+" : "−"}${Math.abs(x.delta).toFixed(1)}</span></div>`; };
+  const finishHtml = s.finishing?.length ? (() => {   // the story is the extremes - the most clinical + the most wasteful; the near-xG middle is folded into a count
+    const f = s.finishing, big = f.length > 13, top = big ? f.slice(0, 7) : f, bot = big ? f.slice(-4) : [];
+    const gap = big ? `<div class="xg-gap">${f.length - 11} more within range of their xG</div>` : "";
+    return `<div class="eyebrow">Goals vs expected ${xgInfo}<span class="wp-est">FIFA xG · post-match</span></div><div class="lead-card xg-card">${top.map(finishRow).join("")}${gap}${bot.map(finishRow).join("")}</div>`;
+  })() : "";
   const sections = [
     ["overview", "Overview", `<div class="eyebrow">Tournament so far</div><div class="stat-tiles">
       ${tile("Goals", s.pulse.goals)}${tile("Matches", s.pulse.matches)}
@@ -4965,7 +4978,7 @@ function renderStats() {
       ${teamLead("Defensive actions", s.teamDef, perGame)}
       ${teamLead("Shots on target", s.teamSot, perGame)}
       ${teamLead("Crosses", s.teamCrosses, perGame)}
-    </div>${teamDisc}`],
+    </div>${finishHtml}${teamDisc}`],
     ["records", "All-time", recordsPanel(s)],
     ["rankings", "Ranking", statsTab === "rankings" ? fifaRankingPanel() : ""],   // lazy: the 211-row panel is built only when its tab is shown (or on first click, below)
   ];

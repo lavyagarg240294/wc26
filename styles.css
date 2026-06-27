@@ -1628,6 +1628,11 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .susp-tag{font-family:var(--disp);font-weight:800;font-stretch:106%;font-size:var(--fs-10);letter-spacing:.05em;text-transform:uppercase;padding:4px 10px;border-radius:99px;white-space:nowrap;flex:0 0 auto}
 .susp-tag.is-ban{background:color-mix(in srgb,var(--live) 18%,var(--card));color:var(--live)}
 .susp-tag.is-risk{background:color-mix(in srgb,var(--gold) 24%,var(--card));color:color-mix(in srgb,var(--gold) 55%,var(--ink))}
+/* goals vs expected (xG): finishing over/under the chances created */
+.xg-delta{margin-left:auto;flex:0 0 auto;font-family:var(--mono);font-weight:800;font-size:var(--fs-13);font-variant-numeric:tabular-nums}
+.xg-delta.over{color:var(--pitch)}
+.xg-delta.under{color:var(--live)}
+.xg-gap{padding:8px 14px;font-family:var(--body);font-weight:500;font-size:var(--fs-11);color:var(--ink-soft);text-align:center;border-top:1px solid color-mix(in srgb,var(--line) 50%,transparent)}
 .lead-scorers .lead-top .lead-rank{color:var(--gold-text)}
 .lead-scorers .lead-top .lead-v{color:var(--gold-text)}
 .lead-fair-top .lead-rank,.lead-fair-top .lead-v{color:var(--pitch)}
