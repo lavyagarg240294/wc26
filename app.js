@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "401";  // shown in footer; bump with the ?v= asset version
+const BUILD = "402";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -4148,7 +4148,7 @@ async function shareTeamCard(code) {
   x.fillStyle = "#fff"; let pfs = 54; x.font = `800 ${pfs}px ${SHARE_FONT.disp}`;
   while (x.measureText(pedHead).width > W - 130 && pfs > 26) { pfs -= 2; x.font = `800 ${pfs}px ${SHARE_FONT.disp}`; }
   x.fillText(pedHead, W / 2, py2);
-  if (pedSub) { x.fillStyle = SHARE_INK.soft; x.font = `600 28px ${SHARE_FONT.disp}`; x.fillText(pedSub, W / 2, py2 + 48); }
+  if (pedSub) { x.fillStyle = SHARE_INK.soft; let sfs = 28; x.font = `600 ${sfs}px ${SHARE_FONT.disp}`; while (x.measureText(pedSub).width > W - 130 && sfs > 16) { sfs -= 2; x.font = `600 ${sfs}px ${SHARE_FONT.disp}`; } x.fillText(pedSub, W / 2, py2 + 48); }   // a multi-year honours list (e.g. Brazil's five titles) must not overflow the card
   // this-tournament standing + qualification status
   const tbl = grp ? standings(grp) : [], pos = tbl.findIndex(r => r.code === code) + 1, row = tbl[pos - 1], qs = qualStatus(code);
   let sy = py2 + 116;
