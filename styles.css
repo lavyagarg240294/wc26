@@ -802,6 +802,16 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .earlier[open] .ear-hint{display:none}
 .ear-body{padding:2px 14px 8px}
 .ear-body .dayhead{top:auto;position:static;background:none}
+/* Tables tab: once the groups settle, the group tables + best-third race fold away under the bracket */
+.tbl-fold{margin:10px 0;border:1px solid var(--line);border-radius:14px;background:color-mix(in srgb,var(--paper) 55%,var(--card));overflow:hidden}
+.tbl-fold>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;padding:13px 16px;font-family:var(--disp);font-weight:800;font-stretch:110%;font-size:var(--fs-14);color:var(--ink-soft)}
+.tbl-fold>summary::-webkit-details-marker{display:none}
+.tbl-fold>summary:hover{color:var(--ink)}
+.tbl-fold>summary .ear-tri{transition:transform .2s;font-size:var(--fs-12);color:var(--ink-soft)}
+.tbl-fold[open]>summary .ear-tri{transform:rotate(90deg)}
+.tbl-fold-body{padding:4px 14px 12px}
+/* unresolved live-bracket slot: a readable "Winner R32-1" seed instead of a tri */
+.lb-seed{font-family:var(--disp);font-weight:600;font-size:var(--fs-11);letter-spacing:0;color:var(--ink-soft);text-transform:none}
 /* group qualification outlook (reuses the <details> chrome) */
 .outlook{border:1px solid var(--line);border-radius:14px;background:color-mix(in srgb,var(--paper) 55%,var(--card));overflow:hidden}
 .outlook summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:9px;padding:11px 14px;font-family:var(--disp);font-weight:800;font-stretch:110%;font-size:var(--fs-13);color:var(--ink-soft)}

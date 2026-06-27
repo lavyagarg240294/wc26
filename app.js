@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "394";  // shown in footer; bump with the ?v= asset version
+const BUILD = "395";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -3124,6 +3124,16 @@ let _r32Mode = "projected";   // "projected" (fill all slots) | "confirmed" (onl
 // GATED OFF (SHOW_LIVE_BRACKET) until the knockouts are underway and its advancement can be verified against real
 // results; ?bracket=1 force-shows it for testing. Resolution reuses slotInfo/winnerFeed (already proven for the R32).
 const SHOW_LIVE_BRACKET = false;
+// which face the Tables tab shows, driven purely by the data: "groups" (some group game left) → group tables +
+// best-third race lead; "locked" (every group feed-final, no knockout kicked off) → the settled R32 bracket leads,
+// groups/third-race fold away; "ko" (a knockout tie is live or finished) → the live R32→Final bracket leads.
+function tablesPhase() {
+  const f = new URLSearchParams(location.search).get("phase");
+  if (f === "groups" || f === "locked" || f === "ko") return f;   // debug override to verify the transition before KO
+  if (S.matches.some(m => m.stage !== "group" && (isLiveSt(status(m)) || isFeedFinal(m)))) return "ko";
+  if (GROUPS.every(g => remInGroup(g) === 0)) return "locked";
+  return "groups";
+}
 function liveBracketHTML() {
   const rounds = [["r32", "Round of 32"], ["r16", "Round of 16"], ["qf", "Quarter-finals"], ["sf", "Semi-finals"], ["third", "Third-place play-off"], ["final", "Final"]];
   const tieEl = m => {
@@ -3131,11 +3141,11 @@ function liveBracketHTML() {
     const fin = isFinalSt(st) && r && r.h != null, live = isLiveSt(st);
     const winH = fin && (r.h > r.a || (r.h === r.a && (r.hp ?? -1) > (r.ap ?? -1)));
     const winA = fin && (r.a > r.h || (r.h === r.a && (r.ap ?? -1) > (r.hp ?? -1)));
-    const side = (s, won, lost) => `<span class="lb-side${won ? " lb-won" : ""}${lost ? " lb-lost" : ""}">${s.code ? flag(s.code) : TBD_FLAG}<b>${s.code ? tri(s.code) : esc(s.short || "?")}</b></span>`;
+    const side = (s, sd, won, lost) => `<span class="lb-side${won ? " lb-won" : ""}${lost ? " lb-lost" : ""}">${s.code ? flag(s.code) : TBD_FLAG}<b>${s.code ? tri(s.code) : `<span class="lb-seed">${esc(slotText(m, sd, s))}</span>`}</b></span>`;
     const mid = fin ? `<span class="lb-sc">${r.h}–${r.a}${r.hp != null ? `<small>(${r.hp}–${r.ap}p)</small>` : ""}</span>`
       : live ? `<span class="lb-sc lb-live">${r?.h ?? 0}–${r?.a ?? 0}</span>`
       : `<span class="lb-v">v</span>`;
-    return `<div class="lb-tie" data-mid="${m.id}" role="button" tabindex="0">${side(h, winH, winA)}${mid}${side(a, winA, winH)}</div>`;
+    return `<div class="lb-tie" data-mid="${m.id}" role="button" tabindex="0">${side(h, "home", winH, winA)}${mid}${side(a, "away", winA, winH)}</div>`;
   };
   const cols = rounds.map(([st, name]) => {
     const ms = S.matches.filter(m => m.stage === st).sort((a, b) => a.num - b.num);
@@ -3316,16 +3326,22 @@ function roadSection(code) {
 }
 function renderGroups() {
   const el = $("#view-groups");
+  const phase = tablesPhase();   // groups → tables lead · locked → settled R32 leads · ko → live bracket leads
+  const groups = `<div class="gwrap">${GROUPS.map((g, i) => `<div class="gcol">${groupTable(g, i)}</div>`).join("")}</div>
+     <div class="legend"><span class="l1"><i></i>Top 2 advance to the Round of 32</span><span class="l3"><i></i>3rd place: eight best advance</span><button class="legend-about" data-about>ⓘ How the format works</button></div>`;
+  const third = thirdRaceHTML();
+  // once the groups are settled, demote them (and the now-decided best-third race) into folds so the bracket leads -
+  // they stay one tap away as the final reference. The fold reuses the existing ▸ disclosure pattern.
+  const fold = (label, body) => body ? `<details class="tbl-fold"><summary><span class="ear-tri">▸</span> ${label}</summary><div class="tbl-fold-body">${body}</div></details>` : "";
   const html =
-    `<div class="gwrap">${GROUPS.map((g, i) => `<div class="gcol">${groupTable(g, i)}</div>`).join("")}</div>
-     <div class="legend"><span class="l1"><i></i>Top 2 advance to the Round of 32</span><span class="l3"><i></i>3rd place: eight best advance</span><button class="legend-about" data-about>ⓘ How the format works</button></div>
-     ${thirdRaceHTML()}
-     ${r32BracketHTML()}`;
+    phase === "groups" ? groups + third + r32BracketHTML()
+    : phase === "locked" ? r32BracketHTML() + fold("Final group tables", groups) + fold("Best-third race", third)
+    : liveBracketHTML() + fold("Final group tables", groups) + fold("Best-third race", third);
   if (el.__sig === html) return;                           // groups unchanged (e.g. a minute tick elsewhere) - no flicker
   el.__sig = html;
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const prev = {};                                          // capture row positions for a FLIP when standings reorder
-  if (!reduce) el.querySelectorAll("tr[data-code]").forEach(tr => prev[tr.dataset.g + tr.dataset.code] = tr.getBoundingClientRect().top);
+  const prev = {};                                          // capture row positions for a FLIP when standings reorder (only while the tables lead)
+  if (!reduce && phase === "groups") el.querySelectorAll("tr[data-code]").forEach(tr => prev[tr.dataset.g + tr.dataset.code] = tr.getBoundingClientRect().top);
   paint(el, html);   // morph (not innerHTML replace) so a Projected/Confirmed toggle updates only what changed - no entrance-animation replay, no scroll jump
   if (!reduce && Object.keys(prev).length) el.querySelectorAll("tr[data-code]").forEach(tr => {
     const old = prev[tr.dataset.g + tr.dataset.code]; if (old == null) return;
