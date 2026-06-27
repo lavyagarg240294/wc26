@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "402";  // shown in footer; bump with the ?v= asset version
+const BUILD = "403";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1292,8 +1292,26 @@ function winProb(m, pre = false, at = null) {   // at = {h,a,min,reds}: evaluate
     probH = probH / oldRest * rest; probA = probA / oldRest * rest; probD = newD;
   }
   const predicted = cells.sort((x, y) => y.p - x.p).slice(0, 3).map(c => ({ h: c.h, a: c.a, p: c.p / tot }));
-  return { h: probH, d: probD, a: probA, live, ko,
-    adv: ko ? { h: probH + 0.5 * probD, a: probA + 0.5 * probD } : null,   // KO: a 90' draw → ET/pens, split 50/50
+  // knockout cascade: a 90-minute draw goes to 30 minutes of extra time, modelled as the SAME who's-stronger ratio at a
+  // third of the goal rate (a literature prior - extra time adds ~0.8 goals total - never fit to this tournament). The
+  // stronger side is therefore favoured to settle it, not a coin flip. If still level after extra time it's an even
+  // finish we don't characterise further. LIVE ties keep the old flat 50/50 split: refining an in-progress extra-time
+  // tie minute-by-minute is the deliberately-unmodelled boundary.
+  let adv = null, et = null;
+  if (ko && !live) {
+    const etS = 30 / 90, lamHet = lamH * etS, lamAet = lamA * etS;   // lamH/lamA are the full 90' goal rates pre-match (remFrac = 1)
+    let eH = 0, eD = 0, eA = 0;
+    for (let rh = 0; rh < 7; rh++) for (let ra = 0; ra < 7; ra++) {
+      const p = _pois(rh, lamHet) * _pois(ra, lamAet) * _dcTau(rh, ra, lamHet, lamAet);
+      if (rh > ra) eH += p; else if (rh < ra) eA += p; else eD += p;
+    }
+    const eT = eH + eD + eA || 1; eH /= eT; eD /= eT; eA /= eT;
+    et = { h: eH, d: eD, a: eA, goals: lamHet + lamAet };
+    adv = { h: probH + probD * (eH + 0.5 * eD), a: probA + probD * (eA + 0.5 * eD) };   // win in 90' OR settle it in ET; an even finish if still level
+  } else if (ko) {
+    adv = { h: probH + 0.5 * probD, a: probA + 0.5 * probD };
+  }
+  return { h: probH, d: probD, a: probA, live, ko, adv, et,
     predicted, drawMode: predicted[0] && predicted[0].h === predicted[0].a, xg: { h: exH / tot, a: exA / tot },
     reasons: reasons.sort((x, y) => y.mag - x.mag).slice(0, 3) };
 }
@@ -1354,11 +1372,20 @@ function winProbBlock(m, pre = false) {
   const bar = koAdv
     ? `<div class="wp-bar" role="img" aria-label="${esc(h.name)} ${ah}% to advance, ${esc(a.name)} ${aa}% to advance"><span class="wp-h" style="width:${ah}%"></span><span class="wp-a" style="width:${aa}%"></span></div>`
     : `<div class="wp-bar" role="img" aria-label="${esc(h.name)} ${ph}%, draw ${pd}%, ${esc(a.name)} ${pa}%"><span class="wp-h" style="width:${ph}%"></span><span class="wp-d" style="width:${pd}%"></span><span class="wp-a" style="width:${pa}%"></span></div>`;
+  // knockout extra-time read: the conditional "if it's level after 90'" 30-minute outcome - who is favoured to find the
+  // winner versus it staying level. A goal-rate prior, framed as a probability (a single ET scoreline would round to 0-0).
+  const etLine = (koAdv && wp.et) ? (() => {
+    const eh = Math.round(wp.et.h * 100), ea = Math.round(wp.et.a * 100), el = Math.max(0, 100 - eh - ea);
+    return `<div class="wp-et"><span class="wp-et-cap">If level after 90' · extra time</span>
+      <div class="wp-bar wp-et-bar" role="img" aria-label="In extra time, ${esc(h.name)} ${eh}% to find the winner, still level ${el}%, ${esc(a.name)} ${ea}%"><span class="wp-h" style="width:${eh}%"></span><span class="wp-d" style="width:${el}%"></span><span class="wp-a" style="width:${ea}%"></span></div>
+      <div class="wp-et-legend"><span>${flag(h.code)} <b>${eh}%</b></span><span>still level <b>${el}%</b></span><span><b>${ea}%</b> ${flag(a.code)}</span></div></div>`;
+  })() : "";
   // the single "projected score" is dropped - the "Most likely scores" tiles (rendered just below) say it better
-  return `<div class="eyebrow">Win probability <span class="wp-est">${wp.live ? "live estimate" : "pre-match estimate"}</span>${infoBtn("A Dixon-Coles goals model. Each side's strength is a World-Football Elo that updates after every result (blending in FIFA's expected goals), nudged by host advantage and, late in the groups, by what each team still needs to qualify. The most-likely scores below are the model's top scorelines. A clearly-labelled estimate, not a betting line.", "How win probability is calculated")}</div>
+  return `<div class="eyebrow">Win probability <span class="wp-est">${wp.live ? "live estimate" : "pre-match estimate"}</span>${infoBtn("A Dixon-Coles goals model. Each side's strength is a World-Football Elo that updates after every result (blending in FIFA's expected goals), nudged by host advantage and, late in the groups, by what each team still needs to qualify. For a knockout tie, a level result after 90 minutes is carried into 30 minutes of extra time at a third of the goal rate, and the chance to advance reflects that. The most-likely scores below are the model's top scorelines. A clearly-labelled estimate, not a betting line.", "How win probability is calculated")}</div>
     <div class="wp">
       ${bar}
-      ${legend}</div>`;
+      ${legend}
+      ${etLine}</div>`;
 }
 /* ---------------- stakes explainer ----------------
    Plain-language "what this result means for qualification" on group matches. Pure points-based reasoning over

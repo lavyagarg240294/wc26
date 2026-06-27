@@ -928,6 +928,12 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .ws-dot{stroke:var(--card);stroke-width:1.5}
 .wp-legend b{font-family:var(--mono);font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
 .wp-legend .flagimg{max-height:1.1em;vertical-align:-.18em}
+.wp-et{margin-top:11px;padding-top:11px;border-top:1px solid color-mix(in srgb,var(--line) 60%,transparent)}
+.wp-et-cap{display:block;font-size:var(--fs-10);text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);font-weight:700;margin-bottom:6px}
+.wp-et-bar{height:10px}
+.wp-et-legend{display:flex;justify-content:space-between;gap:8px;margin-top:6px;font-size:var(--fs-11);color:var(--ink-soft)}
+.wp-et-legend b{font-family:var(--mono);font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
+.wp-et-legend .flagimg{max-height:1.05em;vertical-align:-.16em}
 .wp-note{font-size:var(--fs-11);line-height:1.45;color:var(--ink-soft);margin:8px 0 0}
 /* stakes explainer — plain-language qualification consequences */
 .stakes{margin:8px 0 4px;padding:0;list-style:none;display:flex;flex-direction:column;gap:7px}
