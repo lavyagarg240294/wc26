@@ -224,7 +224,11 @@ async function fromFifa(prev, needsPhotos) {
       // ms 0 (finished) or a missing status: time-aware, so a still-running game the feed labelled early stays LIVE and a
       // real final still recovers. A known-but-unrecognized code AFTER kickoff is treated as interrupted (SUSP), never a
       // fabricated full-time score - so an abnormal/abandoned game can never leak a partial result into the table.
-      if (ms == null || ms === 0) st = (kickoff && now >= kickoff && now < kickoff + 150 * 60000) ? "LIVE" : "FT";
+      // An explicit "finished" (ms 0) on a GROUP game has no extra time to muddy it, so trust it as full-time once the
+      // match could plausibly be over (>=100' real elapsed guards against a pre-finish glitch) - confirming ~45 min
+      // sooner than the blanket cap, so a freshly-finished game doesn't linger as "live" then trip the client's TBC.
+      // A MISSING status, or any KNOCKOUT (extra time / pens run long), stays cautious to the 150-min cap.
+      if (ms == null || ms === 0) { const cap = (ms === 0 && f.stage === "group") ? 100 : 150; st = (kickoff && now >= kickoff && now < kickoff + cap * 60000) ? "LIVE" : "FT"; }
       else st = (Number.isFinite(kickoff) && now < kickoff) ? "SCHED" : "SUSP";
     }
 

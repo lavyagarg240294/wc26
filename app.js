@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "403";  // shown in footer; bump with the ?v= asset version
+const BUILD = "404";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1014,11 +1014,11 @@ function mdEfi(m, expand = false) {
   const players = [...homeKm.map(p => ({ ...p, c: hc, code: h.code })), ...awayKm.map(p => ({ ...p, c: ac, code: a.code }))]
     .sort((x, y) => y.km - x.km);
   const maxKm = players[0]?.km || 12;
-  const distLabel = homeKm.length && awayKm.length ? "km, both teams"
-    : homeKm.length ? `km, ${esc(h.name)} only`
-    : awayKm.length ? `km, ${esc(a.name)} only` : null;
+  const distLabel = homeKm.length && awayKm.length ? "km"
+    : homeKm.length ? `km · ${esc(h.name)} only`
+    : awayKm.length ? `km · ${esc(a.name)} only` : null;   // both teams is self-evident from the rows - just the unit; a one-team note stays
   const dist = players.length && distLabel ? `<div class="efi-sub">Distance covered <small>${distLabel}</small></div>
-    <div class="efi-dist">${players.slice(0, 14).map(p => `<div class="efi-prow">
+    <div class="efi-dist">${players.slice(0, 14).map(p => `<div class="efi-prow efi-prow-clk" data-player="${esc(p.name)}|${p.code}" role="button" tabindex="0" title="View ${esc(pName(p.name, p.code))}">
       <span class="efi-pn">${esc(tlName(p.name, p.code))}</span>
       <span class="efi-pbar"><i style="width:${Math.max(5, Math.round(p.km / maxKm * 100))}%;background:${p.c}"></i></span>
       <span class="efi-pv">${p.km.toFixed(1)}</span></div>`).join("")}</div>` : "";
@@ -1579,7 +1579,7 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
   const sv = isSaved(id);
   const statusTag = st === ST.LIVE ? `<span class="md-tag live">● ${liveLabel(m, r) || "Live"}</span>`
     : st === ST.HT ? `<span class="md-tag live">Half-time</span>`
-    : unconf ? `<span class="md-tag abn">Result to be confirmed</span>`
+    : unconf ? `<span class="md-tag abn">Awaiting confirmation</span>`
     : st === ST.FT ? `<span class="md-tag ft">Full time</span>`
     : isAbnormal(st) ? `<span class="md-tag abn md-tag-${st.toLowerCase()}">${stMeta(st).lbl}</span>`
     : `<span class="md-tag soon">Upcoming</span>`;   // time/date live in the meta row below - no need to repeat it
@@ -1604,7 +1604,7 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
       </div>
     </div>
     <div class="md-teams">${side(h, "home")}<div class="md-mid">${mid}</div>${side(a, "away")}</div>
-    ${r?.note ? `<div class="md-note">${esc(r.note)}</div>` : isAbnormal(st) ? `<div class="md-note">This match is ${stMeta(st).lbl.toLowerCase()}${st === ST.SUSP || st === ST.ABD ? " - the score shown is provisional, not a final result" : st === ST.PP ? " - it will be rescheduled" : ""}.</div>` : unconf ? `<div class="md-note">The feed stopped updating before full-time, so this result isn't confirmed yet - it may have been suspended, or the data source simply lagged. The score shown is provisional.</div>` : ""}
+    ${r?.note ? `<div class="md-note">${esc(r.note)}</div>` : isAbnormal(st) ? `<div class="md-note">This match is ${stMeta(st).lbl.toLowerCase()}${st === ST.SUSP || st === ST.ABD ? " - the score shown is provisional, not a final result" : st === ST.PP ? " - it will be rescheduled" : ""}.</div>` : unconf ? `<div class="md-note is-soft">Awaiting full-time confirmation.</div>` : ""}
     ${koPath(m)}`;
   const pTimeline = r?.ev?.length ? mdTimeline(r, h.code, a.code) : (r?.gh?.length || r?.ga?.length) ? `<div class="md-goals">
       <div class="md-goals-col">${(r.gh || []).map(g => `<div class="md-goal">${ICO.ball} ${esc(g)}</div>`).join("")}</div>
@@ -1688,7 +1688,7 @@ function heroBlock(heroM, isLive, onLive) {
   const live = isLive != null ? isLive : [ST.LIVE, ST.HT].includes(st);   // Matches tab passes it; Live tab derives the state
   const unconf = !live && isUnconfirmedFinal(heroM);
   const ft = !live && isFinalSt(st) && !unconf, abn = !live && (isAbnormal(st) || unconf), result = ft || (abn && r?.h != null), clickable = !onLive;
-  const tag = live ? `${ballSVG("live-ball")} Live now` : ft ? `● Full time` : unconf ? `● Result to be confirmed` : abn ? `● ${stMeta(st).lbl}` : `${isFavMatch(heroM) ? "Your team · " : ""}Next kickoff`;
+  const tag = live ? `${ballSVG("live-ball")} Live now` : ft ? `● Full time` : unconf ? `● Awaiting confirmation` : abn ? `● ${stMeta(st).lbl}` : `${isFavMatch(heroM) ? "Your team · " : ""}Next kickoff`;
   // qualified / out marker under each team name (group heroes only); reserve the row on BOTH sides when either
   // team has one, so the two big flags stay vertically aligned.
   const grp = heroM.stage === "group";

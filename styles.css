@@ -546,6 +546,7 @@ body.bg-paused #bg span{animation-play-state:paused;will-change:auto}
 .mcard-score.is-abn .lo{opacity:.3}
 .hero-tag.is-abn{color:var(--gold-text)}
 .md-note{margin:10px 0 0;font:500 12.5px/1.45 var(--body);color:var(--ink-soft);background:color-mix(in srgb,var(--gold) 9%,var(--card));border:1px solid color-mix(in srgb,var(--gold) 24%,transparent);border-radius:10px;padding:9px 13px}
+.md-note.is-soft{background:none;border:none;border-radius:0;padding:7px 0 0;margin-top:8px}   /* a benign full-time feed-lag - plain calm line, not a boxed warning */
 .mcard-sub{margin-top:9px;padding-top:9px;border-top:1px dashed var(--line);display:flex;flex-wrap:wrap;gap:4px 14px;font-size:var(--fs-12);color:var(--ink-soft)}
 .mcard-sub .grp{font-family:var(--disp);font-weight:700;font-stretch:110%;letter-spacing:.05em;color:var(--acc-text)}
 .mcard-star{
@@ -1736,6 +1737,10 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .efi-sub small{font-weight:600;letter-spacing:0;text-transform:none;opacity:.78}
 .efi-dist{display:flex;flex-direction:column;gap:5px}
 .efi-prow{display:grid;grid-template-columns:86px 1fr 30px;align-items:center;gap:9px;font-size:var(--fs-12)}
+.efi-prow-clk{cursor:pointer;border-radius:7px;margin:0 -6px;padding:2px 6px;transition:background .15s}
+.efi-prow-clk:hover{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
+.efi-prow-clk:active{background:color-mix(in srgb,var(--acc1) 14%,transparent)}
+.efi-prow-clk:hover .efi-pn{color:var(--acc-text)}
 .efi-pn{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600;color:var(--ink)}
 .efi-pbar{height:8px;border-radius:99px;background:color-mix(in srgb,var(--ink) 8%,transparent);overflow:hidden}
 .efi-pbar>i{display:block;height:100%;border-radius:99px;transition:width .4s cubic-bezier(.21,.8,.35,1)}
