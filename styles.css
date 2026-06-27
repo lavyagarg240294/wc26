@@ -1506,7 +1506,11 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .md-mid{display:flex;flex-direction:column;align-items:center;justify-content:center;padding-top:10px}
 .md-score{font-family:var(--mono);font-weight:700;font-size:28px;font-variant-numeric:tabular-nums;display:flex;gap:8px;align-items:baseline}
 .md-score span{color:var(--ink-soft);font-weight:400}
-.md-pens{font-family:var(--mono);font-size:var(--fs-11);color:var(--ink-soft);margin-top:3px}
+.md-pens{display:flex;align-items:baseline;gap:5px;width:fit-content;margin:6px auto 0;font-family:var(--disp);font-weight:600;font-size:var(--fs-12);color:var(--gold-text);background:color-mix(in srgb,var(--gold) 16%,transparent);border-radius:20px;padding:2px 11px}
+.md-pens small{font-size:var(--fs-11);text-transform:uppercase;letter-spacing:.08em;font-weight:700;opacity:.8}
+.md-pens b{font-family:var(--mono);font-weight:800;font-size:var(--fs-13);font-variant-numeric:tabular-nums;color:var(--ink)}
+.md-pens.is-live{color:var(--live);background:color-mix(in srgb,var(--live) 14%,transparent);animation:pulse 1.6s ease-in-out infinite}
+.md-pens.is-live b{color:var(--live)}
 .md-vs{font-family:var(--disp);font-weight:800;font-size:var(--fs-18);color:var(--ink-soft);letter-spacing:.05em}
 /* goals timeline in the match dialog */
 .md-goals{display:grid;grid-template-columns:1fr 1fr;gap:2px 14px;padding:4px 2px 12px;border-top:1px dashed var(--line)}

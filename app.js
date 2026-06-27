@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "395";  // shown in footer; bump with the ?v= asset version
+const BUILD = "396";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1072,7 +1072,8 @@ function koPath(m) {
 // (from the same feed chain koPath uses). Only for an unfinished knockout tie - a finished one shows its result.
 function koStakeLine(m) {
   if (!m || m.stage === "group" || isFinalSt(status(m))) return "";
-  if (m.stage === "final" || m.stage === "third") return "";   // the round label ("Final" / "3rd place") already says it - a stake line would only state the obvious
+  if (m.stage === "final") return "";   // the round label ("Final") already says it - a stake line would only state the obvious
+  if (m.stage === "third") return "Playing for the bronze medal - the two beaten semi-finalists.";
   const tgt = {}; S.matches.forEach(x => { if (x.stage !== "group") [x.home, x.away].forEach(s => { if (s.feeds != null) tgt[s.feeds] = x.num; }); });
   const next = S.matches.find(x => x.num === tgt[m.num]);
   const nm = next ? STAGE_NAME[next.stage] : null;
@@ -1535,7 +1536,7 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
       <span class="md-name ${s.ph ? "is-ph" : ""}">${esc(slotText(m, key, s))}</span>
       ${s.code ? `<span class="md-teaminfo">${esc(S.teams[s.code].conf || "")}${fifaRankOf(s.code) ? ` · <span class="md-rank" title="FIFA World Ranking">#${fifaRankOf(s.code)}</span>` : ""}${S.teams[s.code].titles ? ` · ${TROPHY} ${S.teams[s.code].titles}` : ""}</span>` : ""}</div>`;
   const mid = (score || live)
-    ? `<div class="md-score">${r?.h ?? 0}<span>–</span>${r?.a ?? 0}</div>${r?.hp != null ? `<div class="md-pens">(${r.hp}–${r.ap}p)</div>` : ""}`
+    ? `<div class="md-score">${r?.h ?? 0}<span>–</span>${r?.a ?? 0}</div>${r?.hp != null ? `<div class="md-pens${inShootout(m, r) ? " is-live" : ""}"><small>${inShootout(m, r) ? "Penalties" : "Won on penalties"}</small> <b>${r.hp}–${r.ap}</b></div>` : ""}`
     : `<div class="md-vs">VS</div>`;
   const liveNow = st === ST.LIVE || st === ST.HT;
   $("#matchTitle").innerHTML = `<span class="md-stage">${esc(stageL)}</span>`;
@@ -4593,7 +4594,7 @@ function tournamentStats() {
     if (a2) (teamSched[a2] ||= []).push({ ko, done, opp: h2, m: mm });
   }
   for (const c in teamSched) teamSched[c].sort((x, z) => (x.ko < z.ko ? -1 : x.ko > z.ko ? 1 : 0));
-  const suspendedList = [];
+  const suspendedList = [], riskList = [];
   for (const pk in cardLog) {
     const evs = cardLog[pk].slice().sort((x, z) => (x.ko < z.ko ? -1 : x.ko > z.ko ? 1 : 0));
     let yc = 0, trigKo = null, reason = null, wiped = false;
@@ -4604,10 +4605,17 @@ function tournamentStats() {
       if (e.k === "R") { trigKo = e.ko; reason = "red"; }
       else if (++yc % 2 === 0) { trigKo = e.ko; reason = "yellows"; }
     }
-    if (!trigKo) continue;   // a single yellow is not a ban
     const [name, code] = split(pk);
-    const next = (teamSched[code] || []).find(x => x.ko > trigKo);
-    if (next && !next.done) suspendedList.push({ name, code, reason, miss: next });
+    if (trigKo) {                                          // a red or a completed two-yellow ban
+      const next = (teamSched[code] || []).find(x => x.ko > trigKo);
+      if (next && !next.done) { suspendedList.push({ name, code, reason, miss: next }); continue; }   // serving it now
+    }
+    // not currently banned, but carrying ONE unpaired yellow → a second booking next time out is a one-match ban.
+    // (Single yellows are already wiped post-QF in the loop above, so this never over-warns in the semis/final.)
+    if (yc % 2 === 1) {
+      const next = (teamSched[code] || []).find(x => !x.done);
+      if (next && !next.m.group) riskList.push({ name, code, miss: next });   // only flag it heading INTO a knockout tie - mid-group "on a yellow" is just noise
+    }
   }
   // team metrics are per-match (like FotMob) so a team that's played fewer games isn't ranked unfairly
   const perMatch = (tot, n) => Object.keys(tot).map(c => ({ code: c, v: tot[c] / (n[c] || 1) }));
@@ -4616,7 +4624,7 @@ function tournamentStats() {
   const _out = {
     pulse: { goals, matches: fts.length, perMatch: fts.length ? goals / fts.length : 0, yellows: totYellow, reds: totRed, pens: totPen, og: totOg, sot: totSot },
     records: rec,
-    scorers: scorerList, assisters: assistList, booked: bookedList, suspended: suspendedList,
+    scorers: scorerList, assisters: assistList, booked: bookedList, suspended: suspendedList, atRisk: riskList,
     teamCards: cardList,
     teamScored: perMatch(gf, played).sort((a, b) => b.v - a.v),
     teamConceded: perMatch(ga, played).sort((a, b) => a.v - b.v),
@@ -4848,6 +4856,15 @@ function renderStats() {
     <span class="susp-tag is-ban">${p.reason === "red" ? "Sent off" : "Two yellows"}</span></div>`; };
   const suspHtml = s.suspended.length
     ? `<div class="lead-card"><h4>Suspension watch <small>banned from their next match</small></h4>${s.suspended.map(suspRow).join("")}</div>` : "";
+  const riskRow = p => { const ph = bestPhoto(p.name, p.code), miss = p.miss;
+    const who = miss ? (miss.opp ? tname(miss.opp) : esc(matchTag(miss.m))) : "their next tie";
+    const when = miss ? fmt(miss.m.utc, { day: "numeric", month: "short" }) : "";
+    return `<div class="lead-row lead-player" data-player="${esc(p.name)}|${p.code}" role="button" tabindex="0">
+    ${ph ? `<span class="lead-face" style="background-image:url('${ph}')"></span>` : `<span class="fl">${flag(p.code)}</span>`}
+    <span class="lead-name">${esc(pName(p.name, p.code))}<small>${flag(p.code)} next: ${who}${when ? ` · ${when}` : ""}</small></span>
+    <span class="susp-tag is-risk">On a yellow</span></div>`; };
+  const riskHtml = s.atRisk?.length
+    ? `<div class="lead-card"><h4>One booking from a ban <small>a yellow in their next knockout tie means a one-match suspension</small></h4>${s.atRisk.map(riskRow).join("")}</div>` : "";
   const teamLead = (title, rows, fmt) => rows.length ? `<div class="lead-card"><h4>${title}</h4>${ranked(rows.slice(0, 5), (x, rank) => `<div class="lead-row" data-squad="${x.code}" role="button" tabindex="0">
     <span class="lead-rank">${rank}</span><span class="fl">${flag(x.code)}</span><span class="lead-name">${tname(x.code)}</span>
     <span class="lead-v">${fmt(x)}</span></div>`, fmt)}</div>` : "";
@@ -4923,7 +4940,7 @@ function renderStats() {
   const discInfo = infoBtn("Yellow and red cards shown in this tournament. A yellow is a booking (a caution); a straight red, or a second yellow in the same match, is a sending-off. A player misses the next match after a red, or after collecting two yellows in separate games - that shows under Suspension watch and clears the moment the ban is served. Single yellows are wiped after the quarter-finals. Tallies settle at full-time.", "How bookings & bans work");
   // Single full-width card (like the Golden Boot) - the auto-fill .lead-grid would pin a lone card to one ~248px
   // column and clip the "misses <opponent> · <date>" line, so render it directly instead.
-  const playerDisc = suspHtml ? `<div class="eyebrow">Discipline ${discInfo}</div>${suspHtml}` : "";
+  const playerDisc = (suspHtml || riskHtml) ? `<div class="eyebrow">Discipline ${discInfo}</div>${suspHtml}${riskHtml}` : "";
   const teamDisc = cardLead ? `<div class="eyebrow">Discipline ${discInfo}</div>${cardLead}` : "";
   const sections = [
     ["overview", "Overview", `<div class="eyebrow">Tournament so far</div><div class="stat-tiles">
