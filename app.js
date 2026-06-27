@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "397";  // shown in footer; bump with the ?v= asset version
+const BUILD = "400";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1401,6 +1401,27 @@ function _qualScan(g, X, fixId, fixOut) {
   // top3 = can't finish 4th; stuck4 = can't escape 4th (= out of the R32, since 4th never advances); winGroup = tops the group.
   return { clinched: allTop2, out: allOut, winGroup: allTop1, top3: allTop3, stuck4: allStuck4 };
 }
+// Points-only range of a group's THIRD-place point total over every still-possible result (goal-difference-blind).
+// A finished group has both bounds equal to its actual 3rd-placed points. Powers the cross-group best-third maths:
+// since groups never share a fixture, each group can be bounded independently and the worst/best cases all co-occur.
+function _thirdRange(g) {
+  const teams = groupTeams(g), rem = S.matches.filter(m => m.group === g && !isFeedFinal(m));
+  let lo = Infinity, hi = -Infinity;
+  const rec = (i, pts) => {
+    if (i === rem.length) { const t = teams.map(c => pts[c]).sort((a, b) => b - a)[2]; if (t < lo) lo = t; if (t > hi) hi = t; return; }
+    const m = rem[i], h = m.home.team, a = m.away.team;
+    for (const o of ["h", "d", "a"]) { const np = { ...pts }; if (o === "h") np[h] += 3; else if (o === "a") np[a] += 3; else { np[h]++; np[a]++; } rec(i + 1, np); }
+  };
+  rec(0, _basePts(g));
+  return { min: lo, max: hi };
+}
+let _trCache = null, _trSig = -1;
+function thirdRanges() {   // the 12 groups' third-place point ranges, memoised on the feed-final count (the only mover)
+  const sig = S.matches.reduce((n, m) => n + (isFeedFinal(m) ? 1 : 0), 0);
+  if (_trCache && _trSig === sig) return _trCache;
+  const r = {}; GROUPS.forEach(g => r[g] = _thirdRange(g));
+  _trCache = r; _trSig = sig; return r;
+}
 function _provRows(g) {                                    // FT + in-play points/GD/GF per team in a group
   const rows = {}; groupTeams(g).forEach(c => rows[c] = { code: c, pts: 0, gd: 0, gf: 0 });
   for (const m of S.matches) if (m.group === g) {
@@ -1439,9 +1460,13 @@ function matchStakes(m) {
   const classify = code => {
     const s = _qualScan(g, code);
     if (s.winGroup) return "winGroup";
-    if (s.clinched) return "through";
-    if (s.stuck4) return "out";
-    if (s.top3) return "third-safe";
+    // the cross-group best-third engine: "in"/"out" mean clinched / eliminated by ANY route - top-two OR a
+    // mathematically-safe best-third place. So a side already certain of the Round of 32 (even if it can only
+    // finish third) is called "through", never "in the best-third race" (the England-v-Panama case the copy got wrong).
+    const overall = qualStatus(code);
+    if (overall === "in") return "through";
+    if (overall === "out") return "out";
+    if (s.top3) return "third-safe";   // guaranteed at least third, but that third is not yet a clinched best-third place
     const win = code === H ? "h" : "a", lose = code === H ? "a" : "h";
     const d = _qualScan(g, code, m.id, "d");
     if (d.clinched) return "draw-through";
@@ -1458,7 +1483,7 @@ function matchStakes(m) {
     case "winGroup": return `${n} have won Group ${g} - through to the Round of 32.`;
     case "through": return `${n} are through to the Round of 32${posTxt(code)}.`;
     case "out": return `${n} are out of the Round of 32.`;
-    case "third-safe": return `${n} are assured of at least third${posTxt(code)} - through, or into the best-third race.`;
+    case "third-safe": return `${n} are assured of at least third${posTxt(code)} - top two is through, third puts them in the best-third race.`;
     case "draw-through": return `A draw is enough to send ${n} through to the Round of 32.`;
     case "win-or-bust": return `${n} go through with a win, out with a loss.`;
     case "in-with-win": return `${n} are through to the Round of 32 with a win.`;
@@ -1476,7 +1501,7 @@ function matchStakes(m) {
     case "winGroup": return `have already topped Group ${g} and reached the Round of 32`;
     case "through": return `have already reached the Round of 32${p ? ` (${ordinal(p)} as it stands)` : ""}`;
     case "out": return `can no longer reach the Round of 32`;
-    case "third-safe": return `have done enough to finish at least third, so they are through or in the best-third race`;
+    case "third-safe": return `are assured of at least third, so they go through with a top-two finish or stay in the best-third race`;
     case "draw-through": return `reach the Round of 32 with a draw or a win here`;
     case "win-or-bust": return `reach the Round of 32 with a win, but are out if they lose`;
     case "in-with-win": return `reach the Round of 32 if they win`;
@@ -1508,7 +1533,7 @@ function matchStakes(m) {
   else if (THIRD.includes(stH) && THIRD.includes(stA)) summary = `Both sides are out if they lose - a win, or in places a draw, keeps a Round of 32 route alive.`;
   else if (stH === "in-with-win" && stA === "in-with-win") summary = `Win and in - either side reaches the Round of 32 with a win.`;
   else if (stH === "win-or-bust" && stA === "win-or-bust") summary = `Win or bust - the winner is through, the loser is out.`;
-  else if (stH === "third-safe" && stA === "third-safe") summary = `Both assured of at least third - through, or in the best-third race.`;
+  else if (stH === "third-safe" && stA === "third-safe") summary = `Both assured of at least third - top two through, third into the best-third race.`;
   else { const sh = []; if (stH !== "live" || playedIn(H)) sh.push(`${nm(H)} ${short(H)}`); if (stA !== "live" || playedIn(A)) sh.push(`${nm(A)} ${short(A)}`); summary = sh.join(" · ") || null; }
   const lines = [full(H), full(A)].filter(Boolean);
   if (!lines.length) return null;
@@ -2985,9 +3010,36 @@ const TABLE_COLS = `<colgroup><col class="c-name"><col class="c-n"><col class="c
 function qualStatus(code) {
   const g = groupOf(code); if (!g) return "";
   if (!S.matches.some(x => x.group === g && isFinalSt(status(x)) && res(x)?.h != null)) return "";
-  if (remInGroup(g) === 0) { const pos = standings(g).findIndex(r => r.code === code); return pos < 2 ? "in" : pos === 2 ? "" : "out"; }
-  const q = _qualScan(g, code);
-  return q.clinched ? "in" : q.stuck4 ? "out" : "";   // "out" = stuck in 4th (4th never advances); a side that can still finish 3rd is alive for a best-third place, so it gets no "out" badge
+  const ranges = thirdRanges();
+  // Is a THIRD-placed team CLINCHED / ELIMINATED for a best-8 spot? Points-only, GD-safe: at its WORST points, if at
+  // most 7 OTHER groups can field a third at least level, it's guaranteed top 8 (through); at its BEST points, if 8
+  // other groups are guaranteed strictly above, it can't make top 8 (out). Groups are independent so the bounds co-occur.
+  const thirdVerdict = (worst, best) => {
+    let canAbove = 0; for (const x of GROUPS) if (x !== g && ranges[x].max >= worst) canAbove++;
+    if (canAbove <= 7) return "in";
+    let mustAbove = 0; for (const x of GROUPS) if (x !== g && ranges[x].min > best) mustAbove++;
+    if (mustAbove >= 8) return "out";
+    return "";
+  };
+  if (remInGroup(g) === 0) {                              // this group is finished - positions settled by the full tiebreaks
+    const st = standings(g), pos = st.findIndex(r => r.code === code);
+    if (pos < 2) return "in";                             // top two: through
+    if (pos > 2) return "out";                            // 4th: out
+    if (GROUPS.every(x => remInGroup(x) === 0)) {         // every group done → the exact ranked cut (GD-aware), guarding dead-level ties
+      if (!thirdsResolvable()) return "";
+      return thirdPlaceRace().findIndex(r => r.code === code) < 8 ? "in" : "out";
+    }
+    return thirdVerdict(st[2].pts, st[2].pts);            // groups still playing elsewhere → the GD-safe best-third maths
+  }
+  const q = _qualScan(g, code);                           // this group still playing: points-only, GD-safe
+  if (q.clinched) return "in";                            // guaranteed top two
+  if (q.stuck4) return "out";                             // can't escape 4th
+  const base = _basePts(g)[code] || 0;
+  const remForX = S.matches.filter(m => m.group === g && !isFeedFinal(m) && (m.home.team === code || m.away.team === code)).length;
+  const v = thirdVerdict(base, base + 3 * remForX);
+  if (v === "in" && q.top3) return "in";                 // even losing out, a guaranteed-third side still clinches a best-third place
+  if (v === "out" && q.out) return "out";                // can't reach top two AND its best third still misses the cut
+  return "";
 }
 function qualBadge(code) { const s = qualStatus(code); return s === "in" ? `<span class="qx qx-in" title="Through to the Round of 32">Q</span>` : s === "out" ? `<span class="qx qx-out" title="Out of the Round of 32">out</span>` : ""; }
 function groupTable(g, i) {
@@ -3026,22 +3078,62 @@ function thirdsResolvable() {
 }
 function thirdRaceHTML() {
   const anyPlayed = S.matches.some(m => m.group && isFinalSt(status(m)) && res(m)?.h != null);
-  const rows = thirdPlaceRace();
-  if (!anyPlayed || rows.length < 3) return "";
+  if (!anyPlayed) return "";
   const sign = n => (n > 0 ? "+" : "") + n;
-  const ranks = compRanks(rows, r => r.pts + "|" + r.gd + "|" + r.gf);   // genuine 3rd-place criteria; teams level on all three share a rank
-  const allDone = GROUPS.every(g => remInGroup(g) === 0);                 // the best-8 cut is only decided once every group has finished; until then the 3rd-placed points are still mutable
-  const cut = i => {
-    if (!allDone) return "";                                              // race undecided - no advance/eliminated styling while any group is still playing (a team shown "in" could finish out, and vice-versa)
-    const first = ranks.indexOf(ranks[i]), last = ranks.lastIndexOf(ranks[i]);   // honest cut - a tie group straddling the 8th spot is undecided, not arbitrarily split
-    return last < 8 ? "tr-in" : first >= 8 ? "tr-out" : "tr-bubble";
-  };
-  return `<div class="eyebrow">Race for the best third places</div>
-    <div class="third-race">${rows.map((r, i) => `<div class="tr-row ${cut(i)} ${r.code === S.fav ? "is-fav" : ""}" data-squad="${r.code}" role="button" tabindex="0">
-      <span class="tr-rank">${ranks[i]}</span><span class="fl">${flag(r.code)}</span>
+  const allDone = GROUPS.every(g => remInGroup(g) === 0);
+
+  // The settled third-placed teams (groups that have finished): a real nation each, ranked by FIFA's 3rd-place
+  // criteria and tagged by the cross-group engine - clinched a top-eight third (✓ Through), eliminated, or still in
+  // the race. The tag is the source of truth (qualStatus already weighs every possible J/K/L outcome), so it holds
+  // even though those still-playing thirds below will yet slot into this order.
+  const settled = [];
+  for (const g of GROUPS) {
+    if (remInGroup(g) !== 0) continue;
+    const t = standings(g)[2];
+    if (t) settled.push({ group: g, code: t.code, pts: t.pts, gd: t.gf - t.ga, gf: t.gf, q: qualStatus(t.code) });
+  }
+  if (settled.length < 3 && allDone) return "";
+  const tagOrder = { in: 0, "": 1, out: 2 };
+  // all finished -> pure points order with the exact top-8 cut line. still playing -> group by verdict (through /
+  // in race / out) then points: an ordinal "rank" among only the settled thirds would imply a cut the not-yet-decided
+  // thirds haven't joined, so we lead with the verdict instead and let the tag carry the truth.
+  settled.sort((a, b) => allDone
+    ? (b.pts - a.pts || b.gd - a.gd || b.gf - a.gf || tiebreakRank(a.code) - tiebreakRank(b.code))
+    : (tagOrder[a.q] - tagOrder[b.q] || b.pts - a.pts || b.gd - a.gd || b.gf - a.gf || tiebreakRank(a.code) - tiebreakRank(b.code)));
+  const ranks = compRanks(settled, r => r.pts + "|" + r.gd + "|" + r.gf);
+  const tagFor = q => q === "in" ? `<span class="tr-tag is-in">✓ Through</span>` : q === "out" ? `<span class="tr-tag is-out">Out</span>` : `<span class="tr-tag is-race">In the race</span>`;
+  const rowCls = q => q === "in" ? "tr-in" : q === "out" ? "tr-out" : "tr-bubble";
+  const settledRows = settled.map((r, i) => {
+    const cutLine = allDone && i === 7 && settled.length > 8 && ranks[7] !== ranks[8] ? `<div class="tr-cut"><span>Top 8 advance</span></div>` : "";
+    return `<div class="tr-row ${rowCls(r.q)} ${r.code === S.fav ? "is-fav" : ""}" data-squad="${r.code}" role="button" tabindex="0">
+      ${allDone ? `<span class="tr-rank">${ranks[i]}</span>` : ""}<span class="fl">${flag(r.code)}</span>
       <span class="tr-name">${esc(S.teams[r.code]?.name || r.code)}<small>Group ${r.group}</small></span>
-      <span class="tr-gd">${sign(r.gd)}</span><span class="tr-pts">${r.pts}<small>pts</small></span></div>${allDone && i === 7 && rows.length > 8 && ranks[7] !== ranks[8] ? `<div class="tr-cut"><span>Top 8 advance</span></div>` : ""}`).join("")}</div>
-    <p class="sim-ko-hint">${allDone ? "" : "As it stands - these standings shift as the remaining groups finish. "}Ranked by points, then goal difference, then goals scored: the eight best of twelve reach the Round of 32. Teams level on all three share a rank; FIFA then separates them on fair play, and finally a drawing of lots.</p>`;
+      ${tagFor(r.q)}<span class="tr-gd">${sign(r.gd)}</span><span class="tr-pts">${r.pts}<small>pts</small></span></div>${cutLine}`;
+  }).join("");
+
+  // Groups still being played: who can still finish third in that group - the current 3rd AND any 4th-placed side not
+  // yet mathematically stuck in fourth. So a team that is currently fourth but alive for the spot is shown; one already
+  // certain of the top two (through as a winner / runner-up) or dead in fourth is not. A clinched best-third is flagged.
+  const pending = GROUPS.filter(g => remInGroup(g) !== 0);
+  const pendHTML = pending.map(g => {
+    const cont = standings(g).filter(r => { const s = _qualScan(g, r.code); return !s.clinched && !s.stuck4; });
+    if (!cont.length) return "";
+    return `<div class="tr-pend"><div class="tr-pend-h">Group ${g}<small>third place still to be decided</small></div>
+      <div class="tr-pend-row">${cont.map(r => {
+        const thru = qualStatus(r.code) === "in";
+        return `<span class="tr-pend-t ${r.code === S.fav ? "is-fav" : ""}${thru ? " is-thru" : ""}" data-squad="${r.code}" role="button" tabindex="0"><span class="fl">${flag(r.code)}</span><span class="tr-pend-n">${esc(S.teams[r.code]?.name || r.code)}</span>${thru ? `<i class="tr-mini">✓ through</i>` : ""}</span>`;
+      }).join("")}</div></div>`;
+  }).join("");
+
+  const grpList = pending.join(", ").replace(/, ([^,]*)$/, " and $1");
+  const intro = allDone
+    ? `Ranked by points, then goal difference, then goals scored: the eight best of twelve reach the Round of 32. Teams level on all three share a rank; FIFA then separates them on fair play, and finally a drawing of lots.`
+    : `The eight best third-placed teams join the 24 group winners and runners-up in the Round of 32. <b>✓ Through</b> = already certain of a top-eight third whatever the remaining games do; <b>Out</b> = can no longer reach the top eight.${pending.length ? ` Group${pending.length > 1 ? "s" : ""} ${grpList} ${pending.length > 1 ? "are" : "is"} still being played, so ${pending.length > 1 ? "those third places" : "that third place"} - and the final cut - aren't settled yet.` : ""}`;
+
+  return `<div class="eyebrow">Race for the best third places</div>
+    <div class="third-race">${settledRows}</div>
+    ${pendHTML ? `<div class="tr-pend-wrap">${pendHTML}</div>` : ""}
+    <p class="sim-ko-hint">${intro}</p>`;
 }
 // read-only "if the groups ended today" Round-of-32 - resolved purely from live standings (group
 // winners/runners-up + the best-8 thirds routed through FIFA's slot constraints). Never touches the

@@ -702,6 +702,24 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .tr-pts small{font-weight:500;font-size:var(--fs-9);color:var(--ink-soft);text-transform:uppercase;letter-spacing:.02em}
 .tr-cut{position:relative;height:0;margin:16px 14px;border-top:2px dashed color-mix(in srgb,var(--gold) 50%,var(--line))}
 .tr-cut span{position:absolute;top:0;left:50%;transform:translate(-50%,-50%);font-family:var(--disp);font-weight:800;font-stretch:106%;font-size:var(--fs-10);letter-spacing:.1em;text-transform:uppercase;color:var(--gold-text);background:var(--card);padding:0 10px;white-space:nowrap}
+/* per-team verdict tag on a settled third (clinched / eliminated / still racing) */
+.tr-tag{flex:0 0 auto;font-size:var(--fs-9);font-weight:800;font-stretch:106%;letter-spacing:.04em;text-transform:uppercase;padding:2px 7px;border-radius:99px;white-space:nowrap}
+.tr-tag.is-in{background:color-mix(in srgb,var(--gold) 20%,transparent);color:var(--gold-text)}
+.tr-tag.is-race{background:color-mix(in srgb,var(--ink) 7%,transparent);color:var(--ink-soft)}
+.tr-tag.is-out{background:transparent;color:var(--ink-soft)}
+/* still-playing groups: who can still grab that group's third place */
+.tr-pend-wrap{margin-top:10px;display:flex;flex-direction:column;gap:8px}
+.tr-pend{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:11px 14px;animation:rise .45s both}
+.tr-pend-h{font-family:var(--disp);font-weight:800;font-stretch:106%;font-size:var(--fs-13);text-transform:uppercase;letter-spacing:.03em;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.tr-pend-h small{font-family:var(--body);font-weight:500;font-size:var(--fs-11);color:var(--ink-soft);letter-spacing:0;text-transform:none}
+.tr-pend-row{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px}
+.tr-pend-t{display:inline-flex;align-items:center;gap:6px;padding:5px 10px 5px 8px;border-radius:99px;border:1px solid var(--line);background:color-mix(in srgb,var(--ink) 3%,transparent);font-weight:600;font-size:var(--fs-13);cursor:pointer;transition:background .15s}
+.tr-pend-t:hover{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
+.tr-pend-t:active{background:color-mix(in srgb,var(--acc1) 14%,transparent)}
+.tr-pend-t .fl{font-size:17px;flex:0 0 auto}
+.tr-pend-t.is-fav{border-color:color-mix(in srgb,var(--acc1) 40%,var(--line));background:color-mix(in srgb,var(--acc1) 8%,transparent)}
+.tr-pend-t.is-thru{border-color:color-mix(in srgb,var(--gold) 45%,var(--line))}
+.tr-mini{font-style:normal;font-size:var(--fs-9);font-weight:800;font-stretch:106%;text-transform:uppercase;letter-spacing:.04em;color:var(--gold-text);background:color-mix(in srgb,var(--gold) 18%,transparent);padding:1px 5px;border-radius:99px}
 /* projected Round of 32 (collapsible) */
 .proj{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);overflow:hidden;margin-top:10px;animation:rise .45s both}
 .proj>summary{list-style:none;cursor:pointer;display:flex;align-items:baseline;gap:10px;padding:13px 16px;font-family:var(--disp);font-weight:800;font-stretch:110%;font-size:var(--fs-13);letter-spacing:.1em;text-transform:uppercase}
