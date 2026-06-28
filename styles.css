@@ -1157,7 +1157,7 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .rb-seg{font:700 11px/1 var(--disp);color:var(--ink-soft);background:transparent;border:none;border-radius:999px;padding:6px 13px;cursor:pointer;transition:color .15s,background .15s}
 .rb-seg.on{background:var(--card);color:var(--ink);box-shadow:0 1px 2px rgba(13,27,42,.14)}
 .r32br-grid{display:grid;grid-template-columns:1fr auto 1fr;gap:6px;align-items:stretch}
-.rb-col{display:flex;flex-direction:column;gap:18px;min-width:0}
+.rb-col{display:flex;flex-direction:column;gap:32px;min-width:0}   /* roomy gap between quarter-final blocks so QF1/QF2 (and QF3/QF4) read as clearly separate groups */
 .rb-qf{display:flex;flex-direction:column;gap:14px}
 .rb-qf-lbl{display:block;font:600 9px/1 var(--mono);letter-spacing:.07em;text-transform:uppercase;color:var(--ink-soft);text-align:center}
 .rb-r16{display:flex;flex-direction:column;gap:2px;position:relative}
@@ -1641,11 +1641,11 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 /* cards leaderboard: yellow + red side by side, each a little card chip + count */
 .card-tally{display:inline-flex;align-items:center;gap:8px}
 /* cards stat-tile: same big display number as the other tiles, with yellow/red card chips */
-/* two numbers (+ card chips) live in one tile, so it's sized a touch smaller than the single-number tiles
-   above — keeps the same display font/weight but guarantees fit once yellows hit 3 digits / reds hit 2 */
-.card-val{display:inline-flex;align-items:center;gap:5px;font-size:14px}   /* smaller so both tallies (incl. three-digit yellows + two-digit reds) fit one tile */
-.cv{display:inline-flex;align-items:center;gap:3px}
-.cv::before{content:"";width:9px;height:13px;border-radius:3px;flex:none;box-shadow:0 1px 2px rgba(13,27,42,.25)}
+/* two tallies stacked - yellow on the first line, red on the second, the "Cards" label below - so no width worries even
+   at three-digit yellows / two-digit reds, and each card colour reads clearly on its own row */
+.card-val{display:inline-flex;flex-direction:column;align-items:flex-start;gap:3px;font-size:19px;line-height:1}
+.cv{display:inline-flex;align-items:center;gap:6px}
+.cv::before{content:"";width:11px;height:15px;border-radius:3px;flex:none;box-shadow:0 1px 2px rgba(13,27,42,.25)}
 .cv-y::before{background:var(--gold)}
 .cv-r::before{background:var(--live)}
 .cv-r{color:var(--ink-soft)}
@@ -2206,7 +2206,7 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
   .md-teams{margin-bottom:6px}
   .eyebrow{font-size:var(--fs-10);margin:22px 0 11px}
   .stat-val{font-size:24px}
-  .card-val{font-size:13px;gap:5px}
+  .card-val{font-size:17px;gap:3px}
   .stat-tile{padding:13px 14px}
   .lead-row{padding:8px 12px;font-size:var(--fs-13)}
   .lead-card h4{font-size:var(--fs-11)}

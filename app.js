@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "409";  // shown in footer; bump with the ?v= asset version
+const BUILD = "410";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -5123,7 +5123,7 @@ function renderStats() {
   })() : "";
   const sections = [
     ["overview", "Overview", `<div class="eyebrow">Tournament so far</div><div class="stat-tiles">
-      ${tile("Goals", s.pulse.goals)}${tile("Matches", s.pulse.matches)}
+      ${tile("Matches", s.pulse.matches)}${tile("Goals", s.pulse.goals)}
       ${tile("Goals / match", s.pulse.perMatch.toFixed(2))}
       ${tile("Shots on target", s.pulse.sot)}${tile("Penalties scored", s.pulse.pens)}${tile("Own goals", s.pulse.og)}
       <div class="stat-tile"><span class="stat-val card-val"><span class="cv cv-y">${s.pulse.yellows}</span><span class="cv cv-r">${s.pulse.reds}</span></span><span class="stat-lbl">Cards</span></div>
