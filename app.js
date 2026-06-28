@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "415";  // shown in footer; bump with the ?v= asset version
+const BUILD = "416";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1092,18 +1092,8 @@ function flowColor(hex) {
   return `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`;
 }
 const STAGE_NAME = { r32: "Round of 32", r16: "Round of 16", qf: "Quarter-final", sf: "Semi-final", final: "Final", third: "3rd place" };
-// narrative breadcrumb of where this match's winner goes, all the way to the final
-function koPath(m) {
-  if (!m || m.stage === "group") return "";
-  const tgt = {}, byNum = {};
-  S.matches.forEach(x => { byNum[x.num] = x; if (x.stage !== "group") [x.home, x.away].forEach(s => { if (s.feeds) tgt[s.feeds] = x.num; }); });
-  const chain = []; for (let n = m.num; n != null && byNum[n] && !chain.includes(byNum[n]); n = tgt[n]) chain.push(byNum[n]);
-  if (chain.length < 2) return "";
-  const steps = chain.slice(1).map(x => STAGE_NAME[x.stage] || x.stage);   // rounds ahead, no global match numbers (we don't number matches)
-  return `<div class="md-kopath"><span class="kp-label">Winner's road →</span> ${steps.join(`<span class="kp-arr">›</span>`)}</div>`;
-}
-// one-line knockout stake for a match card/modal: single-elimination framing + the round the winner advances to
-// (from the same feed chain koPath uses). Only for an unfinished knockout tie - a finished one shows its result.
+// one-line stake for a knockout match card/modal. Only the genuinely non-obvious one survives: the 3rd-place play-off
+// is "for the bronze medal" - every other round's "winner advances, loser out" is inherent and left unsaid.
 function koStakeLine(m) {
   if (!m || m.stage === "group" || isFinalSt(status(m))) return "";
   if (m.stage === "third") return "Playing for the bronze medal - the two beaten semi-finalists.";
@@ -1625,6 +1615,8 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
   const isFT = isFinalSt(st);                                  // FT or an awarded result - the "finished" detail layout
   const hasResult = isFT || st === ST.SUSP || st === ST.ABD;   // also has a score/events to show (suspended/abandoned)
   const upcoming = st === ST.SCHED || st === ST.PP;            // not yet played - the only states you'd add to a calendar
+  // kickoff right under the scoreboard (in your timezone) so the time is on the first screen, not buried in the meta row
+  const pWhen = `<div class="md-when">${fmt(m.utc, { weekday: "short", day: "numeric", month: "short" })} · <b>${timeStr(m.utc)}</b></div>`;
   // every section as its own piece (each returns "" when it doesn't apply), then ordered per match state below
   const pTop = `<div class="md-tagrow">${statusTag}
       <div class="md-actions">
@@ -1635,7 +1627,7 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
     </div>
     <div class="md-teams">${side(h, "home")}<div class="md-mid">${mid}</div>${side(a, "away")}</div>
     ${r?.note ? `<div class="md-note">${esc(r.note)}</div>` : isAbnormal(st) ? `<div class="md-note">This match is ${stMeta(st).lbl.toLowerCase()}${st === ST.SUSP || st === ST.ABD ? " - the score shown is provisional, not a final result" : st === ST.PP ? " - it will be rescheduled" : ""}.</div>` : unconf ? `<div class="md-note is-soft">Awaiting full-time confirmation.</div>` : ""}
-    ${koPath(m)}`;
+    ${pWhen}`;
   const pTimeline = r?.ev?.length ? mdTimeline(r, h.code, a.code) : (r?.gh?.length || r?.ga?.length) ? `<div class="md-goals">
       <div class="md-goals-col">${(r.gh || []).map(g => `<div class="md-goal">${ICO.ball} ${esc(g)}</div>`).join("")}</div>
       <div class="md-goals-col away">${(r.ga || []).map(g => `<div class="md-goal">${esc(g)} ${ICO.ball}</div>`).join("")}</div>
@@ -1663,8 +1655,6 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
   const pH2H = (bothKnown && _wcH2H != null && ((h2hPair && h2hPair.length) || m.stage !== "group")) ? wcH2HBlock(h.code, a.code) : "";
 
   const pMeta = `<div class="md-meta">
-      <span>${fmt(m.utc, { weekday: "long", day: "numeric", month: "long" })}</span>
-      <span>${timeStr(m.utc)}</span>
       <span>${esc(m.stadium)}</span>
       <span>${esc(m.city)}</span>
       ${r?.facts?.att ? `<span>${ICO.people} ${(+r.facts.att).toLocaleString()} in</span>` : ""}
