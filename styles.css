@@ -265,10 +265,11 @@ body.bg-paused #bg span{animation-play-state:paused;will-change:auto}
 }
 .hero:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--acc1) 40%,var(--line));box-shadow:0 10px 30px -12px rgba(13,27,42,.25)}
 .hero:focus-visible{outline:2px solid var(--acc1);outline-offset:2px}
-/* a slow, subtle sheen sweeps the hero card every few seconds — premium gloss, not a flash */
+/* a slow, subtle sheen sweeps the hero card now and then — premium gloss, not a flash. Infrequent on purpose: the
+   sweep itself stays ~0.9s, but it only fires roughly every 15s so it reads as an occasional shine, not a pulse. */
 .hero::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:1;background:linear-gradient(100deg,transparent 41%,color-mix(in srgb,#fff 22%,transparent) 50%,transparent 59%);transform:translateX(-140%)}
-@media (prefers-reduced-motion:no-preference){.hero::after{animation:heroSheen 8s 1.6s ease-in-out infinite}}
-@keyframes heroSheen{0%,87%{transform:translateX(-140%)}97%,100%{transform:translateX(140%)}}
+@media (prefers-reduced-motion:no-preference){.hero::after{animation:heroSheen 15s 1.6s ease-in-out infinite}}
+@keyframes heroSheen{0%,92%{transform:translateX(-140%)}98%,100%{transform:translateX(140%)}}
 .hero-actions{margin-left:auto;display:inline-flex;align-items:center;gap:6px;flex-shrink:0}
 .hero-go{z-index:2;white-space:nowrap;
   font-family:var(--disp);font-weight:700;font-size:var(--fs-11);letter-spacing:.1em;text-transform:uppercase;

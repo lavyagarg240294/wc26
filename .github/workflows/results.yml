@@ -54,9 +54,10 @@ jobs:
               echo "no changes @ $(date -u +%H:%M) UTC"
             fi
             # adaptive cadence: ~25s while a match is in its live window (so a goal / final whistle reaches the table
-            # and standings fast), 60s in the wider pre/post-match window, 30 min when nothing is near. The "hot"
-            # window [-2min,+170min] covers a knockout's extra-time + penalties + the feed's full-time flip.
-            tier=$(node -e "const m=require('./data/matches.json').matches;const n=Date.now();const w=(a,b)=>m.some(x=>{const t=+new Date(x.utc);return n>t+a && n<t+b});process.stdout.write(w(-1.2e5,1.02e7)?'hot':w(-3.6e6,1.26e7)?'near':'idle')")
+            # and standings fast), 60s in the wider pre/post-match window, 30 min when nothing is near. The hot window
+            # runs [-2min,+170min] for a group game; a KNOCKOUT extends to +200min so extra-time + penalties + the late
+            # full-time flip all stay at top speed (they can push real elapsed past 170min).
+            tier=$(node -e "const m=require('./data/matches.json').matches;const n=Date.now();const hot=m.some(x=>{const t=+new Date(x.utc);const ko=x.stage&&x.stage!=='group';return n>t-1.2e5 && n<t+(ko?1.2e7:1.02e7)});const near=m.some(x=>{const t=+new Date(x.utc);return n>t-3.6e6 && n<t+1.26e7});process.stdout.write(hot?'hot':near?'near':'idle')")
             case "$tier" in hot) sleep 25;; near) sleep 60;; *) sleep 1800;; esac
           done
           # Stop cleanly once the tournament is over (final is 2026-07-19) instead of relaunching forever.

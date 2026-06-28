@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "404";  // shown in footer; bump with the ?v= asset version
+const BUILD = "405";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1018,7 +1018,7 @@ function mdEfi(m, expand = false) {
     : homeKm.length ? `km · ${esc(h.name)} only`
     : awayKm.length ? `km · ${esc(a.name)} only` : null;   // both teams is self-evident from the rows - just the unit; a one-team note stays
   const dist = players.length && distLabel ? `<div class="efi-sub">Distance covered <small>${distLabel}</small></div>
-    <div class="efi-dist">${players.slice(0, 14).map(p => `<div class="efi-prow efi-prow-clk" data-player="${esc(p.name)}|${p.code}" role="button" tabindex="0" title="View ${esc(pName(p.name, p.code))}">
+    <div class="efi-dist">${players.map(p => `<div class="efi-prow efi-prow-clk" data-player="${esc(p.name)}|${p.code}" role="button" tabindex="0" title="View ${esc(pName(p.name, p.code))}">
       <span class="efi-pn">${esc(tlName(p.name, p.code))}</span>
       <span class="efi-pbar"><i style="width:${Math.max(5, Math.round(p.km / maxKm * 100))}%;background:${p.c}"></i></span>
       <span class="efi-pv">${p.km.toFixed(1)}</span></div>`).join("")}</div>` : "";
@@ -5997,8 +5997,16 @@ async function boot() {
   // scores: poll adaptively - every 20s while anything is live (a goal / final whistle reaches the table + tables
   // fast), 30s otherwise. Self-scheduling (not setInterval) so a slow fetch never overlaps the next tick.
   (function schedulePoll() {
-    const live = S.matches.some(m => [ST.LIVE, ST.HT].includes(status(m)));
-    setTimeout(() => refreshResults().finally(schedulePoll), live ? 20000 : 30000);
+    // poll fast (20s) through the whole live AND confirmation window, not just while the feed says LIVE/HT: a match
+    // we've coerced to "awaiting confirmation" (feed stalled at full-time), or one underway but not yet feed-final
+    // (covers a knockout's extra time + penalties + the late FT flip), must keep pulling so the status/score never lags.
+    const hot = S.matches.some(m => {
+      const st = status(m);
+      if (st === ST.LIVE || st === ST.HT || isUnconfirmedFinal(m)) return true;
+      const mins = (Date.now() - +new Date(m.utc)) / 60000;   // kicked off (or about to) and not yet a confirmed final
+      return mins > -2 && mins < 200 && !isFeedFinal(m) && !isAbnormal(st);
+    });
+    setTimeout(() => refreshResults().finally(schedulePoll), hot ? 20000 : 30000);
   })();
   setInterval(() => { refreshOpenCommentary(); loadBuzz(); }, 60 * 1000);   // commentary + buzz change slower - 60s is plenty
   // returning to a backgrounded tab is the classic "stale score" moment (the goal happened while you were away):
