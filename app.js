@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "407";  // shown in footer; bump with the ?v= asset version
+const BUILD = "408";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -874,9 +874,12 @@ function pitchSide(side, s, home) {
     // it (the labels overhang into the next row in tight formations) - never hidden behind a photo.
     return `<div class="pp pp-clk${photo ? "" : " pp-nf"}" data-player="${esc(p[1])}|${s.code}" role="button" tabindex="0" style="left:${left}%;top:${top}%;z-index:${Math.round(100 - top)};--pc:${c1};--pt:${c2}">${face}<span class="pp-name">${num !== "" ? `<b class="pp-no">${num}</b>` : ""}<span class="pp-nm">${esc(lastName(p[1]))}</span></span></div>`;
   };
-  let html = dot(fr.gk, 50, 0.07);                                     // GK just off the goal line, clear of the defensive line
+  let html = dot(fr.gk, 50, 0.06);                                     // GK just off the goal line
+  // spread the outfield bands EVENLY from clear-of-the-GK (D0) to short-of-halfway (D1). The old (bi+1)/(nb+0.5)
+  // packed the first line right against the keeper, so the keeper's name label collided with the centre-backs' faces.
+  const D0 = 0.27, D1 = 0.9;
   fr.bands.forEach((band, bi) => {
-    const depth = (bi + 1) / (nb + 0.5);                              // last line stops short of halfway
+    const depth = nb === 1 ? 0.5 : D0 + (bi / (nb - 1)) * (D1 - D0);
     band.forEach((p, pi) => html += dot(p, (pi + 1) / (band.length + 1) * 100, depth));
   });
   return html;
@@ -923,23 +926,31 @@ function mdTimeline(r, hc, ac) {
   // mark it ourselves at 22' and 67', shown only once the match has actually reached that minute (so a live timeline
   // never gets ahead of play). FT clears the live clock, so a finished match shows both.
   const done = isFinalSt(r.st), liveMin = r.st === ST.HT ? 45 : (r.min != null ? _tlMin(r.min) : (done ? 999 : -1));
-  const evs = [...(r.ev || [])];   // keep the feed's own event order untouched; just slot the scheduled breaks into place
-  for (const bm of [22, 67]) {
+  // Display minute per event. The feed sometimes logs an event with no clock: that's a pre-kickoff line-up change ONLY
+  // when it precedes every timed event - show "0'". If a timed event has already passed, a blank clock is a mid-match
+  // event whose minute we simply don't have - show "-1" (an honest "unknown"), never "0'" which would misdate it to KO.
+  let _seenTimed = false;
+  const evs = (r.ev || []).map(e => {
+    const timed = e.t && /\d/.test(String(e.t));
+    if (timed) _seenTimed = true;
+    return { ...e, _disp: timed ? e.t : (_seenTimed ? "-1" : "0'") };
+  });
+  for (const bm of [22, 67]) {   // slot the scheduled breaks into the feed's own event order (no reordering)
     if (liveMin < bm) continue;
     let i = evs.findIndex(e => _tlMin(e.t) > bm); if (i < 0) i = evs.length;
-    evs.splice(i, 0, { t: bm + "'", k: "BRK" });   // minute carries the ' like real events ("22'")
+    evs.splice(i, 0, { t: bm + "'", k: "BRK", _disp: bm + "'" });
   }
   if (!evs.length) return "";
   const rows = evs.map(e => {
     if (e.k === "BRK") return `<div class="tl is-break" title="Mandatory 3-minute hydration break - new for the 2026 World Cup. The referee stops every match around 22 minutes into each half, regardless of the weather.">
-    <div class="tl-min">${esc(e.t)}</div>
+    <div class="tl-min">${esc(e._disp)}</div>
     <span class="tl-brk">${DROP_ICON}<span>Hydration break</span><span class="tl-x">3 min</span></span>
   </div>`;
     // `tm` is the team the event counts FOR; for an own goal that's the beneficiary, but the scorer belongs to
     // the OTHER team - so link the player to their real side, else the tap opens the wrong team and the photo misses.
     const scorerCode = e.k === "OG" ? (e.tm === "h" ? ac : hc) : (e.tm === "h" ? hc : ac);
     return `<div class="tl ${e.tm === "h" ? "is-h" : "is-a"}${["G", "P", "OG"].includes(e.k) ? " is-goal" : ""}">
-    <div class="tl-min">${esc(e.t || "0'")}</div>
+    <div class="tl-min">${esc(e._disp)}</div>
     <span class="tl-ev"><span class="tl-tx">${evText(e, scorerCode)}</span>${EV_ICON[e.k] ? `<span class="tl-ic">${EV_ICON[e.k]}</span>` : ""}</span>
   </div>`;
   }).join("");

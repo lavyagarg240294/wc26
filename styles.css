@@ -1483,23 +1483,24 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .pitch-team .fl{font-size:15px}
 .pitch-team b{font-family:var(--mono);font-weight:500;font-size:var(--fs-11);color:var(--acc-text)}
 .pitch-team:last-child{flex-direction:row-reverse;text-align:right}
-.pitch{position:relative;width:100%;max-width:330px;margin:0 auto;aspect-ratio:100/150;border-radius:12px;overflow:hidden;background:repeating-linear-gradient(0deg,#0f9d57 0 12.5%,#0aa861 12.5% 25%);box-shadow:inset 0 0 0 1px rgba(255,255,255,.12),0 6px 18px -8px rgba(13,27,42,.4)}
+.pitch{position:relative;width:100%;max-width:330px;margin:0 auto;aspect-ratio:100/162;border-radius:12px;overflow:hidden;background:repeating-linear-gradient(0deg,#0f9d57 0 12.5%,#0aa861 12.5% 25%);box-shadow:inset 0 0 0 1px rgba(255,255,255,.12),0 6px 18px -8px rgba(13,27,42,.4)}
 .pitch-lines{position:absolute;inset:0;width:100%;height:100%}
 .pitch-lines rect,.pitch-lines line,.pitch-lines circle{fill:none;stroke:rgba(255,255,255,.45);stroke-width:.5}
 .pitch-lines .pf{fill:rgba(255,255,255,.6);stroke:none}
-.pp{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:4px;width:64px;pointer-events:none}
+.pp{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:2px;width:66px;pointer-events:none}
 .pp.pp-clk{pointer-events:auto;cursor:pointer}
 .pp-clk:hover,.pp-clk:focus-visible{z-index:99 !important}   /* a hovered player jumps above every neighbour */
-/* headshot-only marker: the player's face, cropped tight to the head — no circle chrome, no number on the face. The
-   source photo is a head-to-waist portrait, so zoom in and frame near the top to land the face, not the torso. */
-.pp-face{width:48px;height:48px;border-radius:50%;background-size:205%;background-position:50% 11%;background-repeat:no-repeat;background-color:rgba(255,255,255,.16);box-shadow:0 2px 7px rgba(0,0,0,.45)}
+/* headshot marker: a SMALL circle cropped tight to the head — no circle chrome, no number on the face. The source is a
+   full-body portrait whose head sits in the top ~4-16%, so zoom hard and frame near the top: full hair (a little space
+   above) down through the chin + a touch of neck, but no shoulders/torso. Smaller circle = more open pitch + room for the name. */
+.pp-face{width:30px;height:30px;border-radius:50%;background-size:400%;background-position:50% 2%;background-repeat:no-repeat;background-color:rgba(255,255,255,.16);box-shadow:0 2px 6px rgba(0,0,0,.45)}
 .pp-clk:hover .pp-face,.pp-clk:focus-visible .pp-face{box-shadow:0 0 0 2px #fff,0 3px 9px rgba(0,0,0,.5)}
 /* fallback dot only when a player has no headshot at all */
-.pp-dot{width:34px;height:34px;border-radius:50%;background:var(--pc);color:var(--pt);border:1.5px solid rgba(255,255,255,.85);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-weight:700;font-size:var(--fs-12);box-shadow:0 2px 5px rgba(0,0,0,.35)}
-/* name label: a solid dark pill so it stays legible over any photo it overhangs (paired with the per-player z-index) */
-.pp-name{display:inline-flex;align-items:center;gap:4px;max-width:64px;font-size:var(--fs-9);font-weight:700;letter-spacing:.02em;color:#fff;background:rgba(8,12,20,.74);padding:2px 7px;border-radius:99px;box-shadow:0 1px 3px rgba(0,0,0,.4)}
+.pp-dot{width:28px;height:28px;border-radius:50%;background:var(--pc);color:var(--pt);border:1.5px solid rgba(255,255,255,.85);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-weight:700;font-size:var(--fs-11);box-shadow:0 2px 5px rgba(0,0,0,.35)}
+/* name label: a solid dark pill, smaller font so a longer surname fits; sits clear below the smaller circle (no overlap) */
+.pp-name{display:inline-flex;align-items:center;gap:3px;max-width:66px;font-size:var(--fs-8);font-weight:700;letter-spacing:.01em;color:#fff;background:rgba(8,12,20,.78);padding:1.5px 6px;border-radius:99px;box-shadow:0 1px 3px rgba(0,0,0,.4)}
 .pp-nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.pp-no{flex:0 0 auto;font-family:var(--mono);font-weight:700;font-size:var(--fs-8);color:rgba(255,255,255,.72)}
+.pp-no{flex:0 0 auto;font-family:var(--mono);font-weight:700;font-size:var(--fs-7);color:rgba(255,255,255,.7)}
 .pitch-coaches{display:flex;justify-content:space-between;gap:10px;margin:9px 2px 0;font-size:var(--fs-11);color:var(--ink-soft);font-style:italic}
 .pitch-coaches span:last-child{text-align:right}
 /* lightweight toast (shared-prediction copy, etc.) */
