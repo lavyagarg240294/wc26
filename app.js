@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "418";  // shown in footer; bump with the ?v= asset version
+const BUILD = "419";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -388,7 +388,16 @@ const inShootout = (m, r) => m.stage !== "group" && !!r && r.hp != null && r.ap 
 function liveLabel(m, r) {
   if (inShootout(m, r)) return `Pens ${r.hp}–${r.ap}`;
   const c = clockStr(m, r);
-  return (m.stage !== "group" && (liveBaseMin(r) ?? 0) > 90) ? `ET ${c}` : c;   // >90 base only happens in extra time (stoppage keeps the base at 45/90)
+  if (m.stage === "group" || !r || r.min == null) return c;
+  const base = liveBaseMin(r) ?? 0, plus = String(r.min).includes("+");
+  // Extra time vs second-half stoppage, told apart honestly. "90+4" (base 90, explicit stoppage) is NOT extra time;
+  // "105+1"/"120+2" (base >=105, explicit) is. A FLAT minute like "97" is this feed counting second-half stoppage
+  // straight through (= 90+7), so show it as 90+X - only a flat minute well past any plausible stoppage (base >105)
+  // is really extra time. (Knockouts only; a level scoreline isn't required - a goal can drop in during ET.)
+  if (plus) return base >= 105 ? `ET ${c}` : c;
+  if (base > 105) return `ET ${c}`;
+  if (base > 90) return `90+${base - 90}′`;
+  return c;
 }
 const remInGroup = g => S.matches.filter(m => m.group === g && !isFeedFinal(m)).length;   // not yet a confirmed result (incl. live/suspended/postponed)
 function slotInfo(m, side) {
