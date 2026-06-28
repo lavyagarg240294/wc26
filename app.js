@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "421";  // shown in footer; bump with the ?v= asset version
+const BUILD = "422";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1410,7 +1410,7 @@ function winProbBlock(m, pre = false) {
   const koAdv = wp.ko && wp.adv;
   const ah = koAdv ? Math.round(wp.adv.h * 100) : 0, aa = 100 - ah;
   const legend = koAdv
-    ? `<div class="wp-legend"><span class="wp-lh"><b>${ah}%</b> ${flag(h.code)} <span class="wp-lname">${esc(h.name)}</span></span><span class="wp-ld">advance</span><span class="wp-la"><span class="wp-lname">${esc(a.name)}</span> ${flag(a.code)} <b>${aa}%</b></span></div>`
+    ? `<div class="wp-legend"><span class="wp-lh"><b>${ah}%</b> ${flag(h.code)} <span class="wp-lname">${esc(h.name)}</span></span><span class="wp-la"><span class="wp-lname">${esc(a.name)}</span> ${flag(a.code)} <b>${aa}%</b></span></div>`
     : `<div class="wp-legend"><span class="wp-lh"><b>${ph}%</b> ${flag(h.code)} <span class="wp-lname">${esc(h.name)}</span></span><span class="wp-ld">Draw <b>${pd}%</b></span><span class="wp-la"><span class="wp-lname">${esc(a.name)}</span> ${flag(a.code)} <b>${pa}%</b></span></div>`;
   const bar = koAdv
     ? `<div class="wp-bar" role="img" aria-label="${esc(h.name)} ${ah}% to advance, ${esc(a.name)} ${aa}% to advance"><span class="wp-h" style="width:${ah}%"></span><span class="wp-a" style="width:${aa}%"></span></div>`
@@ -2446,7 +2446,7 @@ function teamOverview(code) {
   const [finish, yr] = (t.best || "").split(" · ");
   const coach = teamCoach(code);
   // one pedigree statement: best finish (the headline) over "year(s) · appearances"
-  const head = debut ? "Debut" : esc(finish);
+  const head = debut ? "Debut" : `BEST: ${esc(finish)}`;
   const sub = debut ? "First World Cup"
     : [yr ? esc(yr) : "", t.apps != null ? `${t.apps} appearance${t.apps !== 1 ? "s" : ""}` : ""].filter(Boolean).join(" · ");
   return `<div class="ts-ped"><div class="tp tp-finish"><b>${head}</b><span>${sub}</span></div></div>
