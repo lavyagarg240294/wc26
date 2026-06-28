@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "414";  // shown in footer; bump with the ?v= asset version
+const BUILD = "415";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -3532,6 +3532,77 @@ function r32SurprisesHTML() {
     ${block("Came up short", rows.filter(r => r.delta < 0))}
   </div>`;
 }
+let _brFocus = "r32";   // which round the landscape bracket highlights (the round switcher); persists across re-renders
+// the converging "landscape" knockout bracket: both halves of the draw funnelling to a central final, the Round of 32
+// on the outer edges. A round switcher highlights a round + the ties feeding it; winners advance as matches are played.
+// Reuses slotInfo (real teams/winners), simHalf (L/R of the draw) and the fixture feed-graph. layoutLandscape() draws
+// the connectors + applies the highlight after render and on resize. See [[knockout-plan]].
+function landscapeBracketHTML(opts = {}) {
+  const withFoot = opts.withFoot !== false;
+  const finalM = S.matches.find(m => m.stage === "final");
+  if (!finalM) return liveBracketHTML(withFoot);            // safety: fall back to the column bracket if the tree isn't loaded
+  const KM = {}; S.matches.forEach(m => { if (m.stage !== "group") KM[m.num] = m; });
+  const leaves = num => { const m = KM[num]; if (!m) return []; const fs = [m.home.feeds, m.away.feeds].filter(Boolean); return fs.length ? fs.flatMap(leaves) : [num]; };
+  const thirdM = S.matches.find(m => m.stage === "third");
+  const leftLeaves = leaves(finalM.home.feeds), rightLeaves = leaves(finalM.away.feeds);
+  const lix = {}; [...leftLeaves, ...rightLeaves].forEach((n, i) => lix[n] = i);   // top-to-bottom R32 order (a DFS of the tree)
+  const subMin = num => Math.min(...leaves(num).map(n => lix[n]));                  // an inner tie sits by its leftmost descendant
+  const colOf = (stage, side) => S.matches.filter(m => m.stage === stage && simHalf(m.num) === side).sort((a, b) => subMin(a.num) - subMin(b.num)).map(m => m.num);
+  const cols = [
+    ["r32", leftLeaves], ["r16", colOf("r16", "L")], ["qf", colOf("qf", "L")], ["sf", colOf("sf", "L")],
+    ["final", [finalM.num]],
+    ["sf", colOf("sf", "R")], ["qf", colOf("qf", "R")], ["r16", colOf("r16", "R")], ["r32", rightLeaves],
+  ];
+  const tie = num => {
+    const m = KM[num]; if (!m) return "";
+    const h = slotInfo(m, "home"), a = slotInfo(m, "away"), r = res(m), st = status(m);
+    const fin = isFinalSt(st) && r && r.h != null;
+    const wH = fin && (r.h > r.a || (r.h === r.a && (r.hp ?? -1) > (r.ap ?? -1)));
+    const wA = fin && (r.a > r.h || (r.h === r.a && (r.ap ?? -1) > (r.hp ?? -1)));
+    const sd = (s, won, lost) => `<span class="ls-side${won ? " ls-won" : ""}${lost ? " ls-lost" : ""}">${s.code ? flag(s.code) : ""}<b>${s.code ? tri(s.code) : "·"}</b></span>`;
+    return `<div class="ls-tie" data-mid="${m.id}" data-num="${num}" role="button" tabindex="0" aria-label="${esc((h.code ? h.name : "To be decided") + " v " + (a.code ? a.name : "To be decided"))}">${sd(h, wH, wA)}${sd(a, wA, wH)}</div>`;
+  };
+  const colsHTML = cols.map(([rd, nums]) => {
+    let inner = nums.map(tie).join("");
+    if (rd === "final") inner += `<div class="ls-cup" aria-hidden="true">${ICO.trophy}</div>` + (thirdM ? `<div class="ls-tie ls-third" data-mid="${thirdM.id}" role="button" tabindex="0" aria-label="Third-place play-off"><span class="ls-thlbl">3rd place</span></div>` : "");
+    return `<div class="ls-col" data-round="${rd}">${inner}</div>`;
+  }).join("");
+  const seg = `<div class="ls-seg" role="tablist" aria-label="Trace a round">${[["r32", "R32"], ["r16", "R16"], ["qf", "QF"], ["sf", "SF"], ["final", "Final"]].map(([v, l]) => `<button class="ls-seg-b${v === _brFocus ? " on" : ""}" data-br-round="${v}" role="tab" aria-selected="${v === _brFocus}">${l}</button>`).join("")}</div>`;
+  const foot = withFoot ? `<div class="r32board-foot"><span>Tap a round to trace how it forms; tap a tie for the match. Winners advance as the knockouts are played.</span>
+      <div class="r32board-acts">
+        <button class="r32board-share" data-r32share aria-label="Share the knockout bracket">${ICO.camera} Share</button>
+        <button class="r32board-cta" data-sim-edit>Make your own picks ${ICO.tap}</button>
+      </div></div>` : "";
+  return `<div class="lsbr"><div class="eyebrow">Knockout bracket · as it stands ${infoBtn("The full draw - both halves funnelling to the final, the Round of 32 on the outer edges. Tap a round (R32 … Final) to highlight that round and the ties that feed it. Winners advance as matches are played; an undecided slot waits as a dot until its feeders are settled. Tap any tie to open the match.", "How the bracket works")}</div>${seg}<div class="ls-board">${colsHTML}</div>${foot}</div>`;
+}
+// draw the connector lines + apply the round-switcher highlight after the bracket renders (and on resize)
+function layoutLandscape(scope) {
+  (scope || document).querySelectorAll(".lsbr").forEach(lsbr => {
+    const board = lsbr.querySelector(".ls-board"); if (!board) return;
+    const b = board.getBoundingClientRect(); if (!b.width) return;     // hidden tab → skip (don't wipe the lines with 0-size measurements)
+    const RDS = ["r32", "r16", "qf", "sf", "final"], fi = RDS.indexOf(_brFocus);
+    board.querySelectorAll(".ls-col").forEach(col => {
+      const ri = RDS.indexOf(col.dataset.round);
+      col.classList.toggle("foc", ri === fi); col.classList.toggle("fed", ri === fi - 1); col.classList.toggle("dim", ri > fi);
+      col.querySelectorAll(".ls-tie").forEach(t => { t.classList.toggle("foc", ri === fi); t.classList.toggle("fed", ri === fi - 1); });
+    });
+    const NS = "http://www.w3.org/2000/svg";
+    let svg = board.querySelector("svg.ls-conn");
+    if (!svg) { svg = document.createElementNS(NS, "svg"); svg.setAttribute("class", "ls-conn"); board.prepend(svg); }
+    svg.setAttribute("viewBox", `0 0 ${b.width} ${b.height}`);
+    const rc = num => { const el = board.querySelector(`.ls-tie[data-num="${num}"]`); if (!el) return null; const r = el.getBoundingClientRect(); return { l: r.left - b.left, r: r.right - b.left, cx: r.left - b.left + r.width / 2, cy: r.top - b.top + r.height / 2 }; };
+    let on = "", off = "";
+    S.matches.forEach(m => {
+      if (m.stage === "group" || m.stage === "r32" || m.stage === "third") return;
+      const fs = [m.home.feeds, m.away.feeds].filter(Boolean); if (fs.length < 2) return;
+      const C = rc(m.num), X = rc(fs[0]), Y = rc(fs[1]); if (!C || !X || !Y) return;
+      const left = X.cx < C.cx, fe = p => left ? p.r : p.l, ce = left ? C.l : C.r, mx = (fe(X) + ce) / 2;
+      const d = `M${fe(X)} ${X.cy} H${mx} M${fe(Y)} ${Y.cy} H${mx} M${mx} ${X.cy} V${Y.cy} M${mx} ${C.cy} H${ce} `;
+      if (m.stage === _brFocus) on += d; else off += d;
+    });
+    svg.innerHTML = (off ? `<path d="${off}" class="ls-cl ls-cl-off"/>` : "") + (on ? `<path d="${on}" class="ls-cl ls-cl-on"/>` : "");
+  });
+}
 function renderGroups() {
   const el = $("#view-groups");
   const phase = tablesPhase();   // groups → tables lead · locked → settled R32 leads · ko → live bracket leads
@@ -3545,8 +3616,8 @@ function renderGroups() {
   // played - no separate projected R32 board, no Projected/Confirmed toggle. During the groups it sits under the tables;
   // once the groups finish it leads and the tables fold away.
   const html =
-    phase === "groups" ? groups + third + liveBracketHTML()
-    : liveBracketHTML() + fold("Group-stage upsets", r32SurprisesHTML()) + fold("Final group tables", groups) + fold("Best-third race", third);
+    phase === "groups" ? groups + third + landscapeBracketHTML()
+    : landscapeBracketHTML() + fold("Group-stage upsets", r32SurprisesHTML()) + fold("Final group tables", groups) + fold("Best-third race", third);
   if (el.__sig === html) return;                           // groups unchanged (e.g. a minute tick elsewhere) - no flicker
   el.__sig = html;
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -3560,6 +3631,7 @@ function renderGroups() {
     tr.style.transition = "none"; tr.style.transform = `translateY(${dy}px)`;
     requestAnimationFrame(() => { tr.style.transition = "transform .55s cubic-bezier(.2,.8,.2,1)"; tr.style.transform = ""; });
   });
+  requestAnimationFrame(() => layoutLandscape(el));   // draw the landscape bracket's connectors + apply the round highlight
 }
 
 // human label for an unresolved knockout slot fed by another match's winner/loser
@@ -4384,10 +4456,11 @@ function renderSimDash() {
       </div>
     </div>`;
   };
-  paint(el, liveBracketHTML(false) + `
+  paint(el, landscapeBracketHTML({ withFoot: false }) + `
     <div class="pdash-sep"><span>Build your own</span></div>
     <p class="pdash-intro">${ICO.spark} Keep up to three scenarios - a gut pick, the favourites, a wildcard. Tap one to build it, all the way to a champion. Saved on this device.</p>
-    <div class="pdash">${S.simBox.slots.map(card).join("")}</div>`);   // morph, so the Projected/Confirmed toggle doesn't re-animate the dash
+    <div class="pdash">${S.simBox.slots.map(card).join("")}</div>`);   // morph, so the dash doesn't re-animate on a score tick
+  requestAnimationFrame(() => layoutLandscape(el));   // the "as it stands" landscape bracket: connectors + round highlight
   $$("[data-slot-open]", el).forEach(b => b.onclick = () => { setActiveSlot(+b.dataset.slotOpen); S.simView = "edit"; renderSim(); window.scrollTo(0, 0); });   // a freshly opened scenario starts at the top, not the dash's scroll position
   $$("[data-slot-rename]", el).forEach(b => b.onclick = async () => {
     const i = +b.dataset.slotRename, cur = S.simBox.slots[i];
@@ -5950,6 +6023,7 @@ async function boot() {
   addEventListener("click", e => { if (!e.target.closest("#teamSelWrap")) closeTeamSel(); });   // close team dropdown on outside click
   addEventListener("click", e => { if (!e.target.closest("#stageSelWrap")) closeStagePop(); });  // …and the stage dropdown
   addEventListener("click", e => { if (!e.target.closest(".rk-filter .tsel")) closeRkPops(); });   // …and both rankings dropdowns
+  (() => { let t; addEventListener("resize", () => { clearTimeout(t); t = setTimeout(() => layoutLandscape(), 120); }); })();   // re-draw landscape-bracket connectors on resize
   addEventListener("keydown", e => { if (e.key === "Escape") { closeTeamSel(); closeRkPops(); closeInfoPop(); } });
   addEventListener("scroll", () => closeInfoPop(), { passive: true, capture: true });   // an explainer popover dismisses on scroll
   // Keep an open sheet (search, compare, team picker…) above the on-screen keyboard. The visual viewport shrinks when
@@ -6042,6 +6116,8 @@ async function boot() {
       rmore.classList.toggle("is-open", open); rmore.setAttribute("aria-expanded", open ? "true" : "false");
       if (list?.classList.contains("rec-holders")) { open ? list.removeAttribute("hidden") : list.setAttribute("hidden", ""); }
       return; }
+    const brr = e.target.closest("[data-br-round]");   // landscape bracket round switcher → highlight that round + its feeders (no re-render)
+    if (brr) { _brFocus = brr.dataset.brRound; $$("[data-br-round]").forEach(x => { const on = x.dataset.brRound === _brFocus; x.classList.toggle("on", on); x.setAttribute("aria-selected", on); }); layoutLandscape(); return; }
     const mid = e.target.closest("[data-mid]");   // hero, match card, or a record row (never a dialog)
     if (mid && mid.tagName !== "DIALOG") { openMatch(mid.dataset.mid); }
   });

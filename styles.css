@@ -1150,6 +1150,35 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 /* split-bracket "Round of 32 — as it stands": two halves flanking a central trophy, flags-only ties */
 /* read-only "knockout as it stands" - rounds stacked, ties in a responsive grid; winner bold, loser greyed */
 .livebr{margin:2px 0 22px;animation:rise .45s both}
+/* converging "landscape" knockout bracket + round switcher (Bracket tab + Predict top) */
+.lsbr{margin:2px 0 22px;animation:rise .45s both}
+.ls-seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;margin:0 0 14px;max-width:100%}
+.ls-seg-b{border:none;border-left:1px solid var(--line);background:transparent;padding:6px 13px;font-family:var(--disp);font-weight:700;font-size:var(--fs-13);color:var(--ink-soft);cursor:pointer;transition:background .15s,color .15s}
+.ls-seg-b:first-child{border-left:none}
+.ls-seg-b.on{background:color-mix(in srgb,var(--acc1) 20%,transparent);color:var(--ink)}
+.ls-board{position:relative;display:flex;justify-content:space-between;align-items:stretch;height:372px}
+.ls-col{display:flex;flex-direction:column;justify-content:space-around;flex:0 0 auto;z-index:1;transition:opacity .2s}
+.ls-col[data-round=final]{justify-content:center;gap:6px}
+.ls-col.dim{opacity:.34}
+.ls-tie{display:flex;flex-direction:column;gap:1px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:3px 5px;cursor:pointer;transition:border-color .2s,box-shadow .2s,opacity .2s}
+.ls-side{display:flex;align-items:center;gap:4px;font-size:var(--fs-12);line-height:1.3;color:var(--ink-soft);white-space:nowrap}
+.ls-side .flagimg{width:15px;height:10px;flex:0 0 auto}
+.ls-side b{font-family:var(--mono);font-weight:700;font-size:10.5px;display:none}
+.ls-side.ls-won{color:var(--ink)}
+.ls-side.ls-won b{font-weight:800}
+.ls-side.ls-lost{opacity:.42}
+.ls-col.foc .ls-side b,.ls-col.fed .ls-side b{display:inline}
+.ls-tie.foc{border-color:var(--acc1);box-shadow:0 0 0 1.5px var(--acc1)}
+.ls-tie.fed{border-color:color-mix(in srgb,var(--acc1) 55%,var(--line))}
+.ls-cup{display:flex;align-items:center;justify-content:center;color:var(--gold-text)}
+.ls-cup svg{width:19px;height:19px}
+.ls-third{padding:4px 6px;align-items:center}
+.ls-thlbl{font-family:var(--disp);font-weight:700;font-size:9.5px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em}
+svg.ls-conn{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0;overflow:visible}
+.ls-cl{fill:none}
+.ls-cl-off{stroke:color-mix(in srgb,var(--ink) 20%,transparent);stroke-width:1}
+.ls-cl-on{stroke:var(--acc1);stroke-width:1.6}
+@media(min-width:560px){.ls-side b{display:inline}.ls-side{font-size:var(--fs-13)}.ls-board{height:430px}.ls-side .flagimg{width:18px;height:12px}}
 .lb-round{margin:0 0 16px}
 .lb-rh{font-family:var(--disp);font-weight:800;font-stretch:110%;font-size:var(--fs-12);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);margin:0 0 8px}
 .lb-ties{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px}
