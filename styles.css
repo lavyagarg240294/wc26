@@ -1172,7 +1172,8 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .ls-tie.fed{border-color:color-mix(in srgb,var(--acc1) 55%,var(--line))}
 .ls-cup{display:flex;align-items:center;justify-content:center;color:var(--gold-text)}
 .ls-cup svg{width:19px;height:19px}
-.ls-third{padding:4px 6px;align-items:center}
+.ls-third{padding:4px 6px;align-items:center;display:none}
+.ls-col.foc .ls-third{display:flex}   /* the 3rd-place node only shows in the Final view */
 .ls-thlbl{font-family:var(--disp);font-weight:700;font-size:9.5px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em}
 svg.ls-conn{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0;overflow:visible}
 .ls-cl{fill:none}
