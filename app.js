@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "411";  // shown in footer; bump with the ?v= asset version
+const BUILD = "412";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -3301,7 +3301,7 @@ function tablesPhase() {
   if (GROUPS.every(g => remInGroup(g) === 0)) return "locked";
   return "groups";
 }
-function liveBracketHTML() {
+function liveBracketHTML(withFoot = true) {
   const rounds = [["r32", "Round of 32"], ["r16", "Round of 16"], ["qf", "Quarter-finals"], ["sf", "Semi-finals"], ["third", "Third-place play-off"], ["final", "Final"]];
   const tieEl = m => {
     const h = slotInfo(m, "home"), a = slotInfo(m, "away"), r = res(m), st = status(m);
@@ -3318,7 +3318,12 @@ function liveBracketHTML() {
     const ms = S.matches.filter(m => m.stage === st).sort((a, b) => a.num - b.num);
     return ms.length ? `<div class="lb-round"><div class="lb-rh">${name}</div><div class="lb-ties">${ms.map(tieEl).join("")}</div></div>` : "";
   }).join("");
-  return `<div class="livebr"><div class="eyebrow">Knockout bracket · as it stands ${infoBtn("Filled from the live results as the knockouts are played - winners advance, the team that loses is greyed out. Tap a tie to open the match. A slot shows its seed (e.g. 1E, or Best third) until the team is decided.", "How the live bracket fills in")}</div>${cols}</div>`;
+  const foot = withFoot ? `<div class="r32board-foot"><span>Tap a tie for the match. The bracket fills in as the knockouts are played.</span>
+      <div class="r32board-acts">
+        <button class="r32board-share" data-r32share aria-label="Share the knockout bracket">${ICO.camera} Share</button>
+        <button class="r32board-cta" data-sim-edit>Make your own picks ${ICO.tap}</button>
+      </div></div>` : "";
+  return `<div class="livebr"><div class="eyebrow">Knockout bracket · as it stands ${infoBtn("Filled from the live results as the knockouts are played - winners advance, the team that loses is greyed out. Tap a tie to open the match. A slot shows its seed (e.g. 1E, or Best third) until the team is decided.", "How the live bracket fills in")}</div>${cols}${foot}</div>`;
 }
 function r32BracketHTML() {
   const anyPlayed = S.matches.some(m => m.group && isFinalSt(status(m)) && res(m)?.h != null);
@@ -3500,9 +3505,11 @@ function renderGroups() {
   // once the groups are settled, demote them (and the now-decided best-third race) into folds so the bracket leads -
   // they stay one tap away as the final reference. The fold reuses the existing ▸ disclosure pattern.
   const fold = (label, body) => body ? `<details class="tbl-fold"><summary><span class="ear-tri">▸</span> ${label}</summary><div class="tbl-fold-body">${body}</div></details>` : "";
+  // One bracket everywhere now: the full knockout bracket (R32 -> Final) that fills as teams lock and matches are
+  // played - no separate projected R32 board, no Projected/Confirmed toggle. During the groups it sits under the tables;
+  // once the groups finish it leads and the tables fold away.
   const html =
-    phase === "groups" ? groups + third + r32BracketHTML()
-    : phase === "locked" ? r32BracketHTML() + fold("Final group tables", groups) + fold("Best-third race", third)
+    phase === "groups" ? groups + third + liveBracketHTML()
     : liveBracketHTML() + fold("Final group tables", groups) + fold("Best-third race", third);
   if (el.__sig === html) return;                           // groups unchanged (e.g. a minute tick elsewhere) - no flicker
   el.__sig = html;
@@ -4336,8 +4343,7 @@ function renderSimDash() {
       </div>
     </div>`;
   };
-  const liveBr = (SHOW_LIVE_BRACKET || new URLSearchParams(location.search).get("bracket") === "1") ? liveBracketHTML() : "";
-  paint(el, liveBr + r32BracketHTML() + `
+  paint(el, liveBracketHTML(false) + `
     <div class="pdash-sep"><span>Build your own</span></div>
     <p class="pdash-intro">${ICO.spark} Keep up to three scenarios - a gut pick, the favourites, a wildcard. Tap one to build it, all the way to a champion. Saved on this device.</p>
     <div class="pdash">${S.simBox.slots.map(card).join("")}</div>`);   // morph, so the Projected/Confirmed toggle doesn't re-animate the dash
