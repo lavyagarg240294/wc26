@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "413";  // shown in footer; bump with the ?v= asset version
+const BUILD = "414";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -3492,6 +3492,46 @@ function roadSection(code) {
     <div class="rdp${reaches ? " rdp-final" : ""}">${steps}${reaches ? `<span class="rdp-arr">›</span><div class="rdp-step rdp-cup"><span class="rdp-rd">Lift it</span><span class="rdp-opp">${TROPHY}</span></div>` : ""}</div>
     <p class="sim-ko-hint">Projected from live standings: assumes ${esc(t.name)} keep winning - their Round-of-32 draw first, then the stronger projected team waiting in each later tie. Tap a step to open that match.</p>`;
 }
+// Group stage against the seedings: each team's FINAL group position vs its pre-tournament world rating (Elo, the
+// seeded snapshot in teams.json). Surfaces genuine surprises only - a team that qualified or went out against
+// expectation, or finished >=2 places off its rating. Purely descriptive (their rating was Nth, they finished Mth) -
+// never a forecast. Built on the same standings()/qualStatus() the rest of the app trusts. See [[accuracy-remove-uncertain]].
+function r32Surprises() {
+  if (!GROUPS.every(g => remInGroup(g) === 0)) return [];     // only once every group is settled
+  const elo = c => S.teams[c]?.elo || 1700;
+  const out = [];
+  GROUPS.forEach(g => {
+    const tbl = standings(g);
+    if (tbl.length < 4) return;
+    const byRating = tbl.map(t => t.code).slice().sort((a, b) => elo(b) - elo(a));   // strongest -> weakest on paper
+    tbl.forEach((t, i) => {
+      const actual = i + 1, expected = byRating.indexOf(t.code) + 1, delta = expected - actual;   // delta>0 = finished above its rating
+      const through = qualStatus(t.code) === "in";
+      const flip = (expected <= 2) !== through;                // top-two on paper but out, or not-expected but through
+      if (delta === 0 || (Math.abs(delta) < 2 && !flip)) return;   // skip non-surprises (noise)
+      out.push({ code: t.code, g, actual, expected, delta, through, pos: i });
+    });
+  });
+  return out.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta) || a.actual - b.actual);
+}
+function r32SurprisesHTML() {
+  const rows = r32Surprises();
+  if (!rows.length) return "";
+  const seedTxt = e => e === 1 ? "top-rated" : e === 4 ? "lowest-rated" : ordinal(e) + "-strongest on paper";
+  const phrase = r => r.pos === 0 ? "won the group" : r.pos === 1 ? "through as runner-up"
+    : r.pos === 2 ? (r.through ? "squeezed in as a best third" : "finished 3rd - out") : "finished bottom - out";
+  const row = r => `<li class="upset-row">
+      <span class="fl">${flag(r.code)}</span>
+      <span class="upset-main"><span class="upset-team">${esc(S.teams[r.code].name)}</span><span class="upset-line">Group ${r.g} · ${seedTxt(r.expected)} → ${phrase(r)}</span></span>
+      <span class="upset-d ${r.delta > 0 ? "up-pos" : "up-neg"}" title="${Math.abs(r.delta)} place${Math.abs(r.delta) > 1 ? "s" : ""} ${r.delta > 0 ? "above" : "below"} their pre-tournament rating">${r.delta > 0 ? "▲" : "▼"}${Math.abs(r.delta)}</span>
+    </li>`;
+  const block = (title, list) => list.length ? `<div class="upset-grp"><h4 class="upset-h">${title}</h4><ul class="upset-list">${list.map(row).join("")}</ul></div>` : "";
+  return `<div class="upsets">
+    <p class="upsets-intro">Final group positions against each team's pre-tournament world rating${infoBtn('"On paper" ranks the four teams in each group by their pre-tournament World Football Elo rating - the same seeded rating the win-probability model starts from. This panel only compares that order to how the group actually finished: a description of what happened, not a prediction.', 'What "on paper" means')}. The teams that ended up out of position.</p>
+    ${block("Punched above their rating", rows.filter(r => r.delta > 0))}
+    ${block("Came up short", rows.filter(r => r.delta < 0))}
+  </div>`;
+}
 function renderGroups() {
   const el = $("#view-groups");
   const phase = tablesPhase();   // groups → tables lead · locked → settled R32 leads · ko → live bracket leads
@@ -3506,7 +3546,7 @@ function renderGroups() {
   // once the groups finish it leads and the tables fold away.
   const html =
     phase === "groups" ? groups + third + liveBracketHTML()
-    : liveBracketHTML() + fold("Final group tables", groups) + fold("Best-third race", third);
+    : liveBracketHTML() + fold("Group-stage upsets", r32SurprisesHTML()) + fold("Final group tables", groups) + fold("Best-third race", third);
   if (el.__sig === html) return;                           // groups unchanged (e.g. a minute tick elsewhere) - no flicker
   el.__sig = html;
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -5435,7 +5475,7 @@ function openChampOverlay() {
         <button class="champ-x" aria-label="Close">✕</button>
       </div>
       <ol class="champ-list" id="champList"></ol>
-      <p class="champ-note">Relative strength from current ratings · tap build number 7x to reopen</p>
+      <p class="champ-note">Each surviving team's share of the title by current strength - a form-adjusted Elo rating, softmax-normalised so the field adds to 100%. A strength snapshot, not a match-by-match bracket simulation · tap the build number 7x to reopen</p>
     </div>`;
     document.body.appendChild(ov);
     ov.querySelector(".champ-x").onclick = () => {
