@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "405";  // shown in footer; bump with the ?v= asset version
+const BUILD = "406";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -912,9 +912,27 @@ function evText(e, code) {
   const tag = e.k === "P" ? ` <span class="tl-x">pen</span>` : e.k === "OG" ? ` <span class="tl-x">o.g.</span>` : "";
   return `${e.p ? P(e.p, "tl-p") : ""}${tag}${e.a ? P(e.a, "tl-off") : ""}`;
 }
+const DROP_ICON = `<svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true"><path d="M12 2.6c3.4 4.1 5.9 7.4 5.9 10.5a5.9 5.9 0 1 1-11.8 0c0-3.1 2.5-6.4 5.9-10.5z"/></svg>`;
+const _tlMin = t => { const m = String(t).match(/(\d+)(?:\+(\d+))?/); return m ? +m[1] + (m[2] ? +m[2] / 100 : 0) : 0; };   // "45+2" -> 45.02, keeps stoppage ordered after the base minute
 function mdTimeline(r, hc, ac) {
-  if (!r?.ev?.length) return "";
-  const rows = r.ev.map(e => {
+  if (!r) return "";
+  // Mandatory 2026 hydration breaks: new this World Cup, the referee stops EVERY match for a 3-minute drinks break
+  // ~22 minutes into each half, with no weather condition. It isn't a feed event - it's a known scheduled rule - so we
+  // mark it ourselves at 22' and 67', shown only once the match has actually reached that minute (so a live timeline
+  // never gets ahead of play). FT clears the live clock, so a finished match shows both.
+  const done = isFinalSt(r.st), liveMin = r.st === ST.HT ? 45 : (r.min != null ? _tlMin(r.min) : (done ? 999 : -1));
+  const evs = [...(r.ev || [])];   // keep the feed's own event order untouched; just slot the scheduled breaks into place
+  for (const bm of [22, 67]) {
+    if (liveMin < bm) continue;
+    let i = evs.findIndex(e => _tlMin(e.t) > bm); if (i < 0) i = evs.length;
+    evs.splice(i, 0, { t: bm + "'", k: "BRK" });   // minute carries the ' like real events ("22'")
+  }
+  if (!evs.length) return "";
+  const rows = evs.map(e => {
+    if (e.k === "BRK") return `<div class="tl is-break" title="Mandatory 3-minute hydration break - new for the 2026 World Cup. The referee stops every match around 22 minutes into each half, regardless of the weather.">
+    <div class="tl-min">${esc(e.t)}</div>
+    <span class="tl-brk">${DROP_ICON}<span>Hydration break</span><span class="tl-x">3 min</span></span>
+  </div>`;
     // `tm` is the team the event counts FOR; for an own goal that's the beneficiary, but the scorer belongs to
     // the OTHER team - so link the player to their real side, else the tap opens the wrong team and the photo misses.
     const scorerCode = e.k === "OG" ? (e.tm === "h" ? ac : hc) : (e.tm === "h" ? hc : ac);

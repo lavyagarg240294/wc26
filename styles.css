@@ -1815,6 +1815,11 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .tl-sub{color:var(--pitch);font-weight:800;font-size:var(--fs-13)}
 .tl-clk{cursor:pointer}
 .tl-clk:hover,.tl-clk:focus-visible{text-decoration:underline;text-decoration-color:var(--acc-text);text-underline-offset:2px;outline:none}
+/* scheduled hydration break (2026 rule) - a neutral marker centred on the timeline spine, dashed pill so it reads as a
+   fixture of the format, not a played event */
+.tl.is-break .tl-min{color:var(--acc-text);border-style:dashed;border-color:color-mix(in srgb,var(--acc1) 40%,var(--line));background:color-mix(in srgb,var(--acc1) 6%,var(--paper))}
+.tl-brk{grid-column:1 / -1;grid-row:2;justify-self:center;display:inline-flex;align-items:center;gap:6px;margin-top:6px;font-size:var(--fs-12);font-weight:600;color:var(--ink-soft);white-space:nowrap}
+.tl-brk svg{color:var(--acc-text);opacity:.9;flex:0 0 auto}
 /* compact player profile (tap a name in the match timeline). NB: .pp* is the formation pitch — use .pl* here */
 .sheet-player{max-width:430px}
 .pl{display:flex;align-items:center;gap:14px;margin:2px 0 16px}
