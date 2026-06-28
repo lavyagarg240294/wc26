@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "419";  // shown in footer; bump with the ?v= asset version
+const BUILD = "420";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -353,10 +353,14 @@ function status(m) {
     // the loop lagged/stopped, OR the game was suspended/abandoned and the feed froze. We can't tell which from a frozen
     // row, so we coerce it OUT of "live" (the hero stops pulsing it) but mark it UNCONFIRMED (see isUnconfirmedFinal) -
     // never asserting a clean full-time score on a guess. An explicit abnormal state is trusted as-is and shown honestly.
-    const mins = (Date.now() - +new Date(m.utc)) / 60000, ko = m.stage !== "group";
-    // a knockout can legitimately run far past 90' - extra time + a penalty shootout push real elapsed past ~170 min -
-    // so the "stuck feed" caps are much higher for knockouts, and the HT cap clears any extra-time half-time break too.
-    if ((r.st === ST.LIVE && mins > (ko ? 215 : 125)) || (r.st === ST.HT && mins > (ko ? 200 : 90))) return ST.FT;
+    const mins = (Date.now() - +new Date(m.utc)) / 60000, ko = m.stage !== "group", base = liveBaseMin(r) ?? 0;
+    // A knockout runs long ONLY while it can still be playing: still level after 90' → extra time + a shootout (~170'+);
+    // a goal already in extra time (base >105) → until the end of ET; otherwise it was settled inside normal time and a
+    // group-length cap applies. That last bucket is what releases a decided game stuck on "97" (e.g. 0-1) instead of
+    // holding it "live" for ~3½ hours - and a side genuinely in early ET leaves this bucket (its base climbs past 105)
+    // before the cap, so it's never cut off early. The HT cap still clears an extra-time half-time break too.
+    const liveCap = !ko ? 125 : (r.h === r.a) ? 210 : base > 105 ? 175 : 134;
+    if ((r.st === ST.LIVE && mins > liveCap) || (r.st === ST.HT && mins > (ko ? 200 : 90))) return ST.FT;
     return r.st;
   }
   // no feed row yet (only before the very first Action run): best-effort from the scheduled time
@@ -390,13 +394,18 @@ function liveLabel(m, r) {
   const c = clockStr(m, r);
   if (m.stage === "group" || !r || r.min == null) return c;
   const base = liveBaseMin(r) ?? 0, plus = String(r.min).includes("+");
-  // Extra time vs second-half stoppage, told apart honestly. "90+4" (base 90, explicit stoppage) is NOT extra time;
-  // "105+1"/"120+2" (base >=105, explicit) is. A FLAT minute like "97" is this feed counting second-half stoppage
-  // straight through (= 90+7), so show it as 90+X - only a flat minute well past any plausible stoppage (base >105)
-  // is really extra time. (Knockouts only; a level scoreline isn't required - a goal can drop in during ET.)
+  // Extra time vs second-half stoppage, told apart honestly:
+  //  • "90+4" (explicit, base 90) → stoppage;  "105+1"/"120+2" (explicit, base >=105) → extra time.
+  //  • a flat minute past 105 ("108") → clearly extra time.
+  //  • a flat minute just past 90 ("97") is ambiguous - this feed counts second-half stoppage straight through (= 90+7).
+  //    Extra time is reachable only from a level score at 90' and carries extra breaks (pre-ET + an ET half-time), so a
+  //    LEVEL game with more real time elapsed than second-half stoppage could explain is in ET; otherwise it's 90+X.
   if (plus) return base >= 105 ? `ET ${c}` : c;
   if (base > 105) return `ET ${c}`;
-  if (base > 90) return `90+${base - 90}′`;
+  if (base > 90) {
+    const real = (Date.now() - +new Date(m.utc)) / 60000;
+    return r.h === r.a && real > base + 22 ? `ET ${c}` : `90+${base - 90}′`;
+  }
   return c;
 }
 const remInGroup = g => S.matches.filter(m => m.group === g && !isFeedFinal(m)).length;   // not yet a confirmed result (incl. live/suspended/postponed)
