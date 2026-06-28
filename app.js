@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "410";  // shown in footer; bump with the ?v= asset version
+const BUILD = "411";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -861,6 +861,7 @@ const lastName = n => {
 function pitchSide(side, s, home) {
   const fr = formationRows(side); if (!fr) return null;
   const c1 = (s.code && S.teams[s.code]?.c1) || "#1f2937", c2 = (s.code && S.teams[s.code]?.c2) || "#ffffff";
+  const pno = readableAccentDark(c1, c2);   // the team's kit colour, lightened only if needed to read on the dark name pill - so the jersey number is colour-coded by side
   const nb = fr.bands.length;
   const dot = (p, x, depth, slot) => {                                  // depth 0 = own goal, 1 = halfway; slot = the % of pitch width this player owns horizontally
     const top = home ? 96 - depth * 44 : 4 + depth * 44;               // home bottom half, away top half
@@ -873,7 +874,7 @@ function pitchSide(side, s, home) {
     // z-index rises toward the top of the pitch so a player's name label always sits ABOVE the face of the row below
     // it (the labels overhang into the next row in tight formations) - never hidden behind a photo. `slot` bounds the
     // name width to this player's share of the row, so a packed five-at-the-back line never overlaps its neighbours.
-    return `<div class="pp pp-clk${photo ? "" : " pp-nf"}" data-player="${esc(p[1])}|${s.code}" role="button" tabindex="0" style="left:${left}%;top:${top}%;width:${slot.toFixed(1)}%;z-index:${Math.round(100 - top)};--pc:${c1};--pt:${c2}">${face}<span class="pp-name">${num !== "" ? `<b class="pp-no">${num}</b>` : ""}<span class="pp-nm">${esc(lastName(p[1]))}</span></span></div>`;
+    return `<div class="pp pp-clk${photo ? "" : " pp-nf"}" data-player="${esc(p[1])}|${s.code}" role="button" tabindex="0" style="left:${left}%;top:${top}%;width:${slot.toFixed(1)}%;z-index:${Math.round(100 - top)};--pc:${c1};--pt:${c2};--pno:${pno}">${face}<span class="pp-name">${num !== "" ? `<b class="pp-no">${num}</b>` : ""}<span class="pp-nm">${esc(lastName(p[1]))}</span></span></div>`;
   };
   let html = dot(fr.gk, 50, 0.06, 40);                                 // GK just off the goal line; alone in its row, so a generous label slot
   // spread the outfield bands EVENLY from clear-of-the-GK (D0) to short-of-halfway (D1). The old (bi+1)/(nb+0.5)

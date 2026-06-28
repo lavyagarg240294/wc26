@@ -116,7 +116,10 @@ def parse_pdf(path):
         used = set()
         for i, side in ((0, "home"), (1, "away")):
             target = d["distance"][i]
-            best, best_diff = None, 1.0               # accept only a page summing within 1 km of the team total
+            # accept the closest per-player page whose decoded distances sum near the published team total. A flat 1 km
+            # was too strict - a single mis-decoded digit shifts the sum a few km, so ~23 matches lost one team entirely.
+            # Allow ~4% of the total (min 2.5 km): tolerant of a stray decode, still nowhere near a garbage page.
+            best, best_diff = None, max(2.5, target * 0.04)
             for (pi, r, tot) in cands:
                 if pi in used:
                     continue
