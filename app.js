@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "422";  // shown in footer; bump with the ?v= asset version
+const BUILD = "423";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -2446,7 +2446,7 @@ function teamOverview(code) {
   const [finish, yr] = (t.best || "").split(" · ");
   const coach = teamCoach(code);
   // one pedigree statement: best finish (the headline) over "year(s) · appearances"
-  const head = debut ? "Debut" : `BEST: ${esc(finish)}`;
+  const head = debut ? "Debut" : `Best: ${esc(finish)}`;
   const sub = debut ? "First World Cup"
     : [yr ? esc(yr) : "", t.apps != null ? `${t.apps} appearance${t.apps !== 1 ? "s" : ""}` : ""].filter(Boolean).join(" · ");
   return `<div class="ts-ped"><div class="tp tp-finish"><b>${head}</b><span>${sub}</span></div></div>
