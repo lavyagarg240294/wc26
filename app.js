@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "408";  // shown in footer; bump with the ?v= asset version
+const BUILD = "409";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -862,7 +862,7 @@ function pitchSide(side, s, home) {
   const fr = formationRows(side); if (!fr) return null;
   const c1 = (s.code && S.teams[s.code]?.c1) || "#1f2937", c2 = (s.code && S.teams[s.code]?.c2) || "#ffffff";
   const nb = fr.bands.length;
-  const dot = (p, x, depth) => {                                        // depth 0 = own goal, 1 = halfway
+  const dot = (p, x, depth, slot) => {                                  // depth 0 = own goal, 1 = halfway; slot = the % of pitch width this player owns horizontally
     const top = home ? 96 - depth * 44 : 4 + depth * 44;               // home bottom half, away top half
     const left = home ? x : 100 - x;
     const photo = bestPhoto(p[1], s.code, p[0]);   // p[0] = jersey number → exact match
@@ -871,16 +871,18 @@ function pitchSide(side, s, home) {
       ? `<span class="pp-face" style="background-image:url('${photo}')"></span>`     // headshot only - no circle, no number on the face
       : `<span class="pp-dot">${num}</span>`;                                        // fallback when no photo exists
     // z-index rises toward the top of the pitch so a player's name label always sits ABOVE the face of the row below
-    // it (the labels overhang into the next row in tight formations) - never hidden behind a photo.
-    return `<div class="pp pp-clk${photo ? "" : " pp-nf"}" data-player="${esc(p[1])}|${s.code}" role="button" tabindex="0" style="left:${left}%;top:${top}%;z-index:${Math.round(100 - top)};--pc:${c1};--pt:${c2}">${face}<span class="pp-name">${num !== "" ? `<b class="pp-no">${num}</b>` : ""}<span class="pp-nm">${esc(lastName(p[1]))}</span></span></div>`;
+    // it (the labels overhang into the next row in tight formations) - never hidden behind a photo. `slot` bounds the
+    // name width to this player's share of the row, so a packed five-at-the-back line never overlaps its neighbours.
+    return `<div class="pp pp-clk${photo ? "" : " pp-nf"}" data-player="${esc(p[1])}|${s.code}" role="button" tabindex="0" style="left:${left}%;top:${top}%;width:${slot.toFixed(1)}%;z-index:${Math.round(100 - top)};--pc:${c1};--pt:${c2}">${face}<span class="pp-name">${num !== "" ? `<b class="pp-no">${num}</b>` : ""}<span class="pp-nm">${esc(lastName(p[1]))}</span></span></div>`;
   };
-  let html = dot(fr.gk, 50, 0.06);                                     // GK just off the goal line
+  let html = dot(fr.gk, 50, 0.06, 40);                                 // GK just off the goal line; alone in its row, so a generous label slot
   // spread the outfield bands EVENLY from clear-of-the-GK (D0) to short-of-halfway (D1). The old (bi+1)/(nb+0.5)
   // packed the first line right against the keeper, so the keeper's name label collided with the centre-backs' faces.
   const D0 = 0.27, D1 = 0.9;
   fr.bands.forEach((band, bi) => {
     const depth = nb === 1 ? 0.5 : D0 + (bi / (nb - 1)) * (D1 - D0);
-    band.forEach((p, pi) => html += dot(p, (pi + 1) / (band.length + 1) * 100, depth));
+    const slot = 100 / (band.length + 1) - 1;                          // each player owns one even slice of the row, minus a 1% gutter
+    band.forEach((p, pi) => html += dot(p, (pi + 1) / (band.length + 1) * 100, depth, slot));
   });
   return html;
 }
@@ -928,12 +930,12 @@ function mdTimeline(r, hc, ac) {
   const done = isFinalSt(r.st), liveMin = r.st === ST.HT ? 45 : (r.min != null ? _tlMin(r.min) : (done ? 999 : -1));
   // Display minute per event. The feed sometimes logs an event with no clock: that's a pre-kickoff line-up change ONLY
   // when it precedes every timed event - show "0'". If a timed event has already passed, a blank clock is a mid-match
-  // event whose minute we simply don't have - show "-1" (an honest "unknown"), never "0'" which would misdate it to KO.
+  // event whose minute we simply don't have - show a plain dash (unknown), never "0'" which would misdate it to KO.
   let _seenTimed = false;
   const evs = (r.ev || []).map(e => {
     const timed = e.t && /\d/.test(String(e.t));
     if (timed) _seenTimed = true;
-    return { ...e, _disp: timed ? e.t : (_seenTimed ? "-1" : "0'") };
+    return { ...e, _disp: timed ? e.t : (_seenTimed ? "–" : "0'") };
   });
   for (const bm of [22, 67]) {   // slot the scheduled breaks into the feed's own event order (no reordering)
     if (liveMin < bm) continue;
@@ -942,9 +944,9 @@ function mdTimeline(r, hc, ac) {
   }
   if (!evs.length) return "";
   const rows = evs.map(e => {
-    if (e.k === "BRK") return `<div class="tl is-break" title="Mandatory 3-minute hydration break - new for the 2026 World Cup. The referee stops every match around 22 minutes into each half, regardless of the weather.">
+    if (e.k === "BRK") return `<div class="tl is-break is-a" title="Mandatory 3-minute hydration break - new for the 2026 World Cup. The referee stops every match around 22 minutes into each half, regardless of the weather.">
     <div class="tl-min">${esc(e._disp)}</div>
-    <span class="tl-brk">${DROP_ICON}<span>Hydration break</span><span class="tl-x">3 min</span></span>
+    <span class="tl-ev"><span class="tl-tx">Hydration break</span><span class="tl-ic">${DROP_ICON}</span></span>
   </div>`;
     // `tm` is the team the event counts FOR; for an own goal that's the beneficiary, but the scorer belongs to
     // the OTHER team - so link the player to their real side, else the tap opens the wrong team and the photo misses.
@@ -1675,7 +1677,7 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
   const middle = liveNow
     // live: who's-on-top control + the live feed lead, then numbers, stars; the (pre-match) win-prob sits as a quieter
     // reference lower down (it's no longer a live in-play estimate, so it shouldn't headline a live game)
-    ? [pControl, pComm, pKeyStats, pStars, pTimeline, pStats, pWinProb, pXiInline, pEfi, pCompareFold, pStakes, pH2H]
+    ? [pControl, pKeyStats, pStars, pTimeline, pStats, pComm, pWinProb, pXiInline, pEfi, pCompareFold, pStakes, pH2H]
     : hasResult
     // finished: the report leads, then key stats + control, stars, the full timeline & numbers, the model's call, the deep dive
     ? [pReport, pKeyStats, pControl, pStars, pTimeline, pStats, pXiInline, pEfi, (pSwing || pWinProb), pCompareFold, pStakes, pH2H]
@@ -1719,7 +1721,7 @@ function heroBlock(heroM, isLive, onLive) {
   const live = isLive != null ? isLive : [ST.LIVE, ST.HT].includes(st);   // Matches tab passes it; Live tab derives the state
   const unconf = !live && isUnconfirmedFinal(heroM);
   const ft = !live && isFinalSt(st) && !unconf, abn = !live && (isAbnormal(st) || unconf), result = ft || (abn && r?.h != null), clickable = !onLive;
-  const tag = live ? `${ballSVG("live-ball")} Live now` : ft ? `● Full time` : unconf ? `● Awaiting confirmation` : abn ? `● ${stMeta(st).lbl}` : `${isFavMatch(heroM) ? "Your team · " : ""}Next kickoff`;
+  const tag = live ? `${ballSVG("live-ball")} Live` : ft ? `● Full time` : unconf ? `● Awaiting confirmation` : abn ? `● ${stMeta(st).lbl}` : `${isFavMatch(heroM) ? "Your team · " : ""}Next kickoff`;
   // qualified / out marker under each team name (group heroes only); reserve the row on BOTH sides when either
   // team has one, so the two big flags stay vertically aligned.
   const grp = heroM.stage === "group";

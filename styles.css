@@ -1491,14 +1491,16 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .pp.pp-clk{pointer-events:auto;cursor:pointer}
 .pp-clk:hover,.pp-clk:focus-visible{z-index:99 !important}   /* a hovered player jumps above every neighbour */
 /* headshot marker: a SMALL circle cropped tight to the head — no circle chrome, no number on the face. The source is a
-   full-body portrait whose head sits in the top ~4-16%, so zoom hard and frame near the top: full hair (a little space
-   above) down through the chin + a touch of neck, but no shoulders/torso. Smaller circle = more open pitch + room for the name. */
-.pp-face{width:30px;height:30px;border-radius:50%;background-size:400%;background-position:50% 2%;background-repeat:no-repeat;background-color:rgba(255,255,255,.16);box-shadow:0 2px 6px rgba(0,0,0,.45)}
-.pp-clk:hover .pp-face,.pp-clk:focus-visible .pp-face{box-shadow:0 0 0 2px #fff,0 3px 9px rgba(0,0,0,.5)}
+   full-body portrait. The HEAD top varies (~7-9.5%) but the SHOULDERS are consistent (~22%), so we anchor the crop to
+   that: frame from above the hair down through the chin + a little neck, stopping just above the shoulders - no torso,
+   and no chin clipped on the lower-headed players (Mbappé/Lacroix). No circle: the photos are transparent cut-outs, so
+   the head floats with a shape-following shadow. */
+.pp-face{width:30px;height:30px;background-size:415%;background-position:50% 6%;background-repeat:no-repeat;filter:drop-shadow(0 1px 2px rgba(0,0,0,.6))}
+.pp-clk:hover .pp-face,.pp-clk:focus-visible .pp-face{filter:drop-shadow(0 2px 4px rgba(0,0,0,.65)) brightness(1.08);transform:scale(1.07)}
 /* fallback dot only when a player has no headshot at all */
 .pp-dot{width:28px;height:28px;border-radius:50%;background:var(--pc);color:var(--pt);border:1.5px solid rgba(255,255,255,.85);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-weight:700;font-size:var(--fs-11);box-shadow:0 2px 5px rgba(0,0,0,.35)}
 /* name label: a solid dark pill, smaller font so a longer surname fits; sits clear below the smaller circle (no overlap) */
-.pp-name{display:inline-flex;align-items:center;gap:3px;max-width:66px;font-size:var(--fs-8);font-weight:700;letter-spacing:.01em;color:#fff;background:rgba(8,12,20,.78);padding:1.5px 6px;border-radius:99px;box-shadow:0 1px 3px rgba(0,0,0,.4)}
+.pp-name{display:inline-flex;align-items:center;gap:3px;max-width:100%;font-size:var(--fs-8);font-weight:700;letter-spacing:.01em;color:#fff;background:rgba(8,12,20,.78);padding:1.5px 6px;border-radius:99px;box-shadow:0 1px 3px rgba(0,0,0,.4)}
 .pp-nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pp-no{flex:0 0 auto;font-family:var(--mono);font-weight:700;font-size:var(--fs-7);color:rgba(255,255,255,.7)}
 .pitch-coaches{display:flex;justify-content:space-between;gap:10px;margin:9px 2px 0;font-size:var(--fs-11);color:var(--ink-soft);font-style:italic}
@@ -1641,9 +1643,9 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 /* cards stat-tile: same big display number as the other tiles, with yellow/red card chips */
 /* two numbers (+ card chips) live in one tile, so it's sized a touch smaller than the single-number tiles
    above — keeps the same display font/weight but guarantees fit once yellows hit 3 digits / reds hit 2 */
-.card-val{display:inline-flex;align-items:center;gap:11px;font-size:22px}
-.cv{display:inline-flex;align-items:center;gap:6px}
-.cv::before{content:"";width:12px;height:16px;border-radius:3px;flex:none;box-shadow:0 1px 2px rgba(13,27,42,.25)}
+.card-val{display:inline-flex;align-items:center;gap:5px;font-size:14px}   /* smaller so both tallies (incl. three-digit yellows + two-digit reds) fit one tile */
+.cv{display:inline-flex;align-items:center;gap:3px}
+.cv::before{content:"";width:9px;height:13px;border-radius:3px;flex:none;box-shadow:0 1px 2px rgba(13,27,42,.25)}
 .cv-y::before{background:var(--gold)}
 .cv-r::before{background:var(--live)}
 .cv-r{color:var(--ink-soft)}
@@ -1818,11 +1820,11 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .tl-sub{color:var(--pitch);font-weight:800;font-size:var(--fs-13)}
 .tl-clk{cursor:pointer}
 .tl-clk:hover,.tl-clk:focus-visible{text-decoration:underline;text-decoration-color:var(--acc-text);text-underline-offset:2px;outline:none}
-/* scheduled hydration break (2026 rule) - a neutral marker centred on the timeline spine, dashed pill so it reads as a
-   fixture of the format, not a played event */
+/* scheduled hydration break (2026 rule): rendered like any other event - dashed minute pill + label to the side - so it
+   reads as a fixture of the format, not a played event. The water-drop icon carries the accent; the label stays muted. */
 .tl.is-break .tl-min{color:var(--acc-text);border-style:dashed;border-color:color-mix(in srgb,var(--acc1) 40%,var(--line));background:color-mix(in srgb,var(--acc1) 6%,var(--paper))}
-.tl-brk{grid-column:1 / -1;grid-row:2;justify-self:center;display:inline-flex;align-items:center;gap:6px;margin-top:6px;font-size:var(--fs-12);font-weight:600;color:var(--ink-soft);white-space:nowrap;position:relative;z-index:1;background:var(--card);padding:2px 10px;border-radius:99px}   /* card bg + z-index so the centre timeline spine doesn't run through the text */
-.tl-brk svg{color:var(--acc-text);opacity:.9;flex:0 0 auto}
+.tl.is-break .tl-tx{color:var(--ink-soft);font-weight:600}
+.tl.is-break .tl-ic{color:var(--acc-text);align-self:center}
 /* compact player profile (tap a name in the match timeline). NB: .pp* is the formation pitch — use .pl* here */
 .sheet-player{max-width:430px}
 .pl{display:flex;align-items:center;gap:14px;margin:2px 0 16px}
@@ -2204,7 +2206,7 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
   .md-teams{margin-bottom:6px}
   .eyebrow{font-size:var(--fs-10);margin:22px 0 11px}
   .stat-val{font-size:24px}
-  .card-val{font-size:20px;gap:9px}
+  .card-val{font-size:13px;gap:5px}
   .stat-tile{padding:13px 14px}
   .lead-row{padding:8px 12px;font-size:var(--fs-13)}
   .lead-card h4{font-size:var(--fs-11)}
