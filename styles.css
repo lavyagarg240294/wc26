@@ -1487,17 +1487,19 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .pitch-lines{position:absolute;inset:0;width:100%;height:100%}
 .pitch-lines rect,.pitch-lines line,.pitch-lines circle{fill:none;stroke:rgba(255,255,255,.45);stroke-width:.5}
 .pitch-lines .pf{fill:rgba(255,255,255,.6);stroke:none}
-.pp{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:3px;width:62px;pointer-events:none}
+.pp{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:4px;width:64px;pointer-events:none}
 .pp.pp-clk{pointer-events:auto;cursor:pointer}
-/* headshot-only marker: the player's face, framed top so it reads clearly — no circle chrome, no number on the face */
-/* zoomed to the face (head + neck), not the upper body — the source photo is a head-to-waist portrait */
-.pp-face{width:44px;height:44px;border-radius:50%;background-size:182%;background-position:50% 9%;background-repeat:no-repeat;background-color:rgba(255,255,255,.16);box-shadow:0 2px 7px rgba(0,0,0,.4)}
+.pp-clk:hover,.pp-clk:focus-visible{z-index:99 !important}   /* a hovered player jumps above every neighbour */
+/* headshot-only marker: the player's face, cropped tight to the head — no circle chrome, no number on the face. The
+   source photo is a head-to-waist portrait, so zoom in and frame near the top to land the face, not the torso. */
+.pp-face{width:48px;height:48px;border-radius:50%;background-size:205%;background-position:50% 11%;background-repeat:no-repeat;background-color:rgba(255,255,255,.16);box-shadow:0 2px 7px rgba(0,0,0,.45)}
 .pp-clk:hover .pp-face,.pp-clk:focus-visible .pp-face{box-shadow:0 0 0 2px #fff,0 3px 9px rgba(0,0,0,.5)}
 /* fallback dot only when a player has no headshot at all */
-.pp-dot{width:30px;height:30px;border-radius:50%;background:var(--pc);color:var(--pt);border:1.5px solid rgba(255,255,255,.85);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-weight:700;font-size:var(--fs-12);box-shadow:0 2px 5px rgba(0,0,0,.35)}
-.pp-name{display:inline-flex;align-items:center;gap:3px;max-width:62px;font-size:var(--fs-9);font-weight:700;letter-spacing:.02em;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.85)}
+.pp-dot{width:34px;height:34px;border-radius:50%;background:var(--pc);color:var(--pt);border:1.5px solid rgba(255,255,255,.85);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-weight:700;font-size:var(--fs-12);box-shadow:0 2px 5px rgba(0,0,0,.35)}
+/* name label: a solid dark pill so it stays legible over any photo it overhangs (paired with the per-player z-index) */
+.pp-name{display:inline-flex;align-items:center;gap:4px;max-width:64px;font-size:var(--fs-9);font-weight:700;letter-spacing:.02em;color:#fff;background:rgba(8,12,20,.74);padding:2px 7px;border-radius:99px;box-shadow:0 1px 3px rgba(0,0,0,.4)}
 .pp-nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.pp-no{flex:0 0 auto;font-family:var(--mono);font-weight:700;font-size:var(--fs-8);color:#fff;background:rgba(0,0,0,.45);border-radius:4px;padding:1px 3px;line-height:1.3}
+.pp-no{flex:0 0 auto;font-family:var(--mono);font-weight:700;font-size:var(--fs-8);color:rgba(255,255,255,.72)}
 .pitch-coaches{display:flex;justify-content:space-between;gap:10px;margin:9px 2px 0;font-size:var(--fs-11);color:var(--ink-soft);font-style:italic}
 .pitch-coaches span:last-child{text-align:right}
 /* lightweight toast (shared-prediction copy, etc.) */
@@ -1818,7 +1820,7 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 /* scheduled hydration break (2026 rule) - a neutral marker centred on the timeline spine, dashed pill so it reads as a
    fixture of the format, not a played event */
 .tl.is-break .tl-min{color:var(--acc-text);border-style:dashed;border-color:color-mix(in srgb,var(--acc1) 40%,var(--line));background:color-mix(in srgb,var(--acc1) 6%,var(--paper))}
-.tl-brk{grid-column:1 / -1;grid-row:2;justify-self:center;display:inline-flex;align-items:center;gap:6px;margin-top:6px;font-size:var(--fs-12);font-weight:600;color:var(--ink-soft);white-space:nowrap}
+.tl-brk{grid-column:1 / -1;grid-row:2;justify-self:center;display:inline-flex;align-items:center;gap:6px;margin-top:6px;font-size:var(--fs-12);font-weight:600;color:var(--ink-soft);white-space:nowrap;position:relative;z-index:1;background:var(--card);padding:2px 10px;border-radius:99px}   /* card bg + z-index so the centre timeline spine doesn't run through the text */
 .tl-brk svg{color:var(--acc-text);opacity:.9;flex:0 0 auto}
 /* compact player profile (tap a name in the match timeline). NB: .pp* is the formation pitch — use .pl* here */
 .sheet-player{max-width:430px}

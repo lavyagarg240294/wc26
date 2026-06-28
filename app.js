@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "406";  // shown in footer; bump with the ?v= asset version
+const BUILD = "407";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -870,9 +870,11 @@ function pitchSide(side, s, home) {
     const face = photo
       ? `<span class="pp-face" style="background-image:url('${photo}')"></span>`     // headshot only - no circle, no number on the face
       : `<span class="pp-dot">${num}</span>`;                                        // fallback when no photo exists
-    return `<div class="pp pp-clk${photo ? "" : " pp-nf"}" data-player="${esc(p[1])}|${s.code}" role="button" tabindex="0" style="left:${left}%;top:${top}%;--pc:${c1};--pt:${c2}">${face}<span class="pp-name">${num !== "" ? `<b class="pp-no">${num}</b>` : ""}<span class="pp-nm">${esc(lastName(p[1]))}</span></span></div>`;
+    // z-index rises toward the top of the pitch so a player's name label always sits ABOVE the face of the row below
+    // it (the labels overhang into the next row in tight formations) - never hidden behind a photo.
+    return `<div class="pp pp-clk${photo ? "" : " pp-nf"}" data-player="${esc(p[1])}|${s.code}" role="button" tabindex="0" style="left:${left}%;top:${top}%;z-index:${Math.round(100 - top)};--pc:${c1};--pt:${c2}">${face}<span class="pp-name">${num !== "" ? `<b class="pp-no">${num}</b>` : ""}<span class="pp-nm">${esc(lastName(p[1]))}</span></span></div>`;
   };
-  let html = dot(fr.gk, 50, 0.06);                                     // keep GK just off the goal line
+  let html = dot(fr.gk, 50, 0.07);                                     // GK just off the goal line, clear of the defensive line
   fr.bands.forEach((band, bi) => {
     const depth = (bi + 1) / (nb + 0.5);                              // last line stops short of halfway
     band.forEach((p, pi) => html += dot(p, (pi + 1) / (band.length + 1) * 100, depth));
@@ -937,7 +939,7 @@ function mdTimeline(r, hc, ac) {
     // the OTHER team - so link the player to their real side, else the tap opens the wrong team and the photo misses.
     const scorerCode = e.k === "OG" ? (e.tm === "h" ? ac : hc) : (e.tm === "h" ? hc : ac);
     return `<div class="tl ${e.tm === "h" ? "is-h" : "is-a"}${["G", "P", "OG"].includes(e.k) ? " is-goal" : ""}">
-    <div class="tl-min">${esc(e.t || "–")}</div>
+    <div class="tl-min">${esc(e.t || "0'")}</div>
     <span class="tl-ev"><span class="tl-tx">${evText(e, scorerCode)}</span>${EV_ICON[e.k] ? `<span class="tl-ic">${EV_ICON[e.k]}</span>` : ""}</span>
   </div>`;
   }).join("");
@@ -3662,14 +3664,15 @@ function showInfoPop(anchor, text) {
   }
   if (pop._anchor === anchor && pop.classList.contains("show")) return closeInfoPop();   // tap again to dismiss
   pop.textContent = text; pop._anchor = anchor;
-  if (_POPOVER_OK) { try { pop.hidePopover(); } catch {} try { pop.showPopover(); } catch {} }
-  pop.classList.add("show");
-  // fixed/viewport coords (the popover's containing block is the viewport, not the transformed dialog);
-  // we dismiss on scroll, so not tracking scroll is fine.
+  // Position BEFORE showing, so the popover never paints at a default spot and then jumps to place (the flicker).
+  // fixed/viewport coords (the popover's containing block is the viewport, not the transformed dialog); we dismiss on
+  // scroll, so not tracking scroll is fine.
   const r = anchor.getBoundingClientRect(), w = Math.min(280, innerWidth - 24);
   pop.style.width = w + "px";
   pop.style.left = Math.max(12, Math.min(r.left + r.width / 2 - w / 2, innerWidth - w - 12)) + "px";
   pop.style.top = (r.bottom + 7) + "px";
+  if (_POPOVER_OK) { try { pop.hidePopover(); } catch {} try { pop.showPopover(); } catch {} }
+  pop.classList.add("show");
 }
 /* compact prediction codec (~23 bytes → ~31-char link); decode falls back to the old JSON format */
 const FACT = [1, 1, 2, 6, 24];
