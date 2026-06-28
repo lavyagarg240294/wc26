@@ -228,7 +228,15 @@ async function fromFifa(prev, needsPhotos) {
       // match could plausibly be over (>=100' real elapsed guards against a pre-finish glitch) - confirming ~45 min
       // sooner than the blanket cap, so a freshly-finished game doesn't linger as "live" then trip the client's TBC.
       // A MISSING status, or any KNOCKOUT (extra time / pens run long), stays cautious to the 150-min cap.
-      if (ms == null || ms === 0) { const cap = (ms === 0 && f.stage === "group") ? 100 : 150; st = (kickoff && now >= kickoff && now < kickoff + cap * 60000) ? "LIVE" : "FT"; }
+      if (ms == null || ms === 0) {
+        // FIFA's 0 = finished. Trust it as full-time once the match clock shows it ran a period it can END on
+        // (>=90' normal, or 105'/120' in extra time) - that rejects only a rare pre-final glitch flagged early,
+        // instead of holding a genuinely-finished knockout "live" for the whole 150' window (the SA 0-1 Canada bug).
+        // A MISSING status (no code at all) has no such signal, so it still falls back to the time cap.
+        const mt = minKey(x.MatchTime);
+        if (ms === 0 && mt >= 90) st = "FT";
+        else { const cap = (ms === 0 && f.stage === "group") ? 100 : 150; st = (kickoff && now >= kickoff && now < kickoff + cap * 60000) ? "LIVE" : "FT"; }
+      }
       else st = (Number.isFinite(kickoff) && now < kickoff) ? "SCHED" : "SUSP";
     }
 
@@ -255,6 +263,7 @@ async function fromFifa(prev, needsPhotos) {
       if (x.Home?.IdCountry && toOur[x.Home.IdCountry]) entry.ht = toOur[x.Home.IdCountry];
       if (x.Away?.IdCountry && toOur[x.Away.IdCountry]) entry.at = toOur[x.Away.IdCountry];
     }
+    if (x.ResultType) entry.rt = x.ResultType;      // 1 normal time · 2 after extra time · 3 after penalties — how a finished match was decided
 
     const prevE = prev[f.id];
     const inPlay = st === "LIVE" || st === "HT";
@@ -278,6 +287,7 @@ async function fromFifa(prev, needsPhotos) {
       const lv = await fifaGet(`${FIFA}/live/football/${COMP}/${SEASON}/${x.IdStage}/${x.IdMatch}?language=en`);
       fetched++;
       if (lv.Period === 4 && entry.st === "LIVE") entry.st = "HT";   // 4 == half-time
+      if (lv.Period != null) entry.per = lv.Period;   // FIFA period: 1 first half · 3 second half · 4 HT · 5/6/7 extra-time halves · 10 shootout — the client's authoritative ET signal (no elapsed-time guessing)
       const { ev, xi } = buildEvents(lv);
       if (swap) for (const e of ev) e.tm = e.tm === "h" ? "a" : "h";   // keep event sides on openfootball's orientation
       if (ev.length) entry.ev = ev;
@@ -585,7 +595,7 @@ for (const id in prevMerged) if (prevMerged[id] && prevMerged[id].manual) matche
 // Split the payload: results.json keeps only the small scores/status fields (it's polled every ~60s by every
 // open page); the heavy per-match detail (timeline, lineups, team stats, fallback scorers) goes to details.json,
 // fetched by the client only when scores actually change. Keeps the hot-path file tiny once knockouts fill it.
-const SLIM = ["st", "h", "a", "hp", "ap", "ht", "at", "min", "ko", "manual", "note"];   // manual/note: operator override fields, kept in the small polled file
+const SLIM = ["st", "h", "a", "hp", "ap", "ht", "at", "min", "per", "rt", "ko", "manual", "note"];   // per/rt: FIFA period + result-type signals; manual/note: operator override fields, all kept in the small polled file
 const slim = {}, detail = {};
 for (const [id, m] of Object.entries(matches)) {
   const s = {}, d = {};

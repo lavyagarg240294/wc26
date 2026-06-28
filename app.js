@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "420";  // shown in footer; bump with the ?v= asset version
+const BUILD = "421";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -393,13 +393,18 @@ function liveLabel(m, r) {
   if (inShootout(m, r)) return `Pens ${r.hp}–${r.ap}`;
   const c = clockStr(m, r);
   if (m.stage === "group" || !r || r.min == null) return c;
-  const base = liveBaseMin(r) ?? 0, plus = String(r.min).includes("+");
-  // Extra time vs second-half stoppage, told apart honestly:
-  //  • "90+4" (explicit, base 90) → stoppage;  "105+1"/"120+2" (explicit, base >=105) → extra time.
-  //  • a flat minute past 105 ("108") → clearly extra time.
-  //  • a flat minute just past 90 ("97") is ambiguous - this feed counts second-half stoppage straight through (= 90+7).
-  //    Extra time is reachable only from a level score at 90' and carries extra breaks (pre-ET + an ET half-time), so a
-  //    LEVEL game with more real time elapsed than second-half stoppage could explain is in ET; otherwise it's 90+X.
+  const base = liveBaseMin(r) ?? 0;
+  // FIFA's authoritative period (persisted as `per` by the primary feed) - the definitive phase signal, so we never
+  // guess from elapsed time (drinks breaks at 22'/67', ~15' half-time, and the extra-time breaks make that unreliable).
+  // 1 = first half · 3 = second half · 4 = half-time (already mapped to st=HT) · 5/6/7 = extra-time halves · 10 = shootout.
+  if (r.per != null) {
+    if (r.per >= 5 && base > 90) return `ET ${c}`;              // extra time / shootout period (sanity-checked past 90')
+    if (r.per === 3 && base > 90) return `90+${base - 90}′`;    // second-half stoppage (the feed counts straight through: "97" = 90+7)
+    if (r.per === 1 && base > 45) return `45+${base - 45}′`;    // first-half stoppage
+    return c;
+  }
+  // FALLBACK only (worldcup26.ir / football-data carry no period): tell ET from stoppage by notation, then elapsed time.
+  const plus = String(r.min).includes("+");
   if (plus) return base >= 105 ? `ET ${c}` : c;
   if (base > 105) return `ET ${c}`;
   if (base > 90) {
@@ -1618,7 +1623,7 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
   const statusTag = st === ST.LIVE ? `<span class="md-tag live">● ${liveLabel(m, r) || "Live"}</span>`
     : st === ST.HT ? `<span class="md-tag live">Half-time</span>`
     : unconf ? `<span class="md-tag abn">Awaiting confirmation</span>`
-    : st === ST.FT ? `<span class="md-tag ft">Full time</span>`
+    : st === ST.FT ? `<span class="md-tag ft">Full time${r?.rt === 2 ? " · a.e.t." : r?.rt === 3 ? " · pens" : ""}</span>`
     : isAbnormal(st) ? `<span class="md-tag abn md-tag-${st.toLowerCase()}">${stMeta(st).lbl}</span>`
     : `<span class="md-tag soon">Upcoming</span>`;   // time/date live in the meta row below - no need to repeat it
   const side = (s, key) => `<div class="md-team ${s.code === S.fav ? "is-fav" : ""}${s.code ? " md-team-clk" : ""}"${s.code ? ` data-squad="${s.code}" role="button" tabindex="0" aria-label="Open ${esc(s.name)} details"` : ""}>
