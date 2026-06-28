@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "412";  // shown in footer; bump with the ?v= asset version
+const BUILD = "413";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -817,7 +817,7 @@ function matchCard(m, i, opts = {}) {
     : "";   // scheduled: kickoff time already shows on the left - don't repeat it on the right
   const teamRow = (s, key, lost) =>
     `<div class="mcard-team ${s.ph ? "is-ph" : ""} ${lost ? "is-lost" : ""}">` +
-    `<span class="fl">${s.code ? flag(s.code) : TBD_FLAG}</span><span class="mct-name">${esc(slotText(m, key, s))}</span>${m.stage === "group" && s.code ? qualBadge(s.code) : ""}</div>`;   // group cards show the team's qualified/out marker (KO teams are all through, so it'd be redundant there)
+    `<span class="fl">${s.code ? flag(s.code) : TBD_FLAG}</span><span class="mct-name">${esc(slotText(m, key, s, true))}</span>${m.stage === "group" && s.code ? qualBadge(s.code) : ""}</div>`;   // group cards show the team's qualified/out marker (KO teams are all through, so it'd be redundant there)
   const sv = isSaved(m.id);
   // The card body is the primary button; the save-star is a SIBLING <button>, not nested inside it
   // (nesting two interactive controls is invalid ARIA - screen readers announce it ambiguously). The
@@ -1106,12 +1106,8 @@ function koPath(m) {
 // (from the same feed chain koPath uses). Only for an unfinished knockout tie - a finished one shows its result.
 function koStakeLine(m) {
   if (!m || m.stage === "group" || isFinalSt(status(m))) return "";
-  if (m.stage === "final") return "";   // the round label ("Final") already says it - a stake line would only state the obvious
   if (m.stage === "third") return "Playing for the bronze medal - the two beaten semi-finalists.";
-  const tgt = {}; S.matches.forEach(x => { if (x.stage !== "group") [x.home, x.away].forEach(s => { if (s.feeds != null) tgt[s.feeds] = x.num; }); });
-  const next = S.matches.find(x => x.num === tgt[m.num]);
-  const nm = next ? STAGE_NAME[next.stage] : null;
-  return nm ? `Winner into the ${nm}.` : "";   // lead with the non-obvious half (the specific next round); "loser out" is inherent to a knockout
+  return "";   // every other knockout round: "winner advances, loser out" is inherent - the round label + matchup already say it, no need to spell it out
 }
 // win-probability - a bivariate-Poisson goals model. Team strength is each side's World Football Elo rating
 // (seeded snapshot in teams.json), nudged by current-tournament form; the Elo gap sets the goal supremacy that
@@ -1619,7 +1615,7 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
     : `<span class="md-tag soon">Upcoming</span>`;   // time/date live in the meta row below - no need to repeat it
   const side = (s, key) => `<div class="md-team ${s.code === S.fav ? "is-fav" : ""}${s.code ? " md-team-clk" : ""}"${s.code ? ` data-squad="${s.code}" role="button" tabindex="0" aria-label="Open ${esc(s.name)} details"` : ""}>
       <span class="md-flag">${s.code ? flag(s.code) : TBD_FLAG}</span>
-      <span class="md-name ${s.ph ? "is-ph" : ""}">${esc(slotText(m, key, s))}</span>
+      <span class="md-name ${s.ph ? "is-ph" : ""}">${esc(slotText(m, key, s, true))}</span>
       ${s.code ? `<span class="md-teaminfo">${esc(S.teams[s.code].conf || "")}${fifaRankOf(s.code) ? ` · <span class="md-rank" title="FIFA World Ranking">#${fifaRankOf(s.code)}</span>` : ""}${S.teams[s.code].titles ? ` · ${TROPHY} ${S.teams[s.code].titles}` : ""}</span>` : ""}</div>`;
   const mid = (score || live)
     ? `<div class="md-score">${r?.h ?? 0}<span>–</span>${r?.a ?? 0}</div>${r?.hp != null ? `<div class="md-pens${inShootout(m, r) ? " is-live" : ""}"><small>${inShootout(m, r) ? "Penalties" : "Won on penalties"}</small> <b>${r.hp}–${r.ap}</b></div>` : ""}`
@@ -3528,13 +3524,18 @@ function renderGroups() {
 
 // human label for an unresolved knockout slot fed by another match's winner/loser
 const STAGE_SHORT = { r32: "R32", r16: "R16", qf: "QF", sf: "SF", final: "Final" };
-function feedLabel(num, loser) {
+function feedLabel(num, loser, long) {
   const m = S.matches.find(x => x.num === num && x.stage !== "group");
   if (!m) return (loser ? "Loser " : "Winner ") + "M" + num;
+  const pre = loser ? "Loser " : "Winner ";
+  if (long) {                                   // name the feeding tie once both its teams are known (e.g. R16 slots now the R32 is locked)
+    const fh = slotInfo(m, "home"), fa = slotInfo(m, "away");
+    if (fh.code && fa.code) return pre + "of " + fh.name + " v " + fa.name;   // "Winner of South Africa v Canada"
+  }
   const peers = S.matches.filter(x => x.stage === m.stage).sort((a, b) => a.num - b.num);
   const idx = peers.indexOf(m) + 1;
   const sh = STAGE_SHORT[m.stage] || m.stage.toUpperCase();
-  return (loser ? "Loser " : "Winner ") + sh + "-" + idx;
+  return pre + sh + "-" + idx;
 }
 // human label for a knockout match - users never see global match numbers, so "M104" becomes "Final", "SF 1"…
 function matchTag(m) {
@@ -3543,11 +3544,11 @@ function matchTag(m) {
   const peers = S.matches.filter(x => x.stage === m.stage).sort((a, b) => a.num - b.num);
   return (STAGE_SHORT[m.stage] || (m.round || m.stage)) + " " + (peers.indexOf(m) + 1);
 }
-function slotText(m, side, si) {
+function slotText(m, side, si, long) {
   if (!si.ph) return si.name;                         // a real team is known
   const slot = m[side];
-  if (slot.feeds) return feedLabel(slot.feeds, false); // "Winner QF1"
-  if (slot.feedsL) return feedLabel(slot.feedsL, true);// "Loser SF1" (third-place)
+  if (slot.feeds) return feedLabel(slot.feeds, false, long); // "Winner R32-1" - or "Winner of South Africa v Canada" when long
+  if (slot.feedsL) return feedLabel(slot.feedsL, true, long);// "Loser SF-1" (third-place)
   return si.name;                                      // group placeholder - the friendly "Runner-up Group A" (not the terse "2A")
 }
 // position every bracket card at the vertical midpoint of its feeder matches (a true bracket tree)
