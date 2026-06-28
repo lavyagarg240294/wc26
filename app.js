@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "417";  // shown in footer; bump with the ?v= asset version
+const BUILD = "418";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -3586,8 +3586,14 @@ function layoutLandscape(scope) {
       if (m.stage === "group" || m.stage === "r32" || m.stage === "third") return;
       const fs = [m.home.feeds, m.away.feeds].filter(Boolean); if (fs.length < 2) return;
       const C = rc(m.num), X = rc(fs[0]), Y = rc(fs[1]); if (!C || !X || !Y) return;
-      const left = X.cx < C.cx, fe = p => left ? p.r : p.l, ce = left ? C.l : C.r, mx = (fe(X) + ce) / 2;
-      const d = `M${fe(X)} ${X.cy} H${mx} M${fe(Y)} ${Y.cy} H${mx} M${mx} ${X.cy} V${Y.cy} M${mx} ${C.cy} H${ce} `;
+      let d;
+      if ((X.cx < C.cx) === (Y.cx < C.cx)) {            // both feeders one side (every round but the final): stubs → a shared spine → one line in
+        const lft = X.cx < C.cx, fe = p => lft ? p.r : p.l, ce = lft ? C.l : C.r, mx = (fe(X) + ce) / 2;
+        d = `M${fe(X)} ${X.cy} H${mx} M${fe(Y)} ${Y.cy} H${mx} M${mx} ${X.cy} V${Y.cy} M${mx} ${C.cy} H${ce} `;
+      } else {                                           // the final: a semi sits on each side - elbow each into the nearer edge, no stray line across the middle
+        const el = F => { const lft = F.cx < C.cx, fe = lft ? F.r : F.l, ce = lft ? C.l : C.r, mx = (fe + ce) / 2; return `M${fe} ${F.cy} H${mx} V${C.cy} H${ce} `; };
+        d = el(X) + el(Y);
+      }
       if (m.stage === _brFocus) on += d; else off += d;
     });
     svg.innerHTML = (off ? `<path d="${off}" class="ls-cl ls-cl-off"/>` : "") + (on ? `<path d="${on}" class="ls-cl ls-cl-on"/>` : "");
