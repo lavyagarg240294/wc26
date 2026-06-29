@@ -53,7 +53,7 @@ test("48 teams, every one appears in a group fixture, kit colours valid", () => 
 });
 
 test("results.json: only score/status fields; valid status, scores, resolved codes", () => {
-  const SLIM = new Set(["st", "h", "a", "hp", "ap", "ht", "at", "min", "ko"]);
+  const SLIM = new Set(["st", "h", "a", "hp", "ap", "ht", "at", "min", "per", "rt", "ko", "manual", "note"]);   // keep in sync with SLIM in scripts/fetch-results.mjs
   for (const [id, r] of Object.entries(results)) {
     assert.ok(ids.has(id), `results id ${id} is a real match`);
     for (const k of Object.keys(r)) assert.ok(SLIM.has(k), `results.json[${id}].${k} is a slim field (no split leak)`);
@@ -64,7 +64,7 @@ test("results.json: only score/status fields; valid status, scores, resolved cod
 });
 
 test("details.json: only heavy fields, keys are real matches", () => {
-  const SLIM = new Set(["st", "h", "a", "hp", "ap", "ht", "at", "min", "ko"]);
+  const SLIM = new Set(["st", "h", "a", "hp", "ap", "ht", "at", "min", "per", "rt", "ko", "manual", "note"]);   // keep in sync with SLIM in scripts/fetch-results.mjs
   for (const [id, d] of Object.entries(details)) {
     assert.ok(ids.has(id), `details id ${id} is a real match`);
     for (const k of Object.keys(d)) assert.ok(!SLIM.has(k), `details.json[${id}].${k} is not a slim field (no split leak)`);
