@@ -1,0 +1,14 @@
+#!/bin/sh
+# Pre-push guard: run the same checks CI does, so a red commit can't reach GitHub.
+# Mirrors .github/workflows/test.yml (node --test) plus a fast app.js syntax check.
+# Bypass in an emergency with:  git push --no-verify
+set -e
+cd "$(git rev-parse --show-toplevel)"
+
+printf '\033[2mpre-push\033[0m node --check app.js\n'
+node --check app.js
+
+printf '\033[2mpre-push\033[0m node --test\n'
+node --test
+
+printf '\033[32mpre-push ✓ checks passed\033[0m\n'
