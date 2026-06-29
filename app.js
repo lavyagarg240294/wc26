@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "423";  // shown in footer; bump with the ?v= asset version
+const BUILD = "424";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -391,25 +391,30 @@ const inShootout = (m, r) => m.stage !== "group" && !!r && r.hp != null && r.ap 
 // concise live-phase text for badges/chips: stoppage preserved, extra time + shootout labelled honestly
 function liveLabel(m, r) {
   if (inShootout(m, r)) return `Pens ${r.hp}–${r.ap}`;
-  const c = clockStr(m, r);
-  if (m.stage === "group" || !r || r.min == null) return c;
-  const base = liveBaseMin(r) ?? 0;
-  // FIFA's authoritative period (persisted as `per` by the primary feed) - the definitive phase signal, so we never
+  if (!r || m.stage === "group") return clockStr(m, r);
+  // base is NULL (not 0) when the feed carries no minute - FIFA sends MatchTime="" all through extra time AND the
+  // shootout, so we must read `per` to phase the match even with no clock, never fall to the elapsed "90+" estimate.
+  const base = liveBaseMin(r);
+  // FIFA's authoritative period (persisted as `per` by the primary feed) is the definitive phase signal, so we never
   // guess from elapsed time (drinks breaks at 22'/67', ~15' half-time, and the extra-time breaks make that unreliable).
-  // 1 = first half · 3 = second half · 4 = half-time (already mapped to st=HT) · 5/6/7 = extra-time halves · 10 = shootout.
+  // 1 = first half · 3 = second half · 4 = half-time (already mapped to st=HT) · 5/6/7 = extra-time halves · 10/11 = shootout.
   if (r.per != null) {
-    if (r.per >= 5 && base > 90) return `ET ${c}`;              // extra time / shootout period (sanity-checked past 90')
+    if (r.per >= 10) return "Penalties";                                              // shootout (FIFA Period 11) - holds until the pen scores land, then inShootout takes over
+    if (r.per >= 5) return base != null && base > 90 ? `ET ${clockStr(m, r)}` : "Extra time";   // ET (the feed usually carries no minute here)
+    if (base == null) return clockStr(m, r);
     if (r.per === 3 && base > 90) return `90+${base - 90}′`;    // second-half stoppage (the feed counts straight through: "97" = 90+7)
     if (r.per === 1 && base > 45) return `45+${base - 45}′`;    // first-half stoppage
-    return c;
+    return clockStr(m, r);
   }
+  if (r.min == null) return clockStr(m, r);
   // FALLBACK only (worldcup26.ir / football-data carry no period): tell ET from stoppage by notation, then elapsed time.
+  const c = clockStr(m, r), b = base ?? 0;
   const plus = String(r.min).includes("+");
-  if (plus) return base >= 105 ? `ET ${c}` : c;
-  if (base > 105) return `ET ${c}`;
-  if (base > 90) {
+  if (plus) return b >= 105 ? `ET ${c}` : c;
+  if (b > 105) return `ET ${c}`;
+  if (b > 90) {
     const real = (Date.now() - +new Date(m.utc)) / 60000;
-    return r.h === r.a && real > base + 22 ? `ET ${c}` : `90+${base - 90}′`;
+    return r.h === r.a && real > b + 22 ? `ET ${c}` : `90+${b - 90}′`;
   }
   return c;
 }

@@ -287,7 +287,7 @@ async function fromFifa(prev, needsPhotos) {
       const lv = await fifaGet(`${FIFA}/live/football/${COMP}/${SEASON}/${x.IdStage}/${x.IdMatch}?language=en`);
       fetched++;
       if (lv.Period === 4 && entry.st === "LIVE") entry.st = "HT";   // 4 == half-time
-      if (lv.Period != null) entry.per = lv.Period;   // FIFA period: 1 first half · 3 second half · 4 HT · 5/6/7 extra-time halves · 10 shootout — the client's authoritative ET signal (no elapsed-time guessing)
+      if (lv.Period != null) entry.per = lv.Period;   // FIFA period: 1 first half · 3 second half · 4 HT · 5/6/7 extra-time halves · 10/11 shootout (observed 11) — the client's authoritative ET signal (no elapsed-time guessing)
       const { ev, xi } = buildEvents(lv);
       if (swap) for (const e of ev) e.tm = e.tm === "h" ? "a" : "h";   // keep event sides on openfootball's orientation
       if (ev.length) entry.ev = ev;
