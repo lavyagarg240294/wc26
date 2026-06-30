@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "424";  // shown in footer; bump with the ?v= asset version
+const BUILD = "425";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1363,49 +1363,6 @@ function winProb(m, pre = false, at = null) {   // at = {h,a,min,reds}: evaluate
     predicted, drawMode: predicted[0] && predicted[0].h === predicted[0].a, xg: { h: exH / tot, a: exA / tot },
     reasons: reasons.sort((x, y) => y.mag - x.mag).slice(0, 3) };
 }
-// the win-probability SWING across a match: the model's "home win, draw counts half" read (= advance% for a KO),
-// re-evaluated at kickoff and after every goal/red, ending at the actual full-time outcome. Honest - it's the same
-// model as the bar, sampled at each event (no per-minute pretence). Returns null for a goalless game (nothing to show).
-function winProbSeries(m) {
-  const r = res(m), hc = slotInfo(m, "home").code, ac = slotInfo(m, "away").code;
-  if (!r || r.h == null || !hc || !ac) return null;
-  const evY = wp => wp ? wp.h + 0.5 * wp.d : null;
-  const at0 = winProb(m, false, { h: 0, a: 0, min: 0, reds: { h: 0, a: 0 } }); if (!at0) return null;
-  const pts = [{ min: 0, y: evY(at0) }];
-  let h = 0, a = 0, rh = 0, ra = 0;
-  const evs = (r.ev || []).filter(e => ["G", "P", "OG", "R"].includes(e.k) && e.tm).map(e => ({ ...e, mn: evMin(e.t) })).filter(e => e.mn >= 1).sort((x, z) => x.mn - z.mn);
-  for (const e of evs) {
-    if (e.k === "R") { if (e.tm === "h") rh++; else ra++; } else { if (e.tm === "h") h++; else a++; }
-    const wp = winProb(m, false, { h, a, min: Math.min(e.mn, 90), reds: { h: rh, a: ra } });
-    if (wp) pts.push({ min: Math.min(e.mn, 94), y: evY(wp), ev: e, goal: e.k !== "R" });
-  }
-  if (isFinalSt(status(m))) {   // a finished match ends at its 90'/ET outcome. This axis is "winning, a draw counts
-    // half" - so a level match a shootout decided sits at 0.5: it WAS a draw, and a shootout is advancing, not winning.
-    const ftY = r.h > r.a ? 1 : r.h < r.a ? 0 : 0.5;
-    pts.push({ min: 95, y: ftY, ft: true });
-  }
-  let up = 0, down = 0;
-  for (let i = 1; i < pts.length; i++) { const d = pts[i].y - pts[i - 1].y; if (d > up) up = d; if (-d > down) down = -d; }
-  // only worth a chart if the read swung BOTH ways (a back-and-forth / comeback). A one-directional line - the
-  // favourite winning comfortably, a blowout, or a clean upset - just restates the result, so skip it.
-  return (pts.length > 2 && up >= 0.08 && down >= 0.08) ? { pts, hc, ac } : null;
-}
-function winSwingChart(m) {
-  const s = winProbSeries(m); if (!s) return null;
-  const W = 300, H = 92, top = 7, bot = H - 7;
-  const xOf = mn => 6 + (mn / 95) * (W - 12), yOf = v => bot - v * (bot - top);
-  const line = s.pts.map((p, i) => `${i ? "L" : "M"}${xOf(p.min).toFixed(1)} ${yOf(p.y).toFixed(1)}`).join(" ");
-  const dots = s.pts.filter(p => p.goal).map(p => `<circle cx="${xOf(p.min).toFixed(1)}" cy="${yOf(p.y).toFixed(1)}" r="3.4" class="ws-dot" style="fill:${S.teams[p.ev.tm === "h" ? s.hc : s.ac]?.c1 || "var(--acc-text)"}"/>`).join("");
-  return `<div class="eyebrow">Win-probability swing ${infoBtn("The model's read of the match - each side's chance of winning, with a draw counting half - re-figured at kickoff and after every goal, ending at the result. The same model as the win-probability bar, sampled at each event; a clearly-labelled estimate, not a live tracker.", "How the swing is read")}</div>
-    <div class="ws-wrap">
-      <div class="ws-lbl"><span class="fl">${flag(s.hc)}</span> ${esc(S.teams[s.hc]?.name || s.hc)} winning</div>
-      <svg class="ws-svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="Win-probability swing across the match">
-        <line class="ws-mid" x1="6" y1="${yOf(0.5).toFixed(1)}" x2="${W - 6}" y2="${yOf(0.5).toFixed(1)}"/>
-        <path class="ws-line" d="${line}"/>${dots}
-      </svg>
-      <div class="ws-lbl ws-lbl-a"><span class="fl">${flag(s.ac)}</span> ${esc(S.teams[s.ac]?.name || s.ac)} winning</div>
-    </div>`;
-}
 function winProbBlock(m, pre = false) {
   const wp = winProb(m, pre); if (!wp) return "";
   const h = slotInfo(m, "home"), a = slotInfo(m, "away");
@@ -1668,7 +1625,6 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
   const _wp = winProb(m, true);
   const pWinProb = _wp ? winProbBlock(m, true) + (live ? "" : liveWhyChips(_wp) + liveScorelines(_wp)) : "";
   const pReport = mdReport(m), pComm = mdCommentaryShell(m), pStakes = stakesBlock(m), pCompare = matchCompare(m), pStars = liveStars(m), pControl = matchControlBar(m);
-  const pSwing = hasResult ? (winSwingChart(m) || "") : "";   // the win-probability swing across a finished match (only when there were goals)
   const pXiInline = r?.xi ? `<div class="eyebrow">${liveNow ? "Line-ups" : "Starting XI"}</div>${xiPanel(r.xi, h, a)}` : "";
   const pXiFold = r?.xi ? `<details class="md-fold"><summary><span>Starting XI</span><small>${esc([r.xi.h?.f, r.xi.a?.f].filter(Boolean).join(" v ")) || "line-ups & formations"}</small></summary><div class="md-fold-body">${xiPanel(r.xi, h, a)}</div></details>` : "";
   // "how they compare" rides along as a collapsed fold for live/finished games (it leads expanded in the upcoming branch)
@@ -1695,7 +1651,7 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
     ? [pControl, pKeyStats, pStars, pTimeline, pStats, pComm, pWinProb, pXiInline, pEfi, pCompareFold, pStakes, pH2H]
     : hasResult
     // finished: the report leads, then key stats + control, stars, the full timeline & numbers, the model's call, the deep dive
-    ? [pReport, pKeyStats, pControl, pStars, pTimeline, pStats, pXiInline, pEfi, (pSwing || pWinProb), pCompareFold, pStakes, pH2H]
+    ? [pReport, pKeyStats, pControl, pStars, pTimeline, pStats, pXiInline, pEfi, pWinProb, pCompareFold, pStakes, pH2H]
     : [pStakes, pCompare, pWinProb, pH2H, pXiInline];   // upcoming: stakes + compare + odds + past WC meetings + (announced) line-ups
   const _body = pTop + middle.join("") + pMeta;
   const mb = $("#matchBody");
