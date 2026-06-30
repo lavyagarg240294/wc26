@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "427";  // shown in footer; bump with the ?v= asset version
+const BUILD = "428";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -992,6 +992,17 @@ function mdTimeline(r, hc, ac) {
   }).join("");
   return `<div class="eyebrow">Match events</div><div class="md-tl">${rows}</div>`;
 }
+// the penalty shoot-out, kick by kick (FIFA timeline → r.pens). Two columns - each team's kicks in the order taken,
+// a filled dot for a scored kick and a hollow ring for a miss - with the running shoot-out score in the header.
+function mdShootout(r, h, a) {
+  const k = r?.pens; if (!Array.isArray(k) || !k.length) return "";
+  const score = side => k.filter(x => x.tm === side && x.ok).length;
+  const col = (side, slot) => `<div class="pso-col">
+      <div class="pso-head"><span class="fl">${slot.code ? flag(slot.code) : ""}</span><span class="pso-tn">${slot.code ? esc(cname(slot.code)) : ""}</span><b class="pso-sc">${score(side)}</b></div>
+      ${k.filter(x => x.tm === side).map(x => `<div class="pso-kick ${x.ok ? "ok" : "miss"}" title="${esc(x.p || "")} ${x.ok ? "scored" : "missed"}"><span class="pso-dot" aria-hidden="true"></span><span class="pso-p">${esc(x.p || "—")}</span></div>`).join("")}
+    </div>`;
+  return `<div class="eyebrow">Penalty shoot-out</div><div class="pso">${col("h", h)}${col("a", a)}</div>`;
+}
 // grouped so the all-stats read by theme - going forward, in possession, at the back, discipline -
 // instead of one undifferentiated column (poss/xG/shots/on-target headline up in Key stats).
 const STAT_GROUPS = [
@@ -1623,6 +1634,7 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
       <div class="md-goals-col away">${(r.ga || []).map(g => `<div class="md-goal">${esc(g)} ${ICO.ball}</div>`).join("")}</div>
     </div>` : "";
   const pKeyStats = mdKeyStats(r, m), pStats = mdStats(r, hasResult), pEfi = mdEfi(m, hasResult);
+  const pShootout = mdShootout(r, h, a);   // kick-by-kick shoot-out, when there was one (live as it unfolds, then settled)
   // win-prob: always the model's PRE-MATCH call. The in-play (live) estimate was dropped - it churned with every goal
   // and added little once the score itself tells the story; the stable pre-match read is clearer. Pre-match also
   // carries its "why" drivers + top-3 scorelines, but those are dropped once live (a pre-match "likeliest score" would
@@ -1652,11 +1664,12 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
   // order by state so each opens with what you came for (Live folds in here - no separate tab as of build 329).
   const middle = liveNow
     // live: who's-on-top control + the live feed lead, then numbers, stars; the (pre-match) win-prob sits as a quieter
-    // reference lower down (it's no longer a live in-play estimate, so it shouldn't headline a live game)
-    ? [pControl, pKeyStats, pStars, pTimeline, pStats, pComm, pWinProb, pXiInline, pEfi, pCompareFold, pStakes, pH2H]
+    // reference lower down (it's no longer a live in-play estimate, so it shouldn't headline a live game). A live
+    // shoot-out is THE action, so it leads.
+    ? [pShootout, pControl, pKeyStats, pStars, pTimeline, pStats, pComm, pWinProb, pXiInline, pEfi, pCompareFold, pStakes, pH2H]
     : hasResult
-    // finished: the report leads, then key stats + control, stars, the full timeline & numbers, the model's call, the deep dive
-    ? [pReport, pKeyStats, pControl, pStars, pTimeline, pStats, pXiInline, pEfi, pWinProb, pCompareFold, pStakes, pH2H]
+    // finished: the report leads, then how it was settled (a shoot-out), key stats + control, stars, the full timeline & numbers, the model's call, the deep dive
+    ? [pReport, pShootout, pKeyStats, pControl, pStars, pTimeline, pStats, pXiInline, pEfi, pWinProb, pCompareFold, pStakes, pH2H]
     : [pStakes, pCompare, pWinProb, pH2H, pXiInline];   // upcoming: stakes + compare + odds + past WC meetings + (announced) line-ups
   const _body = pTop + middle.join("") + pMeta;
   const mb = $("#matchBody");

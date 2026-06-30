@@ -175,6 +175,24 @@ function buildEvents(lv) {
   return { ev, xi };
 }
 
+// the penalty SHOOT-OUT, kick by kick, from FIFA's timeline endpoint (the live/match object only carries the aggregate
+// pen score). Period 11 = the shoot-out; Type 41 = a penalty scored, Type 60 = a penalty missed, in the order taken.
+// Returns [{ tm:"h"|"a", p:name, n?:jersey, ok:1|0 }] on FIFA's home/away orientation, or null when there was no shoot-out.
+async function fifaShootout(x, lv) {
+  let tl;
+  try { tl = await fifaGet(`${FIFA}/timelines/${COMP}/${SEASON}/${x.IdStage}/${x.IdMatch}?language=en`); }
+  catch { return null; }
+  const evs = (tl.Event || []).filter(e => e.Period === 11 && (e.Type === 41 || e.Type === 60));
+  if (!evs.length) return null;
+  const nameById = {}, numById = {};
+  for (const t of [lv.HomeTeam, lv.AwayTeam]) for (const p of (t?.Players || [])) {
+    nameById[p.IdPlayer] = loc(p.ShortName) || loc(p.PlayerName);
+    if (p.ShirtNumber != null) numById[p.IdPlayer] = p.ShirtNumber;
+  }
+  const homeId = lv.HomeTeam?.IdTeam;
+  return evs.map(e => ({ tm: e.IdTeam === homeId ? "h" : "a", p: nameById[e.IdPlayer] || "", ...(numById[e.IdPlayer] != null ? { n: numById[e.IdPlayer] } : {}), ok: e.Type === 41 ? 1 : 0 }));
+}
+
 async function fromFifa(prev, needsPhotos) {
   const cal = await fifaGet(`${FIFA}/calendar/matches?idCompetition=${COMP}&idSeason=${SEASON}&language=en&count=104`);
   const rows = cal.Results || [];
@@ -281,7 +299,7 @@ async function fromFifa(prev, needsPhotos) {
     const hc = f.home.team || entry.ht, ac = f.away.team || entry.at;
     const needPhotos = (hc && needsPhotos(hc)) || (ac && needsPhotos(ac));   // (re)harvest photos for any team still missing players
     if (inPlay || (st === "FT" && (!captured || needPhotos))) needLive.push({ f, x, entry, swap });
-    else if (st === "FT" && captured) { entry.ev = prevE.ev; if (prevE.xi) entry.xi = prevE.xi; }
+    else if (st === "FT" && captured) { entry.ev = prevE.ev; if (prevE.xi) entry.xi = prevE.xi; if (prevE.pens) entry.pens = prevE.pens; }
 
     matches[f.id] = entry;
     if (inPlay) liveCount++; else if (st === "FT") doneCount++;
@@ -302,6 +320,11 @@ async function fromFifa(prev, needsPhotos) {
       if (swap) for (const e of ev) e.tm = e.tm === "h" ? "a" : "h";   // keep event sides on openfootball's orientation
       if (ev.length) entry.ev = ev;
       if (xi) entry.xi = swap ? { h: xi.a, a: xi.h } : xi;
+      // a knockout shoot-out (per 11 live, or pen scores already in) → pull the kick-by-kick sequence from the timeline
+      if (f.stage !== "group" && (entry.per >= 10 || (entry.hp != null && entry.ap != null))) {
+        const pens = await fifaShootout(x, lv); fetched++;
+        if (pens && pens.length) entry.pens = swap ? pens.map(k => ({ ...k, tm: k.tm === "h" ? "a" : "h" })) : pens;
+      }
       const homeCode = f.home.team || entry.ht, awayCode = f.away.team || entry.at;
       harvestPhotos(swap ? lv.AwayTeam : lv.HomeTeam, homeCode); harvestPhotos(swap ? lv.HomeTeam : lv.AwayTeam, awayCode);
     } catch { /* keep the score-only entry */ }
