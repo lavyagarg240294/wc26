@@ -134,6 +134,13 @@ function buildEvents(lv) {
   }
   const name = id => nameById[id] || "";
   const num = id => numById[id];
+  // technical-area bookings (a coach / bench-staff yellow, common in a heated knockout) carry NO IdPlayer - FIFA puts
+  // the person in IdCoach/IdStaff instead. Resolve those against the team's Coaches list so the card shows WHO, not a blank.
+  const staffById = {};
+  for (const [, t] of sides) for (const c of (t?.Coaches || [])) {
+    const nm = loc(c.Name) || c.Alias || "";
+    for (const id of [c.IdCoach, c.IdStaff, c.IdPerson]) if (id != null && !(id in staffById)) staffById[id] = nm;
+  }
 
   const ev = [];
   for (const [side, t] of sides) {
@@ -145,8 +152,11 @@ function buildEvents(lv) {
       if (g.IdAssistPlayer) { e.a = name(g.IdAssistPlayer); if (num(g.IdAssistPlayer) != null) e.an = num(g.IdAssistPlayer); }
       ev.push(e);
     }
-    for (const b of (t.Bookings || []))
-      ev.push({ _k: minKey(b.Minute), t: b.Minute, k: b.Card === 2 ? "R" : "Y", tm: side, p: name(b.IdPlayer), ...(num(b.IdPlayer) != null ? { n: num(b.IdPlayer) } : {}) });
+    for (const b of (t.Bookings || [])) {
+      const k = b.Card === 2 ? "R" : "Y", pName = name(b.IdPlayer);
+      if (pName) ev.push({ _k: minKey(b.Minute), t: b.Minute, k, tm: side, p: pName, ...(num(b.IdPlayer) != null ? { n: num(b.IdPlayer) } : {}) });
+      else ev.push({ _k: minKey(b.Minute), t: b.Minute, k, tm: side, p: staffById[b.IdCoach] || staffById[b.IdStaff] || "", sf: 1 });   // no player → a coach/bench-staff booking
+    }
     for (const s of (t.Substitutions || []))
       ev.push({ _k: minKey(s.Minute), t: s.Minute, k: "S", tm: side, on: loc(s.PlayerOnName) || name(s.IdPlayerOn), off: loc(s.PlayerOffName) || name(s.IdPlayerOff) });
   }

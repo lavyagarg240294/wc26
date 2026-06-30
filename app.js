@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "425";  // shown in footer; bump with the ?v= asset version
+const BUILD = "426";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -837,6 +837,9 @@ function matchCard(m, i, opts = {}) {
   const sh = r?.h ?? 0, sa = r?.a ?? 0;   // display score - a live match with no goal data shows 0–0
   const winH = score && fin && (r.h > r.a || (r.h === r.a && (r.hp ?? -1) > (r.ap ?? -1)));   // crown a winner only on a confirmed result, never a partial/provisional one
   const winA = score && fin && (r.a > r.h || (r.h === r.a && (r.ap ?? -1) > (r.hp ?? -1)));
+  // the shootout result rides inline with the WINNER's score, to its left (a live shootout has no winner yet - the
+  // "Pens 3–3" badge on the right covers that). e.g. a side that won 4–3 on pens shows "(4–3p) 1" on their row.
+  const penChip = r?.hp != null ? `<span class="pens">(${r.hp}–${r.ap}p)</span>` : "";
   const badge = st === ST.LIVE ? `<span class="badge live">${liveLabel(m, r) || "Live"}</span>`
     : st === ST.HT ? `<span class="badge live">HT</span>`
     : unconf ? `<span class="badge abn" title="The feed stopped updating before full-time - result not yet confirmed">TBC</span>`
@@ -856,7 +859,7 @@ function matchCard(m, i, opts = {}) {
       <div class="mcard-time">${timeStr(m.utc)}<small>${fmt(m.utc, { day: "numeric", month: "short" })}</small></div>
       <div class="mcard-teams">${teamRow(h, "home", winA)}${teamRow(a, "away", winH)}</div>
       <div class="mcard-right">${(score || live)
-        ? `<div class="mcard-score${live ? " is-live" : ""}${abn ? " is-abn" : ""}"><span class="${winA ? "lo" : ""}">${sh}</span><span class="${winH ? "lo" : ""}">${sa}</span>${r?.hp != null ? `<span class="pens">(${r.hp}–${r.ap}p)</span>` : ""}</div>${(live || abn) ? badge : ""}`
+        ? `<div class="mcard-score${live ? " is-live" : ""}${abn ? " is-abn" : ""}"><span class="ms-line">${winH ? penChip : ""}<span class="${winA ? "lo" : ""}">${sh}</span></span><span class="ms-line">${winA ? penChip : ""}<span class="${winH ? "lo" : ""}">${sa}</span></span></div>${(live || abn) ? badge : ""}`
         : badge}</div>
     </div>
     ${(() => { if (m.stage !== "group") { const k = koStakeLine(m); return k ? `<div class="mcard-stake">${k}</div>` : ""; } const s = matchStakes(m); return s && s.definitive ? `<div class="mcard-stake">${s.summary}</div>` : ""; })()}
@@ -945,6 +948,8 @@ const EV_ICON = {
 function evText(e, code) {
   const P = (n, cls) => `<span class="${cls} tl-clk" data-player="${esc(n)}|${code}" role="button" tabindex="0">${esc(tlName(n, code))}</span>`;
   if (e.k === "S") return `${e.on ? P(e.on, "tl-p tl-in") : ""}${e.off ? P(e.off, "tl-off tl-out") : ""}`;
+  // a technical-area booking (coach / bench staff): not a squad player, so plain text (no photo link) + a "staff" tag
+  if (e.sf) return `<span class="tl-p tl-staff">${e.p ? esc(e.p) : "Team staff"}</span> <span class="tl-x">staff</span>`;
   const tag = e.k === "P" ? ` <span class="tl-x">pen</span>` : e.k === "OG" ? ` <span class="tl-x">o.g.</span>` : "";
   return `${e.p ? P(e.p, "tl-p") : ""}${tag}${e.a ? P(e.a, "tl-off") : ""}`;
 }
