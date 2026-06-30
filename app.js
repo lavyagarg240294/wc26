@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "426";  // shown in footer; bump with the ?v= asset version
+const BUILD = "427";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1829,27 +1829,26 @@ function teamStyleAxes(aCode, bCode) {
 function matchCompare(m) {
   const h = slotInfo(m, "home"), a = slotInfo(m, "away");
   if (!h.code || !a.code) return "";
-  const recA = teamWcRecord(h.code), recB = teamWcRecord(a.code), rkA = fifaRankOf(h.code), rkB = fifaRankOf(a.code);
+  const recA = teamWcRecord(h.code), recB = teamWcRecord(a.code);
   const eloA = Math.round(teamRating(h.code)), eloB = Math.round(teamRating(a.code));
-  const numRow = (label, av, bv, hi, da = av, db = bv) => {
-    const aw = av != null && bv != null && av !== bv && (hi ? av > bv : av < bv);
-    const bw = av != null && bv != null && av !== bv && (hi ? bv > av : bv < av);
-    return `<div class="cmp-row"><span class="cmp-a ${aw ? "win" : ""}">${da ?? "–"}</span><span class="cmp-lbl">${label}</span><span class="cmp-b ${bw ? "win" : ""}">${db ?? "–"}</span></div>`;
-  };
-  const has = recA.n || recB.n;
+  // Elo rating as a "vs the field" bar (same format as the style bars), scaled across all 48 teams' ratings
+  const allElo = Object.keys(S.teams).map(c => teamRating(c)), eLo = Math.min(...allElo), eHi = Math.max(...allElo);
+  const ePct = v => eHi > eLo ? Math.round((v - eLo) / (eHi - eLo) * 100) : 50;
+  const cA = S.teams[h.code]?.c1 || "var(--ink-soft)", cB = S.teams[a.code]?.c1 || "var(--ink-soft)";
+  const eloBar = `<div class="cmpx">
+    <span class="cmpx-v cmpx-va">${eloA}</span>
+    <span class="cmpx-tk cmpx-l"><i style="width:${ePct(eloA)}%;background:${cA}"></i></span>
+    <span class="cmpx-lbl">Elo rating</span>
+    <span class="cmpx-tk cmpx-r"><i style="width:${ePct(eloB)}%;background:${cB}"></i></span>
+    <span class="cmpx-v cmpx-vb">${eloB}</span></div>`;
   const axes = teamStyleAxes(h.code, a.code);   // attacking / defending / possession etc., once both have played
+  const barsInfo = infoBtn("The Elo bar scales each side's World-Football rating - which updates after every result - against the strongest and weakest team in the tournament. The style bars do the same for per-game figures: Possession and Passing are share percentages, Direct play is how vertically a side moves the ball, Defending is pressing actions per game, Attacking is shots per game. A longer bar means more of that trait - a read on strength and style, not a verdict on quality.", "How the bars work");
   const resChips = (rec, own) => rec.n ? rec.results.map(x => `<span class="mc-res mc-res-${x.wdl}" data-mid="${x.mid}" role="button" tabindex="0" title="${esc(S.teams[own]?.name || own)} v ${esc(S.teams[x.opp]?.name || x.opp)}">${flag(own)} ${x.my}–${x.oga} ${flag(x.opp)}</span>`).join("") : `<span class="mc-none">No matches yet</span>`;
   return `<div class="eyebrow">How they compare</div>
     <div class="mc-cmp">
       <div class="mc-head"><span class="mc-team"><span class="fl">${flag(h.code)}</span>${esc(h.name)}</span><span class="mc-vs">vs</span><span class="mc-team mc-rt">${esc(a.name)}<span class="fl">${flag(a.code)}</span></span></div>
-      <div class="cmp-rows">
-        ${numRow("Elo rating", eloA, eloB, true)}
-        ${numRow("FIFA rank", rkA, rkB, false, rkA ? "#" + rkA : null, rkB ? "#" + rkB : null)}
-        ${has ? `<div class="cmp-row"><span class="cmp-a">${recA.w}-${recA.d}-${recA.l}</span><span class="cmp-lbl">W-D-L</span><span class="cmp-b">${recB.w}-${recB.d}-${recB.l}</span></div>` : ""}
-        ${has ? numRow("Goals for", recA.gf, recB.gf, true) : ""}
-        ${has ? numRow("Goals against", recA.ga, recB.ga, false) : ""}
-      </div>
-      ${axes ? `<div class="mc-styletitle">Playing style <span class="wp-est">vs the field</span>${infoBtn("Each bar scales a team's per-game figure against the highest and lowest in the tournament, so a longer bar means more of that trait. Possession and passing are share percentages; Direct play is how vertically a side moves the ball; Defending is pressing actions per game; Attacking is shots per game. A read on style, not a verdict on quality.", "How the style bars work")}</div><div class="cmpx-card">${axes}</div>` : ""}
+      <div class="mc-styletitle">${axes ? "Strength &amp; style" : "Team strength"} <span class="wp-est">vs the field</span>${barsInfo}</div>
+      <div class="cmpx-card">${eloBar}${axes}</div>
       <div class="mc-reslabel">Results so far</div>
       <div class="mc-reswrap"><div class="mc-resrow">${resChips(recA, h.code)}</div><div class="mc-resrow">${resChips(recB, a.code)}</div></div>
     </div>`;
@@ -2061,22 +2060,51 @@ function startCountdown(root) {
 }
 
 /* ---------------- render: teams (my team + all 48) ---------------- */
+// a team's apt one-line standing: the live group-table position WHILE the group is on, then their knockout journey once
+// it's done (won the group / through to the next round / playing now / out at a round / champions) - so we never leave a
+// stale "1st after 3 matches" group rank showing once the knockouts are under way. Shared by the fav card + team sheet.
+function teamStatusLine(code) {
+  const g = groupOf(code);
+  if (g && remInGroup(g) > 0) {   // group stage still under way → live table position
+    const tbl = standings(g), pos = tbl.findIndex(r => r.code === code) + 1, played = tbl.find(r => r.code === code)?.p || 0;
+    return played ? `Currently <b>${ordinal(pos)}</b> in Group ${g} after ${played} match${played > 1 ? "es" : ""}` : null;
+  }
+  // group complete → the knockout picture. A knockout tie: winner advances, loser is out (level → penalties).
+  const kos = S.matches.filter(m => m.stage !== "group" && matchHasTeam(m, code)).sort((a, b) => a.utc.localeCompare(b.utc));
+  const koWin = m => { const r = res(m); if (!r || r.h == null) return null; const hc = slotInfo(m, "home").code, ac = slotInfo(m, "away").code;
+    if (r.h > r.a) return hc; if (r.a > r.h) return ac; if (r.hp != null && r.ap != null && r.hp !== r.ap) return r.hp > r.ap ? hc : ac; return null; };
+  const liveM = kos.find(m => isLiveSt(status(m)));
+  if (liveM) return `Playing now · ${esc(liveM.round)}`;
+  const up = kos.find(m => status(m) === ST.SCHED);
+  if (up) return up.stage === "third" ? "Plays for third place" : `Through to the ${esc(up.round.toLowerCase())}`;
+  const last = [...kos].reverse().find(m => isFeedFinal(m));   // their last decided knockout tie tells the outcome
+  if (last) { const w = koWin(last);
+    if (last.stage === "final") return w === code ? `${TROPHY} World Cup 2026 champions` : "Runners-up";
+    if (last.stage === "third") return w === code ? "Finished third" : "Finished fourth";
+    return `Out · lost in the ${esc(last.round.toLowerCase())}`;
+  }
+  // group done but no resolved knockout match yet (e.g. a 3rd-placed side still awaiting the best-thirds cutoff)
+  const tbl = standings(g), pos = tbl.findIndex(r => r.code === code) + 1, qs = qualStatus(code);
+  if (qs === "out") return pos > 0 ? `Out · finished ${ordinal(pos)} in Group ${g}` : `Out of Group ${g}`;
+  if (pos === 1) return `Won Group ${g}`;
+  if (pos === 2) return `Runners-up in Group ${g}`;
+  if (pos === 3) return `Third in Group ${g} · awaiting the best-thirds cutoff`;
+  return pos > 0 ? `Finished ${ordinal(pos)} in Group ${g}` : null;
+}
 // compact fav-team spotlight (hero + collapsed squad) - sits ABOVE the all-teams landscape; the fixtures/group
 // move below the grid (myTeamFixtures) so the landscape isn't buried under your team's full detail.
 function myTeamBlock() {
   const t = S.teams[S.fav];
   const mine = S.matches.filter(isFavMatch).sort((a, b) => a.utc.localeCompare(b.utc));
   const group = mine.find(m => m.group)?.group;
-  const tbl = group ? standings(group) : [];
-  const pos = tbl.findIndex(r => r.code === S.fav) + 1;
-  const played = tbl.find(r => r.code === S.fav)?.p || 0;
+  const statusLine = teamStatusLine(S.fav);
   return `
     <div class="team-hero">
       <div class="team-hero-tap" data-squad="${S.fav}" role="button" tabindex="0" aria-label="Open ${esc(t.name)} details">
         <span class="fl">${flag(S.fav)}</span>
         <div class="th-text"><h2>${esc(t.name)}</h2>
           <p class="th-sub">${t.conf ? esc(t.conf) + " · " : ""}Group ${group || "–"}${fifaRankOf(S.fav) ? ` · FIFA #${fifaRankOf(S.fav)}` : ""}${t.titles ? ` · <b style="color:var(--gold)">${TROPHY} ${t.titles}</b>` : ""}</p>
-          ${played ? `<p class="th-standing">Currently <b>${ordinal(pos)}</b> after ${played} match${played > 1 ? "es" : ""}</p>` : ""}
+          ${statusLine ? `<p class="th-standing">${statusLine}</p>` : ""}
         </div>
       </div>
       <button class="btn ghost team-change" id="ctaChange">Change</button></div>
@@ -2627,8 +2655,8 @@ function squadVitals(code) {
 function openTeam(code) {
   const t = S.teams[code]; if (!t) return;
   const all = S.matches.filter(m => matchHasTeam(m, code)).sort((a, b) => a.utc.localeCompare(b.utc));
-  const group = groupOf(code), tbl = group ? standings(group) : [];
-  const pos = tbl.findIndex(r => r.code === code) + 1, played = tbl.find(r => r.code === code)?.p || 0;
+  const group = groupOf(code);
+  const statusLine = teamStatusLine(code);
   const upK = m => { const st = status(m); return st === ST.SCHED || st === ST.PP || st === ST.CANC; };   // a postponed or cancelled game has no result - it belongs under Fixtures, not Results/played
   const done = all.filter(m => !upK(m)), upcoming = all.filter(upK);
   const sq = S.squads?.[code], isFav = code === S.fav, rk = fifaRankOf(code), sv = squadVitals(code);
@@ -2636,7 +2664,7 @@ function openTeam(code) {
   const tmsHtml = tms.length ? `<div class="eyebrow">Match stats</div><div class="tms"><div class="tms-head"><span class="tms-opp">Opponent</span><span>Result</span><span>Poss</span><span>Shots</span><span>SoT</span></div>${tms.map(row => `<div class="tms-row" data-mid="${row.mid}" role="button" tabindex="0"><span class="tms-opp"><span class="fl">${flag(row.opp)}</span> ${esc(S.teams[row.opp]?.name || "TBD")}</span>${row.kind === "fin" ? `<span class="rchip rchip-${row.wdl}">${row.wdl} ${row.gf}–${row.ga}</span>` : row.kind === "live" ? `<span class="rchip rchip-live">${row.gf}–${row.ga}<small>LIVE</small></span>` : `<span class="rchip rchip-tbc">${row.gf}–${row.ga}<small>${esc(row.kind === "tbc" ? "TBC" : (row.tag || "TBC"))}</small></span>`}<span class="tms-v">${row.poss != null ? row.poss + "%" : "–"}</span><span class="tms-v">${row.sh ?? "–"}</span><span class="tms-v">${row.sot ?? "–"}</span></div>`).join("")}</div>` : "";
   $("#teamSheetTitle").innerHTML = `<span class="fl">${flag(code)}</span> ${esc(t.name)}`;
   $("#teamSheetBody").innerHTML = `
-    <div class="ts-meta">${t.conf ? esc(t.conf) : ""}${rk ? ` · FIFA #${rk}` : ""}${group ? ` · Group ${group}` : ""}${played ? ` · <b>${ordinal(pos)}</b> after ${played} match${played > 1 ? "es" : ""}` : ""}</div>
+    <div class="ts-meta">${t.conf ? esc(t.conf) : ""}${rk ? ` · FIFA #${rk}` : ""}${group ? ` · Group ${group}` : ""}${statusLine ? ` · ${statusLine}` : ""}</div>
     ${teamOverview(code)}
     ${countryMiniMap(code)}
     ${wcHistory(code)}
@@ -4740,6 +4768,7 @@ function tournamentStats() {
   const xgF = {}, golX = {}, xgN = {};   // xG "created" + goals scored IN the same xG-covered matches (so the comparison is fair) + per-team count
   const TSTAT_KEYS = ["sh", "pass", "passT", "cross", "lball", "tkl", "intc", "clr", "blk", "sv", "off", "fls"];   // richer ESPN team stats → leaderboards + style
   let goals = 0, totYellow = 0, totRed = 0, totPen = 0, totOg = 0, totSot = 0;
+  const penList = [], ogList = [];   // the actual penalties scored + own goals (for the clickable Overview tiles)
   const rec = {};   // each record resolves to an ARRAY of all holders tied at the top value (joint records) - see topTies, post-loop
   const recC = { bigWin: [], hiScore: [], fastG: [], lateG: [], hiDraw: [], topMatch: [], mostCards: [], mostTackles: [], mostPasses: [], mostSot: [], bestDef: [] };
   const add = (o, k, n = 1) => { if (k) o[k] = (o[k] || 0) + n; };
@@ -4784,7 +4813,10 @@ function tournamentStats() {
         const mk = sc + "\t" + tc; matchGoals[mk] = (matchGoals[mk] || 0) + 1;
         const mn = evMin(e.t);   // fastest / latest goal of the tournament (by the player who scored it)
         if (mn >= 1) { const gR = { name: sc, code: tc, t: e.t, mn, mid: m.id }; recC.fastG.push(gR); recC.lateG.push(gR); }
+        if (e.k === "P") penList.push({ name: sc, code: tc, opp: tc === hc ? ac : hc, t: e.t, mid: m.id });   // the penalty's scorer + who against
       }
+      // an own goal counts FOR e.tm (the beneficiary); the player who put it in belongs to the OTHER side
+      if (e.k === "OG" && e.p) { const oc = e.tm === "h" ? ac : hc; ogList.push({ name: resolvePlayer(e.p, oc, e.n, "out")?.name || e.p, code: oc, opp: e.tm === "h" ? hc : ac, t: e.t, mid: m.id }); }
       if (e.k === "Y") { add(yel, tc); totYellow++; mYellow++; if (e.p) { const pk = (resolvePlayer(e.p, tc, e.n)?.name || e.p) + "\t" + tc; add(pyel, pk); (cardLog[pk] ||= []).push({ ko: m.utc, k: "Y", st: m.stage }); } }
       else if (e.k === "R") { add(red, tc); totRed++; mRed++; if (e.p) { const pk = (resolvePlayer(e.p, tc, e.n)?.name || e.p) + "\t" + tc; add(pred, pk); (cardLog[pk] ||= []).push({ ko: m.utc, k: "R", st: m.stage }); } }
     }
@@ -4899,12 +4931,15 @@ function tournamentStats() {
   const g = (k, c) => tstat[k]?.[c] || 0;
   const _out = {
     pulse: { goals, matches: fts.length, perMatch: fts.length ? goals / fts.length : 0, yellows: totYellow, reds: totRed, pens: totPen, og: totOg, sot: totSot },
+    penGoals: penList, ownGoals: ogList,
     records: rec,
     scorers: scorerList, assisters: assistList, booked: bookedList, suspended: suspendedList, atRisk: riskList,
     teamCards: cardList,
     teamScored: perMatch(gf, played).sort((a, b) => b.v - a.v),
     teamConceded: perMatch(ga, played).sort((a, b) => a.v - b.v),
-    finishing: Object.keys(xgF).map(c => ({ code: c, xg: xgF[c], goals: golX[c] || 0, delta: (golX[c] || 0) - xgF[c], n: xgN[c] })).filter(x => x.n > 0).sort((a, b) => b.delta - a.delta),
+    // pct = over/under-performance as a SHARE of xG, so teams that have played a different number of xG-covered
+    // matches are comparable (a flat goals−xG delta isn't); sort by that normalised figure.
+    finishing: Object.keys(xgF).map(c => ({ code: c, xg: xgF[c], goals: golX[c] || 0, delta: (golX[c] || 0) - xgF[c], pct: xgF[c] > 0 ? ((golX[c] || 0) - xgF[c]) / xgF[c] * 100 : 0, n: xgN[c] })).filter(x => x.n > 0).sort((a, b) => b.pct - a.pct),
     cleanSheets: Object.entries(cs).map(([code, v]) => ({ code, v })).sort((a, b) => b.v - a.v),
     keepers: Object.entries(keepers).map(([k, o]) => { const [name, code] = split(k); return { name, code, ...o }; })
       .filter(x => x.cs > 0).sort((a, b) => b.cs - a.cs || a.ga - b.ga || b.app - a.app || a.name.localeCompare(b.name)),
@@ -5100,10 +5135,29 @@ function recordsPanel(s) {
     ${cards.map((h, i) => h.replace('<div class="atr"', `<div class="atr" style="--i:${i}"`)).join("")}
     <p class="sim-ko-hint">All-time figures from official records. Tap a row to open the player or team.</p>`;
 }
+// the Overview's "Penalties scored" / "Own goals" tiles open this: the actual list, each row tapping through to its match
+function openStatList(kind) {
+  const s = tournamentStats(), pens = kind === "pens";
+  const list = (pens ? s.penGoals : s.ownGoals).slice().sort((a, b) => {
+    const ma = S.matches.find(m => m.id === a.mid), mb = S.matches.find(m => m.id === b.mid);
+    return (ma?.utc || "").localeCompare(mb?.utc || "") || evMin(a.t) - evMin(b.t);
+  });
+  const row = x => `<div class="sl-row" data-mid="${x.mid}" role="button" tabindex="0">
+      <span class="fl">${flag(x.code)}</span>
+      <span class="sl-main"><b>${esc(x.name)}</b><small>${esc(cname(x.code))} ${pens ? "vs" : "· own goal for"} ${esc(cname(x.opp))}</small></span>
+      <span class="sl-min">${esc(String(x.t).replace(/\s+/g, ""))}</span></div>`;
+  $("#statListTitle").textContent = `${pens ? "Penalties scored" : "Own goals"} · ${list.length}`;
+  $("#statListBody").innerHTML = list.length ? `<div class="sl-list">${list.map(row).join("")}</div>` : `<div class="empty">None yet.</div>`;
+  showSheet($("#statListDialog"));
+}
 function renderStats() {
   const el = $("#view-stats"), s = tournamentStats();
   if (!s.pulse.matches) { paint(el, `<div class="rk-pre">Tournament stats (scorers, records, team form) fill in as matches kick off. Until then, here's the field by world ranking.</div>${fifaRankingPanel()}`); return; }
   const tile = (label, val) => `<div class="stat-tile"><span class="stat-val">${val}</span><span class="stat-lbl">${label}</span></div>`;
+  // a tappable tile that opens a details list (penalties / own goals); falls back to a plain tile when the count is 0
+  const tileList = (label, val, kind) => val > 0
+    ? `<button class="stat-tile stat-tile-tap" data-statlist="${kind}" aria-label="${label}: ${val} - tap for the list"><span class="stat-val">${val}</span><span class="stat-lbl">${label} <span class="stat-more">›</span></span></button>`
+    : tile(label, val);
   const tname = c => esc(cname(c));
   // a player leaderboard row (photo + name + value). 2nd arg is the competition rank (tied rows share it), not the index.
   const playerRow = (p, rank, val) => { const ph = bestPhoto(p.name, p.code); return `<div class="lead-row lead-player${rank === 1 ? " lead-top" : ""}" data-player="${esc(p.name)}|${p.code}" role="button" tabindex="0">
@@ -5220,8 +5274,8 @@ function renderStats() {
   const playerDisc = (suspHtml || riskHtml) ? `<div class="eyebrow">Discipline ${discInfo}</div>${suspHtml}${riskHtml}` : "";
   const teamDisc = cardLead ? `<div class="eyebrow">Discipline ${discInfo}</div>${cardLead}` : "";
   // "Goals vs expected": official xG (chances created) against the goals actually scored, over the same matches.
-  const xgInfo = infoBtn("Expected goals (xG) scores the QUALITY of the chances a team created - the goals an average side would score from them. This compares that to the goals they actually got, across the matches FIFA has published xG for. Above the line = scoring more than their chances were worth (clinical finishing, or some luck); below = leaving goals out there. A read on finishing, not a verdict.", "Goals vs expected (xG)");
-  const finishRow = x => { const over = x.delta >= 0; return `<div class="lead-row" data-squad="${x.code}" role="button" tabindex="0"><span class="fl">${flag(x.code)}</span><span class="lead-name">${tname(x.code)}<small>${x.goals} ${x.goals === 1 ? "goal" : "goals"} from ${x.xg.toFixed(1)} xG</small></span><span class="xg-delta ${over ? "over" : "under"}">${over ? "+" : "−"}${Math.abs(x.delta).toFixed(1)}</span></div>`; };
+  const xgInfo = infoBtn("Expected goals (xG) scores the QUALITY of the chances a team created - the goals an average side would score from them. This compares that to the goals they actually got, across the matches FIFA has published xG for. The figure shown is the gap as a PERCENTAGE of their xG (+20% = scored a fifth more than their chances were worth), so sides that have played a different number of matches stay comparable; the raw goals−xG gap sits alongside it. Above the line = clinical finishing, or some luck; below = leaving goals out there. A read on finishing, not a verdict.", "Goals vs expected (xG)");
+  const finishRow = x => { const over = x.delta >= 0; return `<div class="lead-row" data-squad="${x.code}" role="button" tabindex="0"><span class="fl">${flag(x.code)}</span><span class="lead-name">${tname(x.code)}<small>${x.goals} ${x.goals === 1 ? "goal" : "goals"} from ${x.xg.toFixed(1)} xG · ${over ? "+" : "−"}${Math.abs(x.delta).toFixed(1)}</small></span><span class="xg-delta ${over ? "over" : "under"}">${over ? "+" : "−"}${Math.round(Math.abs(x.pct))}%</span></div>`; };
   const finishHtml = s.finishing?.length ? (() => {   // the story is the extremes - the most clinical + the most wasteful; the near-xG middle is folded into a count
     const f = s.finishing, big = f.length > 13, top = big ? f.slice(0, 7) : f, bot = big ? f.slice(-4) : [];
     const gap = big ? `<div class="xg-gap">${f.length - 11} more within range of their xG</div>` : "";
@@ -5231,7 +5285,7 @@ function renderStats() {
     ["overview", "Overview", `<div class="eyebrow">Tournament so far</div><div class="stat-tiles">
       ${tile("Matches", s.pulse.matches)}${tile("Goals", s.pulse.goals)}
       ${tile("Goals / match", s.pulse.perMatch.toFixed(2))}
-      ${tile("Shots on target", s.pulse.sot)}${tile("Penalties scored", s.pulse.pens)}${tile("Own goals", s.pulse.og)}
+      ${tile("Shots on target", s.pulse.sot)}${tileList("Penalties scored", s.pulse.pens, "pens")}${tileList("Own goals", s.pulse.og, "og")}
       <div class="stat-tile"><span class="stat-val card-val"><span class="cv cv-y">${s.pulse.yellows}</span><span class="cv cv-r">${s.pulse.reds}</span></span><span class="stat-lbl">Cards</span></div>
     </div>
       ${bootTop3.length ? `<div class="eyebrow">${ICO.ball} Golden Boot</div><div class="lead-card lead-scorers">${ranked(bootTop3, scorerRow, p => p.goals)}</div>` : ""}
@@ -6079,6 +6133,8 @@ async function boot() {
     if (cmt) { e.stopPropagation(); $("#teamSheet").close(); openTeamCompareSearch(cmt.dataset.compareTeam); return; }
     const sq = e.target.closest("[data-squad]");
     if (sq && sq.dataset.squad) { openTeam(sq.dataset.squad); return; }
+    const sl = e.target.closest("[data-statlist]");   // Overview tile → penalties / own-goals details list
+    if (sl) { e.stopPropagation(); openStatList(sl.dataset.statlist); return; }
     const ab = e.target.closest("[data-about]");   // "how the format works" → tournament info sheet
     if (ab) { showSheet($("#aboutDialog")); return; }
     const w22 = e.target.closest("[data-wc22]");   // "Qatar 2022 · full results" → last-World-Cup reference
