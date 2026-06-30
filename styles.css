@@ -587,6 +587,11 @@ body.bg-paused #bg span{animation-play-state:paused;will-change:auto}
 .btn{font-family:var(--disp);font-weight:700;font-stretch:110%;letter-spacing:.05em;font-size:var(--fs-14);text-transform:uppercase;background:var(--acc-deep);color:#fff;padding:11px 22px;border-radius:99px;transition:transform .15s,box-shadow .2s,background .5s}
 .btn:hover{transform:translateY(-1px);box-shadow:0 8px 20px -6px color-mix(in srgb,var(--acc1) 60%,transparent)}
 .btn:active{transform:scale(.96);transition-duration:.08s}
+/* the "round done · continue to next round" nudge: a quieter, smaller pill (a soft accent tint, not the solid
+   primary fill) so it doesn't compete with the solid "Share prediction" button sitting just below it */
+.sb-continue{font-size:var(--fs-12);text-transform:none;letter-spacing:0;font-stretch:100%;font-weight:600;padding:8px 16px;background:color-mix(in srgb,var(--acc1) 12%,var(--card));color:var(--acc-text);border:1px solid color-mix(in srgb,var(--acc1) 32%,var(--line))}
+.sb-continue b{font-weight:800}
+.sb-continue:hover{background:color-mix(in srgb,var(--acc1) 18%,var(--card));box-shadow:none;transform:none}
 /* press feedback on every tappable content surface — :hover never fires on touch, so without these a tap feels dead
    until the next view paints (and invites double-taps). Mirrors the .btn:active convention. */
 .mcard:active,.teamcard:active,.bm:active{transform:scale(.985);transition-duration:.08s}

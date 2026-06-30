@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "428";  // shown in footer; bump with the ?v= asset version
+const BUILD = "429";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -392,19 +392,16 @@ const inShootout = (m, r) => m.stage !== "group" && !!r && r.hp != null && r.ap 
 function liveLabel(m, r) {
   if (inShootout(m, r)) return `Pens ${r.hp}–${r.ap}`;
   if (!r || m.stage === "group") return clockStr(m, r);
-  // base is NULL (not 0) when the feed carries no minute - FIFA sends MatchTime="" all through extra time AND the
-  // shootout, so we must read `per` to phase the match even with no clock, never fall to the elapsed "90+" estimate.
+  // base is NULL (not 0) when the feed carries no minute - FIFA sends MatchTime="" through extra time + the shootout,
+  // so we read `per` to phase the match even with no clock, never falling back to the elapsed "90+" estimate.
   const base = liveBaseMin(r);
-  // FIFA's authoritative period (persisted as `per` by the primary feed) is the definitive phase signal, so we never
-  // guess from elapsed time (drinks breaks at 22'/67', ~15' half-time, and the extra-time breaks make that unreliable).
-  // 1 = first half · 3 = second half · 4 = half-time (already mapped to st=HT) · 5/6/7 = extra-time halves · 10/11 = shootout.
+  // FIFA's live-object Period is the definitive phase signal (so we never guess from elapsed time, which the drinks
+  // breaks at 22'/67' and ~15' half-time make unreliable). Verified enum: 3 = first half · 4 = half-time (→ st=HT) ·
+  // 5 = SECOND HALF · 7/8/9 = extra-time halves · 10/11 = shoot-out. NB 5 is the second half, NOT extra time.
   if (r.per != null) {
-    if (r.per >= 10) return "Penalties";                                              // shootout (FIFA Period 11) - holds until the pen scores land, then inShootout takes over
-    if (r.per >= 5) return base != null && base > 90 ? `ET ${clockStr(m, r)}` : "Extra time";   // ET (the feed usually carries no minute here)
-    if (base == null) return clockStr(m, r);
-    if (r.per === 3 && base > 90) return `90+${base - 90}′`;    // second-half stoppage (the feed counts straight through: "97" = 90+7)
-    if (r.per === 1 && base > 45) return `45+${base - 45}′`;    // first-half stoppage
-    return clockStr(m, r);
+    if (r.per >= 10) return "Penalties";                                              // shoot-out (Period 11) - holds until the pen scores land, then inShootout takes over
+    if (r.per >= 7) return base != null && base > 90 ? `ET ${clockStr(m, r)}` : "Extra time";   // extra time (Periods 7/8/9; the feed often carries no minute here)
+    return clockStr(m, r);   // first/second half (incl. stoppage): the feed's own clock ("66", "90+3") is exact
   }
   if (r.min == null) return clockStr(m, r);
   // FALLBACK only (worldcup26.ir / football-data carry no period): tell ET from stoppage by notation, then elapsed time.
@@ -980,7 +977,7 @@ function mdTimeline(r, hc, ac) {
   const rows = evs.map(e => {
     if (e.k === "BRK") return `<div class="tl is-break is-a" title="Mandatory 3-minute hydration break - new for the 2026 World Cup. The referee stops every match around 22 minutes into each half, regardless of the weather.">
     <div class="tl-min">${esc(e._disp)}</div>
-    <span class="tl-ev"><span class="tl-tx">Hydration break</span><span class="tl-ic">${DROP_ICON}</span></span>
+    <span class="tl-ev"><span class="tl-tx">Hydration break</span></span>
   </div>`;
     // `tm` is the team the event counts FOR; for an own goal that's the beneficiary, but the scorer belongs to
     // the OTHER team - so link the player to their real side, else the tap opens the wrong team and the photo misses.
@@ -5200,15 +5197,6 @@ function renderStats() {
     <span class="susp-tag is-ban">${p.reason === "red" ? "Sent off" : "Two yellows"}</span></div>`; };
   const suspHtml = s.suspended.length
     ? `<div class="lead-card"><h4>Suspension watch <small>banned from their next match</small></h4>${s.suspended.map(suspRow).join("")}</div>` : "";
-  const riskRow = p => { const ph = bestPhoto(p.name, p.code), miss = p.miss;
-    const who = miss ? (miss.opp ? tname(miss.opp) : esc(matchTag(miss.m))) : "their next tie";
-    const when = miss ? fmt(miss.m.utc, { day: "numeric", month: "short" }) : "";
-    return `<div class="lead-row lead-player" data-player="${esc(p.name)}|${p.code}" role="button" tabindex="0">
-    ${ph ? `<span class="lead-face" style="background-image:url('${ph}')"></span>` : `<span class="fl">${flag(p.code)}</span>`}
-    <span class="lead-name">${esc(pName(p.name, p.code))}<small>${flag(p.code)} next: ${who}${when ? ` · ${when}` : ""}</small></span>
-    <span class="susp-tag is-risk">On a yellow</span></div>`; };
-  const riskHtml = s.atRisk?.length
-    ? `<div class="lead-card"><h4>One booking from a ban <small>a yellow in their next knockout tie means a one-match suspension</small></h4>${s.atRisk.map(riskRow).join("")}</div>` : "";
   const teamLead = (title, rows, fmt) => rows.length ? `<div class="lead-card"><h4>${title}</h4>${ranked(rows.slice(0, 5), (x, rank) => `<div class="lead-row" data-squad="${x.code}" role="button" tabindex="0">
     <span class="lead-rank">${rank}</span><span class="fl">${flag(x.code)}</span><span class="lead-name">${tname(x.code)}</span>
     <span class="lead-v">${fmt(x)}</span></div>`, fmt)}</div>` : "";
@@ -5284,7 +5272,7 @@ function renderStats() {
   const discInfo = infoBtn("Yellow and red cards shown in this tournament. A yellow is a booking (a caution); a straight red, or a second yellow in the same match, is a sending-off. A player misses the next match after a red, or after collecting two yellows in separate games - that shows under Suspension watch and clears the moment the ban is served. Single yellows are wiped after the quarter-finals. Tallies settle at full-time.", "How bookings & bans work");
   // Single full-width card (like the Golden Boot) - the auto-fill .lead-grid would pin a lone card to one ~248px
   // column and clip the "misses <opponent> · <date>" line, so render it directly instead.
-  const playerDisc = (suspHtml || riskHtml) ? `<div class="eyebrow">Discipline ${discInfo}</div>${suspHtml}${riskHtml}` : "";
+  const playerDisc = suspHtml ? `<div class="eyebrow">Discipline ${discInfo}</div>${suspHtml}` : "";
   const teamDisc = cardLead ? `<div class="eyebrow">Discipline ${discInfo}</div>${cardLead}` : "";
   // "Goals vs expected": official xG (chances created) against the goals actually scored, over the same matches.
   const xgInfo = infoBtn("Expected goals (xG) scores the QUALITY of the chances a team created - the goals an average side would score from them. This compares that to the goals they actually got, across the matches FIFA has published xG for. The figure shown is the gap as a PERCENTAGE of their xG (+20% = scored a fifth more than their chances were worth), so sides that have played a different number of matches stay comparable; the raw goals−xG gap sits alongside it. Above the line = clinical finishing, or some luck; below = leaving goals out there. A read on finishing, not a verdict.", "Goals vs expected (xG)");
@@ -5306,10 +5294,9 @@ function renderStats() {
       ${confHtml}`],
     ["players", "Players", `
       ${s.scorers.length ? `<div class="eyebrow">${ICO.ball} Golden Boot</div><div class="lead-card lead-scorers">${ranked(bootScorers, scorerRow, p => p.goals)}</div>` : ""}
-      ${s.assisters.length ? `<div class="eyebrow">Playmakers · assists</div><div class="lead-card lead-scorers">${ranked(s.assisters.slice(0, 8), assistRow, p => p.assists)}</div>` : ""}
       ${s.keepers.length ? `<div class="eyebrow">${ICO.glove} Goalkeepers · clean sheets</div><div class="lead-card lead-scorers">${ranked(s.keepers.slice(0, 8), keeperRow, p => p.cs)}</div>` : ""}
       ${playerDisc}
-      ${!s.scorers.length && !s.assisters.length ? `<div class="empty">No goals yet. The Golden Boot race starts with the first goal.</div>` : ""}`],
+      ${!s.scorers.length ? `<div class="empty">No goals yet. The Golden Boot race starts with the first goal.</div>` : ""}`],
     ["teams", "Teams", `<div class="eyebrow">Team leaderboards</div><div class="lead-grid">
       ${teamLead("Possession", s.possession, x => x.v.toFixed(1) + "%")}
       ${teamLead("Pass accuracy", s.teamPassAcc, x => x.v.toFixed(0) + "%")}
