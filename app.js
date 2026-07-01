@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "435";  // shown in footer; bump with the ?v= asset version
+const BUILD = "436";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -857,11 +857,14 @@ function matchCard(m, i, opts = {}) {
     `<div class="mcard-team ${s.ph ? "is-ph" : ""} ${lost ? "is-lost" : ""}">` +
     `<span class="fl">${s.code ? flag(s.code) : TBD_FLAG}</span><span class="mct-name">${esc(slotText(m, key, s, true))}</span>${m.stage === "group" && s.code ? qualBadge(s.code) : ""}</div>`;   // group cards show the team's qualified/out marker (KO teams are all through, so it'd be redundant there)
   const sv = isSaved(m.id);
+  // upcoming, fully-known matchup → the kit-colour wash (same language as the hero poster); live/finished stay plain
+  const poster = st === ST.SCHED && !!h.code && !!a.code;
+  const kh = poster ? (S.teams[h.code]?.c1 || "var(--acc1)") : "", ka = poster ? (S.teams[a.code]?.c1 || "var(--ink-soft)") : "";
   // The card body is the primary button; the save-star is a SIBLING <button>, not nested inside it
   // (nesting two interactive controls is invalid ARIA - screen readers announce it ambiguously). The
   // .mcard-wrap carries the list spacing + entrance animation and is the positioning context for the star.
   return `<div class="mcard-wrap" style="--i:${i}">
-    <div class="mcard ${fav ? "is-fav" : ""}" role="button" tabindex="0" data-mid="${m.id}">
+    <div class="mcard ${fav ? "is-fav" : ""}${poster ? " mcard-poster" : ""}"${poster ? ` style="--kh:${kh};--ka:${ka}"` : ""} role="button" tabindex="0" data-mid="${m.id}">
     <div class="mcard-row">
       <div class="mcard-time">${timeStr(m.utc)}<small>${fmt(m.utc, { day: "numeric", month: "short" })}</small></div>
       <div class="mcard-teams">${teamRow(h, "home", winA)}${teamRow(a, "away", winH)}</div>

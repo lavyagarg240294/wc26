@@ -968,9 +968,14 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
   linear-gradient(107deg,color-mix(in srgb,var(--kh) 17%,transparent),color-mix(in srgb,var(--kh) 3%,transparent) 42%,color-mix(in srgb,var(--ka) 3%,transparent) 58%,color-mix(in srgb,var(--ka) 17%,transparent)),
   radial-gradient(72% 60% at 100% -6%,color-mix(in srgb,var(--acc1) 7%,transparent),transparent 58%),
   var(--card)}
-.hero-poster .hero-vs{width:clamp(46px,11vw,56px);height:clamp(46px,11vw,56px);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:clamp(14px,3.4vw,17px);color:#3a2a00;background:var(--gold);border:3px solid var(--card);box-shadow:0 6px 18px -4px color-mix(in srgb,var(--gold) 60%,transparent)}
+.hero-poster .hero-vs{font-size:clamp(12px,2.6vw,15px);font-weight:800;font-stretch:100%;letter-spacing:.06em;color:var(--ink-soft)}   /* a quiet connector - the teams are the focus, not the VS */
 .hero-poster .hero-wp-bar .wp-h{background:var(--kh)}
 .hero-poster .hero-wp-bar .wp-a{background:var(--ka)}
+/* the same kit-colour language on an UPCOMING match card (--kh/--ka set inline): a subtle two-tone wash, home kit
+   toward the top row, away kit toward the bottom - matching the vertically-stacked teams. Live/finished cards unchanged. */
+.mcard-poster{background:
+  linear-gradient(163deg,color-mix(in srgb,var(--kh) 13%,transparent),color-mix(in srgb,var(--kh) 2%,transparent) 42%,color-mix(in srgb,var(--ka) 2%,transparent) 58%,color-mix(in srgb,var(--ka) 13%,transparent)),
+  var(--card)}
 /* compact stakes line on a match card */
 .mcard-stake{margin:9px 0 0;padding-left:11px;position:relative;font-size:var(--fs-13);line-height:1.35;color:var(--ink-soft)}
 .mcard-stake::before{content:"";position:absolute;left:0;top:.4em;width:5px;height:5px;border-radius:1px;background:var(--acc1)}
