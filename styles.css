@@ -2028,7 +2028,10 @@ svg.ls-conn{position:absolute;inset:0;width:100%;height:100%;pointer-events:none
 .cmpx-v{font-family:var(--mono);font-weight:700;font-size:var(--fs-12);color:var(--ink);font-variant-numeric:tabular-nums}
 .cmpx-va{text-align:right}.cmpx-vb{text-align:left}
 .cmpx-tk{height:8px;border-radius:99px;background:color-mix(in srgb,var(--ink) 7%,var(--card));overflow:hidden;display:flex}
-.cmpx-tk i{height:100%;border-radius:99px;transition:width .5s cubic-bezier(.2,.8,.2,1)}
+/* the fill is the team's kit colour - a white kit (Iran/England) on the light theme, or a near-black one (Germany/NZ)
+   on dark, would otherwise merge into the track. A theme-aware inset outline keeps the bar's edge visible whatever the
+   colour, in either theme (and it survives a live theme toggle with the modal open - no re-render needed). */
+.cmpx-tk i{height:100%;border-radius:99px;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--ink) 38%,transparent);transition:width .5s cubic-bezier(.2,.8,.2,1)}
 .cmpx-l{justify-content:flex-end}.cmpx-l i{margin-left:auto}
 .cmpx-lbl{font-size:var(--fs-10);text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);font-weight:600;white-space:nowrap;text-align:center}
 .cmp-hist{display:flex;align-items:center;gap:8px;margin-bottom:6px}
