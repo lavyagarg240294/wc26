@@ -971,11 +971,20 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .hero-poster .hero-vs{font-size:clamp(12px,2.6vw,15px);font-weight:800;font-stretch:100%;letter-spacing:.06em;color:var(--ink-soft)}   /* a quiet connector - the teams are the focus, not the VS */
 .hero-poster .hero-wp-bar .wp-h{background:var(--kh)}
 .hero-poster .hero-wp-bar .wp-a{background:var(--ka)}
-/* the same kit-colour language on an UPCOMING match card (--kh/--ka set inline): a subtle two-tone wash, home kit
-   toward the top row, away kit toward the bottom - matching the vertically-stacked teams. Live/finished cards unchanged. */
+/* an UPCOMING match card (--kh/--ka set inline): the two teams face off left↔right (like the hero), and the shade is
+   split into a home half (left) and an away half (right). Same height as a normal card. Live/finished cards unchanged. */
 .mcard-poster{background:
-  linear-gradient(163deg,color-mix(in srgb,var(--kh) 13%,transparent),color-mix(in srgb,var(--kh) 2%,transparent) 42%,color-mix(in srgb,var(--ka) 2%,transparent) 58%,color-mix(in srgb,var(--ka) 13%,transparent)),
+  linear-gradient(90deg,color-mix(in srgb,var(--kh) 15%,transparent),color-mix(in srgb,var(--kh) 4%,transparent) 40%,transparent 50%,color-mix(in srgb,var(--ka) 4%,transparent) 60%,color-mix(in srgb,var(--ka) 15%,transparent)),
   var(--card)}
+.mcard-row-up{grid-template-columns:64px 1fr}   /* time + full-width matchup (no separate score column) */
+.mcard-up-teams{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;min-height:47px}
+.mcard-up-side{display:flex;align-items:center;gap:9px;min-width:0;font-weight:700;font-size:15px}
+.mcard-up-side .mct-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+.mcard-up-side .fl{font-size:22px;flex:0 0 auto;filter:drop-shadow(0 2px 4px rgba(13,27,42,.16))}
+.mcard-up-r{justify-content:flex-end;text-align:right;padding-right:28px}   /* keep the away flag clear of the save-star's top-right tap zone */
+.mcard-up-vs{font-family:var(--disp);font-weight:800;font-size:var(--fs-11);letter-spacing:.06em;color:var(--ink-soft);flex:0 0 auto}
+.mcard-poster~.mcard-star::before{inset:-2px}   /* trim the star's hit-area on a poster card so the away flag sits clear of it without a huge right gutter */
+@media (max-width:560px){.mcard-up-side .fl{font-size:19px}.mcard-up-teams{gap:5px}.mcard-up-side{gap:7px}.mcard-up-r{padding-right:18px}}
 /* compact stakes line on a match card */
 .mcard-stake{margin:9px 0 0;padding-left:11px;position:relative;font-size:var(--fs-13);line-height:1.35;color:var(--ink-soft)}
 .mcard-stake::before{content:"";position:absolute;left:0;top:.4em;width:5px;height:5px;border-radius:1px;background:var(--acc1)}

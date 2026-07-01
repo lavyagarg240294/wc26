@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "436";  // shown in footer; bump with the ?v= asset version
+const BUILD = "437";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -865,13 +865,23 @@ function matchCard(m, i, opts = {}) {
   // .mcard-wrap carries the list spacing + entrance animation and is the positioning context for the star.
   return `<div class="mcard-wrap" style="--i:${i}">
     <div class="mcard ${fav ? "is-fav" : ""}${poster ? " mcard-poster" : ""}"${poster ? ` style="--kh:${kh};--ka:${ka}"` : ""} role="button" tabindex="0" data-mid="${m.id}">
-    <div class="mcard-row">
+    ${poster
+      // upcoming: time stays on the left, then the two teams face off left↔right (like the hero) across the freed-up width
+      ? `<div class="mcard-row mcard-row-up">
+      <div class="mcard-time">${timeStr(m.utc)}<small>${fmt(m.utc, { day: "numeric", month: "short" })}</small></div>
+      <div class="mcard-up-teams">
+        <span class="mcard-up-side"><span class="fl">${flag(h.code)}</span><span class="mct-name">${esc(cname(h.code))}</span>${m.stage === "group" ? qualBadge(h.code) : ""}</span>
+        <span class="mcard-up-vs">vs</span>
+        <span class="mcard-up-side mcard-up-r">${m.stage === "group" ? qualBadge(a.code) : ""}<span class="mct-name">${esc(cname(a.code))}</span><span class="fl">${flag(a.code)}</span></span>
+      </div>
+    </div>`
+      : `<div class="mcard-row">
       <div class="mcard-time">${timeStr(m.utc)}<small>${fmt(m.utc, { day: "numeric", month: "short" })}</small></div>
       <div class="mcard-teams">${teamRow(h, "home", winA)}${teamRow(a, "away", winH)}</div>
       <div class="mcard-right">${(score || live)
         ? `<div class="mcard-score${live ? " is-live" : ""}${abn ? " is-abn" : ""}"><span class="ms-line">${winH ? penChip : ""}<span class="${winA ? "lo" : ""}">${sh}</span></span><span class="ms-line">${winA ? penChip : ""}<span class="${winH ? "lo" : ""}">${sa}</span></span></div>${(live || abn) ? badge : ""}`
         : badge}</div>
-    </div>
+    </div>`}
     ${(() => { if (m.stage !== "group") { const k = koStakeLine(m); return k ? `<div class="mcard-stake">${k}</div>` : ""; } const s = matchStakes(m); return s && s.definitive ? `<div class="mcard-stake">${s.summary}</div>` : ""; })()}
     ${opts.sub !== false ? `<div class="mcard-sub"><span class="grp">${esc(stageL)}</span><span>${esc(m.stadium)}</span><span>${esc(m.city)}</span><span class="mcard-go">Details ›</span></div>` : ""}
     ${(() => { if (!document.body.classList.contains("expert") || isFinalSt(st) || isAbnormal(st)) return ""; const wp = winProb(m); if (!wp) return ""; const ph = Math.round(wp.h*100), pd = Math.round(wp.d*100), pa = 100-ph-pd; return `<div class="mcard-wp"><span class="mcard-wp-bar"><span class="mcard-wp-h" style="width:${ph}%"></span><span class="mcard-wp-d" style="width:${pd}%"></span></span><span class="mcard-wp-tx">${ph}% · D ${pd}% · ${pa}%</span></div>`; })()}
