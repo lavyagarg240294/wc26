@@ -13,7 +13,7 @@ A fast, no-build fan site for the **World Cup 2026** - every match in your timez
 - **News** - the latest World Cup **headlines** from football desks worldwide (Guardian, BBC, ESPN, France 24, Al Jazeera, DW), newest first, with a live filter; each links out to its source.
 - Plus: **global search** (⌘K - teams, players, matches), **installable to your home screen** (PWA), **dark mode**, an optional **stadium-mix** soundtrack, **match alerts** (goal/kickoff notifications) and **data-saver** mode, a **Settings** sheet, per-match **calendar** export (.ics, client-side), per-match **share cards** that unfurl on social, an accessibility pass (keyboard focus, reduced-motion, screen-reader live goals), and a fully mobile-first, re-themable UI.
 
-**Stack:** plain `index.html` + `styles.css` + one vanilla-JS `app.js` on GitHub Pages, fed by GitHub Actions that commit JSON into the repo. **No API keys are required to run it** - live scores, events, lineups, stats, player photos and player bios (age/height/weight) all come from free, keyless sources. Total cost: **$0**.
+**Stack:** plain `index.html` + `styles.css` + one vanilla-JS `app.js` on GitHub Pages. The **live score, minute, timeline and line-ups are read straight from FIFA's public feed by your browser** (real-time, nothing in between); everything slower - stats, reports, records, deep analysis - is baked into JSON by GitHub Actions, which also serves as the **fallback** if the live feed is unreachable. **No API keys are required to run it** - all live data comes from free, keyless sources. Total cost: **$0**.
 
 📐 For how it's built - file map, data model, the polling loop, the design system - see **[ARCHITECTURE.md](ARCHITECTURE.md)**.
 
@@ -31,7 +31,7 @@ gh repo create wc26 --public --source=. --push
 The repo must be **public** for free unlimited Pages + Actions.
 
 ### 2. Enable GitHub Pages
-**Settings → Pages** → Source: **Deploy from a branch** → Branch `main`, folder `/ (root)` → Save.
+**Settings → Pages** → Source: **GitHub Actions** → Save. The repo ships a `pages.yml` deploy workflow that **queues** deploys instead of cancelling them (`cancel-in-progress: false`), so the frequent scores commits can't starve a publish - the failure mode of the old "Deploy from a branch" flow. (The scores loop also dispatches `pages.yml` after each commit, since a `GITHUB_TOKEN` push doesn't auto-trigger a workflow.)
 Live at `https://<username>.github.io/wc26/` within a minute or two.
 > Update the absolute URLs in `index.html` (the `og:`/`twitter:` meta) to your own Pages URL so social previews point at your site.
 
@@ -56,16 +56,22 @@ The site ships with **no tracking**. To turn on **cookieless, no-PII** analytics
 
 ## How it works
 
+Two data paths, split by how fast the data moves:
+
 ```
-visitor's browser ── reads ──► index.html + data/*.json     (GitHub Pages, static)
-                                          ▲
-GitHub Action (polling loop) ── writes ───┘
-        │  PRIMARY  api.fifa.com         → score, minute, events, lineups, photos
-        │  STATS    site.api.espn.com    → possession, shots, corners, fouls
-        └  FALLBACK worldcup26.ir → football-data.org (token, optional)
+LIVE  (real-time)   visitor's browser ──reads──► api.fifa.com     (calendar + per-match live object)
+                            score · minute · status · timeline · line-ups · phase · shoot-out
+                            └──────────────► overlaid, freshest-wins, on ▼
+
+SLOWER (baked)      visitor's browser ──reads──► data/*.json       (GitHub Pages static, or git HEAD
+                                                     ▲                via raw.githubusercontent if Pages lags)
+GitHub Action (polling loop) ──writes────────────────┘
+        │  FIFA  → the same feed, as the durable record + fallback + finished-match enrichment
+        │  ESPN  → possession, shots, corners, fouls, reports, commentary
+        └  FIFA EFI PDFs → post-match deep analysis (xG, distance, phases of play)
 ```
 
-All sources are fetched **server-side in the Action** (even the CORS-enabled ones), so a vanished endpoint never breaks a visitor's page, and no keys ever reach the browser. The site polls `results.json` every 60 s while open, so scores update without a refresh.
+**The live path never touches the publish pipeline.** The browser reads FIFA's public feed directly - the calendar (all 104 matches: score/status/minute) every ~20 s, plus each in-play match's live object (timeline, line-ups, phase, shoot-out) - all CORS-enabled, so scores update in near real time and a slow deploy or a stalled Action can't freeze them. The committed JSON is the **fallback** (read from the site origin, or from `raw.githubusercontent.com` at git HEAD if a Pages deploy is lagging) and the source of the slower enrichment. FIFA's feed needs no key and the keyed sources stay in the Action, so **no keys ever reach the browser**. Overlay guards: the direct feed never overrides a `manual` operator lock, and it ages out after 2 min so the page cleanly falls back to committed data.
 
 ---
 
@@ -75,8 +81,8 @@ All sources are fetched **server-side in the Action** (even the CORS-enabled one
 |---|---|---|
 | `matches.json` | 104 fixtures - UTC kickoffs, venues, stage/group, knockout slot placeholders (source: openfootball, public domain) | static |
 | `teams.json` | 48 teams - names, kit colours, confederation, World Cup titles, and a seeded **Elo** strength rating (feeds the win-probability model) | static |
-| `results.json` | per-match `{st,h,a,hp,ap,ht,at,min,ko}` - score/status only (the small file polled every ~60s); `ko` is the feed's real kickoff when it drifts from the static schedule | scores Action |
-| `details.json` | per-match `{xi,ev,stats}` - lineups, event timeline, match stats (split out so it isn't re-polled every minute; the client merges it over `results.json`) | scores Action |
+| `results.json` | per-match `{st,h,a,hp,ap,ht,at,min,per,rt,ko}` - score/status only (the small committed file; the browser also reads FIFA directly and overlays it on top); `per` = FIFA period, `rt` = result type (a.e.t./pens), `ko` = the feed's real kickoff when it drifts from the static schedule | scores Action |
+| `details.json` | per-match `{xi,ev,stats,pens}` - lineups, event timeline, match stats, kick-by-kick shoot-out (split out so it isn't re-polled every minute; the client merges it over `results.json`) | scores Action |
 | `photos.json` | official player headshots harvested from FIFA lineups (`"ShortName|CODE"` → image URL) | scores Action |
 | `squads.json` | 26-man squads per team | squads Action |
 
@@ -111,7 +117,7 @@ The loop **auto-stops after 2026-07-20** (both "Update scores" and its "Restart 
 
 ## Notes & honest limits
 
-- **No keys needed.** FIFA's and ESPN's feeds are unofficial/undocumented ("use at your own risk") - that's exactly why everything is fetched through the Action with layered fallbacks, so the site degrades to scores-only rather than breaking if one source changes.
+- **No keys needed.** FIFA's and ESPN's feeds are unofficial/undocumented ("use at your own risk"). The browser reads FIFA's public feed directly for live data (it's built for FIFA's own World Cup traffic and CDN-cached, so our reads are a rounding error and cost nothing); the Action independently bakes everything into committed JSON with layered fallbacks. So if FIFA is ever unreachable from a visitor's browser, the page cleanly falls back to that committed data rather than breaking.
 - **Group tiebreakers** implement points → goal difference → goals scored. FIFA's deeper criteria (head-to-head, disciplinary, drawing of lots) aren't computable from scores alone; the qualification math is conservative about it, and the bracket uses the resolved teams as ground truth once known.
 - **Player & share-card images** are hot-linked from FIFA's CDN; if a URL ever 404s, the dot/preview falls back gracefully.
 - **Brand & marks.** The site's own logo is the gold **centre-circle mark** (`assets/mark.svg`) - a pure-geometry pitch centre circle - reused for the favicon, the PWA/home-screen icons (`scripts/make-icons.py`), the social/OG card (`scripts/make-og.py`) and the in-app *About* sheets. The spinning live/goal ball is the public-domain (CC0) `Soccerball.svg`. **No official FIFA emblem, mascot or match-ball imagery is used** - only generic, freely-licensed or original artwork.
