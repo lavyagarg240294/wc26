@@ -962,6 +962,15 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .hero-wp-bar i{height:100%}
 .hero-wp-tx{display:flex;justify-content:space-between;margin-top:5px;font-family:var(--mono);font-size:var(--fs-11);color:var(--ink-soft);font-variant-numeric:tabular-nums}
 .hero-wp-tx b{color:var(--ink);font-weight:700}
+/* "clash poster" - an upcoming, fully-known matchup (both kits set inline as --kh/--ka): a diagonal wash in the two
+   teams' colours, a gold VS medallion, and a kit-coloured win-prob tension bar. Only in the pre-match VS state. */
+.hero-poster{background:
+  linear-gradient(107deg,color-mix(in srgb,var(--kh) 17%,transparent),color-mix(in srgb,var(--kh) 3%,transparent) 42%,color-mix(in srgb,var(--ka) 3%,transparent) 58%,color-mix(in srgb,var(--ka) 17%,transparent)),
+  radial-gradient(72% 60% at 100% -6%,color-mix(in srgb,var(--acc1) 7%,transparent),transparent 58%),
+  var(--card)}
+.hero-poster .hero-vs{width:clamp(46px,11vw,56px);height:clamp(46px,11vw,56px);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:clamp(14px,3.4vw,17px);color:#3a2a00;background:var(--gold);border:3px solid var(--card);box-shadow:0 6px 18px -4px color-mix(in srgb,var(--gold) 60%,transparent)}
+.hero-poster .hero-wp-bar .wp-h{background:var(--kh)}
+.hero-poster .hero-wp-bar .wp-a{background:var(--ka)}
 /* compact stakes line on a match card */
 .mcard-stake{margin:9px 0 0;padding-left:11px;position:relative;font-size:var(--fs-13);line-height:1.35;color:var(--ink-soft)}
 .mcard-stake::before{content:"";position:absolute;left:0;top:.4em;width:5px;height:5px;border-radius:1px;background:var(--acc1)}

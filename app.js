@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "434";  // shown in footer; bump with the ?v= asset version
+const BUILD = "435";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1728,7 +1728,11 @@ function heroBlock(heroM, isLive, onLive) {
   const grp = heroM.stage === "group";
   const hq = grp && h.code ? qualBadge(h.code) : "", aq = grp && a.code ? qualBadge(a.code) : "";
   const qline = badge => (hq || aq) ? `<span class="hero-qline">${badge}</span>` : "";
-  return `<div class="hero${onLive ? " hero-onlive" : ""}"${clickable ? ` data-hero-live="${heroM.id}" role="button" tabindex="0" aria-label="Follow ${esc(h.name)} v ${esc(a.name)} in the Live tab"` : ""}>
+  // "clash poster" treatment for an upcoming, fully-known matchup: a diagonal wash in the two kits, a gold VS medallion
+  // and a kit-coloured win-prob tension bar. Only when both teams are resolved (a TBD knockout keeps the plain hero).
+  const poster = !live && !result && !!h.code && !!a.code;
+  const kh = poster ? (S.teams[h.code]?.c1 || "var(--acc1)") : "", ka = poster ? (S.teams[a.code]?.c1 || "var(--ink-soft)") : "";
+  return `<div class="hero${onLive ? " hero-onlive" : ""}${poster ? " hero-poster" : ""}"${poster ? ` style="--kh:${kh};--ka:${ka}"` : ""}${clickable ? ` data-hero-live="${heroM.id}" role="button" tabindex="0" aria-label="Follow ${esc(h.name)} v ${esc(a.name)} in the Live tab"` : ""}>
     <div class="hero-tag ${live ? "is-live" : ft ? "is-ft" : abn ? "is-abn" : ""}">
       ${tag}<span style="color:var(--ink-soft);font-weight:600"> · ${esc(heroM.group ? "Group " + heroM.group : heroM.round)}</span>
       ${clickable ? `<span class="hero-actions"><span class="hero-go">Follow ›</span></span>` : ""}
