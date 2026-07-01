@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "431";  // shown in footer; bump with the ?v= asset version
+const BUILD = "432";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -297,7 +297,15 @@ const res = m => S.matchData[m.id] || null;
 function rebuildMatchData() {
   const r = S.results.matches || {}, d = S.details.matches || {}, out = {};
   for (const id in d) out[id] = { ...d[id] };
-  for (const id in r) out[id] = { ...(out[id] || {}), ...r[id] };   // fresh scores win over (possibly older) detail
+  for (const id in r) out[id] = { ...(out[id] || {}), ...r[id] };   // committed scores win over (possibly older) detail
+  // REAL-TIME OVERLAY: the browser reads FIFA's calendar itself (see fetchFifaLive), so live score/status/minute are
+  // instant and independent of the bot→git→Pages pipeline - nothing in that chain can freeze the live score. Overlay
+  // the direct feed's fast fields on top of the committed data (freshest wins); the committed data still supplies the
+  // enrichment (events, line-ups, stats, per, shoot-out kicks). Guards: never override a manual operator lock, and only
+  // while the direct feed is FRESH (<2 min) - if FIFA is unreachable it ages out and we fall back to committed data.
+  if (S.fifaLive && Date.now() - (S.fifaLiveAt || 0) < 120000) {
+    for (const id in S.fifaLive) if (!out[id]?.manual) out[id] = { ...(out[id] || {}), ...S.fifaLive[id] };
+  }
   S.matchData = out;
   applyKickoffs();
 }
@@ -5894,38 +5902,110 @@ function setFreshness() {
   el.textContent = `${live ? "Live" : "Up to date"} · checked just now`;
 }
 let _pollFails = 0;
+/* ------------- real-time layer: the browser reads FIFA's calendar directly ------------- */
+// Live score / status / minute come straight from api.fifa.com (CORS-enabled), NOT from the bot→git→Pages pipeline -
+// so the hot path can never freeze the way the published data can. `fetchFifaLive` produces the same slim entries the
+// bot commits (same team-join, same status coercion), which rebuildMatchData overlays on top of the committed data.
+// The committed data remains the durable fallback + the source of enrichment (events, line-ups, stats, per, pens).
+const FIFA_COMP = "17", FIFA_SEASON = "285023", FIFA_ALIAS = { KOR: "KR", BIH: "BA", IRN: "IR", COD: "CD" };
+const _flLoc = v => Array.isArray(v) ? (v[0]?.Description || "") : (typeof v === "string" ? v : "");
+const _flNorm = s => (Array.isArray(s) ? s[0]?.Description : s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z]/g, "");
+const _flClock = s => { const m = String(s ?? "").match(/(\d{1,3})(?:\D*?\+\s*(\d{1,2}))?/); return m ? (m[2] ? `${m[1]}+${m[2]}` : m[1]) : null; };
+const _flMinKey = s => { const m = String(s || "").match(/(\d+)(?:'?\+(\d+))?/); return m ? Number(m[1]) + (m[2] ? Number(m[2]) / 100 : 0) : 0; };
+// Fetch FIFA's calendar and build { matchId: slimEntry }. Returns true when the overlay's CONTENT changed (so a poll
+// re-renders only on a real change), false on any failure (the last overlay is kept and ages out in rebuildMatchData).
+async function fetchFifaLive() {
+  let rows;
+  try {
+    const r = await fetch(`https://api.fifa.com/api/v3/calendar/matches?idCompetition=${FIFA_COMP}&idSeason=${FIFA_SEASON}&language=en&count=104`,
+      { cache: "no-store", signal: AbortSignal.timeout(5000) });   // never let a slow FIFA hang the poll / boot
+    if (!r.ok) return false;
+    rows = (await r.json()).Results || [];
+  } catch { return false; }
+  if (!rows.length) return false;
+  const ourByName = {};
+  for (const [c, t] of Object.entries(S.teams)) ourByName[_flNorm(t.name)] = c;
+  const toOur = {};                                    // FIFA 3-letter IdCountry → our code (learned from names + aliases)
+  for (const x of rows) for (const s of [x.Home, x.Away]) {
+    const id = s?.IdCountry;
+    if (id && /^[A-Z]{3}$/.test(id) && !toOur[id]) { const c = FIFA_ALIAS[id] || ourByName[_flNorm(s.TeamName)]; if (c) toOur[id] = c; }
+  }
+  const pairKey = (a, b) => [a, b].sort().join("|");
+  const byPair = {}, bySlot = {}, byNum = {};
+  for (const f of S.matches) {
+    if (f.home?.team && f.away?.team) byPair[pairKey(f.home.team, f.away.team)] = f;
+    (bySlot[(f.utc || "").slice(0, 16)] ??= []).push(f);
+    byNum[f.num] = f;
+  }
+  const now = Date.now(), FIFA_ST = { 1: "SCHED", 3: "LIVE", 4: "ABD", 7: "PP", 8: "CANC", 12: "SCHED" }, map = {};
+  for (const x of rows) {
+    const hc = toOur[x.Home?.IdCountry], ac = toOur[x.Away?.IdCountry];
+    let f = (hc && ac) ? byPair[pairKey(hc, ac)] : null;                                   // group + resolved knockouts
+    if (!f) { const n = Number(x.MatchNumber); const byN = byNum[n]; if (n >= 73 && byN && byN.stage !== "group") f = byN; }   // knockout placeholders: MatchNumber is canonical for 73-104
+    if (!f) { const slot = bySlot[(x.Date || "").slice(0, 16)]; if (slot && slot.length === 1) f = slot[0]; }
+    if (!f || map[f.id]) continue;
+    const kickoff = Date.parse(x.Date || f.utc), ms = x.MatchStatus;
+    let st = FIFA_ST[ms];
+    if (st == null) {   // ms 0 (finished) or missing: trust an explicit finish once the clock could plausibly end it; else time-cap
+      if (ms == null || ms === 0) {
+        const mt = _flMinKey(x.MatchTime);
+        if (ms === 0 && mt >= 90) st = "FT";
+        else { const cap = (ms === 0 && f.stage === "group") ? 100 : 150; st = (kickoff && now >= kickoff && now < kickoff + cap * 6e4) ? "LIVE" : "FT"; }
+      } else st = (Number.isFinite(kickoff) && now < kickoff) ? "SCHED" : "SUSP";
+    }
+    const swap = f.stage === "group" && f.home.team && toOur[x.Home?.IdCountry] && f.home.team !== toOur[x.Home.IdCountry];
+    const e = { st };
+    if (Number.isFinite(kickoff) && x.Date && Math.abs(kickoff - Date.parse(f.utc)) > 6e4) e.ko = new Date(kickoff).toISOString();
+    if (st !== "SCHED" && st !== "PP" && st !== "CANC") {
+      const hs = swap ? x.AwayTeamScore : x.HomeTeamScore, as = swap ? x.HomeTeamScore : x.AwayTeamScore;
+      const hps = swap ? x.AwayTeamPenaltyScore : x.HomeTeamPenaltyScore, aps = swap ? x.HomeTeamPenaltyScore : x.AwayTeamPenaltyScore;
+      if (Number.isFinite(hs)) e.h = hs;
+      if (Number.isFinite(as)) e.a = as;
+      if (Number.isFinite(hps)) e.hp = hps;
+      if (Number.isFinite(aps)) e.ap = aps;
+      if (st === "LIVE" || st === "HT") { const mc = _flClock(x.MatchTime); if (mc) e.min = mc; }   // ticking minute (per/events stay from the committed feed)
+    }
+    if (f.stage !== "group") { if (hc) e.ht = hc; if (ac) e.at = ac; }                     // resolve knockout teams as the feed fills them
+    if (x.ResultType) e.rt = x.ResultType;
+    map[f.id] = e;
+  }
+  const sig = JSON.stringify(map);
+  const changed = sig !== S._fifaSig;
+  S.fifaLive = map; S.fifaLiveAt = now; S._fifaSig = sig;
+  return changed;
+}
 async function refreshResults() {
+  const fifaChanged = await fetchFifaLive();           // real-time overlay first (best-effort; a failure just keeps the last)
+  const prevData = S.matchData || {};
+  const paint = firstLoad => {
+    for (const m of S.matches) if ([ST.LIVE, ST.HT].includes(status(m))) delete S.commentary[m.num];   // only live commentary advances
+    rebuildMatchData();
+    renderTicker();
+    // Predict is driven by the user's saved picks, not live results - re-rendering it on a poll would reset their bracket scroll.
+    if (S.view && S.view !== "sim") RENDER[S.view]();
+    refreshOpenMatch();           // keep an open match popup live - score/minute/timeline/stats
+    if (!firstLoad) celebrateGoals(prevData, S.matchData);   // detect goals on the MERGED data → the horn fires with the instant FIFA score
+  };
   try {
     const r = await fetch("data/results.json?t=" + Date.now(), { cache: "no-store" });
     _pollFails = 0;                                       // the fetch resolved → the network is reachable
     if (S.offline) { S.offline = false; setFreshness(); }
-    if (!r.ok) return;
+    if (!r.ok) { if (fifaChanged) paint(false); setFreshness(); return; }
     const txt = await r.text();
     S.lastChecked = Date.now();
     const scoresChanged = txt !== S._lastResults;
     const live = S.matches.some(m => [ST.LIVE, ST.HT].includes(status(m)));
-    if (!scoresChanged && !live) { setFreshness(); return; }   // quiet and nothing in play → just update the "checked" time
     const firstLoad = S._lastResults == null;
-    const prev = S.results.matches || {};
     if (scoresChanged) { S._lastResults = txt; S.results = JSON.parse(txt); }
-    // Refresh detail whenever scores changed OR a match is live: the free feed can omit the ticking minute, so
-    // results.json may be byte-identical while events/stats advanced. details.json is small + no-store.
-    const detailChanged = await loadDetails();
+    // Refresh committed detail whenever committed scores changed OR a match is live (the enrichment can advance while
+    // the slim scores are byte-identical). details.json is small + no-store.
+    const detailChanged = (scoresChanged || live) ? await loadDetails() : false;
     if (scoresChanged) await loadReports();
-    if (scoresChanged || detailChanged) {
-      for (const m of S.matches) if ([ST.LIVE, ST.HT].includes(status(m))) delete S.commentary[m.num];   // only live commentary advances - keep finished matches cached
-      rebuildMatchData();
-      renderTicker();
-      // Predict is driven by the user's saved picks, not live results - re-rendering it on a poll would reset their
-      // bracket scroll for no benefit. Refresh every other view. (S.view is null pre-first-paint - boot's nav renders.)
-      if (S.view && S.view !== "sim") RENDER[S.view]();
-      refreshOpenMatch();           // keep an open match popup live - score/minute/timeline/stats, not just commentary
-      if (scoresChanged && !firstLoad) celebrateGoals(prev, S.results.matches);
-    }
+    if (scoresChanged || detailChanged || fifaChanged || firstLoad) paint(firstLoad);
     setFreshness();
   } catch {
-    // network unreachable (offline / DNS / CORS-less failure). One blip is normal; flag offline only once it's
-    // clearly not transient so the footer can say so instead of silently showing a stale time. self-heals on reconnect.
+    // committed feed unreachable - but if the FIFA overlay advanced, still update the UI (the hot path stands alone).
+    if (fifaChanged) paint(false);
     if (!navigator.onLine || ++_pollFails >= 2) { S.offline = true; setFreshness(); }
   }
 }
