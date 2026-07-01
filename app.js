@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "430";  // shown in footer; bump with the ?v= asset version
+const BUILD = "431";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1821,7 +1821,9 @@ function teamStyleAxes(aCode, bCode) {
   const A = styleList.find(x => x.code === aCode), B = styleList.find(x => x.code === bCode);
   if (!A || !B) return "";
   const cA = S.teams[aCode]?.c1 || "var(--ink-soft)", cB = S.teams[bCode]?.c1 || "var(--ink-soft)";
-  const pctOf = (key, val) => { const vs = styleList.map(x => x[key]); const lo = Math.min(...vs), hi = Math.max(...vs); return hi > lo ? Math.round((val - lo) / (hi - lo) * 100) : 50; };
+  // floor at 12% so the field-minimum team reads as "low", not an empty/broken bar (these are relative "vs the field"
+  // ranks — the absolute figure sits alongside — so a visible-minimum keeps ordering honest without the 0-width scare).
+  const pctOf = (key, val) => { const vs = styleList.map(x => x[key]); const lo = Math.min(...vs), hi = Math.max(...vs); return hi > lo ? Math.round(12 + (val - lo) / (hi - lo) * 88) : 50; };
   const axis = (label, aPct, bPct, aVal, bVal) => `<div class="cmpx">
     <span class="cmpx-v cmpx-va">${aVal}</span>
     <span class="cmpx-tk cmpx-l"><i style="width:${aPct}%;background:${cA}"></i></span>
@@ -1832,7 +1834,7 @@ function teamStyleAxes(aCode, bCode) {
     ["poss", "Possession", v => v.toFixed(0) + "%"],
     ["passAcc", "Passing", v => v.toFixed(0) + "%"],
     ["directness", "Direct play", v => v.toFixed(0) + "%"],
-    ["pressPg", "Defending", v => v.toFixed(0)],
+    ["pressPg", "Ball-winning", v => v.toFixed(0)],
     ["shotsPg", "Attacking", v => v.toFixed(1)],
   ].map(([k, lbl, f]) => axis(lbl, pctOf(k, A[k]), pctOf(k, B[k]), f(A[k]), f(B[k]))).join("");
 }
@@ -1852,7 +1854,7 @@ function matchCompare(m) {
     <span class="cmpx-tk cmpx-r"><i style="width:${ePct(eloB)}%;background:${cB}"></i></span>
     <span class="cmpx-v cmpx-vb">${eloB}</span></div>`;
   const axes = teamStyleAxes(h.code, a.code);   // attacking / defending / possession etc., once both have played
-  const barsInfo = infoBtn("The Elo bar scales each side's World-Football rating - which updates after every result - against the strongest and weakest team in the tournament. The style bars do the same for per-game figures: Possession and Passing are share percentages, Direct play is how vertically a side moves the ball, Defending is pressing actions per game, Attacking is shots per game. A longer bar means more of that trait - a read on strength and style, not a verdict on quality.", "How the bars work");
+  const barsInfo = infoBtn("The Elo bar scales each side's World-Football rating - which updates after every result - against the strongest and weakest team in the tournament. The style bars do the same for per-game figures: Possession and Passing are share percentages, Direct play is how vertically a side moves the ball, Ball-winning is tackles + interceptions per game, Attacking is shots per game. A longer bar means more of that trait - a read on strength and style, not a verdict on quality. NB a possession-dominant side wins the ball back LESS (it has the ball more), so a short Ball-winning bar is a style, not weak defending.", "How the bars work");
   const resChips = (rec, own) => rec.n ? rec.results.map(x => `<span class="mc-res mc-res-${x.wdl}" data-mid="${x.mid}" role="button" tabindex="0" title="${esc(S.teams[own]?.name || own)} v ${esc(S.teams[x.opp]?.name || x.opp)}">${flag(own)} ${x.my}–${x.oga} ${flag(x.opp)}</span>`).join("") : `<span class="mc-none">No matches yet</span>`;
   return `<div class="eyebrow">How they compare</div>
     <div class="mc-cmp">
@@ -2626,10 +2628,10 @@ function styleSection(code) {
     ["poss", "Possession", v => v.toFixed(0) + "%", "Average share of the ball. Formula: possession % across their matches."],
     ["passAcc", "Passing", v => v.toFixed(0) + "%", "Pass accuracy. Formula: completed passes ÷ passes attempted."],
     ["directness", "Direct play", v => v.toFixed(0) + "%", "How much they go long vs build patiently. Formula: long balls ÷ (passes + long balls)."],
-    ["pressPg", "Defending", v => v.toFixed(0) + "/g", "Defensive activity. Formula: (tackles + interceptions) per match."],
+    ["pressPg", "Ball-winning", v => v.toFixed(0) + "/g", "How often they win the ball back. Formula: (tackles + interceptions) per match. A possession-dominant side does this less — it has the ball more — so a short bar is a style, not weak defending."],
     ["shotsPg", "Attacking", v => v.toFixed(1) + "/g", "Shot volume. Formula: shots taken per match."],
   ];
-  const pct = key => { const vs = me.map(x => x[key]), lo = Math.min(...vs), hi = Math.max(...vs); return hi > lo ? Math.round((mine[key] - lo) / (hi - lo) * 100) : 50; };
+  const pct = key => { const vs = me.map(x => x[key]), lo = Math.min(...vs), hi = Math.max(...vs); return hi > lo ? Math.round(12 + (mine[key] - lo) / (hi - lo) * 88) : 50; };   // floor at 12% so the lowest team reads "low", not an empty bar
   const rows = AXES.map(([key, label, fmt, help]) => `<div class="sty-item">
     <div class="sty-row"><span class="sty-lbl">${label}${infoBtn(help + " The bar shows where they rank among all teams (full = highest), not how good it is.", label + " explained")}</span><span class="sty-bar"><i style="width:${pct(key)}%"></i></span><span class="sty-v">${fmt(mine[key])}</span></div></div>`).join("");
   return `<div class="eyebrow">Playing style</div><div class="sty-card">${rows}<p class="sty-hint">Where ${esc(S.teams[code].name)} ranks among teams with match stats. A fuller bar means more than its rivals, not "better".</p></div>`;
