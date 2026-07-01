@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "440";  // shown in footer; bump with the ?v= asset version
+const BUILD = "441";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -868,7 +868,10 @@ function matchCard(m, i, opts = {}) {
   const kh = poster ? washCol(h.code) : "", ka = poster ? washCol(a.code) : "";
   const upSide = (s, key, right) => {
     const cls = `mcard-up-side${right ? " mcard-up-r" : ""}${s.code ? "" : " is-tbd"}`;
-    if (!s.code) return `<span class="${cls}"><span class="tbd-orb" aria-hidden="true">?</span></span>`;   // undecided slot → a premium mystery orb, not the terse "Winner R32-9" label
+    if (!s.code) {   // undecided slot: keep the real flag+name layout, but the team is still veiled in gold dust - a shimmer that shines as if about to be revealed
+      const flg = `<span class="tbd-shape tbd-flag" aria-hidden="true"></span>`, nm = `<span class="tbd-shape tbd-name" aria-hidden="true"></span>`;
+      return `<span class="${cls}" aria-label="Team to be decided">${right ? nm + flg : flg + nm}</span>`;
+    }
     const nm = esc(cname(s.code)), flg = flag(s.code), badge = m.stage === "group" ? qualBadge(s.code) : "";
     return right ? `<span class="${cls}">${badge}<span class="mct-name">${nm}</span><span class="fl">${flg}</span></span>`
       : `<span class="${cls}"><span class="fl">${flg}</span><span class="mct-name">${nm}</span>${badge}</span>`;
@@ -882,7 +885,7 @@ function matchCard(m, i, opts = {}) {
       // upcoming: time stays on the left, then the two teams face off left↔right (like the hero) across the freed-up width
       ? `<div class="mcard-row mcard-row-up">
       <div class="mcard-time">${timeStr(m.utc)}<small>${fmt(m.utc, { day: "numeric", month: "short" })}</small></div>
-      <div class="mcard-up-teams${undecided ? " is-tbd-teams" : ""}">${upSide(h, "home", false)}<span class="mcard-up-vs">vs</span>${upSide(a, "away", true)}</div>
+      <div class="mcard-up-teams">${upSide(h, "home", false)}<span class="mcard-up-vs">vs</span>${upSide(a, "away", true)}</div>
     </div>`
       : `<div class="mcard-row">
       <div class="mcard-time">${timeStr(m.utc)}<small>${fmt(m.utc, { day: "numeric", month: "short" })}</small></div>
@@ -891,8 +894,7 @@ function matchCard(m, i, opts = {}) {
         ? `<div class="mcard-score${live ? " is-live" : ""}${abn ? " is-abn" : ""}"><span class="ms-line">${winH ? penChip : ""}<span class="${winA ? "lo" : ""}">${sh}</span></span><span class="ms-line">${winA ? penChip : ""}<span class="${winH ? "lo" : ""}">${sa}</span></span></div>${(live || abn) ? badge : ""}`
         : badge}</div>
     </div>`}
-    ${undecided ? `<div class="mcard-stake mcard-reveal">${tbdReveal(m)}</div>`
-      : (() => { if (m.stage !== "group") { const k = koStakeLine(m); return k ? `<div class="mcard-stake">${k}</div>` : ""; } const s = matchStakes(m); return s && s.definitive ? `<div class="mcard-stake">${s.summary}</div>` : ""; })()}
+    ${(() => { if (m.stage !== "group") { const k = koStakeLine(m); return k ? `<div class="mcard-stake">${k}</div>` : ""; } const s = matchStakes(m); return s && s.definitive ? `<div class="mcard-stake">${s.summary}</div>` : ""; })()}
     ${opts.sub !== false ? `<div class="mcard-sub"><span class="grp">${esc(stageL)}</span><span>${esc(m.stadium)}</span><span>${esc(m.city)}</span><span class="mcard-go">Details ›</span></div>` : ""}
     ${(() => { if (!document.body.classList.contains("expert") || isFinalSt(st) || isAbnormal(st)) return ""; const wp = winProb(m); if (!wp) return ""; const ph = Math.round(wp.h*100), pd = Math.round(wp.d*100), pa = 100-ph-pd; return `<div class="mcard-wp"><span class="mcard-wp-bar"><span class="mcard-wp-h" style="width:${ph}%"></span><span class="mcard-wp-d" style="width:${pd}%"></span></span><span class="mcard-wp-tx">${ph}% · D ${pd}% · ${pa}%</span></div>`; })()}
     </div>
@@ -1177,15 +1179,6 @@ function koStakeLine(m) {
   if (!m || m.stage === "group" || isFinalSt(status(m))) return "";
   if (m.stage === "third") return "Playing for the bronze medal - the two beaten semi-finalists.";
   return "";   // every other knockout round: "winner advances, loser out" is inherent - the round label + matchup already say it, no need to spell it out
-}
-// an undecided knockout tie: name the round its two teams come from, so the card promises a reveal without
-// spelling out the terse "Winner R32-9 v Winner R32-10" feeder labels. fm.stage is the FEEDER round (one below).
-const FEED_ROUND = { r32: "Round-of-32", r16: "Round-of-16", qf: "quarter-final", sf: "semi-final" };
-function tbdReveal(m) {
-  const fn = m.home.feeds || m.away.feeds;
-  const fm = fn && S.matches.find(x => x.num === fn && x.stage !== "group");
-  const r = fm && FEED_ROUND[fm.stage];
-  return r ? `Winners of the ${r} ties meet here` : "Teams revealed as the bracket unfolds";
 }
 // win-probability - a bivariate-Poisson goals model. Team strength is each side's World Football Elo rating
 // (seeded snapshot in teams.json), nudged by current-tournament form; the Elo gap sets the goal supremacy that
