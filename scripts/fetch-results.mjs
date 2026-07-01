@@ -497,7 +497,16 @@ function parseEspnStats(sum, f, entry) {
     for (const s of (p.stats || [])) { const k = PS_MAP[s.name], v = +s.value; if (k && v) st[k] = v; }
     if (Object.keys(st).length) pstats[nm] = st;
   }
-  return { stats: Object.keys(stats).length ? stats : null, lead: lead.length ? lead : null, facts: Object.keys(facts).length ? facts : null, pstats: Object.keys(pstats).length ? pstats : null };
+  // header goals — ESPN classifies each scoring play's body part (`goal---header`); FIFA's own feed doesn't. Scorer is
+  // parsed from the play text ("…Japan 1. Casemiro (Brazil) header from…"); team + minute come structured.
+  const hdr = [];
+  for (const k of (sum.keyEvents || [])) {
+    if (!/header/i.test(k.type?.type || "")) continue;
+    const code = toCode(k.team?.displayName);
+    const nm = String(k.text || "").match(/\.\s*([^.()]+?)\s*\([^)]*\)\s*header/i);
+    hdr.push({ p: nm ? nm[1].trim() : "", ...(code ? { code } : {}), t: k.clock?.displayValue || "" });
+  }
+  return { stats: Object.keys(stats).length ? stats : null, lead: lead.length ? lead : null, facts: Object.keys(facts).length ? facts : null, pstats: Object.keys(pstats).length ? pstats : null, hdr: hdr.length ? hdr : null };
 }
 async function enrichStats(matches, prev, prevReports) {
   const RECENT = 2 * 864e5;                                 // chase a finished match's (later-published) report for ~2 days
@@ -521,6 +530,7 @@ async function enrichStats(matches, prev, prevReports) {
       if (prev[f.id]?.lead) e.lead = prev[f.id].lead;
       if (prev[f.id]?.facts) e.facts = prev[f.id].facts;
       if (prev[f.id]?.pstats) e.pstats = prev[f.id].pstats;
+      if (prev[f.id]?.hdr) e.hdr = prev[f.id].hdr;
     }
   }
   if (!need.length) return;
@@ -559,7 +569,8 @@ async function enrichStats(matches, prev, prevReports) {
         if (ex.lead) matches[f.id].lead = ex.lead;
         if (ex.facts) matches[f.id].facts = ex.facts;
         if (ex.pstats) matches[f.id].pstats = ex.pstats;
-        if (ex.stats || ex.lead || ex.facts || ex.pstats) ok++;
+        if (ex.hdr) matches[f.id].hdr = ex.hdr;
+        if (ex.stats || ex.lead || ex.facts || ex.pstats || ex.hdr) ok++;
       }
       const rep = parseArticle(sum); if (rep) harvestedReports[f.num] = rep;        // credited write-up
       const com = parseCommentary(sum); if (com) harvestedCommentary[f.num] = com;   // live/full play-by-play

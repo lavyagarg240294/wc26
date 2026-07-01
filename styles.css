@@ -1623,6 +1623,17 @@ svg.ls-conn{position:absolute;inset:0;width:100%;height:100%;pointer-events:none
 .sl-main b{font-weight:700;font-size:var(--fs-14);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sl-main small{font-size:var(--fs-12);color:var(--ink-soft)}
 .sl-min{font-family:var(--mono);font-weight:700;font-size:var(--fs-13);color:var(--ink-soft);font-variant-numeric:tabular-nums;flex:0 0 auto}
+.sl-note{margin:12px 4px 2px;font-size:var(--fs-11);color:var(--ink-soft);line-height:1.4}
+/* "After the first goal" table - a labelled bar per outcome */
+.fg-card{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:12px 14px;margin-bottom:8px}
+.fg-row{display:grid;grid-template-columns:112px 1fr auto;align-items:center;gap:10px;padding:5px 0}
+.fg-lbl{font-size:var(--fs-13);font-weight:600}
+.fg-track{height:9px;border-radius:99px;background:color-mix(in srgb,var(--ink) 7%,var(--card));overflow:hidden}
+.fg-track i{display:block;height:100%;border-radius:99px}
+.fg-w{background:var(--pitch)}.fg-d{background:var(--ink-soft)}.fg-l{background:var(--live)}
+.fg-v{font-family:var(--mono);font-size:var(--fs-12);color:var(--ink-soft);font-variant-numeric:tabular-nums;white-space:nowrap}
+.fg-v b{color:var(--ink);font-weight:700}
+.fg-foot{margin-top:7px;padding-top:7px;border-top:1px dashed var(--line);font-size:var(--fs-11);color:var(--ink-soft)}
 .lead-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(248px,1fr));gap:12px}
 .lead-card{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);overflow:hidden;animation:rise .45s both}
 .lead-card h4{font-family:var(--disp);font-weight:800;font-stretch:118%;font-size:var(--fs-12);letter-spacing:.1em;text-transform:uppercase;padding:11px 14px;border-bottom:1px solid var(--line)}

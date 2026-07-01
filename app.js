@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "433";  // shown in footer; bump with the ?v= asset version
+const BUILD = "434";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1079,7 +1079,12 @@ function matchControlBar(m) {
 // "Deep analysis": FIFA Enhanced Football Intelligence (post-match) - official xG, line breaks, ball progressions,
 // pressures, phases of play, and the headline: per-player distance covered. Only shown when data/efi.json has it.
 function mdEfi(m, expand = false) {
-  const e = S.efi?.[m.num]; if (!e) return "";
+  const e = S.efi?.[m.num];
+  // FIFA publishes its post-match deep analysis (official xG, distance, phases) per match on a delay - typically a day
+  // or two, and later still for knockouts. On a finished match with none yet, say so rather than omit it silently.
+  // Guard on efi.json having loaded, so a failed fetch never falsely flags every match.
+  if (!e) return (isFinalSt(status(m)) && S.efi && Object.keys(S.efi).length)
+    ? `<div class="eyebrow">Deep analysis</div><div class="empty">FIFA's official post-match analysis (expected goals, distance covered, phases of play) is published a while after each game - not out for this match yet.</div>` : "";
   const h = slotInfo(m, "home"), a = slotInfo(m, "away");
   const hc = (h.code && S.teams[h.code]?.c1) || "#0BA360", ac = (a.code && S.teams[a.code]?.c1) || "#5B6B7A";
   const sb = [];
@@ -3840,8 +3845,11 @@ function showInfoPop(anchor, text) {
   pop.style.width = w + "px";
   pop.style.left = Math.max(12, Math.min(r.left + r.width / 2 - w / 2, innerWidth - w - 12)) + "px";
   pop.style.top = (r.bottom + 7) + "px";
-  if (_POPOVER_OK) { try { pop.hidePopover(); } catch {} try { pop.showPopover(); } catch {} }
+  // Put it in its FINAL visible state BEFORE showPopover(). Otherwise the element enters the top layer at the base
+  // (opacity:0 / -4px) state and the .14s transition fires across the display change - a one-frame flicker. Setting
+  // .show first means it's already at the end state when it paints, so it appears crisply in place, no flicker.
   pop.classList.add("show");
+  if (_POPOVER_OK) { try { pop.hidePopover(); } catch {} try { pop.showPopover(); } catch {} }
 }
 /* compact prediction codec (~23 bytes → ~31-char link); decode falls back to the old JSON format */
 const FACT = [1, 1, 2, 6, 24];
@@ -4790,7 +4798,8 @@ function tournamentStats() {
   const xgF = {}, golX = {}, xgN = {};   // xG "created" + goals scored IN the same xG-covered matches (so the comparison is fair) + per-team count
   const TSTAT_KEYS = ["sh", "pass", "passT", "cross", "lball", "tkl", "intc", "clr", "blk", "sv", "off", "fls"];   // richer ESPN team stats → leaderboards + style
   let goals = 0, totYellow = 0, totRed = 0, totPen = 0, totOg = 0, totSot = 0;
-  const penList = [], ogList = [];   // the actual penalties scored + own goals (for the clickable Overview tiles)
+  const penList = [], ogList = [], headerList = [];   // penalties scored + own goals + header goals (clickable Overview tiles)
+  const firstGoal = { w: 0, d: 0, l: 0 };   // "does scoring first matter?" - outcome for the team that scored first
   const rec = {};   // each record resolves to an ARRAY of all holders tied at the top value (joint records) - see topTies, post-loop
   const recC = { bigWin: [], hiScore: [], fastG: [], lateG: [], hiDraw: [], topMatch: [], mostCards: [], mostTackles: [], mostPasses: [], mostSot: [], bestDef: [] };
   const add = (o, k, n = 1) => { if (k) o[k] = (o[k] || 0) + n; };
@@ -4842,6 +4851,13 @@ function tournamentStats() {
       if (e.k === "Y") { add(yel, tc); totYellow++; mYellow++; if (e.p) { const pk = (resolvePlayer(e.p, tc, e.n)?.name || e.p) + "\t" + tc; add(pyel, pk); (cardLog[pk] ||= []).push({ ko: m.utc, k: "Y", st: m.stage }); } }
       else if (e.k === "R") { add(red, tc); totRed++; mRed++; if (e.p) { const pk = (resolvePlayer(e.p, tc, e.n)?.name || e.p) + "\t" + tc; add(pred, pk); (cardLog[pk] ||= []).push({ ko: m.utc, k: "R", st: m.stage }); } }
     }
+    // "does scoring first matter?" - the earliest goal's side, then did they win/draw/lose the match (a pens-decided
+    // knockout counts as a draw here, since it was level after 90'/ET). Own goal counts for its beneficiary side (its tm).
+    const firstG = (r.ev || []).filter(e => ["G", "P", "OG"].includes(e.k) && e.tm && evMin(e.t) >= 1).sort((x, y) => evMin(x.t) - evMin(y.t))[0];
+    if (firstG) { const won = firstG.tm === "h" ? r.h > r.a : r.a > r.h, lost = firstG.tm === "h" ? r.h < r.a : r.a < r.h;
+      if (won) firstGoal.w++; else if (lost) firstGoal.l++; else firstGoal.d++; }
+    // header goals - ESPN classifies each scoring play's body part (FIFA's feed doesn't); `hdr` is written by the bot
+    for (const h of (r.hdr || [])) headerList.push({ name: h.p || "", code: h.code, opp: h.code === hc ? ac : hc, t: h.t || "", mid: m.id });
     // per-match superlatives
     if (r.h === r.a && (r.h + r.a) > 0) recC.hiDraw.push({ mid: m.id, hc, ac, h: r.h, a: r.a, total: r.h + r.a });
     for (const [mk, cnt] of Object.entries(matchGoals)) {
@@ -4953,7 +4969,7 @@ function tournamentStats() {
   const g = (k, c) => tstat[k]?.[c] || 0;
   const _out = {
     pulse: { goals, matches: fts.length, perMatch: fts.length ? goals / fts.length : 0, yellows: totYellow, reds: totRed, pens: totPen, og: totOg, sot: totSot },
-    penGoals: penList, ownGoals: ogList,
+    penGoals: penList, ownGoals: ogList, headerGoals: headerList, firstGoal,
     records: rec,
     scorers: scorerList, assisters: assistList, booked: bookedList, suspended: suspendedList, atRisk: riskList,
     teamCards: cardList,
@@ -5159,17 +5175,22 @@ function recordsPanel(s) {
 }
 // the Overview's "Penalties scored" / "Own goals" tiles open this: the actual list, each row tapping through to its match
 function openStatList(kind) {
-  const s = tournamentStats(), pens = kind === "pens";
-  const list = (pens ? s.penGoals : s.ownGoals).slice().sort((a, b) => {
+  const s = tournamentStats();
+  const src = kind === "pens" ? s.penGoals : kind === "og" ? s.ownGoals : s.headerGoals;
+  const title = kind === "pens" ? "Penalties scored" : kind === "og" ? "Own goals" : "Header goals";
+  const mid = kind === "pens" ? "vs" : kind === "og" ? "· own goal for" : "vs";
+  const list = src.slice().sort((a, b) => {
     const ma = S.matches.find(m => m.id === a.mid), mb = S.matches.find(m => m.id === b.mid);
     return (ma?.utc || "").localeCompare(mb?.utc || "") || evMin(a.t) - evMin(b.t);
   });
   const row = x => `<div class="sl-row" data-mid="${x.mid}" role="button" tabindex="0">
       <span class="fl">${flag(x.code)}</span>
-      <span class="sl-main"><b>${esc(x.name)}</b><small>${esc(cname(x.code))} ${pens ? "vs" : "· own goal for"} ${esc(cname(x.opp))}</small></span>
+      <span class="sl-main"><b>${esc(x.name || "—")}</b><small>${esc(cname(x.code))}${x.opp ? ` ${mid} ${esc(cname(x.opp))}` : ""}</small></span>
       <span class="sl-min">${esc(String(x.t).replace(/\s+/g, ""))}</span></div>`;
-  $("#statListTitle").textContent = `${pens ? "Penalties scored" : "Own goals"} · ${list.length}`;
-  $("#statListBody").innerHTML = list.length ? `<div class="sl-list">${list.map(row).join("")}</div>` : `<div class="empty">None yet.</div>`;
+  $("#statListTitle").textContent = `${title} · ${list.length}`;
+  $("#statListBody").innerHTML = list.length
+    ? `<div class="sl-list">${list.map(row).join("")}</div>${kind === "hdr" ? `<p class="sl-note">Header goals are classified by ESPN's match feed; FIFA's own feed doesn't record the body part.</p>` : ""}`
+    : `<div class="empty">None yet.</div>`;
   showSheet($("#statListDialog"));
 }
 function renderStats() {
@@ -5298,9 +5319,13 @@ function renderStats() {
     ["overview", "Overview", `<div class="eyebrow">Tournament so far</div><div class="stat-tiles">
       ${tile("Matches", s.pulse.matches)}${tile("Goals", s.pulse.goals)}
       ${tile("Goals / match", s.pulse.perMatch.toFixed(2))}
-      ${tile("Shots on target", s.pulse.sot)}${tileList("Penalties scored", s.pulse.pens, "pens")}${tileList("Own goals", s.pulse.og, "og")}
+      ${tile("Shots on target", s.pulse.sot)}${tileList("Penalties scored", s.pulse.pens, "pens")}${tileList("Own goals", s.pulse.og, "og")}${tileList("Header goals", s.headerGoals.length, "hdr")}
       <div class="stat-tile"><span class="stat-val card-val"><span class="cv cv-y">${s.pulse.yellows}</span><span class="cv cv-r">${s.pulse.reds}</span></span><span class="stat-lbl">Cards</span></div>
     </div>
+      ${(() => { const fg = s.firstGoal, tot = fg.w + fg.d + fg.l; if (!tot) return "";
+        const row = (lbl, v, cls) => `<div class="fg-row"><span class="fg-lbl">${lbl}</span><span class="fg-track"><i class="${cls}" style="width:${Math.round(v / tot * 100)}%"></i></span><span class="fg-v"><b>${v}</b> · ${Math.round(v / tot * 100)}%</span></div>`;
+        return `<div class="eyebrow">After the first goal ${infoBtn("Of every match where a goal was scored, what happened to the team that scored FIRST - did they go on to win, draw or lose the match. A knockout decided on penalties counts here as a draw (it was level after 90'/extra time). A read on how much the opening goal has mattered so far, not a prediction.", "How this is counted")}</div>
+          <div class="fg-card">${row("Went on to win", fg.w, "fg-w")}${row("Drew", fg.d, "fg-d")}${row("Lost", fg.l, "fg-l")}<div class="fg-foot">the side that scored first, across ${tot} match${tot > 1 ? "es" : ""} with a goal</div></div>`; })()}
       ${bootTop3.length ? `<div class="eyebrow">${ICO.ball} Golden Boot</div><div class="lead-card lead-scorers">${ranked(bootTop3, scorerRow, p => p.goals)}</div>` : ""}
       <div class="eyebrow">Records so far</div>${recordsHtml}
       ${confHtml}`],
