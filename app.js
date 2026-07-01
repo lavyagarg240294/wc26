@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "438";  // shown in footer; bump with the ?v= asset version
+const BUILD = "439";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -832,6 +832,10 @@ const shortName = code => {
 // compact display label where a full team name is too long for a tight one-line row (leaderboards, chips)
 const COMPACT_TEAM = { BA: "Bosnia" };
 const cname = code => COMPACT_TEAM[code] || S.teams[code]?.name || code;
+// the colour to tint a team's card/hero wash: its kit primary, unless that's near-white (Iran, England) - which would
+// be invisible on the card - in which case fall back to the secondary kit colour so there's always a visible tint.
+const _lum = hex => { const m = String(hex || "").replace("#", "").match(/../g); if (!m) return .5; const [r, g, b] = m.map(x => parseInt(x, 16) / 255).map(c => c <= .03928 ? c / 12.92 : ((c + .055) / 1.055) ** 2.4); return .2126 * r + .7152 * g + .0722 * b; };
+const washCol = code => { const t = S.teams[code]; if (!t) return "var(--acc1)"; return (_lum(t.c1) > .72 && t.c2) ? t.c2 : (t.c1 || "var(--acc1)"); };
 
 /* ---------------- render: shared match card ---------------- */
 function matchCard(m, i, opts = {}) {
@@ -857,23 +861,27 @@ function matchCard(m, i, opts = {}) {
     `<div class="mcard-team ${s.ph ? "is-ph" : ""} ${lost ? "is-lost" : ""}">` +
     `<span class="fl">${s.code ? flag(s.code) : TBD_FLAG}</span><span class="mct-name">${esc(slotText(m, key, s, true))}</span>${m.stage === "group" && s.code ? qualBadge(s.code) : ""}</div>`;   // group cards show the team's qualified/out marker (KO teams are all through, so it'd be redundant there)
   const sv = isSaved(m.id);
-  // upcoming, fully-known matchup → the kit-colour wash (same language as the hero poster); live/finished stay plain
-  const poster = st === ST.SCHED && !!h.code && !!a.code;
-  const kh = poster ? (S.teams[h.code]?.c1 || "var(--acc1)") : "", ka = poster ? (S.teams[a.code]?.c1 || "var(--ink-soft)") : "";
+  // an UPCOMING matchup gets the face-off layout: a fully-known one washes in the two kits (poster); an undecided
+  // knockout (teams still TBD) washes in neutral tournament colours and shows the short "Winner R16-1" feed labels.
+  const bothKnown = !!h.code && !!a.code;
+  const poster = st === ST.SCHED && bothKnown, undecided = st === ST.SCHED && m.stage !== "group" && !bothKnown, matchup = poster || undecided;
+  const kh = poster ? washCol(h.code) : "", ka = poster ? washCol(a.code) : "";
+  const upSide = (s, key, right) => {
+    const nm = esc(s.code ? cname(s.code) : slotText(m, key, s, false)), flg = s.code ? flag(s.code) : TBD_FLAG, badge = m.stage === "group" && s.code ? qualBadge(s.code) : "";
+    const cls = `mcard-up-side${right ? " mcard-up-r" : ""}${s.code ? "" : " is-tbd"}`;
+    return right ? `<span class="${cls}">${badge}<span class="mct-name">${nm}</span><span class="fl">${flg}</span></span>`
+      : `<span class="${cls}"><span class="fl">${flg}</span><span class="mct-name">${nm}</span>${badge}</span>`;
+  };
   // The card body is the primary button; the save-star is a SIBLING <button>, not nested inside it
   // (nesting two interactive controls is invalid ARIA - screen readers announce it ambiguously). The
   // .mcard-wrap carries the list spacing + entrance animation and is the positioning context for the star.
   return `<div class="mcard-wrap" style="--i:${i}">
-    <div class="mcard ${fav ? "is-fav" : ""}${poster ? " mcard-poster" : ""}"${poster ? ` style="--kh:${kh};--ka:${ka}"` : ""} role="button" tabindex="0" data-mid="${m.id}">
-    ${poster
+    <div class="mcard ${fav ? "is-fav" : ""}${poster ? " mcard-poster" : undecided ? " mcard-tbd" : ""}"${poster ? ` style="--kh:${kh};--ka:${ka}"` : ""} role="button" tabindex="0" data-mid="${m.id}">
+    ${matchup
       // upcoming: time stays on the left, then the two teams face off left↔right (like the hero) across the freed-up width
       ? `<div class="mcard-row mcard-row-up">
       <div class="mcard-time">${timeStr(m.utc)}<small>${fmt(m.utc, { day: "numeric", month: "short" })}</small></div>
-      <div class="mcard-up-teams">
-        <span class="mcard-up-side"><span class="fl">${flag(h.code)}</span><span class="mct-name">${esc(cname(h.code))}</span>${m.stage === "group" ? qualBadge(h.code) : ""}</span>
-        <span class="mcard-up-vs">vs</span>
-        <span class="mcard-up-side mcard-up-r">${m.stage === "group" ? qualBadge(a.code) : ""}<span class="mct-name">${esc(cname(a.code))}</span><span class="fl">${flag(a.code)}</span></span>
-      </div>
+      <div class="mcard-up-teams">${upSide(h, "home", false)}<span class="mcard-up-vs">vs</span>${upSide(a, "away", true)}</div>
     </div>`
       : `<div class="mcard-row">
       <div class="mcard-time">${timeStr(m.utc)}<small>${fmt(m.utc, { day: "numeric", month: "short" })}</small></div>
@@ -1741,10 +1749,10 @@ function heroBlock(heroM, isLive, onLive) {
   const grp = heroM.stage === "group";
   const hq = grp && h.code ? qualBadge(h.code) : "", aq = grp && a.code ? qualBadge(a.code) : "";
   const qline = badge => (hq || aq) ? `<span class="hero-qline">${badge}</span>` : "";
-  // "clash poster" treatment for an upcoming, fully-known matchup: a diagonal wash in the two kits, a gold VS medallion
-  // and a kit-coloured win-prob tension bar. Only when both teams are resolved (a TBD knockout keeps the plain hero).
-  const poster = !live && !result && !!h.code && !!a.code;
-  const kh = poster ? (S.teams[h.code]?.c1 || "var(--acc1)") : "", ka = poster ? (S.teams[a.code]?.c1 || "var(--ink-soft)") : "";
+  // kit-colour wash for a fully-known matchup: an upcoming hero adds the poster (gold VS + tension bar); a LIVE hero
+  // gets just the wash (so it's not a plain white banner). Finished heroes stay plain. washCol avoids near-white kits.
+  const poster = !result && !!h.code && !!a.code;   // live OR upcoming (not finished/abnormal)
+  const kh = poster ? washCol(h.code) : "", ka = poster ? washCol(a.code) : "";
   return `<div class="hero${onLive ? " hero-onlive" : ""}${poster ? " hero-poster" : ""}"${poster ? ` style="--kh:${kh};--ka:${ka}"` : ""}${clickable ? ` data-hero-live="${heroM.id}" role="button" tabindex="0" aria-label="Follow ${esc(h.name)} v ${esc(a.name)} in the Live tab"` : ""}>
     <div class="hero-tag ${live ? "is-live" : ft ? "is-ft" : abn ? "is-abn" : ""}">
       ${tag}<span style="color:var(--ink-soft);font-weight:600"> · ${esc(heroM.group ? "Group " + heroM.group : heroM.round)}</span>
@@ -1967,7 +1975,8 @@ function renderMatches() {
   // 1A: finished games go into a collapsible "Earlier results"; live + upcoming show below
   const dayGroups = (arr, skip) => { const d = {}; arr.forEach(m => (d[dayKey(m.utc)] ??= []).push(m)); return Object.entries(d).map(([k, ms]) => {
     const shown = skip ? ms.filter(m => !skip.has(m.id)) : ms;
-    return shown.length ? `<div class="dayhead ${k === todayK ? "is-today" : ""}">${dayLabel(ms[0].utc)} <small>${ms.length} match${ms.length > 1 ? "es" : ""}</small></div>` + shown.map((m, i) => matchCard(m, Math.min(i, 8))).join("") : "";
+    const liveN = ms.filter(m => [ST.LIVE, ST.HT].includes(status(m))).length;   // a day can host a live match (dropped from the list, but flagged here for consistency)
+    return shown.length ? `<div class="dayhead ${k === todayK ? "is-today" : ""}">${dayLabel(ms[0].utc)} <small>${ms.length} match${ms.length > 1 ? "es" : ""}</small>${liveN ? `<small class="dayhead-live">${liveN} live</small>` : ""}</div>` + shown.map((m, i) => matchCard(m, Math.min(i, 8))).join("") : "";
   }).join(""); };
   const past = list.filter(m => isFinalSt(status(m)));
   const ahead = list.filter(m => status(m) !== ST.FT);
