@@ -1,0 +1,44 @@
+name: Deploy to Pages
+
+# Publishes the site to GitHub Pages on every push to main.
+#
+# WHY this exists instead of the built-in "Deploy from a branch" flow: that flow cancels an
+# in-progress Pages build on every new commit. The live-scores bot commits data/results.json every
+# ~30-45s during matches, so the built-in flow NEVER finished a build and the deployed site froze
+# (~12h stale on 2026-07-01, showing a live match as "next kickoff · 00:00").
+#
+# The fix is the concurrency block below: cancel-in-progress:false lets a running deploy FINISH and
+# only ever keeps the single latest pending one. So a burst of data commits collapses to "current
+# build finishes -> newest data deploys next" - the site is at most ~1 build behind, never frozen.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Stage the static site (everything web-served; drop VCS/CI/test dirs)
+        run: |
+          mkdir -p _site
+          rsync -a --exclude='.git' --exclude='.github' --exclude='node_modules' --exclude='test' --exclude='_site' ./ _site/
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4
