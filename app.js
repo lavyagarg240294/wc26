@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "437";  // shown in footer; bump with the ?v= asset version
+const BUILD = "438";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -838,7 +838,7 @@ function matchCard(m, i, opts = {}) {
   const h = slotInfo(m, "home"), a = slotInfo(m, "away");
   const r = res(m), st = status(m);
   const fav = isFavMatch(m);
-  const stageL = m.group ? `Group ${m.group}` : m.stage === "third" ? "3rd place" : m.round;
+  const stageL = m.group ? `Group ${m.group}` : m.stage === "third" ? "3rd place" : (STAGE_SHORT[m.stage] || m.round);   // short round (R32/R16/QF…) so the sub-line fits stadium + city + Details on ONE line
   const live = isLiveSt(st), unconf = isUnconfirmedFinal(m), fin = isFinalSt(st) && !unconf, abn = isAbnormal(st) || unconf;
   const score = r && r.h != null;   // a real, feed-reported scoreline (incl. a suspended/abandoned/awarded one)
   const sh = r?.h ?? 0, sa = r?.a ?? 0;   // display score - a live match with no goal data shows 0–0
@@ -1960,8 +1960,15 @@ function renderMatches() {
   if (f.team) list = list.filter(m => matchHasTeam(m, f.team));
   if (f.saved) list = list.filter(m => isSaved(m.id));
 
+  // a LIVE match is already the hero above, so drop its duplicate card from the list (the user's call). The upcoming
+  // "next kickoff" hero keeps its list card (a liked poster). The day COUNT still includes the skipped match, so the
+  // header stays truthful, and a day made up entirely of the hero match renders no (empty) group.
+  const listSkip = new Set(liveMatches.map(m => m.id));
   // 1A: finished games go into a collapsible "Earlier results"; live + upcoming show below
-  const dayGroups = arr => { const d = {}; arr.forEach(m => (d[dayKey(m.utc)] ??= []).push(m)); return Object.entries(d).map(([k, ms]) => `<div class="dayhead ${k === todayK ? "is-today" : ""}">${dayLabel(ms[0].utc)} <small>${ms.length} match${ms.length > 1 ? "es" : ""}</small></div>` + ms.map((m, i) => matchCard(m, Math.min(i, 8))).join("")).join(""); };
+  const dayGroups = (arr, skip) => { const d = {}; arr.forEach(m => (d[dayKey(m.utc)] ??= []).push(m)); return Object.entries(d).map(([k, ms]) => {
+    const shown = skip ? ms.filter(m => !skip.has(m.id)) : ms;
+    return shown.length ? `<div class="dayhead ${k === todayK ? "is-today" : ""}">${dayLabel(ms[0].utc)} <small>${ms.length} match${ms.length > 1 ? "es" : ""}</small></div>` + shown.map((m, i) => matchCard(m, Math.min(i, 8))).join("") : "";
+  }).join(""); };
   const past = list.filter(m => isFinalSt(status(m)));
   const ahead = list.filter(m => status(m) !== ST.FT);
 
@@ -1994,7 +2001,7 @@ function renderMatches() {
     </div>` +
     (f.saved && S.saved.size ? `<button class="saved-cal" data-cal-saved>${CAL_SVG} Add ${S.saved.size} saved match${S.saved.size > 1 ? "es" : ""} to calendar</button>` : "") +
     (past.length ? `<details class="earlier"><summary><span class="ear-tri">▸</span> Earlier results <b>${past.length}</b><span class="ear-hint">view</span></summary><div class="ear-body">${dayGroups(past)}</div></details>` : "") +
-    (ahead.length ? dayGroups(ahead) : (past.length ? "" : `<div class="empty">No matches for this filter.</div>`)));
+    (ahead.length ? dayGroups(ahead, listSkip) : (past.length ? "" : `<div class="empty">No matches for this filter.</div>`)));
 
   startCountdown(el);
   const sbtn = $("#stageSelBtn", el);
