@@ -50,6 +50,10 @@ jobs:
               git push 2>/dev/null \
                 || { git fetch origin main && git rebase -X theirs origin/main 2>/dev/null && git push 2>/dev/null; } \
                 || { git rebase --abort 2>/dev/null; git reset --hard origin/main; echo "push deferred — resynced, will retry next loop"; }
+              # Publish to Pages. A push made with GITHUB_TOKEN does NOT trigger the pages.yml workflow (recursion
+              # guard), so we dispatch it explicitly (workflow_dispatch IS exempt, same as the self-relaunch above).
+              # pages.yml has concurrency cancel-in-progress:false, so a burst of these collapses to the latest deploy.
+              gh workflow run pages.yml 2>/dev/null || echo "pages deploy dispatch failed — next commit will retry"
             else
               echo "no changes @ $(date -u +%H:%M) UTC"
             fi
