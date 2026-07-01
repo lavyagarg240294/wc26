@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "432";  // shown in footer; bump with the ?v= asset version
+const BUILD = "433";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -305,6 +305,8 @@ function rebuildMatchData() {
   // while the direct feed is FRESH (<2 min) - if FIFA is unreachable it ages out and we fall back to committed data.
   if (S.fifaLive && Date.now() - (S.fifaLiveAt || 0) < 120000) {
     for (const id in S.fifaLive) if (!out[id]?.manual) out[id] = { ...(out[id] || {}), ...S.fifaLive[id] };
+    // phase 2: real-time detail (events, line-ups, phase, shoot-out, HT) for in-play matches, on top of the score overlay
+    for (const id in (S.fifaDetail || {})) if (!out[id]?.manual) out[id] = { ...(out[id] || {}), ...S.fifaDetail[id] };
   }
   S.matchData = out;
   applyKickoffs();
@@ -5866,16 +5868,29 @@ async function manualRefresh(origin) {
   try { await refreshResults(); }
   finally { setTimeout(() => btns.forEach(b => { b.classList.remove("spinning"); b.removeAttribute("aria-busy"); b.disabled = false; }), Math.max(0, 650 - (Date.now() - t0))); }
 }
+// Committed-data fetch with a Pages-INDEPENDENT fallback. Normally read from the site's own origin (GitHub Pages - a
+// CDN, unlimited). But a Pages deploy can lag minutes behind the repo when a busy live day starves the build, so if the
+// Pages copy is STALE (its `updated` is behind) or the fetch fails, fall back to git HEAD via raw.githubusercontent,
+// which reflects the latest commit instantly with no build. Raw is only hit when Pages is actually behind, so its
+// tighter rate limit is a non-issue. `staleMs` null → never treat as stale (idle periods / files without `updated`).
+const RAW_BASE = "https://raw.githubusercontent.com/lavyagarg240294/wc26/main/";
+async function fetchFresh(path, staleMs) {
+  const age = t => { try { const u = JSON.parse(t).updated; return u ? Date.now() - Date.parse(u) : 1e15; } catch { return 1e15; } };
+  let txt = null;
+  try { const r = await fetch(path + "?t=" + Date.now(), { cache: "no-store" }); if (r.ok) txt = await r.text(); } catch { /* Pages unreachable */ }
+  if (txt == null || (staleMs != null && age(txt) > staleMs)) {   // Pages copy missing or lagging → try git HEAD
+    try { const r = await fetch(RAW_BASE + path + "?t=" + Date.now(), { cache: "no-store" }); if (r.ok) { const rt = await r.text(); if (txt == null || age(rt) < age(txt)) txt = rt; } } catch { /* raw down too → keep the Pages copy / null */ }
+  }
+  return txt;
+}
+const _anyLive = () => Object.keys(S.fifaLiveIds || {}).length > 0;   // FIFA says a match is in play → keep the committed fallback fresh
 // heavy per-match detail (timeline/lineups/stats) lives in its own file so it isn't re-downloaded
 // every 60s - fetched only when scores change (see refreshResults). Tolerates a missing file.
 async function loadDetails() {   // returns true when details.json actually changed (so the caller can re-render)
-  try {
-    const txt = await (await fetch("data/details.json?t=" + Date.now(), { cache: "no-store" })).text();
-    if (txt === S._lastDetails) return false;
-    S._lastDetails = txt;
-    const d = JSON.parse(txt); S.details = d && d.matches ? d : { matches: {} };
-    return true;
-  } catch { return false; }   // keep whatever we have on a blip
+  const txt = await fetchFresh("data/details.json", _anyLive() ? 18e4 : null);
+  if (txt == null || txt === S._lastDetails) return false;
+  try { const d = JSON.parse(txt); S.details = d && d.matches ? d : { matches: {} }; S._lastDetails = txt; return true; }
+  catch { return false; }   // keep whatever we have on a blip
 }
 // credited match reports (headline + prose) - small file, refreshed on score change like details.json. Tolerates absence.
 async function loadReports() {
@@ -5937,7 +5952,7 @@ async function fetchFifaLive() {
     (bySlot[(f.utc || "").slice(0, 16)] ??= []).push(f);
     byNum[f.num] = f;
   }
-  const now = Date.now(), FIFA_ST = { 1: "SCHED", 3: "LIVE", 4: "ABD", 7: "PP", 8: "CANC", 12: "SCHED" }, map = {};
+  const now = Date.now(), FIFA_ST = { 1: "SCHED", 3: "LIVE", 4: "ABD", 7: "PP", 8: "CANC", 12: "SCHED" }, map = {}, liveIds = {};
   for (const x of rows) {
     const hc = toOur[x.Home?.IdCountry], ac = toOur[x.Away?.IdCountry];
     let f = (hc && ac) ? byPair[pairKey(hc, ac)] : null;                                   // group + resolved knockouts
@@ -5968,14 +5983,83 @@ async function fetchFifaLive() {
     if (f.stage !== "group") { if (hc) e.ht = hc; if (ac) e.at = ac; }                     // resolve knockout teams as the feed fills them
     if (x.ResultType) e.rt = x.ResultType;
     map[f.id] = e;
+    if (st === "LIVE" && x.IdStage && x.IdMatch) liveIds[f.id] = { stage: x.IdStage, match: x.IdMatch, swap };   // in-play → phase 2 fetches its live object for events/line-ups/phase/shoot-out
   }
   const sig = JSON.stringify(map);
   const changed = sig !== S._fifaSig;
-  S.fifaLive = map; S.fifaLiveAt = now; S._fifaSig = sig;
+  S.fifaLive = map; S.fifaLiveAt = now; S._fifaSig = sig; S.fifaLiveIds = liveIds;
+  return changed;
+}
+// PHASE 2 - the browser also reads FIFA's per-match live object (+ timeline for a shoot-out) for the IN-PLAY matches,
+// so the timeline, line-ups, phase (`per` → ET/penalties label, and HT which the calendar can't tell) and the
+// kick-by-kick shoot-out are real-time too, not just the score. Ports buildEvents/fifaShootout from the bot verbatim.
+function _flEvents(lv) {
+  const sides = [["h", lv.HomeTeam], ["a", lv.AwayTeam]];
+  const nameById = {}, numById = {}, staffById = {};
+  for (const [, t] of sides) for (const p of (t?.Players || [])) { nameById[p.IdPlayer] = _flLoc(p.ShortName) || _flLoc(p.PlayerName); if (p.ShirtNumber != null) numById[p.IdPlayer] = p.ShirtNumber; }
+  for (const [, t] of sides) for (const c of (t?.Coaches || [])) { const nm = _flLoc(c.Name) || c.Alias || ""; for (const id of [c.IdCoach, c.IdStaff, c.IdPerson]) if (id != null && !(id in staffById)) staffById[id] = nm; }
+  const name = id => nameById[id] || "", num = id => numById[id], ev = [];
+  for (const [side, t] of sides) {
+    if (!t) continue;
+    for (const g of (t.Goals || [])) {
+      const k = g.Type === 3 ? "OG" : g.Type === 1 ? "P" : "G", e = { _k: _flMinKey(g.Minute), t: g.Minute, k, tm: side, p: name(g.IdPlayer) };
+      if (num(g.IdPlayer) != null) e.n = num(g.IdPlayer);
+      if (g.IdAssistPlayer) { e.a = name(g.IdAssistPlayer); if (num(g.IdAssistPlayer) != null) e.an = num(g.IdAssistPlayer); }
+      ev.push(e);
+    }
+    for (const b of (t.Bookings || [])) {
+      const k = b.Card === 2 ? "R" : "Y", pName = name(b.IdPlayer);
+      if (pName) ev.push({ _k: _flMinKey(b.Minute), t: b.Minute, k, tm: side, p: pName, ...(num(b.IdPlayer) != null ? { n: num(b.IdPlayer) } : {}) });
+      else ev.push({ _k: _flMinKey(b.Minute), t: b.Minute, k, tm: side, p: staffById[b.IdCoach] || staffById[b.IdStaff] || "", sf: 1 });
+    }
+    for (const s of (t.Substitutions || [])) ev.push({ _k: _flMinKey(s.Minute), t: s.Minute, k: "S", tm: side, on: _flLoc(s.PlayerOnName) || name(s.IdPlayerOn), off: _flLoc(s.PlayerOffName) || name(s.IdPlayerOff) });
+  }
+  ev.sort((a, b) => a._k - b._k); ev.forEach(e => delete e._k);
+  const xiSide = t => { const starters = (t?.Players || []).filter(p => p.Status === 1).map(p => [p.ShirtNumber, _flLoc(p.ShortName) || _flLoc(p.PlayerName), p.Position]); return starters.length ? { f: t.Tactics || "", xi: starters, coach: _flLoc((t.Coaches || [])[0]?.Name) } : null; };
+  const xh = xiSide(lv.HomeTeam), xa = xiSide(lv.AwayTeam);
+  return { ev, xi: (xh || xa) ? { h: xh || {}, a: xa || {} } : null };
+}
+async function _flShootout(stage, match, lv) {
+  let tl;
+  try { tl = await (await fetch(`https://api.fifa.com/api/v3/timelines/${FIFA_COMP}/${FIFA_SEASON}/${stage}/${match}?language=en`, { cache: "no-store", signal: AbortSignal.timeout(5000) })).json(); } catch { return null; }
+  const evs = (tl.Event || []).filter(e => e.Period === 11 && (e.Type === 41 || e.Type === 60));
+  if (!evs.length) return null;
+  const nameById = {}, numById = {};
+  for (const t of [lv.HomeTeam, lv.AwayTeam]) for (const p of (t?.Players || [])) { nameById[p.IdPlayer] = _flLoc(p.ShortName) || _flLoc(p.PlayerName); if (p.ShirtNumber != null) numById[p.IdPlayer] = p.ShirtNumber; }
+  const homeId = lv.HomeTeam?.IdTeam;
+  return evs.map(e => ({ tm: e.IdTeam === homeId ? "h" : "a", p: nameById[e.IdPlayer] || "", ...(numById[e.IdPlayer] != null ? { n: numById[e.IdPlayer] } : {}), ok: e.Type === 41 ? 1 : 0 }));
+}
+// fetch the live object for each in-play match, parse it into { per, ev, xi, pens, st(HT) }. Returns true when the
+// detail overlay's content changed. Bounded (cap 6; live matches are few) and best-effort - failure keeps the last.
+async function fetchFifaDetail() {
+  const ids = Object.keys(S.fifaLiveIds || {}).slice(0, 6);
+  const detail = {};
+  await Promise.all(ids.map(async id => {
+    const t = S.fifaLiveIds[id];
+    try {
+      const lv = await (await fetch(`https://api.fifa.com/api/v3/live/football/${FIFA_COMP}/${FIFA_SEASON}/${t.stage}/${t.match}?language=en`, { cache: "no-store", signal: AbortSignal.timeout(5000) })).json();
+      if (!lv) return;
+      const { ev, xi } = _flEvents(lv), d = {};
+      if (lv.Period != null) d.per = lv.Period;
+      if (lv.Period === 4) d.st = "HT";                                     // the calendar can't tell half-time from live; the live object's Period 4 can
+      if (ev.length) d.ev = t.swap ? ev.map(e => ({ ...e, tm: e.tm === "h" ? "a" : "h" })) : ev;
+      if (xi) d.xi = t.swap ? { h: xi.a, a: xi.h } : xi;
+      if (lv.Period >= 10 || (lv.HomeTeamPenaltyScore != null && lv.AwayTeamPenaltyScore != null)) {
+        const pens = await _flShootout(t.stage, t.match, lv);
+        if (pens && pens.length) d.pens = t.swap ? pens.map(k => ({ ...k, tm: k.tm === "h" ? "a" : "h" })) : pens;
+      }
+      if (Object.keys(d).length) detail[id] = d;
+    } catch { /* keep last for this match */ }
+  }));
+  const sig = JSON.stringify(detail);
+  const changed = sig !== S._fifaDetailSig;
+  S.fifaDetail = detail; S._fifaDetailSig = sig;
   return changed;
 }
 async function refreshResults() {
-  const fifaChanged = await fetchFifaLive();           // real-time overlay first (best-effort; a failure just keeps the last)
+  const fifaChanged = await fetchFifaLive();           // real-time score/status overlay (best-effort; a failure just keeps the last)
+  const fifaDetailChanged = await fetchFifaDetail();   // real-time timeline/line-ups/phase/shoot-out for in-play matches
+  const fifaChangedAny = fifaChanged || fifaDetailChanged;
   const prevData = S.matchData || {};
   const paint = firstLoad => {
     for (const m of S.matches) if ([ST.LIVE, ST.HT].includes(status(m))) delete S.commentary[m.num];   // only live commentary advances
@@ -5986,28 +6070,26 @@ async function refreshResults() {
     refreshOpenMatch();           // keep an open match popup live - score/minute/timeline/stats
     if (!firstLoad) celebrateGoals(prevData, S.matchData);   // detect goals on the MERGED data → the horn fires with the instant FIFA score
   };
-  try {
-    const r = await fetch("data/results.json?t=" + Date.now(), { cache: "no-store" });
-    _pollFails = 0;                                       // the fetch resolved → the network is reachable
-    if (S.offline) { S.offline = false; setFreshness(); }
-    if (!r.ok) { if (fifaChanged) paint(false); setFreshness(); return; }
-    const txt = await r.text();
-    S.lastChecked = Date.now();
-    const scoresChanged = txt !== S._lastResults;
-    const live = S.matches.some(m => [ST.LIVE, ST.HT].includes(status(m)));
-    const firstLoad = S._lastResults == null;
-    if (scoresChanged) { S._lastResults = txt; S.results = JSON.parse(txt); }
-    // Refresh committed detail whenever committed scores changed OR a match is live (the enrichment can advance while
-    // the slim scores are byte-identical). details.json is small + no-store.
-    const detailChanged = (scoresChanged || live) ? await loadDetails() : false;
-    if (scoresChanged) await loadReports();
-    if (scoresChanged || detailChanged || fifaChanged || firstLoad) paint(firstLoad);
+  const txt = await fetchFresh("data/results.json", _anyLive() ? 18e4 : null);   // Pages, or git HEAD if Pages is lagging
+  if (txt == null) {   // both Pages and raw unreachable for the committed data - the FIFA hot path still stands alone
+    if (fifaChangedAny) paint(false);
+    if (!navigator.onLine || ++_pollFails >= 2) { S.offline = true; }
     setFreshness();
-  } catch {
-    // committed feed unreachable - but if the FIFA overlay advanced, still update the UI (the hot path stands alone).
-    if (fifaChanged) paint(false);
-    if (!navigator.onLine || ++_pollFails >= 2) { S.offline = true; setFreshness(); }
+    return;
   }
+  _pollFails = 0;                                         // a committed source resolved → the network is reachable
+  if (S.offline) S.offline = false;
+  S.lastChecked = Date.now();
+  const scoresChanged = txt !== S._lastResults;
+  const live = _anyLive() || S.matches.some(m => [ST.LIVE, ST.HT].includes(status(m)));
+  const firstLoad = S._lastResults == null;
+  if (scoresChanged) { S._lastResults = txt; try { S.results = JSON.parse(txt); } catch { /* keep last good */ } }
+  // Refresh committed detail whenever committed scores changed OR a match is live (the enrichment can advance while the
+  // slim scores are byte-identical).
+  const detailChanged = (scoresChanged || live) ? await loadDetails() : false;
+  if (scoresChanged) await loadReports();
+  if (scoresChanged || detailChanged || fifaChangedAny || firstLoad) paint(firstLoad);
+  setFreshness();
 }
 // On a poll, re-render an open match popup in place so its score/minute/timeline/stats/win-prob stay current (it was
 // written once on open and otherwise freezes). Preserve what the user is doing: expanded sections, scroll, and the
