@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "441";  // shown in footer; bump with the ?v= asset version
+const BUILD = "442";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1628,6 +1628,33 @@ function stakesBlock(m) {
   const s = matchStakes(m); if (!s) return "";
   return `<div class="eyebrow">What's at stake</div><ul class="stakes">${s.lines.map(l => `<li>${l}</li>`).join("")}</ul>`;
 }
+// undecided knockout tie: the two feeder matches whose winners meet here. Turns the otherwise-empty "teams TBD"
+// modal into something with substance - the real road into this tie. Each row opens that feeder match.
+function mdFeederPath(m) {
+  const feeds = [m.home.feeds, m.away.feeds].filter(Boolean);
+  if (feeds.length < 2) return "";
+  const row = num => {
+    const fm = S.matches.find(x => x.num === num && x.stage !== "group");
+    if (!fm) return "";
+    const fh = slotInfo(fm, "home"), fa = slotInfo(fm, "away"), fr = res(fm), fst = status(fm);
+    const done = isFinalSt(fst) && fr && fr.h != null;
+    const win = done ? (fr.h > fr.a ? "h" : fr.a > fr.h ? "a" : (fr.hp ?? 0) >= (fr.ap ?? 0) ? "h" : "a") : null;
+    const cell = (s, key, sd) => {
+      const won = win === sd, lost = done && !won;
+      const nm = s.code ? cname(s.code) : slotText(fm, key, s, true);
+      const flg = s.code ? flag(s.code) : `<span class="tbd-shape tbd-flag mf-tbd" aria-hidden="true"></span>`;
+      return `<span class="mf-team${won ? " is-won" : ""}${lost ? " is-lost" : ""}">${flg}<b>${esc(nm)}</b></span>`;
+    };
+    const live = fst === ST.LIVE || fst === ST.HT;
+    const state = done ? `<b>${fr.h}–${fr.a}</b>${fr.hp != null ? ` <small>(${fr.hp}–${fr.ap}p)</small>` : ""}`
+      : live ? `<span class="mf-live">● ${fr?.h ?? 0}–${fr?.a ?? 0}</span>`
+      : esc(fmt(fm.utc, { day: "numeric", month: "short" }));
+    return `<div class="md-feeder" role="button" tabindex="0" data-mid="${fm.id}" aria-label="Open ${esc(matchTag(fm))} details"><span class="mf-rd">${esc(STAGE_SHORT[fm.stage] || fm.round)}</span><span class="mf-tie">${cell(fh, "home", "h")}<i>v</i>${cell(fa, "away", "a")}</span><span class="mf-when">${state}</span></div>`;
+  };
+  const rows = feeds.map(row).filter(Boolean).join("");
+  if (!rows) return "";
+  return `<div class="eyebrow">The road in</div><div class="md-feeders">${rows}</div>`;
+}
 function openMatch(id, reuse) {   // reuse: re-render the body in place (a live poll) without re-animating the dialog
   const m = S.matches.find(x => x.id === id); if (!m) return;
   const h = slotInfo(m, "home"), a = slotInfo(m, "away"), r = res(m), st = status(m), unconf = isUnconfirmedFinal(m);
@@ -1642,7 +1669,7 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
     : isAbnormal(st) ? `<span class="md-tag abn md-tag-${st.toLowerCase()}">${stMeta(st).lbl}</span>`
     : `<span class="md-tag soon">Upcoming</span>`;   // time/date live in the meta row below - no need to repeat it
   const side = (s, key) => `<div class="md-team ${s.code === S.fav ? "is-fav" : ""}${s.code ? " md-team-clk" : ""}"${s.code ? ` data-squad="${s.code}" role="button" tabindex="0" aria-label="Open ${esc(s.name)} details"` : ""}>
-      <span class="md-flag">${s.code ? flag(s.code) : TBD_FLAG}</span>
+      <span class="md-flag">${s.code ? flag(s.code) : `<span class="tbd-shape md-tbd-flag" aria-hidden="true"></span>`}</span>
       <span class="md-name ${s.ph ? "is-ph" : ""}">${esc(slotText(m, key, s, true))}</span>
       ${s.code ? `<span class="md-teaminfo">${esc(S.teams[s.code].conf || "")}${fifaRankOf(s.code) ? ` · <span class="md-rank" title="FIFA World Ranking">#${fifaRankOf(s.code)}</span>` : ""}${S.teams[s.code].titles ? ` · ${TROPHY} ${S.teams[s.code].titles}` : ""}</span>` : ""}</div>`;
   const mid = (score || live)
@@ -1691,6 +1718,7 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
   if (bothKnown && _wcH2H == null) loadWcH2H().then(() => { const md = $("#matchDialog"); if (md?.open && md.dataset.openMid === id) openMatch(id, true); });
   const h2hPair = (bothKnown && _wcH2H) ? _wcH2H[[h.code, a.code].sort().join("|")] : null;
   const pH2H = (bothKnown && _wcH2H != null && ((h2hPair && h2hPair.length) || m.stage !== "group")) ? wcH2HBlock(h.code, a.code) : "";
+  const pFeeder = (!bothKnown && m.stage !== "group") ? mdFeederPath(m) : "";   // undecided KO tie: show the feeder ties so the modal isn't a sparse placeholder
 
   const pMeta = `<div class="md-meta">
       <span>${esc(m.stadium)}</span>
@@ -1707,7 +1735,7 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
     : hasResult
     // finished: the report leads, then how it was settled (a shoot-out), key stats + control, stars, the full timeline & numbers, the model's call, the deep dive
     ? [pReport, pShootout, pKeyStats, pControl, pStars, pTimeline, pStats, pXiInline, pEfi, pWinProb, pCompareFold, pStakes, pH2H]
-    : [pStakes, pCompare, pWinProb, pH2H, pXiInline];   // upcoming: stakes + compare + odds + past WC meetings + (announced) line-ups
+    : [pFeeder, pStakes, pCompare, pWinProb, pH2H, pXiInline];   // upcoming: (feeder path for TBD ties) + stakes + compare + odds + past WC meetings + (announced) line-ups
   const _body = pTop + middle.join("") + pMeta;
   const mb = $("#matchBody");
   if (reuse) paint(mb, _body);                       // live poll: morph the body in place - score/minute/timeline/stats update while expanded folds, scroll & loaded commentary survive

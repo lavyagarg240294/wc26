@@ -989,16 +989,22 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 /* keep the real flag+name geometry, but each spot is a gold-dust placeholder - a fine gold speckle veiling the
    team, swept by a slow diagonal "shine" that reads as "about to be revealed". */
 .mcard-up-side.is-tbd{gap:9px}
+/* the gold dust itself drifts (two speckle layers sliding opposite diagonals) so the placeholder is always alive,
+   and a brighter shine sweeps across on top - "hidden, shimmering, about to be revealed". */
 .tbd-shape{position:relative;overflow:hidden;border-radius:4px;
-  background:
-    radial-gradient(circle at 30% 35%,color-mix(in srgb,var(--gold) 45%,transparent) 0 .5px,transparent 1.4px) 0 0/6px 6px,
-    radial-gradient(circle at 70% 68%,color-mix(in srgb,var(--gold) 32%,transparent) 0 .5px,transparent 1.4px) 3px 2px/8px 8px,
+  background-image:
+    radial-gradient(circle at 30% 35%,color-mix(in srgb,var(--gold) 55%,transparent) 0 .7px,transparent 1.6px),
+    radial-gradient(circle at 68% 66%,color-mix(in srgb,var(--gold) 40%,transparent) 0 .7px,transparent 1.6px),
     linear-gradient(120deg,color-mix(in srgb,var(--gold) 15%,var(--card)),color-mix(in srgb,var(--gold) 28%,var(--card)));
-  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--gold) 24%,transparent)}
+  background-size:6px 6px,9px 9px,100% 100%;
+  background-position:0 0,3px 2px,0 0;
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--gold) 24%,transparent);
+  animation:tbdDrift 5.5s linear infinite}
+@keyframes tbdDrift{to{background-position:6px -6px,-9px 9px,0 0}}
 .tbd-shape::after{content:"";position:absolute;inset:0;transform:translateX(-130%);
-  background:linear-gradient(105deg,transparent 38%,color-mix(in srgb,var(--gold) 62%,#fff) 50%,transparent 62%);
-  animation:tbdShine 3s ease-in-out infinite}
-@keyframes tbdShine{0%,55%{transform:translateX(-130%)}100%{transform:translateX(130%)}}
+  background:linear-gradient(105deg,transparent 34%,color-mix(in srgb,var(--gold) 70%,#fff) 50%,transparent 66%);
+  animation:tbdShine 2.6s ease-in-out infinite}
+@keyframes tbdShine{0%,48%{transform:translateX(-130%)}100%{transform:translateX(130%)}}
 .tbd-flag{width:28px;height:19px;border-radius:3px;flex:0 0 28px;filter:drop-shadow(0 2px 4px rgba(13,27,42,.14))}
 .tbd-name{width:84px;height:13px;flex:0 0 84px}
 .mcard-up-r .tbd-name{width:70px}
@@ -1006,7 +1012,28 @@ tr.is-fav td{background:color-mix(in srgb,var(--acc1) 8%,transparent)}
 .tbd-name::after{animation-delay:.14s}
 .mcard-up-r .tbd-name::after{animation-delay:.5s}
 .mcard-up-r .tbd-flag::after{animation-delay:.64s}
-@media (prefers-reduced-motion:reduce){.tbd-shape::after{animation:none}}
+@media (prefers-reduced-motion:reduce){.tbd-shape,.tbd-shape::after{animation:none}}
+/* match-details modal for an undecided tie: same gold-dust placeholder (bigger) in place of the flag, plus a
+   "road in" block listing the two feeder ties so the sheet carries real content instead of a lonely VS. */
+.md-tbd-flag{display:block;width:58px;height:40px;border-radius:6px}
+.md-feeders{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+.md-feeder{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;width:100%;text-align:left;cursor:pointer;
+  padding:11px 13px;border:1px solid var(--line);border-radius:12px;background:color-mix(in srgb,var(--acc1) 3.5%,var(--card));
+  transition:border-color .15s,background .15s}
+.md-feeder:hover{border-color:color-mix(in srgb,var(--acc1) 40%,var(--line));background:color-mix(in srgb,var(--acc1) 7%,var(--card))}
+.mf-rd{font-family:var(--disp);font-weight:800;font-size:var(--fs-11);letter-spacing:.05em;color:var(--acc-text)}
+.mf-tie{display:flex;align-items:center;gap:9px;min-width:0;font-size:var(--fs-14)}
+.mf-tie>i{font-style:normal;color:var(--ink-soft);font-weight:500;flex:0 0 auto}
+.mf-team{display:flex;align-items:center;gap:6px;min-width:0}
+.mf-team .flagimg{width:22px;height:15px;border-radius:2px;flex:0 0 22px}
+.mf-team b{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mf-team.is-won b{color:var(--acc-text)}
+.mf-team.is-lost{opacity:.46}
+.mf-tbd{width:22px;height:15px;border-radius:3px;flex:0 0 22px}
+.mf-when{font-family:var(--mono);font-size:var(--fs-12);color:var(--ink-soft);white-space:nowrap;text-align:right}
+.mf-when b{color:var(--ink);font-weight:800}
+.mf-when small{font-weight:600}
+.mf-live{color:var(--live);font-weight:700}
 .mcard-row-up{grid-template-columns:64px 1fr}   /* time + full-width matchup (no separate score column) */
 /* space-between puts the vs at the exact midpoint between where team-1's name ends and team-2's name begins */
 .mcard-up-teams{display:flex;justify-content:space-between;align-items:center;gap:10px;min-height:47px}
