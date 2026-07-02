@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "445";  // shown in footer; bump with the ?v= asset version
+const BUILD = "446";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1655,6 +1655,39 @@ function mdFeederPath(m) {
   if (!rows) return "";
   return `<div class="eyebrow">The road in</div><div class="md-feeders">${rows}</div>`;
 }
+// shot map from FIFA's own timeline coordinates - both teams normalised to attack the top goal. Live matches carry
+// r.shots from the poll overlay; finished matches lazy-load once (loadMatchShots). ★ goal · ● on target · ○ off.
+function mdShotMap(m) {
+  const r = res(m), shots = (r && r.shots) || S.fifaShots?.[m.id];
+  if (!shots || !shots.length) return "";
+  const h = slotInfo(m, "home"), a = slotInfo(m, "away"), HC = "#5FB0FF", AC = "#FFC24B", L = "rgba(255,255,255,.5)";
+  const PW = 272, PH = 204, MX = 14, MY = 14;
+  const sx = y => +(MX + y / 100 * PW).toFixed(1), sy = x => +(MY + (100 - x) / 50 * PH).toFixed(1);
+  const star = (cx, cy, rr, fill) => { let p = ""; for (let i = 0; i < 10; i++) { const ang = Math.PI / 5 * i - Math.PI / 2, R = i % 2 ? rr * .45 : rr; p += (i ? "L" : "M") + (cx + R * Math.cos(ang)).toFixed(1) + " " + (cy + R * Math.sin(ang)).toFixed(1) + " "; } return `<path d="${p}Z" fill="${fill}" stroke="#fff" stroke-width="1.3" stroke-linejoin="round"/>`; };
+  const mk = s => { const cx = sx(s.y), cy = sy(s.x), col = s.tm === "h" ? HC : AC, t = `<title>${esc(s.p)} · ${esc(s.min)}${s.g ? " · goal" : ""}</title>`;
+    return s.g ? `<g>${t}${star(cx, cy, 7.5, col)}</g>` : `<g>${t}<circle cx="${cx}" cy="${cy}" r="4.2" fill="${col}" stroke="rgba(6,20,12,.35)" stroke-width=".6"/></g>`; };
+  const R = (x, y, w, ht, sw) => `<rect x="${x}" y="${y}" width="${w}" height="${ht}" fill="none" stroke="${L}" stroke-width="${sw || .8}"/>`;
+  const pitch = `<rect x="${MX}" y="${MY}" width="${PW}" height="${PH}" fill="#245C3C" rx="4"/>` + R(MX, MY, PW, PH) +
+    R(sx(21), MY, sx(79) - sx(21), sy(83) - MY) + R(sx(37), MY, sx(63) - sx(37), sy(94) - MY) + R(sx(44), MY - 3, sx(56) - sx(44), 3, 1.4) +
+    `<path d="M ${sx(37)} ${sy(83)} A 32 32 0 0 0 ${sx(63)} ${sy(83)}" fill="none" stroke="${L}" stroke-width=".8"/>`;
+  const per = tm => { const ss = shots.filter(s => s.tm === tm); return { sh: ss.length, g: ss.filter(s => s.g).length }; };
+  const ph = per("h"), pa = per("a"), live = [ST.LIVE, ST.HT].includes(status(m));
+  const leg = (col, code, name, st) => `<span class="sm-lg"><i style="background:${col}"></i>${flag(code)} ${esc(code ? cname(code) : name)} · ${st.sh} shots${st.g ? `, ${st.g} ${st.g === 1 ? "goal" : "goals"}` : ""}</span>`;
+  return `<div class="eyebrow">Shot map ${infoBtn("Every shot placed where it was taken, from FIFA's official match timeline - both teams shown attacking the top goal, and a star marks a goal." + (live ? " Fills in live as shots are taken." : "") + " Coordinates are FIFA's; a shot the feed logs without a location isn't plotted.", "How the shot map works")}${live ? `<span class="wp-est">● live</span>` : ""}</div>
+    <div class="sm-wrap"><svg viewBox="0 0 300 ${MY + PH + 8}" class="sm-svg" role="img" aria-label="Shot map ${esc(h.name)} v ${esc(a.name)}">${pitch}${shots.map(mk).join("")}</svg></div>
+    <div class="sm-legend">${leg(HC, h.code, h.name, ph)}${leg(AC, a.code, a.name, pa)}<span class="sm-lg sm-note">★ goal · ● shot</span></div>`;
+}
+// compact live key-stats block for the home-screen hero (and reusable in the modal): possession bar + a few counts.
+function heroLiveStats(ls) {
+  if (!ls) return "";
+  const rows = [["Shots", "sh"], ["Corners", "cor"], ["Fouls", "fls"]].filter(([, k]) => ls[k] && (ls[k][0] || ls[k][1]));
+  const p = ls.poss;
+  if (!p && !rows.length) return "";
+  return `<div class="hero-lstats">
+    ${p ? `<div class="hls-poss"><b>${p[0]}%</b><span class="hls-bar"><i class="hls-h" style="width:${p[0]}%"></i><i class="hls-a" style="width:${p[1]}%"></i></span><b>${p[1]}%</b></div><div class="hls-lab">Possession</div>` : ""}
+    ${rows.length ? `<div class="hls-grid">${rows.map(([label, k]) => `<div class="hls-row"><b>${ls[k][0]}</b><span>${label}</span><b>${ls[k][1]}</b></div>`).join("")}</div>` : ""}
+  </div>`;
+}
 function openMatch(id, reuse) {   // reuse: re-render the body in place (a live poll) without re-animating the dialog
   const m = S.matches.find(x => x.id === id); if (!m) return;
   const h = slotInfo(m, "home"), a = slotInfo(m, "away"), r = res(m), st = status(m), unconf = isUnconfirmedFinal(m);
@@ -1705,7 +1738,7 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
   // read as misleading with goals already in).
   const _wp = winProb(m, true);
   const pWinProb = _wp ? winProbBlock(m, true) + (live ? "" : liveWhyChips(_wp) + liveScorelines(_wp)) : "";
-  const pReport = mdReport(m), pComm = mdCommentaryShell(m), pStakes = stakesBlock(m), pCompare = matchCompare(m), pStars = liveStars(m), pControl = matchControlBar(m);
+  const pReport = mdReport(m), pStakes = stakesBlock(m), pCompare = matchCompare(m), pStars = liveStars(m), pControl = matchControlBar(m), pShotMap = mdShotMap(m);
   const pXiInline = r?.xi ? `<div class="eyebrow">${liveNow ? "Line-ups" : "Starting XI"}</div>${xiPanel(r.xi, h, a)}` : "";
   const pXiFold = r?.xi ? `<details class="md-fold"><summary><span>Starting XI</span><small>${esc([r.xi.h?.f, r.xi.a?.f].filter(Boolean).join(" v ")) || "line-ups & formations"}</small></summary><div class="md-fold-body">${xiPanel(r.xi, h, a)}</div></details>` : "";
   // "how they compare" rides along as a collapsed fold for live/finished games (it leads expanded in the upcoming branch)
@@ -1716,6 +1749,7 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
   // wrong "never met"). Reuses wcH2HBlock from the bracket-tie sheets.
   const bothKnown = !!h.code && !!a.code;
   if (bothKnown && _wcH2H == null) loadWcH2H().then(() => { const md = $("#matchDialog"); if (md?.open && md.dataset.openMid === id) openMatch(id, true); });
+  if (!(r?.shots?.length) && S.fifaShots?.[id] === undefined && S.fifaMatchIds?.[id]) loadMatchShots(m).then(() => { const md = $("#matchDialog"); if (md?.open && md.dataset.openMid === id) openMatch(id, true); });   // lazy shot map for a finished match
   const h2hPair = (bothKnown && _wcH2H) ? _wcH2H[[h.code, a.code].sort().join("|")] : null;
   const pH2H = (bothKnown && _wcH2H != null && ((h2hPair && h2hPair.length) || m.stage !== "group")) ? wcH2HBlock(h.code, a.code) : "";
   const pFeeder = (!bothKnown && m.stage !== "group") ? mdFeederPath(m) : "";   // undecided KO tie: show the feeder ties so the modal isn't a sparse placeholder
@@ -1731,10 +1765,10 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
     // live: who's-on-top control + the live feed lead, then numbers, stars; the (pre-match) win-prob sits as a quieter
     // reference lower down (it's no longer a live in-play estimate, so it shouldn't headline a live game). A live
     // shoot-out is THE action, so it leads.
-    ? [pShootout, pControl, pKeyStats, pStars, pTimeline, pStats, pComm, pWinProb, pXiInline, pEfi, pCompareFold, pStakes, pH2H]
+    ? [pShootout, pControl, pKeyStats, pShotMap, pStars, pTimeline, pStats, pWinProb, pXiInline, pEfi, pCompareFold, pStakes, pH2H]
     : hasResult
     // finished: the report leads, then how it was settled (a shoot-out), key stats + control, stars, the full timeline & numbers, the model's call, the deep dive
-    ? [pReport, pShootout, pKeyStats, pControl, pStars, pTimeline, pStats, pXiInline, pEfi, pWinProb, pCompareFold, pStakes, pH2H]
+    ? [pReport, pShootout, pKeyStats, pShotMap, pControl, pStars, pTimeline, pStats, pXiInline, pEfi, pWinProb, pCompareFold, pStakes, pH2H]
     : [pFeeder, pStakes, pCompare, pWinProb, pH2H, pXiInline];   // upcoming: (feeder path for TBD ties) + stakes + compare + odds + past WC meetings + (announced) line-ups
   const _body = pTop + middle.join("") + pMeta;
   const mb = $("#matchBody");
@@ -1800,6 +1834,7 @@ function heroBlock(heroM, isLive, onLive) {
       <div class="hero-side"><span class="hero-flag">${a.code ? flag(a.code, true) : TBD_FLAG}</span><span class="hero-name">${esc(a.name)}</span>${qline(aq)}</div>
     </div>
     ${!ft ? (() => { const s = matchStakes(heroM); return s && s.summary ? `<div class="hero-stakes">${s.summary}</div>` : ""; })() : ""}
+    ${live && r?.lstats ? heroLiveStats(r.lstats) : ""}
     ${!live && !ft && !onLive ? (() => { const wp = winProb(heroM); if (!wp) return "";   // pre-match only; on the Live tab the dedicated win-prob section below already covers it
       if (wp.ko && wp.adv) { const ph = Math.round(wp.adv.h * 100), pa = 100 - ph;   // knockout: show advance % (a 90' draw goes to ET/pens), no "draw" segment
         return `<div class="hero-wp" aria-label="${esc(h.name)} ${ph}% to advance, ${esc(a.name)} ${pa}%"><span class="hero-wp-bar"><i class="wp-h" style="width:${ph}%"></i><i class="wp-a" style="width:${pa}%"></i></span><span class="hero-wp-tx"><b>${ph}%</b><span>to advance</span><b>${pa}%</b></span></div>`; }
@@ -6145,7 +6180,7 @@ async function fetchFifaLive() {
     (bySlot[(f.utc || "").slice(0, 16)] ??= []).push(f);
     byNum[f.num] = f;
   }
-  const now = Date.now(), FIFA_ST = { 1: "SCHED", 3: "LIVE", 4: "ABD", 7: "PP", 8: "CANC", 12: "SCHED" }, map = {}, liveIds = {};
+  const now = Date.now(), FIFA_ST = { 1: "SCHED", 3: "LIVE", 4: "ABD", 7: "PP", 8: "CANC", 12: "SCHED" }, map = {}, liveIds = {}, matchIds = {};
   for (const x of rows) {
     const hc = toOur[x.Home?.IdCountry], ac = toOur[x.Away?.IdCountry];
     let f = (hc && ac) ? byPair[pairKey(hc, ac)] : null;                                   // group + resolved knockouts
@@ -6176,11 +6211,12 @@ async function fetchFifaLive() {
     if (f.stage !== "group") { if (hc) e.ht = hc; if (ac) e.at = ac; }                     // resolve knockout teams as the feed fills them
     if (x.ResultType) e.rt = x.ResultType;
     map[f.id] = e;
-    if (st === "LIVE" && x.IdStage && x.IdMatch) liveIds[f.id] = { stage: x.IdStage, match: x.IdMatch, swap };   // in-play → phase 2 fetches its live object for events/line-ups/phase/shoot-out
+    if (x.IdStage && x.IdMatch) { matchIds[f.id] = { stage: x.IdStage, match: x.IdMatch, swap };   // every match's FIFA ids → lazy shot-map fetch on modal open (any state)
+      if (st === "LIVE") liveIds[f.id] = matchIds[f.id]; }   // in-play → phase 2 fetches its live object for events/line-ups/phase/shoot-out
   }
   const sig = JSON.stringify(map);
   const changed = sig !== S._fifaSig;
-  S.fifaLive = map; S.fifaLiveAt = now; S._fifaSig = sig; S.fifaLiveIds = liveIds;
+  S.fifaLive = map; S.fifaLiveAt = now; S._fifaSig = sig; S.fifaLiveIds = liveIds; S.fifaMatchIds = matchIds;
   return changed;
 }
 // PHASE 2 - the browser also reads FIFA's per-match live object (+ timeline for a shoot-out) for the IN-PLAY matches,
@@ -6212,16 +6248,39 @@ function _flEvents(lv) {
   const xh = xiSide(lv.HomeTeam), xa = xiSide(lv.AwayTeam);
   return { ev, xi: (xh || xa) ? { h: xh || {}, a: xa || {} } : null };
 }
-async function _flShootout(stage, match, lv) {
+// One timeline fetch per in-play match → the real-time SHOT MAP (every attempt's pitch x/y, official FIFA
+// coordinates), live team stat counts derived from the timed events, and the kick-by-kick shoot-out. FIFA uses
+// absolute pitch coords that swap ends at half-time, so any shot in the defensive half (x<50) is flipped to a
+// single attacking direction (x=100 goal) - exactly how a shot map is drawn.
+async function _flTimeline(stage, match, lv) {
   let tl;
   try { tl = await (await fetch(`https://api.fifa.com/api/v3/timelines/${FIFA_COMP}/${FIFA_SEASON}/${stage}/${match}?language=en`, { cache: "no-store", signal: AbortSignal.timeout(5000) })).json(); } catch { return null; }
-  const evs = (tl.Event || []).filter(e => e.Period === 11 && (e.Type === 41 || e.Type === 60));
-  if (!evs.length) return null;
+  const evs = tl.Event || [], homeId = lv.HomeTeam?.IdTeam;
   const nameById = {}, numById = {};
   for (const t of [lv.HomeTeam, lv.AwayTeam]) for (const p of (t?.Players || [])) { nameById[p.IdPlayer] = _flLoc(p.ShortName) || _flLoc(p.PlayerName); if (p.ShirtNumber != null) numById[p.IdPlayer] = p.ShirtNumber; }
-  const homeId = lv.HomeTeam?.IdTeam;
-  return evs.map(e => ({ tm: e.IdTeam === homeId ? "h" : "a", p: nameById[e.IdPlayer] || "", ...(numById[e.IdPlayer] != null ? { n: numById[e.IdPlayer] } : {}), ok: e.Type === 41 ? 1 : 0 }));
+  // shots: attempt(12) / goal(0) / penalty-goal(41) with coordinates; a goal is logged as both an attempt and a
+  // goal at one spot → merge to a single shot marked as scored.
+  const seen = new Map();
+  for (const e of evs) {
+    if (e.PositionX == null || ![12, 0, 41].includes(e.Type)) continue;
+    let x = +e.PositionX, y = +e.PositionY; if (x < 50) { x = 100 - x; y = 100 - y; }
+    const goal = e.Type === 0 || e.Type === 41, k = `${e.MatchMinute}|${e.IdPlayer}`;
+    const s = { tm: e.IdTeam === homeId ? "h" : "a", min: e.MatchMinute, x: Math.round(x), y: Math.round(y), on: e.GoalGatePositionY != null ? 1 : 0, g: goal ? 1 : 0, p: nameById[e.IdPlayer] || (e.EventDescription?.[0]?.Description || "").replace(/\s*\(.*/, "").trim() };
+    if (seen.has(k)) { if (goal) { seen.get(k).g = 1; seen.get(k).on = 1; } } else seen.set(k, s);
+  }
+  const shots = [...seen.values()];
+  // live stat counts straight off the timed events (shots/on-target from the shot list; corners/fouls by type)
+  const cnt = { sh: [0, 0], sot: [0, 0], cor: [0, 0], fls: [0, 0] }, ix = tm => tm === "h" ? 0 : 1;
+  for (const s of shots) { cnt.sh[ix(s.tm)]++; if (s.on) cnt.sot[ix(s.tm)]++; }
+  for (const e of evs) { const d = e.TypeLocalized?.[0]?.Description || "", i = e.IdTeam === homeId ? 0 : 1; if (d === "Corner") cnt.cor[i]++; else if (d === "Foul") cnt.fls[i]++; }
+  const bp = lv.BallPossession;
+  const lstats = { poss: (bp && bp.OverallHome != null) ? [Math.round(bp.OverallHome), Math.round(bp.OverallAway)] : null, ...cnt };
+  // kick-by-kick shoot-out (Period 11)
+  const pk = evs.filter(e => e.Period === 11 && (e.Type === 41 || e.Type === 60));
+  const pens = pk.length ? pk.map(e => ({ tm: e.IdTeam === homeId ? "h" : "a", p: nameById[e.IdPlayer] || "", ...(numById[e.IdPlayer] != null ? { n: numById[e.IdPlayer] } : {}), ok: e.Type === 41 ? 1 : 0 })) : null;
+  return { shots, lstats, pens };
 }
+const _swapStats = s => s && ({ poss: s.poss ? [s.poss[1], s.poss[0]] : null, sh: [s.sh[1], s.sh[0]], sot: [s.sot[1], s.sot[0]], cor: [s.cor[1], s.cor[0]], fls: [s.fls[1], s.fls[0]] });
 // fetch the live object for each in-play match, parse it into { per, ev, xi, pens, st(HT) }. Returns true when the
 // detail overlay's content changed. Bounded (cap 6; live matches are few) and best-effort - failure keeps the last.
 async function fetchFifaDetail() {
@@ -6237,9 +6296,11 @@ async function fetchFifaDetail() {
       if (lv.Period === 4) d.st = "HT";                                     // the calendar can't tell half-time from live; the live object's Period 4 can
       if (ev.length) d.ev = t.swap ? ev.map(e => ({ ...e, tm: e.tm === "h" ? "a" : "h" })) : ev;
       if (xi) d.xi = t.swap ? { h: xi.a, a: xi.h } : xi;
-      if (lv.Period >= 10 || (lv.HomeTeamPenaltyScore != null && lv.AwayTeamPenaltyScore != null)) {
-        const pens = await _flShootout(t.stage, t.match, lv);
-        if (pens && pens.length) d.pens = t.swap ? pens.map(k => ({ ...k, tm: k.tm === "h" ? "a" : "h" })) : pens;
+      const tld = await _flTimeline(t.stage, t.match, lv);   // real-time shot map + live stat counts + shoot-out
+      if (tld) {
+        if (tld.shots?.length) d.shots = t.swap ? tld.shots.map(s => ({ ...s, tm: s.tm === "h" ? "a" : "h" })) : tld.shots;
+        if (tld.lstats) d.lstats = t.swap ? _swapStats(tld.lstats) : tld.lstats;
+        if (tld.pens?.length) d.pens = t.swap ? tld.pens.map(k => ({ ...k, tm: k.tm === "h" ? "a" : "h" })) : tld.pens;
       }
       if (Object.keys(d).length) detail[id] = d;
     } catch { /* keep last for this match */ }
@@ -6248,6 +6309,20 @@ async function fetchFifaDetail() {
   const changed = sig !== S._fifaDetailSig;
   S.fifaDetail = detail; S._fifaDetailSig = sig;
   return changed;
+}
+// lazy shot map for an OPEN match modal in ANY state. Live matches already carry r.shots from the poll overlay;
+// this fetches a finished (or not-yet-live) match's live object (team ids + names) + timeline ONCE and caches the
+// shots. Marked in-flight so a re-render never double-fetches; a failure caches [] so we don't hammer the feed.
+async function loadMatchShots(m) {
+  const t = S.fifaMatchIds?.[m.id]; if (!t) return;
+  S.fifaShots = S.fifaShots || {};
+  if (S.fifaShots[m.id] !== undefined) return;
+  S.fifaShots[m.id] = null;
+  try {
+    const lv = await (await fetch(`https://api.fifa.com/api/v3/live/football/${FIFA_COMP}/${FIFA_SEASON}/${t.stage}/${t.match}?language=en`, { cache: "no-store", signal: AbortSignal.timeout(6000) })).json();
+    const tld = lv && await _flTimeline(t.stage, t.match, lv);
+    S.fifaShots[m.id] = tld?.shots ? (t.swap ? tld.shots.map(s => ({ ...s, tm: s.tm === "h" ? "a" : "h" })) : tld.shots) : [];
+  } catch { S.fifaShots[m.id] = []; }
 }
 async function refreshResults() {
   const fifaChanged = await fetchFifaLive();           // real-time score/status overlay (best-effort; a failure just keeps the last)
