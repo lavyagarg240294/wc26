@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "443";  // shown in footer; bump with the ?v= asset version
+const BUILD = "444";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -2048,7 +2048,7 @@ function renderMatches() {
   const sbtn = $("#stageSelBtn", el);
   if (sbtn) {
     sbtn.onclick = () => { $("#stageSelPop").hidden ? openStagePop() : closeStagePop(); };
-    $$("#stageSelPop .tsel-opt", el).forEach(b => b.onclick = () => { f.stage = b.dataset.stage; renderMatches(); });
+    $$("#stageSelPop .tsel-opt", el).forEach(b => b.onclick = () => { f.stage = b.dataset.stage; markTselSel($$("#stageSelPop .tsel-opt", el), b); closeStagePop(); renderMatches(); });
   }
   const tb = $("#teamSelBtn", el);
   if (tb) {
@@ -2077,6 +2077,14 @@ function renderMatches() {
     cards[cards.length - 1]?.scrollIntoView({ block: "end", behavior: "smooth" });
   };
 }
+// move the ✓/selected state onto the just-picked option (the .tsel-pop popups are data-keep, so a re-render
+// won't refresh their ticks - update them in place, exactly like the rankings dropdown does).
+const markTselSel = (opts, sel) => opts.forEach(x => {
+  const on = x === sel;
+  x.classList.toggle("is-sel", on); x.setAttribute("aria-selected", String(on));
+  x.querySelector(".tsel-tick")?.remove();
+  if (on) x.insertAdjacentHTML("beforeend", `<span class="tsel-tick" aria-hidden="true">✓</span>`);
+});
 // custom searchable team filter (favourite pinned on top, then alphabetical)
 function teamSelOptions(q = "") {
   const f = S.filters, ql = q.trim().toLowerCase();
@@ -2099,7 +2107,7 @@ function teamSelOptions(q = "") {
 function renderTeamSelList(q = "") {
   const l = $("#teamSelList"); if (!l) return;
   l.innerHTML = teamSelOptions(q);
-  $$("#teamSelList .tsel-opt").forEach(b => b.onclick = () => { S.filters.team = b.dataset.v; renderMatches(); });
+  $$("#teamSelList .tsel-opt").forEach(b => b.onclick = () => { S.filters.team = b.dataset.v; markTselSel($$("#teamSelList .tsel-opt"), b); closeTeamSel(); renderMatches(); });
 }
 function openTeamSel() {
   const pop = $("#teamSelPop"); if (!pop) return;
