@@ -33,7 +33,7 @@
 <meta name="apple-mobile-web-app-title" content="World Cup 26">
 <meta name="application-name" content="World Cup 26">
 <link rel="stylesheet" href="assets/fonts.css?v=113">
-<link rel="stylesheet" href="styles.css?v=442">
+<link rel="stylesheet" href="styles.css?v=443">
 <link rel="icon" href="assets/mark.svg">
 <link rel="icon" type="image/png" href="assets/icon-32.png" sizes="32x32">
 </head>
@@ -74,6 +74,7 @@
   <button class="tab" data-nav="stats">Stats</button>
   <button class="tab" data-nav="sim">Predict</button>
   <button class="tab" data-nav="teams">Teams</button>
+  <button class="tab" data-nav="kit">Kits</button>
   <button class="tab" data-nav="players">Players</button>
   <button class="tab" data-nav="pulse">News</button>
   <span class="tab-ink" id="tabInk" aria-hidden="true"></span>
@@ -90,6 +91,7 @@
   <section class="view" id="view-groups" hidden></section>
   <section class="view" id="view-sim" hidden></section>
   <section class="view" id="view-stats" hidden></section>
+  <section class="view" id="view-kit" hidden></section>
   <section class="view" id="view-pulse" hidden></section>
 </main>
 
@@ -173,6 +175,11 @@
 </dialog>
 
 <!-- Team detail sheet (any team) -->
+<dialog id="kitDialog" class="sheet" aria-labelledby="kitTitle">
+  <div class="sheet-head"><h3 id="kitTitle">Kit</h3><button class="sheet-x" data-close aria-label="Close">✕</button></div>
+  <div class="sheet-body" id="kitBody"></div>
+</dialog>
+
 <dialog id="teamSheet" class="sheet" aria-labelledby="teamSheetTitle">
   <div class="sheet-head"><h3 id="teamSheetTitle">Team</h3><button class="sheet-x" data-close aria-label="Close">✕</button></div>
   <div class="sheet-body" id="teamSheetBody"></div>
@@ -337,6 +344,6 @@
 <canvas id="confetti" aria-hidden="true"></canvas>
 <audio id="bgm" preload="none"></audio>
 
-<script src="app.js?v=442"></script>
+<script src="app.js?v=443"></script>
 </body>
 </html>
