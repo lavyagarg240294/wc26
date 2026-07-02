@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "444";  // shown in footer; bump with the ?v= asset version
+const BUILD = "445";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -147,7 +147,7 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;",
 // instead of jumping straight to the cards' h4. Injected here (every render funnels through paint with its view el)
 // so it survives poll re-renders too. Keyed by section id; non-view paints (cards, popups) are untouched.
 // groups/sim set el.innerHTML directly (not via paint), so they prepend viewH2() themselves.
-const VIEW_H2 = { "view-matches": "Matches", "view-teams": "Teams", "view-players": "Players", "view-groups": "Tables", "view-sim": "Predict", "view-stats": "Statistics", "view-pulse": "News", "view-kit": "Kits" };
+const VIEW_H2 = { "view-matches": "Matches", "view-teams": "Teams", "view-players": "Players", "view-groups": "Tables", "view-sim": "Predict", "view-stats": "Statistics", "view-pulse": "News" };
 const viewH2 = id => VIEW_H2[id] ? `<h2 class="vh">${VIEW_H2[id]}</h2>` : "";
 function paint(el, html) {
   if (!el) return;
@@ -5076,9 +5076,8 @@ function tournamentStats() {
 }
 let statsTab = "overview";   // active Stats sub-section (persists across re-renders)
 let _statsHTML = "";        // last rendered Stats markup - re-rendered only when it actually changes (see renderStats)
-// team-comparison table state (Stats › Compare) + kit studio state (Kits tab) - persist across re-renders
+// team-comparison table state (Stats › Compare) - persists across re-renders
 const _cmp = { lens: "overview", mode: "total", filter: "all", conf: "", sort: null, dir: "desc" };
-let kitTab = "gallery", kitArrange = "hue", _kitHTML = "", _kitCompare = [];
 // FIFA World Ranking - 18 Sep 2025 snapshot (top 50), the latest FIFA published pre-tournament. A bare string = a
 // qualified WC26 team (name/flag from teams.json); a [code,name] pair = a top-50 nation that did NOT make the field.
 // Rank is the array index + 1. The 11 finalists ranked outside the top 50 are derived (teams.json minus this list).
@@ -5418,7 +5417,7 @@ function renderStats() {
       ${teamLead("Shots on target", s.teamSot, perGame)}
       ${teamLead("Crosses", s.teamCrosses, perGame)}
     </div>${finishHtml}${teamDisc}`],
-    ["compare", "Compare", teamCompareHTML()],
+    ["compare", "Compare", statsTab === "compare" ? teamCompareHTML() : ""],   // lazy: aggregate + sort only when this tab is shown (never on a background poll)
     ["records", "All-time", recordsPanel(s)],
     ["rankings", "Ranking", statsTab === "rankings" ? fifaRankingPanel() : ""],   // lazy: the 211-row panel is built only when its tab is shown (or on first click, below)
   ];
@@ -5435,6 +5434,7 @@ function renderStats() {
     $$(".substat", el).forEach(x => { const on = x.dataset.stat === k; x.classList.toggle("is-on", on); x.setAttribute("aria-selected", on); });
     const panel = $(`.substat-panel[data-panel="${k}"]`, el);
     if (k === "rankings" && panel && !panel.firstChild) { panel.innerHTML = fifaRankingPanel(); wireRankings(panel); }   // built lazily on first view → wire its pills + search now
+    if (k === "compare" && panel && !panel.firstChild) { panel.innerHTML = teamCompareHTML(); wireCompareTable(el); }   // same: build the comparison table on first view
     $$(".substat-panel", el).forEach(p => p.hidden = p.dataset.panel !== k);
   });
   wireRankings(el);   // also wire it when Rankings is the active tab on (re-)render
@@ -5581,8 +5581,10 @@ function teamStatsAgg() {
 // third-placed teams), or "out". Reuses the app's own standings + third-place race so it matches the bracket exactly.
 function teamRoutes() {
   const map = {};
-  for (const g of GROUPS) standings(g).forEach((r, i) => { map[r.code] = i < 2 ? "top2" : i === 2 ? "third?" : "out"; });
-  thirdPlaceRace().forEach((r, i) => { if (map[r.code] === "third?") map[r.code] = i < 8 ? "third" : "out"; });
+  // only read a group's standings once that group is settled - a provisional order mid-play could mislabel top-2
+  // (matches the app's conservative qualification stance); the best-third cut is cross-group, so it needs ALL groups done.
+  for (const g of GROUPS) { if (remInGroup(g) !== 0) continue; standings(g).forEach((r, i) => { map[r.code] = i < 2 ? "top2" : i === 2 ? "third?" : "out"; }); }
+  if (GROUPS.every(g => remInGroup(g) === 0)) thirdPlaceRace().forEach((r, i) => { if (map[r.code] === "third?") map[r.code] = i < 8 ? "third" : "out"; });
   for (const c in map) if (map[c] === "third?") map[c] = "out";
   return map;
 }
@@ -5646,159 +5648,12 @@ function wireCompareTable(el) {
   $$("[data-cmpsort]", p).forEach(th => th.onclick = () => set(_cmp.sort === th.dataset.cmpsort ? { dir: _cmp.dir === "desc" ? "asc" : "desc" } : { sort: th.dataset.cmpsort, dir: "desc" }));
 }
 
-/* ============================ kit / colour studio (Kits tab) ============================ */
-const _hexRGB = hex => { const n = parseInt(String(hex).replace("#", ""), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; };
-const _rgbHSL = ([r, g, b]) => { r /= 255; g /= 255; b /= 255; const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn; let h = 0; if (d) { if (mx === r) h = ((g - b) / d) % 6; else if (mx === g) h = (b - r) / d + 2; else h = (r - g) / d + 4; h = Math.round(h * 60); if (h < 0) h += 360; } const l = (mx + mn) / 2, s = d ? d / (1 - Math.abs(2 * l - 1)) : 0; return [h, Math.round(s * 100), Math.round(l * 100)]; };
-const hexHSL = hex => _rgbHSL(_hexRGB(hex));
-// redmean perceptual distance (0 identical … ~765 opposite); enough to flag kit clashes without full CIE Lab.
-const colorDist = (a, b) => { const [r1, g1, b1] = _hexRGB(a), [r2, g2, b2] = _hexRGB(b); const rm = (r1 + r2) / 2, dr = r1 - r2, dg = g1 - g2, db = b1 - b2; return Math.sqrt((2 + rm / 256) * dr * dr + 4 * dg * dg + (2 + (255 - rm) / 256) * db * db); };
-const CLASH_MAX = 764.83;   // redmean max, for a 0-100% "how different" scale
-const NAMED = [["White", "#FFFFFF"], ["Off-white", "#EFEFEA"], ["Silver", "#C0C4C8"], ["Grey", "#828C95"], ["Charcoal", "#3A4148"], ["Black", "#111417"], ["Crimson", "#C81E2E"], ["Red", "#E01B24"], ["Scarlet", "#F03A17"], ["Maroon", "#7A1220"], ["Orange", "#F07818"], ["Amber", "#F0A81E"], ["Gold", "#E8B931"], ["Yellow", "#F4E01E"], ["Lime", "#8FCB2A"], ["Green", "#199A4C"], ["Emerald", "#0BA360"], ["Forest", "#0E5A2C"], ["Teal", "#128C8C"], ["Cyan", "#1EB4D4"], ["Sky", "#3AA0E6"], ["Blue", "#1E5AE0"], ["Royal", "#1230B4"], ["Navy", "#132A5E"], ["Indigo", "#4026A6"], ["Purple", "#7A28B4"], ["Magenta", "#C81E86"], ["Pink", "#E86AA8"], ["Brown", "#7A4A24"]];
-const colorName = hex => { let best = "White", bd = 1e9; for (const [n, h] of NAMED) { const d = colorDist(hex, h); if (d < bd) { bd = d; best = n; } } return best; };
-const colorTemp = hex => { const [h, s] = hexHSL(hex); if (s < 12) return "Neutral"; return (h < 75 || h >= 330) ? "Warm" : (h >= 150 && h < 285) ? "Cool" : "Fresh"; };
-let _kitList = null;
-function kitList() {
-  if (_kitList) return _kitList;
-  _kitList = Object.keys(S.teams).map(code => { const t = S.teams[code]; return { code, name: t.name, conf: t.conf, c1: t.c1, c2: t.c2, hsl: hexHSL(t.c1), lum: relLum(t.c1) }; });
-  return _kitList;
-}
-// a stylised football-shirt SVG generated from the two official colours (primary = body, secondary = sleeves/trim).
-function jerseySVG(code, o = {}) {
-  const t = S.teams[code] || {}, c1 = t.c1 || "#0BA360", c2 = t.c2 || "#0D1B2A";
-  const gid = "kg-" + code + (o.sfx || "");
-  const dark1 = scaleRGB(c1, 0.84), lite1 = towardWhite(c1, 0.14), numCol = relLum(c1) > 0.55 ? "#12202C" : "#FFFFFF";
-  const outline = relLum(c1) > 0.85 ? ` stroke="rgba(13,27,42,.16)" stroke-width="2"` : "";
-  return `<svg class="jersey" viewBox="0 0 300 316" role="img" aria-label="${esc(t.name || code)} kit colours">
-    <defs><linearGradient id="${gid}" x1="0" y1="0" x2="0.15" y2="1"><stop offset="0" stop-color="${lite1}"/><stop offset="1" stop-color="${dark1}"/></linearGradient></defs>
-    <path d="M96,50 L34,118 L72,158 L114,98 Z" fill="${c2}"/>
-    <path d="M204,50 L266,118 L228,158 L186,98 Z" fill="${c2}"/>
-    <path d="M100,46 C120,66 180,66 200,46 L232,120 L214,152 L214,286 Q214,296 204,296 L96,296 Q86,296 86,286 L86,152 L68,120 Z" fill="url(#${gid})"${outline}/>
-    <path d="M100,46 C120,66 180,66 200,46 L193,38 C176,54 124,54 107,38 Z" fill="${c2}"/>
-    <rect x="86" y="285" width="128" height="9" rx="1" fill="${c2}" opacity=".92"/>
-    ${o.num ? `<text x="150" y="214" text-anchor="middle" font-family="var(--disp)" font-weight="800" font-size="82" letter-spacing="-2" fill="${numCol}" opacity=".9">${esc(o.num)}</text>` : ""}
-  </svg>`;
-}
-function kitArranged() {
-  const l = [...kitList()];
-  if (kitArrange === "az") l.sort((a, b) => cname(a.code) < cname(b.code) ? -1 : 1);
-  else if (kitArrange === "conf") l.sort((a, b) => (a.conf < b.conf ? -1 : a.conf > b.conf ? 1 : a.hsl[0] - b.hsl[0]));
-  else { const key = t => t.hsl[1] < 12 ? [2, t.hsl[2]] : [1, t.hsl[0]]; l.sort((a, b) => { const ka = key(a), kb = key(b); return ka[0] - kb[0] || ka[1] - kb[1]; }); }
-  return l;
-}
-const kitCard = t => `<button class="kit-card" data-kit="${t.code}" aria-label="${esc(t.name)} kit">
-  <div class="kit-shirt">${jerseySVG(t.code, { sfx: "-g" })}</div>
-  <div class="kit-cap"><span class="fl">${flag(t.code)}</span><span class="kit-cn">${esc(cname(t.code))}</span></div>
-  <div class="kit-sw"><i style="background:${t.c1}"></i><i style="background:${t.c2}"></i></div></button>`;
-function kitGalleryHTML() {
-  const arr = [["hue", "Colour"], ["conf", "Region"], ["az", "A–Z"]];
-  return `<div class="kit-arrange"><span>Arrange by</span>${arr.map(([k, l]) => `<button class="cmp-seg${kitArrange === k ? " is-on" : ""}" data-kitarr="${k}">${l}</button>`).join("")}</div>
-    <div class="kit-gallery">${kitArranged().map(kitCard).join("")}</div>`;
-}
-function kitCompareHTML() {
-  const codes = kitList().map(t => t.code).sort((a, b) => cname(a) < cname(b) ? -1 : 1);
-  if (!_kitCompare.length) { const f = S.fav && S.teams[S.fav] ? S.fav : codes[0]; _kitCompare = [f, codes.find(c => c !== f)]; }
-  const sel = i => `<select class="fsel kit-sel" data-kitsel="${i}" aria-label="Team ${i + 1}"><option value="">— add a team —</option>${codes.map(c => `<option value="${c}"${_kitCompare[i] === c ? " selected" : ""}>${esc(cname(c))}</option>`).join("")}</select>`;
-  const chosen = _kitCompare.filter(Boolean);
-  const panels = chosen.map(c => { const t = S.teams[c]; return `<div class="kit-cmp-col">
-    <div class="kit-shirt lg">${jerseySVG(c, { sfx: "-c" + c })}</div>
-    <div class="kit-cmp-name"><span class="fl">${flag(c)}</span>${esc(cname(c))}</div>
-    <div class="kit-swatch" style="background:${t.c1};color:${relLum(t.c1) > .5 ? "#12202C" : "#fff"}"><b>Primary</b><span>${t.c1.toUpperCase()}</span></div>
-    <div class="kit-swatch" style="background:${t.c2};color:${relLum(t.c2) > .5 ? "#12202C" : "#fff"}"><b>Secondary</b><span>${t.c2.toUpperCase()}</span></div></div>`; }).join("");
-  let clash = "";
-  if (chosen.length >= 2) {
-    const pairs = [];
-    for (let i = 0; i < chosen.length; i++) for (let j = i + 1; j < chosen.length; j++) pairs.push([chosen[i], chosen[j]]);
-    clash = `<div class="eyebrow">Would the kits clash?</div><div class="kit-clash">${pairs.map(([a, b]) => {
-      const pct = Math.round(colorDist(S.teams[a].c1, S.teams[b].c1) / CLASH_MAX * 100);
-      const v = pct < 12 ? ["clash", "Would clash — a change strip is needed"] : pct < 26 ? ["close", "Close — a referee may call for the change kit"] : ["ok", "Distinct enough"];
-      return `<div class="clash-row is-${v[0]}"><span class="clash-teams"><span class="fl">${flag(a)}</span>${esc(tri(a))} <i>v</i> <span class="fl">${flag(b)}</span>${esc(tri(b))}</span><span class="clash-bar"><i style="width:${Math.max(3, pct)}%"></i></span><span class="clash-verdict">${v[1]}</span></div>`;
-    }).join("")}</div>`;
-  }
-  return `<div class="eyebrow">Compare kits ${infoBtn("Pick teams to line their kits up side by side. The clash meter is the perceptual distance between the two PRIMARY colours — the lower it is, the more alike the shirts look on the pitch (and the likelier a referee asks one side to switch to its change kit). Built from each team's two official colours, not photos of the real shirts.", "How compare works")}</div>
-    <div class="kit-selrow">${sel(0)}${sel(1)}${sel(2)}</div>
-    <div class="kit-cmp-grid" data-n="${chosen.length}">${panels}</div>${clash}`;
-}
-function kitInsightsHTML() {
-  const L = kitList();
-  const byHex = {}; L.forEach(t => (byHex[t.c1.toUpperCase()] || (byHex[t.c1.toUpperCase()] = [])).push(t.code));
-  const shared = Object.entries(byHex).filter(([, cs]) => cs.length > 1).sort((a, b) => b[1].length - a[1].length);
-  const pairs = [];
-  for (let i = 0; i < L.length; i++) for (let j = i + 1; j < L.length; j++) { const d = colorDist(L[i].c1, L[j].c1); if (d > 1) pairs.push({ a: L[i].code, b: L[j].code, d }); }
-  pairs.sort((x, y) => x.d - y.d);
-  const near = pairs.filter(p => p.d <= pairs[0].d + 6).slice(0, 3);
-  const far = pairs.filter(p => p.d >= pairs[pairs.length - 1].d - 6).slice(0, 3);
-  const cr = L.map(t => ({ code: t.code, cr: contrastRatio(t.c1, t.c2) }));
-  const hi = [...cr].sort((a, b) => b.cr - a.cr), lo = [...cr].sort((a, b) => a.cr - b.cr);
-  const hiT = hi.filter(x => Math.abs(x.cr - hi[0].cr) < .06), loT = lo.filter(x => Math.abs(x.cr - lo[0].cr) < .06);
-  const strip = [...L].sort((a, b) => { const sa = a.hsl[1] < 12, sb = b.hsl[1] < 12; if (sa !== sb) return sa ? 1 : -1; return sa ? a.hsl[2] - b.hsl[2] : a.hsl[0] - b.hsl[0]; });
-  const pairRow = p => `<button class="ins-pair" data-kit="${p.a}"><span class="ip-t"><span class="fl">${flag(p.a)}</span>${esc(cname(p.a))}</span><span class="ip-x">×</span><span class="ip-t"><span class="fl">${flag(p.b)}</span>${esc(cname(p.b))}</span></button>`;
-  const chip = c => `<button class="ins-chip" data-kit="${c}"><span class="fl">${flag(c)}</span>${esc(tri(c))}</button>`;
-  return `<div class="eyebrow">The full spectrum</div>
-    <div class="kit-spectrum">${strip.map(t => `<button class="spec-i" data-kit="${t.code}" style="background:${t.c1}" title="${esc(t.name)}" aria-label="${esc(t.name)}"><i style="background:${t.c2}"></i></button>`).join("")}</div>
-    <p class="sim-ko-hint">All ${L.length} primary kit colours, red round to violet with neutrals last. Tap any to open it.</p>
-    <div class="ins-grid">
-      ${shared.length ? `<div class="ins-card"><h4>Same primary colour</h4>${shared.slice(0, 4).map(([hex, cs]) => `<div class="ins-shared"><span class="ins-dot" style="background:${hex}"></span><span class="ins-teams">${cs.map(chip).join("")}</span></div>`).join("")}<small>Teams whose primary kit colour is an exact match — instant change-strip candidates.</small></div>` : ""}
-      <div class="ins-card"><h4>Closest kits</h4>${near.map(pairRow).join("")}<small>The most alike primary colours (bar exact matches).</small></div>
-      <div class="ins-card"><h4>Most distinct</h4>${far.map(pairRow).join("")}<small>The furthest-apart primary colours in the field.</small></div>
-      <div class="ins-card"><h4>Shirt contrast</h4><div class="ins-line">${hiT.map(x => chip(x.code)).join("")}<b>${hi[0].cr.toFixed(1)}:1</b></div><div class="ins-line ins-line-lo">${loT.map(x => chip(x.code)).join("")}<b>${lo[0].cr.toFixed(1)}:1</b></div><small>Primary-to-secondary contrast: boldest on top, most tonal below.</small></div>
-    </div>`;
-}
-function renderKit() {
-  const el = $("#view-kit");
-  const secs = [["gallery", "Gallery", kitGalleryHTML], ["compare", "Compare", kitCompareHTML], ["insights", "Insights", kitInsightsHTML]];
-  if (!secs.some(([k]) => k === kitTab)) kitTab = "gallery";
-  const out = `<div class="kit-intro">Every nation rendered from its two official kit colours — the shirt shapes are stylised, the colours are real. Tap a kit to zoom in and break down its palette.</div>
-    <div class="substat-nav" role="tablist" aria-label="Kit studio sections">${secs.map(([k, l]) => `<button class="substat ${k === kitTab ? "is-on" : ""}" role="tab" aria-selected="${k === kitTab}" data-kittab="${k}">${l}</button>`).join("")}</div>
-    ` + secs.map(([k, , fn]) => `<div class="substat-panel kit-panel" data-kpanel="${k}"${k === kitTab ? "" : " hidden"}>${k === kitTab ? fn() : ""}</div>`).join("");
-  if (out === _kitHTML && el.firstChild) return;
-  _kitHTML = out; paint(el, out); wireKit(el);
-}
-function wireKit(el) {
-  $$("[data-kittab]", el).forEach(b => b.onclick = () => { kitTab = b.dataset.kittab; _kitHTML = ""; renderKit(); });
-  $$("[data-kitarr]", el).forEach(b => b.onclick = () => { kitArrange = b.dataset.kitarr; _kitHTML = ""; renderKit(); });
-  $$("[data-kitsel]", el).forEach(s => s.onchange = () => { _kitCompare[+s.dataset.kitsel] = s.value; _kitHTML = ""; renderKit(); });
-  $$("[data-kit]", el).forEach(b => b.onclick = () => openKit(b.dataset.kit));
-}
-let _kitZoom = { s: 1, x: 50, y: 45 };
-function openKit(code) {
-  if (!S.teams[code]) return;
-  _kitZoom = { s: 1, x: 50, y: 45 };
-  $("#kitTitle").textContent = S.teams[code].name || code;
-  $("#kitBody").innerHTML = kitDetailHTML(code);
-  showSheet($("#kitDialog"));
-  wireKitSheet(code);
-}
-function kitDetailHTML(code) {
-  const t = S.teams[code];
-  const an = (hex, label) => { const [h, s, l] = hexHSL(hex), [r, g, b] = _hexRGB(hex); return `<div class="kit-an"><div class="kit-an-sw" style="background:${hex}"></div>
-    <div class="kit-an-main"><div class="kit-an-top"><b>${label}</b><span class="kit-an-name">${colorName(hex)} · ${colorTemp(hex)}</span></div>
-      <div class="kit-an-hex">${hex.toUpperCase()}</div>
-      <div class="kit-an-rows"><span>RGB · ${r} ${g} ${b}</span><span>HSL · ${h}° ${s}% ${l}%</span><span>Luminance · ${Math.round(relLum(hex) * 100)}%</span></div></div></div>`; };
-  const c = contrastRatio(t.c1, t.c2), cTag = c >= 4.5 ? "Strong" : c >= 3 ? "Clear" : c >= 1.7 ? "Soft" : "Subtle";
-  const zs = [["full", "Full"], ["collar", "Collar"], ["chest", "Chest"], ["sleeve", "Sleeve"], ["hem", "Hem"]];
-  return `<div class="kit-detail">
-    <div class="kit-stage"><div class="kit-stage-inner" id="kitStage">${jerseySVG(code, { sfx: "-d", num: tri(code).slice(0, 3) })}</div></div>
-    <div class="kit-zoomrow">${zs.map((z, i) => `<button class="cmp-seg${i === 0 ? " is-on" : ""}" data-kitzoom="${z[0]}">${z[1]}</button>`).join("")}</div>
-    <div class="eyebrow">Palette</div>${an(t.c1, "Primary")}${an(t.c2, "Secondary")}
-    <div class="kit-contrast"><span class="kc-sw"><i style="background:${t.c1}"></i><i style="background:${t.c2}"></i></span><span class="kc-tx"><b>${cTag} contrast</b><small>${c.toFixed(1)}:1 between the two colours${c < 2 ? " — they sit close in tone" : ""}</small></span></div>
-    <button class="btn kit-open-cmp" data-kitcmp="${code}">Compare with another team ›</button>
-    <p class="sim-ko-hint">A stylised colour rendering from ${esc(t.name)}'s two official kit colours — not the real shirt design.</p></div>`;
-}
-function wireKitSheet(code) {
-  const stage = $("#kitStage"); if (!stage) return;
-  const ZO = { full: [50, 45, 1], collar: [50, 18, 2.5], chest: [50, 44, 2.1], sleeve: [16, 42, 2.7], hem: [50, 92, 2.4] };
-  const apply = () => { stage.style.transform = `scale(${_kitZoom.s})`; stage.style.transformOrigin = `${_kitZoom.x}% ${_kitZoom.y}%`; };
-  $$("[data-kitzoom]").forEach(b => b.onclick = () => { const z = ZO[b.dataset.kitzoom]; _kitZoom = { x: z[0], y: z[1], s: z[2] }; $$("[data-kitzoom]").forEach(x => x.classList.toggle("is-on", x === b)); apply(); });
-  const cb = $("[data-kitcmp]"); if (cb) cb.onclick = () => { const other = _kitCompare.find(c => c && c !== code) || kitList().map(t => t.code).find(c => c !== code); _kitCompare = [code, other]; kitTab = "compare"; _kitHTML = ""; $("#kitDialog").close(); nav("kit"); };
-  apply();
-}
-
 /* ---------------- navigation ---------------- */
-const RENDER = { matches: renderMatches, teams: renderTeams, players: renderPlayers, groups: renderGroups, stats: renderStats, sim: renderSim, pulse: renderPulse, kit: renderKit };
+const RENDER = { matches: renderMatches, teams: renderTeams, players: renderPlayers, groups: renderGroups, stats: renderStats, sim: renderSim, pulse: renderPulse };
 // shareable per-tab URL hash (Matches is the default → no hash; Predict's internal view name is "sim")
-const VIEW_HASH = { teams: "teams", players: "players", groups: "tables", sim: "predict", stats: "stats", pulse: "pulse", kit: "kits" };
+const VIEW_HASH = { teams: "teams", players: "players", groups: "tables", sim: "predict", stats: "stats", pulse: "pulse" };
 // "live" survives only as a redirect: Live folded into the match modal (build 329), but old #live links still land on Matches
-const HASH_VIEW = { live: "matches", matches: "matches", teams: "teams", players: "players", tables: "groups", groups: "groups", predict: "sim", stats: "stats", pulse: "pulse", kits: "kit" };
+const HASH_VIEW = { live: "matches", matches: "matches", teams: "teams", players: "players", tables: "groups", groups: "groups", predict: "sim", stats: "stats", pulse: "pulse" };
 function nav(v) {
   if (typeof closeInfoPop === "function") closeInfoPop();   // an open explainer is anchored to the old view
   S.view = v;
