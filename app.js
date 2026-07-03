@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "446";  // shown in footer; bump with the ?v= asset version
+const BUILD = "447";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1680,7 +1680,7 @@ function mdShotMap(m) {
 // compact live key-stats block for the home-screen hero (and reusable in the modal): possession bar + a few counts.
 function heroLiveStats(ls) {
   if (!ls) return "";
-  const rows = [["Shots", "sh"], ["Corners", "cor"], ["Fouls", "fls"]].filter(([, k]) => ls[k] && (ls[k][0] || ls[k][1]));
+  const rows = [["Shots", "sh"], ["Corners", "cor"]].filter(([, k]) => ls[k] && (ls[k][0] || ls[k][1]));
   const p = ls.poss;
   if (!p && !rows.length) return "";
   return `<div class="hero-lstats">
