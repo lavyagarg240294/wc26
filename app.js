@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "452";  // shown in footer; bump with the ?v= asset version
+const BUILD = "453";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -249,6 +249,7 @@ const ICO = {
   calendar: _ico('<rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/>'),   // tournament editions (World Cups played)
   shirt: _ico('<path d="M8 4 4 6.5 6 10.5 8 9.5 8 20 16 20 16 9.5 18 10.5 20 6.5 16 4A6 6 0 0 1 8 4Z"/>'),       // jersey - appearances / caps
   info: _ico('<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 7.6v.2"/>'),                                 // i-in-a-circle - matchup details
+  lock: _ico('<rect x="4.5" y="10.5" width="15" height="9.5" rx="2"/><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"/>'),   // padlock - a confirmed result, frozen
 };
 const TROPHY = `<span class="ico-gold">${ICO.trophy}</span>`;   // gold-tinted trophy (replaces the old emoji)
 // Building an Intl.DateTimeFormat is the costly part; reuse one formatter per (locale, zone, options) shape instead of
@@ -3904,7 +3905,8 @@ const saveSim = () => localStorage.setItem("wc26.predict", JSON.stringify(S.simB
 function fillSlotFromStandings(i) {
   const prev = S.simBox.active;
   S.simBox.active = i; S.sim = S.simBox.slots[i];
-  S.sim.order = {}; S.sim.thirds = []; seedSimThirds(); pruneSim();
+  S.sim.order = {}; S.sim.thirds = []; S.sim.ko = {};   // load the actual state fresh: real tables + qualified thirds + every played winner; the rest is left blank to predict
+  seedSimThirds(); syncSimConfirmed(); pruneSim();
   S.simBox.active = prev; S.sim = S.simBox.slots[prev]; saveSim();
 }
 // encode the whole prediction into a short URL-safe string (and back)
@@ -4055,6 +4057,7 @@ function loadSharedSim(enc) {
 }
 
 function simOrder(g) {
+  if (remInGroup(g) === 0) return standings(g).map(r => r.code);   // group finished → the real, final table (a fact, not a prediction)
   if (!S.sim.order[g] || S.sim.order[g].length !== 4) S.sim.order[g] = standings(g).map(r => r.code);
   return S.sim.order[g];
 }
@@ -4104,7 +4107,11 @@ function simSlots(m, alloc) {
     if (s.team) return s.team;
     const sh = s.short || "";
     if (/^[12][A-L]$/.test(sh)) { const o = simOrder(sh[1]); return sh[0] === "1" ? o[0] : o[1]; }
-    if (sh.startsWith("3rd")) return alloc && alloc !== "impossible" ? alloc[m.id + ":" + (s === m.home ? "home" : "away")] : null;
+    if (sh.startsWith("3rd")) {
+      const real = slotInfo(m, s === m.home ? "home" : "away");   // groups done → the real thirds allocation is fixed; use it, not our own backtrack (which may fill slots differently)
+      if (real.code) return real.code;
+      return alloc && alloc !== "impossible" ? alloc[m.id + ":" + (s === m.home ? "home" : "away")] : null;
+    }
     const num = s.feeds || s.feedsL;
     if (num) {
       const fm = S.matches.find(x => x.num === num && x.stage !== "group");
@@ -4127,6 +4134,40 @@ function pruneSim() {
     const { h, a } = simSlots(m, alloc);
     if (pick !== h && pick !== a) delete S.sim.ko[m.num];
   });
+}
+// ---- what the tournament has ALREADY decided (facts the scenario must freeze, not predict) ----
+// the real winner of a knockout tie that's been played (FT / awarded, penalties resolved when level); null if it's not settled
+function actualKoWinner(m) {
+  const r = res(m);
+  if (!r || !isFinalSt(r.st) || r.h == null) return null;
+  if (r.h === r.a && r.hp == null && r.ap == null) return null;   // level, pens not in the feed yet - don't guess
+  const hc = slotInfo(m, "home").code, ac = slotInfo(m, "away").code;
+  if (!hc || !ac) return null;
+  const hWin = r.h > r.a || (r.h === r.a && (r.hp ?? -1) > (r.ap ?? -1));
+  return hWin ? hc : ac;
+}
+// a knockout tie is locked once it's been played - its winner is history, not a pick
+const koLocked = m => m.stage !== "group" && m.stage !== "third" && actualKoWinner(m) != null;
+// the eight third-placed teams that ACTUALLY reached the R32 - readable straight off the bracket slots once every
+// group has finished (their allocation is fixed by reality, so we never re-derive it). null while any group is live.
+function actualThirds() {
+  if (!GROUPS.every(g => remInGroup(g) === 0)) return null;
+  const out = [];
+  S.matches.filter(m => m.stage === "r32").forEach(m => ["home", "away"].forEach(side => {
+    if ((m[side].short || "").startsWith("3rd")) { const c = slotInfo(m, side).code; if (c) out.push(c); }
+  }));
+  return out.length === 8 ? out : null;
+}
+const thirdsLocked = () => actualThirds() != null;
+// pin every already-decided fact into the scenario so the user only ever edits the future: the real qualified thirds,
+// and the winner of every knockout tie that's been played. Finished-group tables are handled by simOrder directly.
+// Idempotent - safe to call on every render. Returns true if it changed anything.
+function syncSimConfirmed() {
+  let changed = false;
+  const at = actualThirds();
+  if (at && JSON.stringify([...at].sort()) !== JSON.stringify([...S.sim.thirds].sort())) { S.sim.thirds = at.slice(); changed = true; }
+  S.matches.forEach(m => { if (!koLocked(m)) return; const w = actualKoWinner(m); if (w && S.sim.ko[m.num] !== w) { S.sim.ko[m.num] = w; changed = true; } });
+  return changed;
 }
 // pick a valid default set of 8 third-place teams so the knockout bracket is visible (and tappable) by default
 function seedSimThirds() {
@@ -4632,7 +4673,7 @@ function renderSimDash() {
       </button>
       <div class="pslot-tools">
         <button class="pslot-tool" data-slot-rename="${i}">Rename</button>
-        <button class="pslot-tool" data-slot-fill="${i}">Fill from standings</button>
+        <button class="pslot-tool" data-slot-fill="${i}">Fill from actuals</button>
         <button class="pslot-tool" data-slot-clear="${i}">Clear picks</button>
       </div>
     </div>`;
@@ -4648,7 +4689,7 @@ function renderSimDash() {
     const name = await textPrompt("Name this scenario", cur.name);
     if (name) { cur.name = name.slice(0, 24); saveSim(); renderSim(); }
   });
-  $$("[data-slot-fill]", el).forEach(b => b.onclick = () => { fillSlotFromStandings(+b.dataset.slotFill); renderSim(); flashToast("Filled from current standings"); });
+  $$("[data-slot-fill]", el).forEach(b => b.onclick = () => { fillSlotFromStandings(+b.dataset.slotFill); renderSim(); flashToast("Filled from actual results"); });
   $$("[data-slot-clear]", el).forEach(b => b.onclick = () => { S.simBox.slots[+b.dataset.slotClear].ko = {}; saveSim(); renderSim(); });
 }
 function renderSimEditor() {
@@ -4661,28 +4702,31 @@ function renderSimEditor() {
   // seed a valid default set of thirds so the knockout bracket is visible & tappable from the first visit
   // (done here, not at boot, so live standings are already loaded - order reflects real results)
   if (S.sim.thirds.length === 0) { seedSimThirds(); saveSim(); }
+  if (syncSimConfirmed()) { pruneSim(); saveSim(); }   // pin every already-decided fact (real thirds + played winners), then drop any future pick reality just made unreachable; confirmed rows lock, only the future stays editable
   const alloc = allocateThirds();
   const thirdsDone = S.sim.thirds.length === 8;
   const champ = S.sim.ko[104];
 
   const groupCard = (g, i) => {
     const order = simOrder(g);
-    return `<div class="sgroup" style="--i:${i}"><h4>Group <span>${g}</span></h4>
+    const settled = remInGroup(g) === 0;   // group finished → its table is a fact; lock the order, drop the arrows
+    return `<div class="sgroup${settled ? " is-locked" : ""}" style="--i:${i}"><h4>Group <span>${g}</span>${settled ? `<span class="sgroup-final">Final</span>` : ""}</h4>
       ${order.map((c, idx) => `<div class="srow ${idx < 2 ? "is-q" : idx === 2 ? "is-t" : ""}">
         <span class="pos">${idx + 1}</span>
         <button class="srow-team" data-squad="${c}" aria-label="View ${esc(S.teams[c].name)}"><span class="fl">${flag(c)}</span><span class="nm">${esc(S.teams[c].name)}</span></button>
-        <span class="srow-arr">
+        ${settled ? "" : `<span class="srow-arr">
           <button class="up" data-g="${g}" data-i="${idx}" data-dir="-1" ${idx === 0 ? "disabled" : ""} aria-label="Move ${esc(S.teams[c].name)} up">▲</button>
           <button class="up" data-g="${g}" data-i="${idx}" data-dir="1" ${idx === order.length - 1 ? "disabled" : ""} aria-label="Move ${esc(S.teams[c].name)} down">▼</button>
-        </span>
+        </span>`}
       </div>`).join("")}</div>`;
   };
 
+  const tLocked = thirdsLocked();   // every group finished → the eight qualified thirds are fixed; show them, don't let them be toggled
   const thirdChips = GROUPS.map(g => {
     const c = simOrder(g)[2];
     const on = S.sim.thirds.includes(c);
-    const off = !on && thirdsDone;
-    return `<button class="tchip ${on ? "is-on" : ""} ${off ? "is-off" : ""}" data-third="${c}">
+    const off = !on && (thirdsDone || tLocked);
+    return `<button class="tchip ${on ? "is-on" : ""} ${off ? "is-off" : ""}" data-third="${c}"${tLocked ? ` disabled aria-disabled="true"` : ""}>
       <span class="fl">${flag(c)}</span>${esc(shortName(c))}<span class="gl">${g}</span></button>`;
   }).join("");
 
@@ -4709,14 +4753,15 @@ function renderSimEditor() {
   // re-renders. The intro + actions sit at the BOTTOM so the steps and bracket get the top of the page.
   const stepOpen = id => firstRender ? id === "simStep3" : openSteps.has(id);
   const step = (id, head, body) => `<details class="sim-step" id="${id}"${stepOpen(id) ? " open" : ""}><summary class="eyebrow">${head}<span class="sim-chev" aria-hidden="true">▾</span></summary><div class="sim-step-body">${body}</div></details>`;
+  const allGrpDone = GROUPS.every(g => remInGroup(g) === 0);   // whole group stage over → steps 1 & 2 are settled facts
   paint(el, `
     <div class="sim-edhead">
       <button class="sim-back" id="simBack" aria-label="Back to your scenarios">‹ Scenarios</button>
       <span class="sim-edname">${esc(S.simBox.slots[S.simBox.active].name)}</span>
     </div>
     ${champTeaser}
-    ${step("simStep1", `<span class="step-n">1</span> Order the groups: top two go through`, `<div class="gwrap">${GROUPS.map(groupCard).join("")}</div>`)}
-    ${step("simStep2", `<span class="step-n">2</span> Best third-placed teams <span class="tcount">${S.sim.thirds.length}/8</span>`, `<div class="thirds">${thirdChips}</div>`)}
+    ${step("simStep1", `<span class="step-n">1</span> Order the groups: top two go through`, `${allGrpDone ? `<p class="sim-locknote">${ICO.lock} Group stage complete — these final tables are locked in.</p>` : ""}<div class="gwrap">${GROUPS.map(groupCard).join("")}</div>`)}
+    ${step("simStep2", `<span class="step-n">2</span> Best third-placed teams <span class="tcount">${S.sim.thirds.length}/8</span>`, `${tLocked ? `<p class="sim-locknote">${ICO.lock} These eight best third-placed teams have qualified — locked in.</p>` : ""}<div class="thirds">${thirdChips}</div>`)}
     ${step("simStep3", `<span class="step-n">3</span> Tap winners to crown your champion ${TROPHY}`, simBracket)}
     ${champ ? championBanner(champ, true) : ""}
     ${champ ? `<div class="sim-share">
@@ -4728,14 +4773,14 @@ function renderSimEditor() {
       </div>
     </div>` : ""}
     <div class="sim-actions sim-actions-foot">
-      <button class="btn ghost" id="simFill"><span class="b-lg">Use live standings</span><span class="b-sm">Standings</span></button>
+      <button class="btn ghost" id="simFill"><span class="b-lg">Fill from actuals</span><span class="b-sm">Actuals</span></button>
       <button class="btn ghost" id="simShuffle"><span class="b-lg">Shuffle it all</span><span class="b-sm">Shuffle</span></button>
       <button class="btn ghost" id="simReset"><span class="b-lg">Start over</span><span class="b-sm">Reset</span></button>
       ${champ ? "" : `<button class="btn" id="simShare">${ICO.link} Share prediction</button>`}
     </div>`);   // morph instead of innerHTML: reordering a group / picking a third updates only those rows - no jerk, no scroll reset
 
   $("#simBack").onclick = () => { S.simView = "dash"; renderSim(); };
-  $("#simFill").onclick = () => { S.sim.order = {}; S.sim.thirds = []; seedSimThirds(); pruneSim(); saveSim(); renderSim(); flashToast("Filled from current standings"); };
+  $("#simFill").onclick = () => { S.sim.order = {}; S.sim.thirds = []; S.sim.ko = {}; seedSimThirds(); syncSimConfirmed(); pruneSim(); saveSim(); renderSim(); flashToast("Filled from actual results"); };
 
   const goal = $("#simGoal", el);
   if (goal) goal.onclick = () => { const s3 = $("#simStep3", el); if (s3) { s3.open = true; s3.scrollIntoView({ behavior: "smooth", block: "start" }); } };
@@ -4752,6 +4797,7 @@ function renderSimEditor() {
   });
   // wire: thirds
   $$("[data-third]", el).forEach(b => b.onclick = () => {
+    if (thirdsLocked()) return;   // the qualified eight are settled - not editable
     const c = b.dataset.third;
     const i = S.sim.thirds.indexOf(c);
     if (i >= 0) S.sim.thirds.splice(i, 1);
@@ -4764,6 +4810,7 @@ function renderSimEditor() {
   $$("[data-sim-pick]", el).forEach(b => b.onclick = e => {
     const [num, code] = b.dataset.simPick.split("|");
     const n = +num;
+    const mm = S.matches.find(x => x.num === n); if (mm && koLocked(mm)) return;   // a played tie is frozen - never repickable
     const before = S.sim.ko[n];
     S.sim.ko[n] = code;
     pruneSim(); saveSim();
@@ -4777,18 +4824,22 @@ function renderSimEditor() {
   $$("[data-sim-continue]", el).forEach(b => b.onclick = () => { _simRound = +b.dataset.simContinue; renderSim(); });
   // wire: actions
   $("#simShuffle").onclick = () => {
-    GROUPS.forEach(g => S.sim.order[g] = simOrder(g).slice().sort(() => Math.random() - .5));
-    const thirds = GROUPS.map(g => simOrder(g)[2]).sort(() => Math.random() - .5);
-    S.sim.thirds = thirds.slice(0, 8); S.sim.ko = {};
-    let alloc2 = allocateThirds(), guard = 0;
-    while (alloc2 === "impossible" && guard++ < 60) { // reshuffle until allocatable
-      S.sim.thirds = thirds.slice().sort(() => Math.random() - .5).slice(0, 8);
-      alloc2 = allocateThirds();
+    // shuffle only what's still undecided. Finished groups keep their real tables (simOrder returns them), the
+    // qualified thirds stay put once every group is done, and any knockout tie already played keeps its real winner.
+    GROUPS.forEach(g => { if (remInGroup(g) !== 0) S.sim.order[g] = simOrder(g).slice().sort(() => Math.random() - .5); });
+    if (!thirdsLocked()) {   // thirds still open → re-pick a valid random eight from the (part-shuffled) tables
+      const pool = GROUPS.map(g => simOrder(g)[2]);
+      S.sim.thirds = pool.slice().sort(() => Math.random() - .5).slice(0, 8);
+      let guard = 0;
+      while (allocateThirds() === "impossible" && guard++ < 60) S.sim.thirds = pool.slice().sort(() => Math.random() - .5).slice(0, 8);
     }
-    // auto-pick random winners through the bracket
-    S.matches.filter(m => m.stage !== "group").sort((a, b) => a.num - b.num).forEach(m => {
-      const { h, a } = simSlots(m, allocateThirds());
-      if (h && a) S.sim.ko[m.num] = Math.random() < .5 ? h : a;
+    syncSimConfirmed();   // re-pin the facts (real thirds + every played winner) so they're never shuffled away
+    const alloc2 = allocateThirds();
+    // random winners for FUTURE ties only; a played tie keeps its actual result
+    S.matches.filter(m => m.stage !== "group" && m.stage !== "third").sort((a, b) => a.num - b.num).forEach(m => {
+      if (koLocked(m)) return;
+      const { h, a } = simSlots(m, alloc2);
+      if (h && a) S.sim.ko[m.num] = Math.random() < .5 ? h : a; else delete S.sim.ko[m.num];
     });
     saveSim(); renderSim();
     const c = S.teams[S.sim.ko[104]];
@@ -4845,22 +4896,24 @@ function simBracketHTML(alloc) {
   const head = `<div class="sb-head"><div class="sb-crumbs">${crumb}</div>
     <div class="sb-roundline"><b>${round.name}</b><span class="sb-prog">${picked}/${total}</span></div></div>`;
 
-  const sideBtn = (m, code) => {
+  const sideBtn = (m, code, locked) => {
     if (!code) return `<span class="sb-side sb-side-tbd"><b class="rb-tri">-</b></span>`;
     const pick = S.sim.ko[m.num], won = pick === code, lost = pick && pick !== code;
+    // a played tie is history: render the sides as static, non-tappable, and show who really went through
+    if (locked) return `<span class="sb-side sb-side-locked${won ? " won" : ""}${lost ? " lost" : ""}" aria-label="${esc(S.teams[code].name)}${won ? " — went through" : ""}">${flag(code)}<b class="rb-tri">${tri(code)}</b></span>`;
     return `<button class="sb-side${won ? " won" : ""}${lost ? " lost" : ""}" data-sim-pick="${m.num}|${code}" aria-label="Send ${esc(S.teams[code].name)} through">${flag(code)}<b class="rb-tri">${tri(code)}</b></button>`;
   };
   // a small, subtle "i" by each tie → the matchup detail sheet (predicted winner, win probability, past meetings)
   const infoBtn = num => `<button class="sb-info" data-sim-info="${num}" aria-label="Matchup details - win probability and head-to-head">${ICO.info}</button>`;
-  const tieEl = m => { const { h, a } = simSlots(m, alloc); return `<div class="sb-tie${S.sim.ko[m.num] ? " done" : ""}">${sideBtn(m, h)}<span class="sb-v">v</span>${sideBtn(m, a)}${h && a ? infoBtn(m.num) : ""}</div>`; };
+  const tieEl = m => { const { h, a } = simSlots(m, alloc), lk = koLocked(m); return `<div class="sb-tie${S.sim.ko[m.num] ? " done" : ""}${lk ? " sb-tie-locked" : ""}">${lk ? `<span class="sb-lock" aria-hidden="true" title="Played — result is final">${ICO.lock}</span>` : ""}${sideBtn(m, h, lk)}<span class="sb-v">v</span>${sideBtn(m, a, lk)}${h && a ? infoBtn(m.num) : ""}</div>`; };
 
   if (round.st === "final") {
-    const m = ms[0], { h, a } = simSlots(m, alloc), champ = S.sim.ko[104], t = champ && S.teams[champ];
+    const m = ms[0], { h, a } = simSlots(m, alloc), champ = S.sim.ko[104], t = champ && S.teams[champ], lk = koLocked(m);
     return `<div class="simbr simbr-final">${head}
       <div class="sb-finalwrap">
         <div class="sb-cup${champ ? " lit" : ""}">${champ ? `<span class="sb-cupfl">${flag(champ)}</span>` : ICO.trophy}</div>
-        <div class="sb-champcap">${champ ? `<b>${esc(t.name)}</b><small>Your World Cup champions</small>` : `<b>One pick from a champion</b><small>Tap the winner of the final</small>`}</div>
-        <div class="sb-tie sb-tie-final${champ ? " done" : ""}">${sideBtn(m, h)}<span class="sb-v">v</span>${sideBtn(m, a)}${h && a ? infoBtn(m.num) : ""}</div>
+        <div class="sb-champcap">${champ ? `<b>${esc(t.name)}</b><small>${lk ? "World Cup champions" : "Your World Cup champions"}</small>` : `<b>One pick from a champion</b><small>Tap the winner of the final</small>`}</div>
+        <div class="sb-tie sb-tie-final${champ ? " done" : ""}${lk ? " sb-tie-locked" : ""}">${sideBtn(m, h, lk)}<span class="sb-v">v</span>${sideBtn(m, a, lk)}${h && a ? infoBtn(m.num) : ""}</div>
         <div class="sb-fmeta">Final · ${fmt(m.utc, { day: "numeric", month: "short" })} · MetLife Stadium</div>
       </div></div>`;
   }
