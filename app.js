@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "453";  // shown in footer; bump with the ?v= asset version
+const BUILD = "454";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1765,7 +1765,7 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
   // carries its "why" drivers + top-3 scorelines, but those are dropped once live (a pre-match "likeliest score" would
   // read as misleading with goals already in).
   const _wp = winProb(m, true);
-  const pWinProb = _wp ? winProbBlock(m, true) + (live ? "" : liveWhyChips(_wp) + liveScorelines(_wp)) : "";
+  const pWinProb = _wp ? winProbBlock(m, true) + (live ? "" : liveWhyChips(_wp) + medianScoreLine(_wp)) : "";
   const pReport = mdReport(m), pStakes = stakesBlock(m), pCompare = matchCompare(m), pStars = liveStars(m), pControl = matchControlBar(m), pShotMap = mdShotMap(m);
   const pXiInline = r?.xi ? `<div class="eyebrow">${liveNow ? "Line-ups" : "Starting XI"}</div>${xiPanel(r.xi, h, a)}` : "";
   const pXiFold = r?.xi ? `<details class="md-fold"><summary><span>Starting XI</span><small>${esc([r.xi.h?.f, r.xi.a?.f].filter(Boolean).join(" v ")) || "line-ups & formations"}</small></summary><div class="md-fold-body">${xiPanel(r.xi, h, a)}</div></details>` : "";
