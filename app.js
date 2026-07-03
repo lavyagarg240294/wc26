@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "448";  // shown in footer; bump with the ?v= asset version
+const BUILD = "449";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -5638,6 +5638,13 @@ function teamRoutes() {
   for (const c in map) if (map[c] === "third?") map[c] = "out";
   return map;
 }
+// team codes that have advanced INTO a given knockout round (i.e. filled one of its slots). "r16" = the sixteen
+// teams that won their Round-of-32 tie. Only resolved slots count, so a team appears only once it's mathematically through.
+function teamsReached(stage) {
+  const set = new Set();
+  for (const m of S.matches) { if (m.stage !== stage) continue; const hc = slotInfo(m, "home").code, ac = slotInfo(m, "away").code; if (hc) set.add(hc); if (ac) set.add(ac); }
+  return set;
+}
 // column descriptors: num(row, perMatch) → sort value; cell(row, perMatch) → display. "—" when a team has no stats yet.
 const _fx1 = v => (Math.round(v * 10) / 10).toFixed(1);
 const _cCount = (k, label, t) => ({ k, label, t, num: (r, p) => p ? (r.sp ? r[k] / r.sp : 0) : r[k], cell: (r, p) => r.sp ? (p ? _fx1(r[k] / r.sp) : r[k]) : "—" });
@@ -5659,9 +5666,10 @@ function teamCompareHTML() {
   const all = teamStatsAgg().filter(r => r.mp > 0);
   if (!all.length) return `<div class="empty">Team stats fill in as matches are played.</div>`;
   const routes = teamRoutes();
+  if (!["all", "r32", "r16"].includes(_cmp.filter)) _cmp.filter = "all";   // "top2" retired
   let rows = all;
-  if (_cmp.filter === "top2") rows = rows.filter(r => routes[r.code] === "top2");
-  else if (_cmp.filter === "r32") rows = rows.filter(r => routes[r.code] === "top2" || routes[r.code] === "third");
+  if (_cmp.filter === "r32") rows = rows.filter(r => routes[r.code] === "top2" || routes[r.code] === "third");
+  else if (_cmp.filter === "r16") { const in16 = teamsReached("r16"); rows = rows.filter(r => in16.has(r.code)); }
   if (_cmp.conf) rows = rows.filter(r => S.teams[r.code]?.conf === _cmp.conf);
   const lens = CMP_LENSES.find(l => l[0] === _cmp.lens) || CMP_LENSES[0], cols = lens[2], per = _cmp.mode === "per";
   if (!cols.some(c => c.k === _cmp.sort)) _cmp.sort = (cols.find(c => c.k !== "mp") || cols[0]).k;   // resolve + persist the effective sort key
@@ -5676,12 +5684,14 @@ function teamCompareHTML() {
       <td class="tct-team"><span class="tct-team-in"><span class="fl">${flag(r.code)}</span><span class="tct-tn">${esc(cname(r.code))}</span>${r3 ? `<span class="tct-r3" title="Reached the Round of 32 as one of the eight best third-placed teams">3rd</span>` : ""}</span></td>
       ${cols.map(c => `<td class="tct-td${c.k === _cmp.sort ? " is-sort" : ""}">${c.cell(r, per)}</td>`).join("")}</tr>`;
   }).join("");
-  const note = _cmp.filter === "top2" ? " that finished top two in their group" : _cmp.filter === "r32" ? " in the Round of 32" : "";
-  return `<div class="eyebrow">Team comparison ${infoBtn("Every team's numbers added up across the matches it has completed. Toggle Totals / Per match - per match divides a running count by matches played. Possession and pass accuracy are shown as averages and don't move with the toggle. Only settled (full-time) matches count; live games are left out until they finish. Tap a column to sort, tap a team to open its page.", "How the table works")}</div>
+  const note = _cmp.filter === "r16" ? " in the Round of 16" : _cmp.filter === "r32" ? " in the Round of 32" : "";
+  const setOpts = [["all", "All teams"], ["r32", "In the Round of 32"], ["r16", "In the Round of 16"]];
+  return `<div class="eyebrow">Team comparison ${infoBtn("Per-team numbers added up across every match a side has completed. Toggle Totals / Per match - per match divides a running count by matches played; possession and pass accuracy are averages and don't move with the toggle. Only settled full-time matches count; live games are left out until they finish. Tap a column to sort, tap a team for its page.\n\nMetrics — MP: matches played. GF / GA: goals for / against. GD: goal difference. Poss: average possession %. Sh: shots. SOT: shots on target. SOT%: shots on target ÷ shots. Cor: corners won. Cross: accurate crosses. Pass: accurate passes. Pass%: pass accuracy (accurate ÷ attempted). Long: accurate long balls. Tkl: tackles. Int: interceptions. Clr: clearances. Blk: blocked shots. Sv: saves. Fouls: fouls committed. Off: offsides. YC / RC: yellow / red cards.", "How the table works")}</div>
     <div class="tct-lenses" role="tablist" aria-label="Stat group">${seg(CMP_LENSES.map(l => [l[0], l[1]]), _cmp.lens, "cmplens")}</div>
     <div class="tct-tools">
       <div class="tct-toggle" role="group" aria-label="Totals or per match">${seg([["total", "Totals"], ["per", "Per match"]], _cmp.mode, "cmpmode")}</div>
-      <div class="tct-filt" role="group" aria-label="Which teams">${seg([["all", "All"], ["r32", "In R32"], ["top2", "Top 2"]], _cmp.filter, "cmpfilt")}
+      <div class="tct-filt">
+        <select class="fsel tct-set${_cmp.filter !== "all" ? " is-on" : ""}" data-cmpfilt aria-label="Which teams">${setOpts.map(([v, l]) => `<option value="${v}"${_cmp.filter === v ? " selected" : ""}>${l}</option>`).join("")}</select>
         <select class="fsel tct-conf${_cmp.conf ? " is-on" : ""}" data-cmpconf aria-label="Filter by confederation"><option value="">All regions</option>${CMP_CONF.map(c => `<option value="${c}"${_cmp.conf === c ? " selected" : ""}>${c}</option>`).join("")}</select>
       </div>
     </div>
@@ -5693,7 +5703,7 @@ function wireCompareTable(el) {
   const set = obj => { Object.assign(_cmp, obj); renderStats(); };
   $$("[data-cmplens]", p).forEach(b => b.onclick = () => set({ lens: b.dataset.cmplens, sort: null }));
   $$("[data-cmpmode]", p).forEach(b => b.onclick = () => set({ mode: b.dataset.cmpmode }));
-  $$("[data-cmpfilt]", p).forEach(b => b.onclick = () => set({ filter: b.dataset.cmpfilt }));
+  const fs = $("[data-cmpfilt]", p); if (fs) fs.onchange = () => set({ filter: fs.value });
   const cs = $("[data-cmpconf]", p); if (cs) cs.onchange = () => set({ conf: cs.value });
   $$("[data-cmpsort]", p).forEach(th => th.onclick = () => set(_cmp.sort === th.dataset.cmpsort ? { dir: _cmp.dir === "desc" ? "asc" : "desc" } : { sort: th.dataset.cmpsort, dir: "desc" }));
 }
