@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "450";  // shown in footer; bump with the ?v= asset version
+const BUILD = "451";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -5675,7 +5675,14 @@ function teamCompareHTML() {
   if (!cols.some(c => c.k === _cmp.sort)) _cmp.sort = (cols.find(c => c.k !== "mp") || cols[0]).k;   // resolve + persist the effective sort key
   const col = cols.find(c => c.k === _cmp.sort), dir = _cmp.dir === "asc" ? 1 : -1;
   rows = [...rows].sort((a, b) => (col.num(a, per) - col.num(b, per)) * dir || (cname(a.code) < cname(b.code) ? -1 : 1));
-  const seg = (items, cur, attr) => items.map(([k, l]) => `<button class="cmp-seg${k === cur ? " is-on" : ""}" data-${attr}="${k}">${l}</button>`).join("");
+  // custom dropdown (the site's .tsel pattern - consistent, opens a popup under the pill, no native OS picker)
+  const cmpDD = (attr, cur, opts, active) => {
+    const curLabel = (opts.find(o => o[0] === cur) || opts[0])[1];
+    return `<div class="tsel tct-dd${active ? " is-on" : ""}" data-dd="${attr}">
+      <button type="button" class="fsel tsel-btn" aria-haspopup="listbox" aria-expanded="false"><span class="tsel-cur">${esc(curLabel)}</span></button>
+      <div class="tsel-pop" hidden role="listbox"><div class="tsel-list">${opts.map(([v, l]) => `<button type="button" class="tsel-opt${v === cur ? " is-sel" : ""}" data-ddv="${esc(v)}" role="option" aria-selected="${v === cur}"><span class="tsel-opt-name">${esc(l)}</span>${v === cur ? `<span class="tsel-tick">✓</span>` : ""}</button>`).join("")}</div></div>
+    </div>`;
+  };
   const arrow = _cmp.dir === "desc" ? "▾" : "▴";
   const tblInfo = infoBtn(`Per-team totals across every match a side has completed. Toggle Totals / Per match — per match divides a running count by matches played; possession and pass accuracy are averages and don't move with the toggle. Only settled full-time matches count; live games are left out until they finish. Tap a column to sort, a team for its page.
 
@@ -5700,34 +5707,35 @@ Sv — saves
 Fouls — fouls committed
 Off — offsides
 YC / RC — yellow / red cards`, "What the columns mean");
-  const head = `<tr><th class="tct-th-team"><span class="tct-team-h">Team ${tblInfo}</span></th>${cols.map(c => `<th class="tct-th${c.k === _cmp.sort ? " is-sort" : ""}" data-cmpsort="${c.k}" title="${esc(c.t)}"><span>${c.label}</span>${c.k === _cmp.sort ? `<i class="tct-arr">${arrow}</i>` : ""}</th>`).join("")}</tr>`;
+  const head = `<tr><th class="tct-th-team"><span class="tct-team-h"><span>Team</span>${tblInfo}</span></th>${cols.map(c => `<th class="tct-th${c.k === _cmp.sort ? " is-sort" : ""}" data-cmpsort="${c.k}" title="${esc(c.t)}"><span>${c.label}</span>${c.k === _cmp.sort ? `<i class="tct-arr">${arrow}</i>` : ""}</th>`).join("")}</tr>`;
   const body = rows.map(r => {
-    const fav = r.code === S.fav, r3 = routes[r.code] === "third";
+    const fav = r.code === S.fav;
     return `<tr class="tct-row${fav ? " is-fav" : ""}" data-squad="${r.code}" role="button" tabindex="0">
-      <td class="tct-team"><span class="tct-team-in"><span class="fl">${flag(r.code)}</span><span class="tct-tn">${esc(cname(r.code))}</span>${r3 ? `<span class="tct-r3" title="Reached the Round of 32 as one of the eight best third-placed teams">3rd</span>` : ""}</span></td>
+      <td class="tct-team"><span class="tct-team-in"><span class="fl">${flag(r.code)}</span><span class="tct-tn">${esc(cname(r.code))}</span></span></td>
       ${cols.map(c => `<td class="tct-td${c.k === _cmp.sort ? " is-sort" : ""}">${c.cell(r, per)}</td>`).join("")}</tr>`;
   }).join("");
   const note = _cmp.filter === "r16" ? " in the Round of 16" : _cmp.filter === "r32" ? " in the Round of 32" : "";
   const setOpts = [["all", "All teams"], ["r32", "In the Round of 32"], ["r16", "In the Round of 16"]];
   return `<div class="eyebrow">Team comparison</div>
-    <div class="tct-lenses" role="tablist" aria-label="Stat group">${seg(CMP_LENSES.map(l => [l[0], l[1]]), _cmp.lens, "cmplens")}</div>
     <div class="tct-tools">
-      <div class="tct-toggle" role="group" aria-label="Totals or per match">${seg([["total", "Totals"], ["per", "Per match"]], _cmp.mode, "cmpmode")}</div>
-      <div class="tct-filt">
-        <select class="fsel tct-set${_cmp.filter !== "all" ? " is-on" : ""}" data-cmpfilt aria-label="Which teams">${setOpts.map(([v, l]) => `<option value="${v}"${_cmp.filter === v ? " selected" : ""}>${l}</option>`).join("")}</select>
-        <select class="fsel tct-conf${_cmp.conf ? " is-on" : ""}" data-cmpconf aria-label="Filter by confederation"><option value="">All regions</option>${CMP_CONF.map(c => `<option value="${c}"${_cmp.conf === c ? " selected" : ""}>${c}</option>`).join("")}</select>
-      </div>
+      ${cmpDD("cmplens", _cmp.lens, CMP_LENSES.map(l => [l[0], l[1]]), false)}
+      ${cmpDD("cmpmode", _cmp.mode, [["total", "Totals"], ["per", "Per match"]], false)}
+      ${cmpDD("cmpfilt", _cmp.filter, setOpts, _cmp.filter !== "all")}
+      ${cmpDD("cmpconf", _cmp.conf || "", [["", "All regions"], ...CMP_CONF.map(c => [c, c])], !!_cmp.conf)}
     </div>
     <div class="tct-wrap"><table class="tct-table"><thead>${head}</thead><tbody>${body}</tbody></table></div>
     <p class="sim-ko-hint">${rows.length} team${rows.length !== 1 ? "s" : ""}${note} · ${lens[1].toLowerCase()} stats, ${per ? "per match" : "totals"}.</p>`;
 }
+const _CMP_DDKEY = { cmplens: "lens", cmpmode: "mode", cmpfilt: "filter", cmpconf: "conf" };
 function wireCompareTable(el) {
   const p = $('.substat-panel[data-panel="compare"]', el); if (!p) return;
   const set = obj => { Object.assign(_cmp, obj); renderStats(); };
-  $$("[data-cmplens]", p).forEach(b => b.onclick = () => set({ lens: b.dataset.cmplens, sort: null }));
-  $$("[data-cmpmode]", p).forEach(b => b.onclick = () => set({ mode: b.dataset.cmpmode }));
-  const fs = $("[data-cmpfilt]", p); if (fs) fs.onchange = () => set({ filter: fs.value });
-  const cs = $("[data-cmpconf]", p); if (cs) cs.onchange = () => set({ conf: cs.value });
+  const closeDD = () => $$(".tct-dd", p).forEach(dd => { dd.classList.remove("open"); dd.querySelector(".tsel-pop").hidden = true; dd.querySelector(".tsel-btn")?.setAttribute("aria-expanded", "false"); });
+  $$(".tct-dd", p).forEach(dd => {
+    const btn = dd.querySelector(".tsel-btn"), pop = dd.querySelector(".tsel-pop");
+    btn.onclick = e => { e.stopPropagation(); const wasClosed = pop.hidden; closeDD(); if (wasClosed) { pop.hidden = false; dd.classList.add("open"); btn.setAttribute("aria-expanded", "true"); } };
+    $$(".tsel-opt", pop).forEach(o => o.onclick = () => { const upd = { [_CMP_DDKEY[dd.dataset.dd]]: o.dataset.ddv }; if (dd.dataset.dd === "cmplens") upd.sort = null; set(upd); });
+  });
   $$("[data-cmpsort]", p).forEach(th => th.onclick = () => set(_cmp.sort === th.dataset.cmpsort ? { dir: _cmp.dir === "desc" ? "asc" : "desc" } : { sort: th.dataset.cmpsort, dir: "desc" }));
 }
 
@@ -6542,6 +6550,7 @@ async function boot() {
   addEventListener("click", e => { if (!e.target.closest("#teamSelWrap")) closeTeamSel(); });   // close team dropdown on outside click
   addEventListener("click", e => { if (!e.target.closest("#stageSelWrap")) closeStagePop(); });  // …and the stage dropdown
   addEventListener("click", e => { if (!e.target.closest(".rk-filter .tsel")) closeRkPops(); });   // …and both rankings dropdowns
+  addEventListener("click", e => { if (!e.target.closest(".tct-dd")) $$(".tct-dd.open").forEach(dd => { dd.classList.remove("open"); dd.querySelector(".tsel-pop").hidden = true; dd.querySelector(".tsel-btn")?.setAttribute("aria-expanded", "false"); }); });   // …and the Compare-table dropdowns
   (() => { let t; addEventListener("resize", () => { clearTimeout(t); t = setTimeout(() => layoutLandscape(), 120); }); })();   // re-draw landscape-bracket connectors on resize
   addEventListener("keydown", e => { if (e.key === "Escape") { closeTeamSel(); closeRkPops(); closeInfoPop(); } });
   addEventListener("scroll", e => { if (!(e.target.closest && e.target.closest("#infoPop"))) closeInfoPop(); }, { passive: true, capture: true });   // page scroll dismisses an explainer; scrolling INSIDE a long one (the metric glossary) doesn't
