@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "449";  // shown in footer; bump with the ?v= asset version
+const BUILD = "450";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -5677,7 +5677,30 @@ function teamCompareHTML() {
   rows = [...rows].sort((a, b) => (col.num(a, per) - col.num(b, per)) * dir || (cname(a.code) < cname(b.code) ? -1 : 1));
   const seg = (items, cur, attr) => items.map(([k, l]) => `<button class="cmp-seg${k === cur ? " is-on" : ""}" data-${attr}="${k}">${l}</button>`).join("");
   const arrow = _cmp.dir === "desc" ? "▾" : "▴";
-  const head = `<tr><th class="tct-th-team">Team</th>${cols.map(c => `<th class="tct-th${c.k === _cmp.sort ? " is-sort" : ""}" data-cmpsort="${c.k}" title="${esc(c.t)}"><span>${c.label}</span>${c.k === _cmp.sort ? `<i class="tct-arr">${arrow}</i>` : ""}</th>`).join("")}</tr>`;
+  const tblInfo = infoBtn(`Per-team totals across every match a side has completed. Toggle Totals / Per match — per match divides a running count by matches played; possession and pass accuracy are averages and don't move with the toggle. Only settled full-time matches count; live games are left out until they finish. Tap a column to sort, a team for its page.
+
+Metrics
+MP — matches played
+GF / GA — goals for / against
+GD — goal difference
+Poss — average possession %
+Sh — shots
+SOT — shots on target
+SOT% — shots on target ÷ shots
+Cor — corners won
+Cross — accurate crosses
+Pass — accurate passes
+Pass% — pass accuracy (accurate ÷ attempted)
+Long — accurate long balls
+Tkl — tackles
+Int — interceptions
+Clr — clearances
+Blk — blocked shots
+Sv — saves
+Fouls — fouls committed
+Off — offsides
+YC / RC — yellow / red cards`, "What the columns mean");
+  const head = `<tr><th class="tct-th-team"><span class="tct-team-h">Team ${tblInfo}</span></th>${cols.map(c => `<th class="tct-th${c.k === _cmp.sort ? " is-sort" : ""}" data-cmpsort="${c.k}" title="${esc(c.t)}"><span>${c.label}</span>${c.k === _cmp.sort ? `<i class="tct-arr">${arrow}</i>` : ""}</th>`).join("")}</tr>`;
   const body = rows.map(r => {
     const fav = r.code === S.fav, r3 = routes[r.code] === "third";
     return `<tr class="tct-row${fav ? " is-fav" : ""}" data-squad="${r.code}" role="button" tabindex="0">
@@ -5686,7 +5709,7 @@ function teamCompareHTML() {
   }).join("");
   const note = _cmp.filter === "r16" ? " in the Round of 16" : _cmp.filter === "r32" ? " in the Round of 32" : "";
   const setOpts = [["all", "All teams"], ["r32", "In the Round of 32"], ["r16", "In the Round of 16"]];
-  return `<div class="eyebrow">Team comparison ${infoBtn("Per-team numbers added up across every match a side has completed. Toggle Totals / Per match - per match divides a running count by matches played; possession and pass accuracy are averages and don't move with the toggle. Only settled full-time matches count; live games are left out until they finish. Tap a column to sort, tap a team for its page.\n\nMetrics — MP: matches played. GF / GA: goals for / against. GD: goal difference. Poss: average possession %. Sh: shots. SOT: shots on target. SOT%: shots on target ÷ shots. Cor: corners won. Cross: accurate crosses. Pass: accurate passes. Pass%: pass accuracy (accurate ÷ attempted). Long: accurate long balls. Tkl: tackles. Int: interceptions. Clr: clearances. Blk: blocked shots. Sv: saves. Fouls: fouls committed. Off: offsides. YC / RC: yellow / red cards.", "How the table works")}</div>
+  return `<div class="eyebrow">Team comparison</div>
     <div class="tct-lenses" role="tablist" aria-label="Stat group">${seg(CMP_LENSES.map(l => [l[0], l[1]]), _cmp.lens, "cmplens")}</div>
     <div class="tct-tools">
       <div class="tct-toggle" role="group" aria-label="Totals or per match">${seg([["total", "Totals"], ["per", "Per match"]], _cmp.mode, "cmpmode")}</div>
@@ -6521,7 +6544,7 @@ async function boot() {
   addEventListener("click", e => { if (!e.target.closest(".rk-filter .tsel")) closeRkPops(); });   // …and both rankings dropdowns
   (() => { let t; addEventListener("resize", () => { clearTimeout(t); t = setTimeout(() => layoutLandscape(), 120); }); })();   // re-draw landscape-bracket connectors on resize
   addEventListener("keydown", e => { if (e.key === "Escape") { closeTeamSel(); closeRkPops(); closeInfoPop(); } });
-  addEventListener("scroll", () => closeInfoPop(), { passive: true, capture: true });   // an explainer popover dismisses on scroll
+  addEventListener("scroll", e => { if (!(e.target.closest && e.target.closest("#infoPop"))) closeInfoPop(); }, { passive: true, capture: true });   // page scroll dismisses an explainer; scrolling INSIDE a long one (the metric glossary) doesn't
   // Keep an open sheet (search, compare, team picker…) above the on-screen keyboard. The visual viewport shrinks when
   // the keyboard is up, so cap the dialog to that height and top-anchor it; reset to the centered CSS default when it's
   // down. Fixes the keyboard covering the player-search results on phones (works on iOS + Android via visualViewport).
