@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "447";  // shown in footer; bump with the ?v= asset version
+const BUILD = "448";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1086,20 +1086,29 @@ function mdKeyStats(r, m) {
 }
 // a single derived "who's on top" index blending xG (when published) + shots + on-target + corners into one share.
 // Explicitly NOT a minute-by-minute momentum read - no time-series data exists - so it's labelled an index, not a graph.
-function matchControlBar(m) {
-  const r = res(m); if (!r?.stats) return "";
-  const e = S.efi?.[m.num], s = r.stats, pairs = [], names = [];
+// "who's on top" attacking-initiative share. Works LIVE too: committed (post) stats give xG + shots + on-target +
+// corners; in-play we only have shots + corners (no xG, and on-target can't be derived exactly - see the shot map),
+// which is still enough for a >=2-signal read. Returns { hp, names } or null when there isn't enough to call it.
+function matchControlPct(m) {
+  const r = res(m), s = r?.stats || r?.lstats; if (!s) return null;
+  const e = S.efi?.[m.num], pairs = [], names = [];
   const add = (p, nm) => { if (Array.isArray(p) && p.length === 2 && (p[0] + p[1]) > 0) { pairs.push(p); names.push(nm); } };
   if (e?.xg) add(e.xg, "xG");
-  add(s.sh, "shots"); add(s.sot, "on-target"); add(s.cor, "corners");
-  if (pairs.length < 2) return "";                       // need a couple of independent signals before calling it "control"
-  const hp = Math.round(pairs.reduce((t, [hv, av]) => t + hv / (hv + av), 0) / pairs.length * 100);
+  add(s.sh, "shots");
+  if (r.stats) add(s.sot, "on-target");                  // accurate on-target only exists in the committed stats, never live
+  add(s.cor, "corners");
+  if (pairs.length < 2) return null;                     // need a couple of independent signals before calling it "control"
+  return { hp: Math.round(pairs.reduce((t, [hv, av]) => t + hv / (hv + av), 0) / pairs.length * 100), names };
+}
+function matchControlBar(m) {
+  const c = matchControlPct(m); if (!c) return "";
+  const r = res(m);
   // on a FINISHED match, drop the bar when it just confirms a lopsided result (the winner also clearly on top) - it
   // earns its place when it DIVERGES from the score (a side dominated but didn't win) or the game was close.
-  if (isFinalSt(status(m)) && r.h != null) { const margin = r.h - r.a, lead = hp - 50;
+  if (isFinalSt(status(m)) && r.h != null) { const margin = r.h - r.a, lead = c.hp - 50;
     if (Math.abs(margin) >= 2 && Math.sign(margin) === Math.sign(lead) && Math.abs(lead) >= 12) return ""; }
-  const info = infoBtn(`A derived index blending ${names.join(" + ")} into one share of the attacking initiative - a "who's on top" read, NOT minute-by-minute momentum (no time data exists in the feed).`, "How match control is worked out");
-  return `<div class="eyebrow">Match control ${info}</div><div class="md-stats">${statBar([hp, 100 - hp], "Share of control", "%")}</div>`;
+  const info = infoBtn(`A derived index blending ${c.names.join(" + ")} into one share of the attacking initiative - a "who's on top" read, NOT minute-by-minute momentum (no time data exists in the feed).`, "How match control is worked out");
+  return `<div class="eyebrow">Match control ${info}</div><div class="md-stats">${statBar([c.hp, 100 - c.hp], "Share of control", "%")}</div>`;
 }
 // "Deep analysis": FIFA Enhanced Football Intelligence (post-match) - official xG, line breaks, ball progressions,
 // pressures, phases of play, and the headline: per-player distance covered. Only shown when data/efi.json has it.
@@ -1677,15 +1686,19 @@ function mdShotMap(m) {
     <div class="sm-wrap"><svg viewBox="0 0 300 ${MY + PH + 8}" class="sm-svg" role="img" aria-label="Shot map ${esc(h.name)} v ${esc(a.name)}">${pitch}${shots.map(mk).join("")}</svg></div>
     <div class="sm-legend">${leg(HC, h.code, h.name, ph)}${leg(AC, a.code, a.name, pa)}<span class="sm-lg sm-note">★ goal · ● shot</span></div>`;
 }
-// compact live key-stats block for the home-screen hero (and reusable in the modal): possession bar + a few counts.
-function heroLiveStats(ls) {
+// live key-stats block for the home-screen hero: a "match control" (dominance) bar, then possession / shots /
+// corners pills. Passes aren't in the live feed, so corners stands in for the third pill; on-target/xG can't be
+// derived live either, so the control bar leans on shots + corners in-play (see matchControlPct).
+function heroLiveStats(m, ls) {
   if (!ls) return "";
-  const rows = [["Shots", "sh"], ["Corners", "cor"]].filter(([, k]) => ls[k] && (ls[k][0] || ls[k][1]));
-  const p = ls.poss;
-  if (!p && !rows.length) return "";
+  const c = matchControlPct(m), p = ls.poss, pills = [];
+  if (p) pills.push(["Possession", `${p[0]}%`, `${p[1]}%`]);
+  if (ls.sh && (ls.sh[0] || ls.sh[1])) pills.push(["Shots", ls.sh[0], ls.sh[1]]);
+  if (ls.cor && (ls.cor[0] || ls.cor[1])) pills.push(["Corners", ls.cor[0], ls.cor[1]]);
+  if (!c && !pills.length) return "";
   return `<div class="hero-lstats">
-    ${p ? `<div class="hls-poss"><b>${p[0]}%</b><span class="hls-bar"><i class="hls-h" style="width:${p[0]}%"></i><i class="hls-a" style="width:${p[1]}%"></i></span><b>${p[1]}%</b></div><div class="hls-lab">Possession</div>` : ""}
-    ${rows.length ? `<div class="hls-grid">${rows.map(([label, k]) => `<div class="hls-row"><b>${ls[k][0]}</b><span>${label}</span><b>${ls[k][1]}</b></div>`).join("")}</div>` : ""}
+    ${c ? `<div class="hls-poss"><b>${c.hp}%</b><span class="hls-bar"><i class="hls-h" style="width:${c.hp}%"></i><i class="hls-a" style="width:${100 - c.hp}%"></i></span><b>${100 - c.hp}%</b></div><div class="hls-lab">Match control</div>` : ""}
+    ${pills.length ? `<div class="hls-grid">${pills.map(([label, hv, av]) => `<div class="hls-row"><b>${hv}</b><span>${label}</span><b>${av}</b></div>`).join("")}</div>` : ""}
   </div>`;
 }
 function openMatch(id, reuse) {   // reuse: re-render the body in place (a live poll) without re-animating the dialog
@@ -1751,7 +1764,7 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
   if (bothKnown && _wcH2H == null) loadWcH2H().then(() => { const md = $("#matchDialog"); if (md?.open && md.dataset.openMid === id) openMatch(id, true); });
   if (!(r?.shots?.length) && S.fifaShots?.[id] === undefined && S.fifaMatchIds?.[id]) loadMatchShots(m).then(() => { const md = $("#matchDialog"); if (md?.open && md.dataset.openMid === id) openMatch(id, true); });   // lazy shot map for a finished match
   const h2hPair = (bothKnown && _wcH2H) ? _wcH2H[[h.code, a.code].sort().join("|")] : null;
-  const pH2H = (bothKnown && _wcH2H != null && ((h2hPair && h2hPair.length) || m.stage !== "group")) ? wcH2HBlock(h.code, a.code) : "";
+  const pH2H = (bothKnown && _wcH2H != null && ((h2hPair && h2hPair.length) || m.stage !== "group")) ? wcH2HBlock(h.code, a.code, isFinalSt(status(m))) : "";
   const pFeeder = (!bothKnown && m.stage !== "group") ? mdFeederPath(m) : "";   // undecided KO tie: show the feeder ties so the modal isn't a sparse placeholder
 
   const pMeta = `<div class="md-meta">
@@ -1834,7 +1847,7 @@ function heroBlock(heroM, isLive, onLive) {
       <div class="hero-side"><span class="hero-flag">${a.code ? flag(a.code, true) : TBD_FLAG}</span><span class="hero-name">${esc(a.name)}</span>${qline(aq)}</div>
     </div>
     ${!ft ? (() => { const s = matchStakes(heroM); return s && s.summary ? `<div class="hero-stakes">${s.summary}</div>` : ""; })() : ""}
-    ${live && r?.lstats ? heroLiveStats(r.lstats) : ""}
+    ${live && r?.lstats ? heroLiveStats(heroM, r.lstats) : ""}
     ${!live && !ft && !onLive ? (() => { const wp = winProb(heroM); if (!wp) return "";   // pre-match only; on the Live tab the dedicated win-prob section below already covers it
       if (wp.ko && wp.adv) { const ph = Math.round(wp.adv.h * 100), pa = 100 - ph;   // knockout: show advance % (a 90' draw goes to ET/pens), no "draw" segment
         return `<div class="hero-wp" aria-label="${esc(h.name)} ${ph}% to advance, ${esc(a.name)} ${pa}%"><span class="hero-wp-bar"><i class="wp-h" style="width:${ph}%"></i><i class="wp-a" style="width:${pa}%"></i></span><span class="hero-wp-tx"><b>${ph}%</b><span>to advance</span><b>${pa}%</b></span></div>`; }
@@ -3495,10 +3508,12 @@ function r32BracketHTML() {
 // historical World Cup head-to-head (data/wc-h2h.json, built from the public jfjelstul set + 2022). Lazy-loaded.
 let _wcH2H = null;
 async function loadWcH2H() { if (_wcH2H == null) { try { _wcH2H = await (await fetch("data/wc-h2h.json?v=" + BUILD)).json(); } catch { _wcH2H = {}; } } return _wcH2H; }
-function wcH2HBlock(a, b) {
+function wcH2HBlock(a, b, done) {
   const ms = (_wcH2H && _wcH2H[[a, b].sort().join("|")]) || [];
   const nm = c => esc(S.teams[c]?.name || c);
-  if (!ms.length) return `<div class="eyebrow">Past World Cup meetings</div><p class="h2h-none">${nm(a)} and ${nm(b)} have never met at a World Cup - this would be their first.</p>`;
+  if (!ms.length) return `<div class="eyebrow">Past World Cup meetings</div><p class="h2h-none">${done
+    ? `${nm(a)} and ${nm(b)} had never met at a World Cup before - this was their first.`
+    : `${nm(a)} and ${nm(b)} have never met at a World Cup - this would be their first.`}</p>`;
   let wa = 0, d = 0, wb = 0;
   for (const m of ms) {
     const as = m.h === a ? m.hs : m.as, bs = m.h === a ? m.as : m.hs, ap = m.h === a ? m.ph : m.pa, bp = m.h === a ? m.pa : m.ph;

@@ -1633,7 +1633,7 @@ svg.ls-conn{position:absolute;inset:0;width:100%;height:100%;pointer-events:none
 /* name label: a solid dark pill, smaller font so a longer surname fits; sits clear below the smaller circle (no overlap) */
 .pp-name{display:inline-flex;align-items:center;gap:3px;max-width:100%;font-size:var(--fs-8);font-weight:700;letter-spacing:.01em;color:#fff;background:rgba(8,12,20,.78);padding:1.5px 6px;border-radius:99px;box-shadow:0 1px 3px rgba(0,0,0,.4)}
 .pp-nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.pp-no{flex:0 0 auto;font-family:var(--mono);font-weight:800;font-size:var(--fs-7);color:var(--pno,rgba(255,255,255,.7))}   /* jersey number tinted the team's kit colour, so you can tell the sides apart at a glance */
+.pp-no{flex:0 0 auto;font-family:var(--mono);font-weight:800;font-size:var(--fs-7);color:var(--pno,rgba(255,255,255,.7));paint-order:stroke;-webkit-text-stroke:1.4px rgba(255,255,255,.5)}   /* jersey number tinted the team's kit colour; a light outline lifts a dark tint off the dark pill, so you can tell the sides apart at a glance */
 .pitch-coaches{display:flex;justify-content:space-between;gap:10px;margin:9px 2px 0;font-size:var(--fs-11);color:var(--ink-soft);font-style:italic}
 .pitch-coaches span:last-child{text-align:right}
 /* lightweight toast (shared-prediction copy, etc.) */
