@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "451";  // shown in footer; bump with the ?v= asset version
+const BUILD = "452";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1407,9 +1407,9 @@ function winProb(m, pre = false, at = null) {   // at = {h,a,min,reds}: evaluate
   // stronger side is therefore favoured to settle it, not a coin flip. If still level after extra time it's an even
   // finish we don't characterise further. LIVE ties keep the old flat 50/50 split: refining an in-progress extra-time
   // tie minute-by-minute is the deliberately-unmodelled boundary.
-  let adv = null, et = null;
+  let adv = null, et = null, lamHet = 0, lamAet = 0;
   if (ko && !live) {
-    const etS = 30 / 90, lamHet = lamH * etS, lamAet = lamA * etS;   // lamH/lamA are the full 90' goal rates pre-match (remFrac = 1)
+    const etS = 30 / 90; lamHet = lamH * etS; lamAet = lamA * etS;   // lamH/lamA are the full 90' goal rates pre-match (remFrac = 1)
     let eH = 0, eD = 0, eA = 0;
     for (let rh = 0; rh < 7; rh++) for (let ra = 0; ra < 7; ra++) {
       const p = _pois(rh, lamHet) * _pois(ra, lamAet) * _dcTau(rh, ra, lamHet, lamAet);
@@ -1421,7 +1421,21 @@ function winProb(m, pre = false, at = null) {   // at = {h,a,min,reds}: evaluate
   } else if (ko) {
     adv = { h: probH + 0.5 * probD, a: probA + 0.5 * probD };
   }
-  return { h: probH, d: probD, a: probA, live, ko, adv, et,
+  // MEDIAN full-time score (pre-match): the interpolated median of each side's final-goal distribution. A knockout
+  // cell that's level after 90' is carried into extra time (its ET goals folded on), so the figure is the score at the
+  // END of the match, ET included when it's expected. One decimal central estimate - not the single likeliest scoreline.
+  let median = null;
+  if (!live) {
+    const dH = {}, dA = {};
+    for (const c of cells) {
+      if (ko && c.h === c.a && lamHet) {
+        for (let eh = 0; eh < 7; eh++) for (let ea = 0; ea < 7; ea++) { const pe = _pois(eh, lamHet) * _pois(ea, lamAet); dH[c.h + eh] = (dH[c.h + eh] || 0) + c.p * pe; dA[c.a + ea] = (dA[c.a + ea] || 0) + c.p * pe; }
+      } else { dH[c.h] = (dH[c.h] || 0) + c.p; dA[c.a] = (dA[c.a] || 0) + c.p; }
+    }
+    const med = d => { const tt = Object.values(d).reduce((s, v) => s + v, 0) || 1; let cum = 0; for (const k of Object.keys(d).map(Number).sort((x, y) => x - y)) { const prev = cum; cum += d[k]; if (cum / tt >= 0.5) return Math.max(0, Math.round((k - 0.5 + (0.5 - prev / tt) / (d[k] / tt)) * 10) / 10); } return 0; };
+    median = { h: med(dH), a: med(dA) };
+  }
+  return { h: probH, d: probD, a: probA, live, ko, adv, et, median,
     predicted, drawMode: predicted[0] && predicted[0].h === predicted[0].a, xg: { h: exH / tot, a: exA / tot },
     reasons: reasons.sort((x, y) => y.mag - x.mag).slice(0, 3) };
 }
@@ -1908,17 +1922,13 @@ function liveWhyChips(wp) {
   return `<div class="why-chips">${chips}</div>`;
 }
 // the model's discarded top-3 most-likely scorelines, as tiles
-function liveScorelines(wp) {
-  if (!wp?.predicted?.length) return "";
-  // deliberately low-key: exact-scoreline odds are inherently small, so this rides as a quiet one-line footnote
-  // under the win-probability bar rather than a row of attention-grabbing cards
-  const chips = wp.predicted.slice(0, 3).map(s => {
-    const et = wp.ko && s.h === s.a;   // a knockout level after 90' isn't a final result - it goes to extra time / pens
-    return `<span class="sl-chip${et ? " sl-chip-et" : ""}">${s.h}–${s.a}<i>${Math.round(s.p * 100)}%</i>${et ? `<em title="Level after 90' - decided in extra time, then penalties">→&nbsp;ET</em>` : ""}</span>`;
-  }).join("");
-  // a knockout's tiles are 90-minute scores; say so, so a level "1–1" reads as "to ET/pens", not a drawn result
-  const cap = wp.ko ? "Likeliest scores at 90'" : "Likeliest scorelines";
-  return `<div class="sl-line"><span class="sl-cap">${cap}</span>${chips}</div>`;
+function medianScoreLine(wp) {
+  if (!wp?.median) return "";
+  // one decimal central estimate - the MEDIAN final score, ET folded in for a knockout that's level after 90'.
+  const m = wp.median, level = Math.round(m.h) === Math.round(m.a);
+  const cap = wp.ko ? "Median score · full time" : "Median score";
+  const et = wp.ko && level ? `<em title="A level result is settled in extra time, then penalties">→&nbsp;ET</em>` : "";
+  return `<div class="sl-line"><span class="sl-cap">${cap}</span><span class="sl-chip sl-median">${m.h.toFixed(1)}–${m.a.toFixed(1)}${et}</span></div>`;
 }
 // a team's record + each result so far THIS World Cup (FT matches only)
 function teamWcRecord(code) {
@@ -3952,7 +3962,8 @@ function closeInfoPop() {
   p.classList.remove("show"); p._anchor = null;
   if (_POPOVER_OK) { try { p.hidePopover(); } catch {} }
 }
-function showInfoPop(anchor, text) {
+function showInfoPop(anchor, text, opts) {
+  opts = opts || {};
   let pop = $("#infoPop");
   if (!pop) {
     pop = document.createElement("div"); pop.id = "infoPop"; pop.className = "info-pop"; pop.setAttribute("role", "tooltip");
@@ -3960,7 +3971,11 @@ function showInfoPop(anchor, text) {
     document.body.appendChild(pop);
   }
   if (pop._anchor === anchor && pop.classList.contains("show")) return closeInfoPop();   // tap again to dismiss
-  pop.textContent = text; pop._anchor = anchor;
+  // sticky popups (a metrics glossary you read while the page scrolls) render HTML and survive page scroll;
+  // the default plain "i" stays textContent-only and dismisses on scroll.
+  if (opts.html) pop.innerHTML = text; else pop.textContent = text;
+  pop.dataset.sticky = opts.sticky ? "1" : "";
+  pop._anchor = anchor;
   // Position BEFORE showing, so the popover never paints at a default spot and then jumps to place (the flicker).
   // fixed/viewport coords (the popover's containing block is the viewport, not the transformed dialog); we dismiss on
   // scroll, so not tracking scroll is fine.
@@ -5662,6 +5677,12 @@ const CMP_LENSES = [
   ["discipline", "Discipline", [_cCount("fls", "Fouls", "Fouls committed"), _cCount("off", "Off", "Offsides"), _cCount("yc", "YC", "Yellow cards"), _cCount("rc", "RC", "Red cards")]],
 ];
 const CMP_CONF = ["UEFA", "CONMEBOL", "CONCACAF", "CAF", "AFC", "OFC"];
+// glossary for the columns actually on screen (the current lens only) - bold metric name, then its plain-English read.
+function cmpInfoHTML(lensKey) {
+  const lens = CMP_LENSES.find(l => l[0] === lensKey) || CMP_LENSES[0];
+  const items = lens[2].map(c => `<b>${esc(c.label)}</b> — ${esc(c.t)}`).join("<br>");
+  return `<b>${esc(lens[1])} columns</b><br>${items}<br><br>Totals add across every completed match; Per match divides by matches played. Possession and pass accuracy are averages, so the toggle doesn't move them. Only settled full-time matches count.`;
+}
 function teamCompareHTML() {
   const all = teamStatsAgg().filter(r => r.mp > 0);
   if (!all.length) return `<div class="empty">Team stats fill in as matches are played.</div>`;
@@ -5684,29 +5705,8 @@ function teamCompareHTML() {
     </div>`;
   };
   const arrow = _cmp.dir === "desc" ? "▾" : "▴";
-  const tblInfo = infoBtn(`Per-team totals across every match a side has completed. Toggle Totals / Per match — per match divides a running count by matches played; possession and pass accuracy are averages and don't move with the toggle. Only settled full-time matches count; live games are left out until they finish. Tap a column to sort, a team for its page.
-
-Metrics
-MP — matches played
-GF / GA — goals for / against
-GD — goal difference
-Poss — average possession %
-Sh — shots
-SOT — shots on target
-SOT% — shots on target ÷ shots
-Cor — corners won
-Cross — accurate crosses
-Pass — accurate passes
-Pass% — pass accuracy (accurate ÷ attempted)
-Long — accurate long balls
-Tkl — tackles
-Int — interceptions
-Clr — clearances
-Blk — blocked shots
-Sv — saves
-Fouls — fouls committed
-Off — offsides
-YC / RC — yellow / red cards`, "What the columns mean");
+  // per-lens glossary (only the columns on screen), rendered on demand from the current lens - see cmpInfoHTML
+  const tblInfo = `<button class="info-i" type="button" data-cmpinfo aria-label="What the columns mean">i</button>`;
   const head = `<tr><th class="tct-th-team"><span class="tct-team-h"><span>Team</span>${tblInfo}</span></th>${cols.map(c => `<th class="tct-th${c.k === _cmp.sort ? " is-sort" : ""}" data-cmpsort="${c.k}" title="${esc(c.t)}"><span>${c.label}</span>${c.k === _cmp.sort ? `<i class="tct-arr">${arrow}</i>` : ""}</th>`).join("")}</tr>`;
   const body = rows.map(r => {
     const fav = r.code === S.fav;
@@ -5729,7 +5729,7 @@ YC / RC — yellow / red cards`, "What the columns mean");
 const _CMP_DDKEY = { cmplens: "lens", cmpmode: "mode", cmpfilt: "filter", cmpconf: "conf" };
 function wireCompareTable(el) {
   const p = $('.substat-panel[data-panel="compare"]', el); if (!p) return;
-  const set = obj => { Object.assign(_cmp, obj); renderStats(); };
+  const set = obj => { closeInfoPop(); Object.assign(_cmp, obj); renderStats(); };   // the glossary is per-lens - drop a stale one when the view changes
   const closeDD = () => $$(".tct-dd", p).forEach(dd => { dd.classList.remove("open"); dd.querySelector(".tsel-pop").hidden = true; dd.querySelector(".tsel-btn")?.setAttribute("aria-expanded", "false"); });
   $$(".tct-dd", p).forEach(dd => {
     const btn = dd.querySelector(".tsel-btn"), pop = dd.querySelector(".tsel-pop");
@@ -6553,7 +6553,7 @@ async function boot() {
   addEventListener("click", e => { if (!e.target.closest(".tct-dd")) $$(".tct-dd.open").forEach(dd => { dd.classList.remove("open"); dd.querySelector(".tsel-pop").hidden = true; dd.querySelector(".tsel-btn")?.setAttribute("aria-expanded", "false"); }); });   // …and the Compare-table dropdowns
   (() => { let t; addEventListener("resize", () => { clearTimeout(t); t = setTimeout(() => layoutLandscape(), 120); }); })();   // re-draw landscape-bracket connectors on resize
   addEventListener("keydown", e => { if (e.key === "Escape") { closeTeamSel(); closeRkPops(); closeInfoPop(); } });
-  addEventListener("scroll", e => { if (!(e.target.closest && e.target.closest("#infoPop"))) closeInfoPop(); }, { passive: true, capture: true });   // page scroll dismisses an explainer; scrolling INSIDE a long one (the metric glossary) doesn't
+  addEventListener("scroll", e => { const p = $("#infoPop"); if (p && p.dataset.sticky === "1" && p.classList.contains("show")) return; if (!(e.target.closest && e.target.closest("#infoPop"))) closeInfoPop(); }, { passive: true, capture: true });   // page scroll dismisses an explainer; a sticky glossary stays open while the page scrolls under it
   // Keep an open sheet (search, compare, team picker…) above the on-screen keyboard. The visual viewport shrinks when
   // the keyboard is up, so cap the dialog to that height and top-anchor it; reset to the centered CSS default when it's
   // down. Fixes the keyboard covering the player-search results on phones (works on iOS + Android via visualViewport).
@@ -6596,6 +6596,8 @@ async function boot() {
     if (e.target.closest("[data-close]") || e.target.tagName === "DIALOG") return;
     const ii = e.target.closest("[data-info]");   // reusable "i" explainer → shared popover (touch-safe)
     if (ii) { e.stopPropagation(); showInfoPop(ii, ii.dataset.info); return; }
+    const ci = e.target.closest("[data-cmpinfo]");   // Compare glossary → current-lens metrics, HTML (bold names) + sticky (page scrolls under it)
+    if (ci) { e.stopPropagation(); showInfoPop(ci, cmpInfoHTML(_cmp.lens), { html: true, sticky: true }); return; }
     if (!e.target.closest("#infoPop")) closeInfoPop();   // any other click dismisses an open explainer
     const rf = e.target.closest("[data-refresh]");
     if (rf) { e.stopPropagation(); manualRefresh(rf); return; }
