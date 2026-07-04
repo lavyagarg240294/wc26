@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "455";  // shown in footer; bump with the ?v= asset version
+const BUILD = "456";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -147,7 +147,7 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;",
 // instead of jumping straight to the cards' h4. Injected here (every render funnels through paint with its view el)
 // so it survives poll re-renders too. Keyed by section id; non-view paints (cards, popups) are untouched.
 // groups/sim set el.innerHTML directly (not via paint), so they prepend viewH2() themselves.
-const VIEW_H2 = { "view-matches": "Matches", "view-teams": "Teams", "view-players": "Players", "view-groups": "Tables", "view-sim": "Predict", "view-stats": "Statistics", "view-pulse": "News" };
+const VIEW_H2 = { "view-matches": "Matches", "view-field": "The field", "view-teams": "Teams", "view-players": "Players", "view-groups": "Tables", "view-sim": "Predict", "view-stats": "Statistics", "view-pulse": "News" };
 const viewH2 = id => VIEW_H2[id] ? `<h2 class="vh">${VIEW_H2[id]}</h2>` : "";
 function paint(el, html) {
   if (!el) return;
@@ -5794,12 +5794,302 @@ function wireCompareTable(el) {
   $$("[data-cmpsort]", p).forEach(th => th.onclick = () => set(_cmp.sort === th.dataset.cmpsort ? { dir: _cmp.dir === "desc" ? "asc" : "desc" } : { sort: th.dataset.cmpsort, dir: "desc" }));
 }
 
+/* ============================================================
+   THE FIELD - the knockout centre: sixteen down to one.
+   A dark broadcast stage (its own near-black set in both themes): a sticky
+   stage bar (countdown / live score), a wall of kit-colour monoliths in
+   bracket order that the tournament demolishes round by round, an ident
+   band of sixteen stripes (scars for the fallen), a departed shelf, and a
+   split-flap departures board. Everything on it is a held fact - scores,
+   elo, titles, kickoffs; the only model number (none yet on this surface)
+   would be labelled as the model's view.
+   ============================================================ */
+const FLD_ROUNDS = [["r16", "Round of 16", "R16"], ["qf", "Quarter-finals", "QF"], ["sf", "Semi-finals", "SF"], ["final", "Final", "Final"]];
+const FLD_WORDS = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen"];
+const fldOrd = n => n + (n % 10 === 1 && n !== 11 ? "st" : n % 10 === 2 && n !== 12 ? "nd" : n % 10 === 3 && n !== 13 ? "rd" : "th");
+const fldKo = st => S.matches.filter(m => m.stage === st).sort((a, b) => a.num - b.num);
+const fldScore = m => { const r = res(m); return r && r.h != null ? `${r.h}–${r.a}${r.hp != null ? ` · ${r.hp}–${r.ap} pens` : ""}` : ""; };
+// the tournament's KO facts: the sixteen (r16 slots, bracket order), who's dead (lost a played KO tie),
+// the current round (first with an unsettled match), and the champion once the final is done
+function fldState() {
+  const the16 = [];
+  fldKo("r16").forEach(m => { the16.push(slotInfo(m, "home").code || null, slotInfo(m, "away").code || null); });
+  const dead = {};
+  for (const [st] of FLD_ROUNDS) for (const m of fldKo(st)) {
+    const w = actualKoWinner(m); if (!w) continue;
+    const h = slotInfo(m, "home").code, a = slotInfo(m, "away").code, l = w === h ? a : h;
+    if (l) dead[l] = { m, w };
+  }
+  let cur = FLD_ROUNDS.findIndex(([st]) => fldKo(st).some(m => !isFeedFinal(m)));
+  const champ = cur === -1 ? actualKoWinner(fldKo("final")[0]) : null;
+  if (cur === -1) cur = FLD_ROUNDS.length - 1;
+  return { the16, dead, cur, champ, _freshSet: new Set() };
+}
+// a team's whole tournament, chronological, as settled results only (the third-place playoff included - it's a real match)
+function teamRun(code) {
+  return S.matches.filter(m => isFeedFinal(m) && (slotInfo(m, "home").code === code || slotInfo(m, "away").code === code))
+    .sort((a, b) => a.utc.localeCompare(b.utc)).map(m => {
+      const r = res(m), home = slotInfo(m, "home").code === code;
+      const gf = home ? r.h : r.a, ga = home ? r.a : r.h;
+      const opp = home ? slotInfo(m, "away").code : slotInfo(m, "home").code;
+      const pw = r.hp != null ? (home ? r.hp > r.ap : r.ap > r.hp) : null;
+      const wdl = gf > ga ? "W" : gf < ga ? "L" : pw == null ? "D" : pw ? "W" : "L";
+      return { m, opp, gf, ga, wdl, pens: r.hp != null };
+    });
+}
+function fldCdText(ms) {
+  if (ms <= 0) return "any moment";
+  const mn = Math.floor(ms / 60000), d = Math.floor(mn / 1440), h = Math.floor((mn % 1440) / 60), mm = mn % 60;
+  return d > 0 ? `in ${d}d ${h}h` : h > 0 ? `in ${h}h ${String(mm).padStart(2, "0")}m` : `in ${mm}m`;
+}
+// one monolith. Alive: kit-colour field, tricode, star row, elo + nth cup. Dead: the graphite grave layer
+// sits on top (opacity 0 while alive; instant for long-dead, animated in by the ritual for a witnessed FT).
+function fldPanel(code, m, side, w, fresh, bd) {
+  if (!code) { const s = m[side]; return `<div class="fld-pnl fld-pnl-tbd"><span class="fld-tbd tbd-shape" aria-hidden="true"></span><b class="fld-tri">${esc(s.short || "TBD")}</b><span class="fld-nm">${esc(s.ph || "To be decided")}</span></div>`; }
+  const t = S.teams[code]; if (!t) return "";
+  const deadHere = !!w && w !== code;
+  const roundTag = deadHere ? (FLD_ROUNDS.find(x => x[0] === m.stage)?.[2] || "") : "";
+  const grave = deadHere ? `<span class="fld-grave" aria-hidden="true"><b>${tri(code)}</b><i>${fldScore(m)}</i><em>out · ${roundTag}</em></span>` : "";
+  return `<div class="fld-pnl${relLum(t.c1) > .30 ? " fld-ink-d" : ""}${deadHere && !fresh ? " fld-dead" : ""}${w === code ? " fld-won" : ""}" ${deadHere ? `data-obit="${code}"` : `data-squad="${code}"`} role="button" tabindex="0" aria-label="${esc(t.name)}${deadHere ? ", out - tap for their record" : ""}" style="--k1:${t.c1};--k2:${t.c2};--bd:${bd}s">
+    <span class="fld-breath" aria-hidden="true"></span>
+    <b class="fld-tri">${tri(code)}</b>
+    <span class="fld-nm">${esc(t.name)}</span>
+    <span class="fld-stars" aria-hidden="true">${"★".repeat(Math.min(t.titles || 0, 5))}</span>
+    <span class="fld-meta">elo ${t.elo || "—"} · ${fldOrd(t.apps || 1)} cup</span>
+    <span class="fld-hem" aria-hidden="true"></span>
+    ${grave}
+  </div>`;
+}
+function fldPair(m, state, i) {
+  const h = slotInfo(m, "home"), a = slotInfo(m, "away"), r = res(m), st = status(m);
+  const live = st === ST.LIVE || st === ST.HT, done = isFeedFinal(m);
+  const w = actualKoWinner(m);
+  const kickMs = new Date(m.utc) - Date.now();
+  const soon = !done && !live && kickMs > 0 && kickMs < 36e5;   // inside the hour - the seam smoulders
+  const cap = live ? `<b class="fld-cap-live">● ${esc(liveLabel(m, r) || "Live")}</b> <span class="fld-cap-sc">${r?.h ?? 0}–${r?.a ?? 0}</span>`
+    : done ? `<span class="fld-cap-sc">${fldScore(m)}</span> · full time`
+    : `${fmt(m.utc, { weekday: "short" })} ${timeStr(m.utc)} · ${esc((m.city || "").split(",")[0])}`;
+  const bd = (-(i || 0) * 0.9).toFixed(1);   // paired panels share a breath phase - shared fates, shared pulse
+  return `<div class="fld-pair${live ? " is-live" : ""}${soon ? " is-soon" : ""}">
+    <div class="fld-duo">
+      ${fldPanel(h.code, m, "home", w, state._freshSet.has(h.code), bd)}
+      <span class="fld-seam${live ? " fld-wick" : ""}${done ? " fld-cold" : ""}" aria-hidden="true"></span>
+      ${fldPanel(a.code, m, "away", w, state._freshSet.has(a.code), bd)}
+    </div>
+    <button class="fld-cap" type="button" data-mid="${m.id}" aria-label="Open match details">${cap}</button>
+  </div>`;
+}
+function fldBoardRow(code, state) {
+  const t = S.teams[code]; if (!t) return "";
+  const d = state.dead[code];
+  if (d) {
+    const tag = FLD_ROUNDS.find(x => x[0] === d.m.stage)?.[2] || "";
+    return `<button class="fld-brow is-out" type="button" data-obit="${code}"><span><b>${tri(code)}</b> <span class="fnm">${esc(t.name)}</span></span><span class="fld-bnx">—</span><span class="fld-bst" data-fst="${code}">OUT · ${tag}</span></button>`;
+  }
+  const nx = S.matches.filter(x => x.stage !== "group" && x.stage !== "third" && !isFeedFinal(x))
+    .sort((x, y) => x.utc.localeCompare(y.utc)).find(x => slotInfo(x, "home").code === code || slotInfo(x, "away").code === code);
+  if (!nx) return `<button class="fld-brow" type="button" data-squad="${code}"><span><b>${tri(code)}</b> <span class="fnm">${esc(t.name)}</span></span><span class="fld-bnx">—</span><span class="fld-bst">${state.champ === code ? "CHAMPIONS" : ""}</span></button>`;
+  const os = slotInfo(nx, "home").code === code ? slotInfo(nx, "away") : slotInfo(nx, "home");
+  const oppTx = os.code ? tri(os.code) : esc(os.short || "TBD");
+  const rTag = FLD_ROUNDS.find(x => x[0] === nx.stage)?.[2] || "";
+  const stx = status(nx), rr = res(nx);
+  const stTx = (stx === ST.LIVE || stx === ST.HT) ? `LIVE ${esc(liveLabel(nx, rr) || "")}` : `${fmt(nx.utc, { weekday: "short" })} ${timeStr(nx.utc)}`.toUpperCase();
+  return `<button class="fld-brow" type="button" data-mid="${nx.id}"><span><b>${tri(code)}</b> <span class="fnm">${esc(t.name)}</span></span><span class="fld-bnx">${nx.stage === "r16" ? "" : rTag + " · "}V ${oppTx} · ${esc((nx.city || "").split(",")[0]).toUpperCase()}</span><span class="fld-bst${(stx === ST.LIVE || stx === ST.HT) ? " is-live" : ""}" data-fst="${code}">${stTx}</span></button>`;
+}
+function fieldHTML(state) {
+  const [, roundName] = FLD_ROUNDS[state.cur];
+  const ms = fldKo(FLD_ROUNDS[state.cur][0]);
+  const alive = state.the16.filter(c => c && !state.dead[c]).length;
+  // stage bar: live ties lead (up to two rows); otherwise a countdown to the next kickoff; after the final, the champion
+  const koAll = ["r16", "qf", "sf", "final"].flatMap(fldKo);
+  const lives = koAll.filter(m => { const st = status(m); return st === ST.LIVE || st === ST.HT; });
+  const next = koAll.filter(m => !isFeedFinal(m)).sort((a, b) => a.utc.localeCompare(b.utc)).find(m => !lives.includes(m));
+  const stgSide = s => s.code ? tri(s.code) : esc(s.short || "TBD");
+  let stage;
+  if (lives.length) stage = lives.slice(0, 2).map(m => { const h = slotInfo(m, "home"), a = slotInfo(m, "away"), r = res(m);
+    return `<button class="fld-stg-row" type="button" data-mid="${m.id}" style="--kh:${S.teams[h.code]?.c1 || "#333"};--ka:${S.teams[a.code]?.c1 || "#333"}"><span class="fld-stg-t">${stgSide(h)} <b>${r?.h ?? 0}–${r?.a ?? 0}</b> ${stgSide(a)}</span><span class="fld-stg-liv">● ${esc(liveLabel(m, r) || "Live")}</span></button>`; }).join("");
+  else if (next) { const h = slotInfo(next, "home"), a = slotInfo(next, "away");
+    stage = `<button class="fld-stg-row" type="button" data-mid="${next.id}" style="--kh:${S.teams[h.code]?.c1 || "#333"};--ka:${S.teams[a.code]?.c1 || "#333"}"><span class="fld-stg-t">${stgSide(h)}–${stgSide(a)}</span><span class="fld-stg-cd">kicks off <b id="fldCd" data-utc="${next.utc}">${fldCdText(new Date(next.utc) - Date.now())}</b> · ${esc((next.city || "").split(",")[0])}</span></button>`; }
+  else stage = state.champ ? `<div class="fld-stg-row" style="--kh:${S.teams[state.champ]?.c1 || "#333"};--ka:${S.teams[state.champ]?.c2 || "#333"}"><span class="fld-stg-t">${esc(cname(state.champ))} — world champions</span></div>` : "";
+  // headline: the field, counted down
+  const head = state.champ ? `One remains.` : alive === 16 ? `The last <b>sixteen</b>.` : alive === 1 ? `<b>One</b> remains.` : `<b>${FLD_WORDS[alive]}</b> remain.`;
+  const nWord = state.champ ? "One" : FLD_WORDS[alive];
+  const sub = state.champ ? `Decided ${fmt(fldKo("final")[0].utc, { day: "numeric", month: "long" })} · MetLife Stadium.`
+    : state.cur === 3 ? `The final · ${fmt(ms[0].utc, { weekday: "long", day: "numeric", month: "long" })} · MetLife Stadium.`
+    : `${roundName} · ${ms.length} tie${ms.length === 1 ? "" : "s"} · winners on, losers home.`;
+  // the wall: this round's pairs - or the one full-bleed champion panel
+  const wall = state.champ
+    ? `<div class="fld-champwrap"><div class="fld-pnl fld-champ${relLum(S.teams[state.champ].c1) > .30 ? " fld-ink-d" : ""}" data-squad="${state.champ}" role="button" tabindex="0" style="--k1:${S.teams[state.champ].c1};--k2:${S.teams[state.champ].c2}"><span class="fld-breath" aria-hidden="true"></span><b class="fld-tri">${tri(state.champ)}</b><span class="fld-nm">${esc(cname(state.champ))}</span><span class="fld-stars">${"★".repeat(Math.min(S.teams[state.champ].titles || 0, 5))}</span><span class="fld-meta">world champions · ${fmt(fldKo("final")[0].utc, { year: "numeric" })}</span><span class="fld-hem" aria-hidden="true"></span></div></div>`
+    : ms.map((m, i) => fldPair(m, state, i)).join("");
+  // ident band: sixteen stripes, fixed bracket order - a scar where a team fell
+  const band = state.the16.map(c => c
+    ? (state.dead[c]
+      ? `<button class="fld-stripe is-scar" type="button" data-obit="${c}" aria-label="${esc(cname(c))}, out" title="${esc(cname(c))} · out"></button>`
+      : `<button class="fld-stripe" type="button" data-squad="${c}" style="--k1:${S.teams[c]?.c1 || "#444"}" aria-label="${esc(cname(c))}" title="${esc(cname(c))}"></button>`)
+    : `<span class="fld-stripe" style="--k1:#2A2F2D"></span>`).join("");
+  // the shelf: the departed, grouped by round of exit - nothing ever leaves the page
+  const deadRows = FLD_ROUNDS.map(([k, , tag]) => state.the16.filter(c => c && state.dead[c]?.m.stage === k).map(c => {
+    const d = state.dead[c];
+    return `<button class="fld-ledg" type="button" data-obit="${c}"><span class="fl">${flag(c)}</span><b>${esc(cname(c))}</b><i>${fldScore(d.m)} v ${esc(cname(d.w))}</i><em>${tag}</em></button>`;
+  }).join("")).join("");
+  const shelf = deadRows || `<div class="fld-none">No one has left yet. ${esc(roundName)} decides the first.</div>`;
+  // departures board: the sixteen in bracket order, the departed accumulating below the line
+  const aliveRows = state.the16.filter(c => c && !state.dead[c]).map(c => fldBoardRow(c, state)).join("");
+  const outRows = state.the16.filter(c => c && state.dead[c]).map(c => fldBoardRow(c, state)).join("");
+  const board = `<div class="fld-brd"><div class="fld-brd-t">Departures · knockout stage</div>${aliveRows}<div class="fld-bdep">Departed</div>${outRows || `<div class="fld-none">—</div>`}</div>`;
+  return `<div class="fld-stage">
+    <div class="fld-stg">${stage}</div>
+    <h3 class="fld-head" data-nword="${nWord}">${head}</h3>
+    <p class="fld-sub">${sub}</p>
+    <div class="fld-wall" id="fldWall">${wall}</div>
+    <div class="fld-band" role="group" aria-label="The sixteen">${band}</div>
+    <div class="fld-shelf"><div class="fld-shelf-cap">Departed</div>${shelf}</div>
+    ${board}
+  </div>`;
+}
+// witnessed-transition detection: snapshot scores + the dead after each render; a change seen while the tab
+// is open and visible (and the snapshot is fresh) plays as an event - the goal wave or the elimination ritual.
+let _fldPrev = null, _fldTimer = 0, _fldObitAuto = false;
+function renderField() {
+  const el = $("#view-field"); if (!el) return;
+  const state = fldState();
+  const events = { goals: [], deaths: [] };
+  const koNow = fldKo(FLD_ROUNDS[state.cur][0]);
+  if (_fldPrev && S.view === "field" && document.visibilityState === "visible" && Date.now() - _fldPrev.t < 180000) {
+    for (const m of koNow) {
+      const r = res(m), p = _fldPrev.sc[m.num];
+      if (!r || !p) continue;
+      if (((r.h || 0) + (r.a || 0)) > (p[0] + p[1]) && [ST.LIVE, ST.HT, ST.FT].includes(r.st))
+        events.goals.push(slotInfo(m, (r.h || 0) > p[0] ? "home" : "away").code);
+    }
+    for (const c in state.dead) if (!_fldPrev.dead.has(c)) events.deaths.push({ code: c, w: state.dead[c].w });
+  }
+  if (events.deaths.length) state._freshSet = new Set([events.deaths[0].code]);   // first death gets the full ritual; a simultaneous second renders settled
+  paint(el, fieldHTML(state));
+  // events fire against the fresh DOM
+  if (events.goals.length) fldGoalWave(events.goals[0]);
+  events.deaths.forEach((d, i) => { if (i === 0) fldRitual(d.code, d.w); fldFlap(el.querySelector(`[data-fst="${d.code}"]`)); });
+  if (events.deaths.length) { const hw = el.querySelector(".fld-head b"); if (hw) { hw.classList.remove("fld-roll"); void hw.offsetWidth; hw.classList.add("fld-roll"); } }
+  // snapshot for the next diff
+  const sc = {}; koNow.forEach(m => { const r = res(m); sc[m.num] = [r?.h || 0, r?.a || 0]; });
+  _fldPrev = { sc, dead: new Set(Object.keys(state.dead)), t: Date.now() };
+  if (!_fldTimer) _fldTimer = setInterval(() => {   // the countdown ticks between polls; everything else re-renders on data
+    if (S.view !== "field") return;
+    const cd = $("#fldCd"); if (cd?.dataset.utc) cd.textContent = fldCdText(new Date(cd.dataset.utc) - Date.now());
+  }, 30000);
+}
+// a goal lands: the scorer's hem flashes and a shockwave crosses the whole wall - every panel feels it
+function fldGoalWave(scorer) {
+  const wall = $("#fldWall"); if (!wall) return;
+  const sp = scorer && wall.querySelector(`.fld-pnl[data-squad="${scorer}"]`);
+  if (sp) { sp.classList.add("fld-hemflash"); setTimeout(() => sp.classList.remove("fld-hemflash"), 600); }
+  [...wall.querySelectorAll(".fld-pnl")].forEach((p, i) => setTimeout(() => { p.classList.add("fld-shiv"); setTimeout(() => p.classList.remove("fld-shiv"), 260); }, i * 40));
+}
+// the elimination ritual, in beats: the held breath (total stillness), the flash, the graphite drain,
+// then - only after death completes - the winner's single breath and burst. The dead panel stays as a headstone.
+function fldRitual(loser, winner) {
+  const wall = $("#fldWall"); if (!wall) return;
+  const lp = wall.querySelector(`.fld-pnl[data-obit="${loser}"]`) || wall.querySelector(`.fld-pnl[data-squad="${loser}"]`);
+  const wp = winner && wall.querySelector(`.fld-pnl[data-squad="${winner}"]`);
+  if (!lp) return;
+  wall.classList.add("fld-still");
+  setTimeout(() => lp.classList.add("fld-flash"), 600);
+  setTimeout(() => { lp.classList.remove("fld-flash"); lp.classList.add("fld-dying"); }, 760);
+  setTimeout(() => {
+    lp.classList.add("fld-dead"); lp.classList.remove("fld-dying");
+    wall.classList.remove("fld-still");
+    if (wp) {
+      wp.classList.add("fld-pulse");
+      const t = S.teams[winner]; if (t) confetti(t.c1, t.c2);
+      setTimeout(() => wp.classList.remove("fld-pulse"), 800);
+    }
+    // Last words auto-shows once, only for the team you follow - everyone else's page waits on the shelf
+    if (loser === S.fav && !_fldObitAuto) {
+      const seen = JSON.parse(localStorage.getItem("wc26.obitSeen") || "[]");
+      if (!seen.includes(loser)) { _fldObitAuto = true; seen.push(loser); localStorage.setItem("wc26.obitSeen", JSON.stringify(seen)); setTimeout(() => openObit(loser), 1600); }
+    }
+  }, 2000);
+}
+// split-flap: scramble-and-settle a board cell (left to right), used when a row's fate changes on screen
+function fldFlap(el, fin) {
+  if (!el) return;
+  fin = fin ?? el.textContent;
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) { el.textContent = fin; return; }
+  const CH = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789·— ";
+  let f = 0; const n = Math.max(el.textContent.length, fin.length);
+  const iv = setInterval(() => {
+    f++; let out = "";
+    for (let i = 0; i < n; i++) out += i < (f - 3) * 1.7 ? (fin[i] || " ") : CH[Math.random() * CH.length | 0];
+    el.textContent = out;
+    if (f > 13) { el.textContent = fin; clearInterval(iv); }
+  }, 45);
+}
+// ---- Last words: a departed team's page - the whole run as settled results, then the way it ended ----
+function openObit(code) {
+  const t = S.teams[code]; if (!t) return;
+  const state = fldState(), d = state.dead[code];
+  const run = teamRun(code);
+  const chips = run.map(x => `<span class="rchip rchip-${x.wdl}" title="${esc(cname(code))} v ${esc(cname(x.opp))}">${x.wdl} ${x.gf}–${x.ga}${x.pens ? "ᵖ" : ""} ${tri(x.opp)}</span>`).join("");
+  const endLine = d ? `Out in the ${d.m.stage === "final" ? "final" : (FLD_ROUNDS.find(x => x[0] === d.m.stage)?.[1] || "knockouts")} — ${fldScore(d.m)} v ${esc(cname(d.w))} · ${esc((d.m.city || "").split(",")[0])}.` : `Still in it.`;
+  $("#obitTitle").textContent = d ? "Departed" : "The road so far";
+  $("#obitBody").innerHTML = `<div class="obit-hero">
+      <span class="obit-flag">${flag(code)}</span>
+      <div class="obit-name">${esc(t.name)}</div>
+      ${t.titles ? `<div class="obit-stars" aria-hidden="true">${"★".repeat(Math.min(t.titles, 5))}</div>` : ""}
+      <div class="obit-rule" aria-hidden="true"></div>
+      <div class="obit-line">${endLine}</div>
+      <div class="obit-run">${chips || `<span class="fld-none">No settled matches yet.</span>`}</div>
+      <div class="obit-cup">${esc(t.name)}'s ${fldOrd(t.apps || 1)} World Cup${t.coach ? ` · ${esc(t.coach)}` : ""}</div>
+      ${d ? `<div class="obit-actions"><button class="btn ghost" id="obitShare">${ICO.camera} Share card</button></div>` : ""}
+    </div>`;
+  const sb = $("#obitShare"); if (sb) sb.onclick = () => obitShareCard(code);
+  showSheet($("#obitDialog"));
+}
+// the departed share card - 1080² canvas on the shared share-card tokens
+async function obitShareCard(code) {
+  const t = S.teams[code]; if (!t) return;
+  try { await document.fonts.ready; } catch { /* system fonts */ }
+  const state = fldState(), d = state.dead[code];
+  const W = 1080, H = 1080, c = document.createElement("canvas"); c.width = W; c.height = H;
+  const x = c.getContext("2d");
+  const g = x.createLinearGradient(0, 0, W, H); g.addColorStop(0, "#0c1a28"); g.addColorStop(1, "#08231b");
+  x.fillStyle = g; x.fillRect(0, 0, W, H);
+  x.textAlign = "center";
+  x.fillStyle = "#E8B931"; x.font = `700 34px ${SHARE_FONT.disp}`; x.fillText("FIFA WORLD CUP 2026", W / 2, 118);
+  const img = new Image(); img.src = "assets/flags/" + code + ".svg";
+  try { await img.decode(); } catch { /* draw without the flag */ }
+  const fw = 340, fh = Math.round(fw * ((img.naturalHeight / img.naturalWidth) || .66)), fx = W / 2 - fw / 2, fy = 200;
+  x.save(); rrect(x, fx, fy, fw, fh, 14); x.clip(); x.fillStyle = "#fff"; x.fillRect(fx, fy, fw, fh);
+  if (img.complete && img.naturalWidth) x.drawImage(img, fx, fy, fw, fh); x.restore();
+  x.lineWidth = 2; x.strokeStyle = "rgba(255,255,255,.22)"; rrect(x, fx, fy, fw, fh, 14); x.stroke();
+  x.fillStyle = "#fff"; x.font = `900 84px ${SHARE_FONT.disp}`; x.fillText(t.name.toUpperCase(), W / 2, fy + fh + 128);
+  if (d) {
+    x.fillStyle = SHARE_INK.soft; x.font = `600 40px ${SHARE_FONT.body}`;
+    x.fillText(`OUT · ${(FLD_ROUNDS.find(r => r[0] === d.m.stage)?.[1] || "").toUpperCase()}`, W / 2, fy + fh + 198);
+    x.fillStyle = SHARE_INK.dim; x.font = `500 30px ${SHARE_FONT.mono}`;
+    x.fillText(`${fldScore(d.m)} v ${cname(d.w)} · ${(d.m.city || "").split(",")[0]}`, W / 2, fy + fh + 252);
+  }
+  const runTxt = teamRun(code).map(r => `${r.wdl} ${r.gf}–${r.ga}`).join("  ·  ");
+  x.fillStyle = SHARE_INK.soft; x.font = `500 27px ${SHARE_FONT.mono}`; x.fillText(runTxt.slice(0, 66), W / 2, 850);
+  x.fillStyle = SHARE_INK.dim; x.font = `500 28px ${SHARE_FONT.body}`; x.fillText(`${t.name}'s ${fldOrd(t.apps || 1)} World Cup`, W / 2, 908);
+  x.fillStyle = SHARE_INK.faint; x.font = `500 24px ${SHARE_FONT.mono}`; x.fillText((location.host + location.pathname).replace(/\/$/, ""), W / 2, H - 56);
+  c.toBlob(async blob => {
+    if (!blob) { flashToast("Couldn't make the image"); return; }
+    const file = new File([blob], `wc26-${code}-departed.png`, { type: "image/png" });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file], text: `${t.name} · World Cup 2026` }); return; } catch (err) { if (err?.name === "AbortError") return; }
+    }
+    const u = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = u; a.download = file.name;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 3000); flashToast("Card saved");
+  }, "image/png");
+}
+
 /* ---------------- navigation ---------------- */
-const RENDER = { matches: renderMatches, teams: renderTeams, players: renderPlayers, groups: renderGroups, stats: renderStats, sim: renderSim, pulse: renderPulse };
+const RENDER = { matches: renderMatches, field: renderField, teams: renderTeams, players: renderPlayers, groups: renderGroups, stats: renderStats, sim: renderSim, pulse: renderPulse };
 // shareable per-tab URL hash (Matches is the default → no hash; Predict's internal view name is "sim")
-const VIEW_HASH = { teams: "teams", players: "players", groups: "tables", sim: "predict", stats: "stats", pulse: "pulse" };
+const VIEW_HASH = { field: "field", teams: "teams", players: "players", groups: "tables", sim: "predict", stats: "stats", pulse: "pulse" };
 // "live" survives only as a redirect: Live folded into the match modal (build 329), but old #live links still land on Matches
-const HASH_VIEW = { live: "matches", matches: "matches", teams: "teams", players: "players", tables: "groups", groups: "groups", predict: "sim", stats: "stats", pulse: "pulse" };
+const HASH_VIEW = { live: "matches", matches: "matches", field: "field", teams: "teams", players: "players", tables: "groups", groups: "groups", predict: "sim", stats: "stats", pulse: "pulse" };
 function nav(v) {
   if (typeof closeInfoPop === "function") closeInfoPop();   // an open explainer is anchored to the old view
   S.view = v;
@@ -6677,6 +6967,8 @@ async function boot() {
     if (sht) { e.stopPropagation(); shareTeamCard(sht.dataset.shareTeam); return; }
     const cmt = e.target.closest("[data-compare-team]");   // "Compare" from inside the team sheet → pick a second team
     if (cmt) { e.stopPropagation(); $("#teamSheet").close(); openTeamCompareSearch(cmt.dataset.compareTeam); return; }
+    const ob = e.target.closest("[data-obit]");   // The Field: a departed team's Last-words page
+    if (ob) { e.stopPropagation(); openObit(ob.dataset.obit); return; }
     const sq = e.target.closest("[data-squad]");
     if (sq && sq.dataset.squad) { openTeam(sq.dataset.squad); return; }
     const sl = e.target.closest("[data-statlist]");   // Overview tile → penalties / own-goals details list
