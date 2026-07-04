@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "454";  // shown in footer; bump with the ?v= asset version
+const BUILD = "455";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1688,7 +1688,9 @@ function mdShotMap(m) {
   const PW = 272, PH = 204, MX = 14, MY = 14;
   const sx = y => +(MX + y / 100 * PW).toFixed(1), sy = x => +(MY + (100 - x) / 50 * PH).toFixed(1);
   const star = (cx, cy, rr, fill) => { let p = ""; for (let i = 0; i < 10; i++) { const ang = Math.PI / 5 * i - Math.PI / 2, R = i % 2 ? rr * .45 : rr; p += (i ? "L" : "M") + (cx + R * Math.cos(ang)).toFixed(1) + " " + (cy + R * Math.sin(ang)).toFixed(1) + " "; } return `<path d="${p}Z" fill="${fill}" stroke="#fff" stroke-width="1.3" stroke-linejoin="round"/>`; };
-  const mk = s => { const cx = sx(s.y), cy = sy(s.x), col = s.tm === "h" ? HC : AC, t = `<title>${esc(s.p)} · ${esc(s.min)}${s.g ? " · goal" : ""}</title>`;
+  // flip the width axis (100 - y): mapping FIFA's (x length, y width) to (screen-x = y, screen-y = -x) is an axis swap,
+  // i.e. a mirror. Inverting y turns it back into a true top-down view so left really is left, not its mirror.
+  const mk = s => { const cx = sx(100 - s.y), cy = sy(s.x), col = s.tm === "h" ? HC : AC, t = `<title>${esc(s.p)} · ${esc(s.min)}${s.g ? " · goal" : ""}</title>`;
     return s.g ? `<g>${t}${star(cx, cy, 7.5, col)}</g>` : `<g>${t}<circle cx="${cx}" cy="${cy}" r="4.2" fill="${col}" stroke="rgba(6,20,12,.35)" stroke-width=".6"/></g>`; };
   const R = (x, y, w, ht, sw) => `<rect x="${x}" y="${y}" width="${w}" height="${ht}" fill="none" stroke="${L}" stroke-width="${sw || .8}"/>`;
   const pitch = `<rect x="${MX}" y="${MY}" width="${PW}" height="${PH}" fill="#245C3C" rx="4"/>` + R(MX, MY, PW, PH) +
