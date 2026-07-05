@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "457";  // shown in footer; bump with the ?v= asset version
+const BUILD = "458";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -5944,7 +5944,7 @@ function fieldHTML(state) {
     <div class="fld-wall" id="fldWall">${wall}</div>
     <div class="fld-band" role="group" aria-label="The sixteen">${band}</div>
     <div class="fld-shelf"><div class="fld-shelf-cap">Departed</div>${shelf}</div>
-    ${fldTalesHTML()}
+    ${fldTalesHTML(state)}
     ${fldNamesHTML(state)}
     ${board}
   </div>`;
@@ -6038,20 +6038,27 @@ function loadTales() {
     .catch(() => (S.tales = { ties: {}, stars: [] }));
   return _talesReq;
 }
-// the eight - editorial cards, R16 bracket order; a played tie carries its result chip (live data, not the prose)
-function fldTalesHTML() {
+// the ties - editorial cards, bracket order. Round-aware: the current round's pages lead, earlier rounds fold
+// away as the record. Future editions are pure data (tales.json accumulates ties per round) - no code changes.
+function fldTalesHTML(state) {
   const t = S.tales; if (!t || !Object.keys(t.ties || {}).length) return "";
-  const rows = fldKo("r16").map(m => {
-    const e = t.ties[m.num]; if (!e) return "";
+  const card = m => {
+    const e = t.ties[m.num];
     const done = isFeedFinal(m), r = res(m);
     const chip = done ? `<i class="fld-tale-res">${T_NAME(r.ht)} ${r.h}–${r.a} ${T_NAME(r.at)}${r.hp != null ? " · pens" : ""}</i>` : "";
     return `<button class="fld-tale" type="button" data-tale="${m.num}">
       <span class="fld-tale-k">${esc(e.kicker)}${chip}</span>
       <b>${esc(e.title)}</b>
       <span class="fld-tale-s">${esc(e.standfirst)}</span></button>`;
-  }).join("");
-  if (!rows) return "";
-  return `<div class="fld-mod"><div class="fld-mod-cap">The eight · tie by tie</div><div class="fld-mod-sub">A page on each - what the matchup means, where it comes from, how both sides got here.</div><div class="fld-talelist">${rows}</div></div>`;
+  };
+  const curSt = FLD_ROUNDS[state.cur][0];
+  const withEssay = ["r16", "qf", "sf", "final"].flatMap(fldKo).filter(m => t.ties[m.num]);
+  const curRows = withEssay.filter(m => m.stage === curSt).map(card).join("");
+  const oldRows = withEssay.filter(m => m.stage !== curSt).map(card).join("");
+  if (!curRows && !oldRows) return "";
+  return `<div class="fld-mod"><div class="fld-mod-cap">The ties · ${esc(FLD_ROUNDS[state.cur][1])}</div><div class="fld-mod-sub">A page on each - what the matchup means, where it comes from, how both sides got here.</div>
+    ${curRows ? `<div class="fld-talelist">${curRows}</div>` : ""}
+    ${oldRows ? `<details class="fld-oldties"><summary>Earlier rounds · the record</summary><div class="fld-talelist">${oldRows}</div></details>` : ""}</div>`;
 }
 const T_NAME = c => esc(S.teams[c]?.name || c);
 // the names - the tournament's people, picked on more than numbers; departed players stay (their story holds)
@@ -6076,10 +6083,16 @@ function openTale(num) {
   const road = c => c ? `<div class="tale-road"><span class="tale-road-t"><span class="fl">${flag(c)}</span> ${T_NAME(c)}</span><span class="tale-road-r">${teamRun(c).map(x => `<span class="rchip rchip-${x.wdl}" title="v ${esc(cname(x.opp))}">${x.wdl} ${x.gf}–${x.ga}${x.pens ? "ᵖ" : ""} ${tri(x.opp)}</span>`).join("")}</span></div>` : "";
   const done = isFeedFinal(m);
   if (_wcH2H == null) loadWcH2H().then(() => { const d = $("#taleDialog"); if (d?.open && d.dataset.taleOpen === String(num)) openTale(num); });
+  // an essay written before kick-off stays useful as the preview it was - but once the tie settles it SAYS so,
+  // and carries the real result up top. The page is honest about its own age; no regeneration needed for truth.
+  const rr = res(m);
+  const staleNote = (e.written === "pre" && done && rr)
+    ? `<div class="tale-note">Written before kick-off. It finished ${T_NAME(rr.ht)} ${rr.h}–${rr.a} ${T_NAME(rr.at)}${rr.hp != null ? ` (${rr.hp}–${rr.ap} on penalties)` : ""}.</div>` : "";
   $("#taleTitle").textContent = "The tie";
   $("#taleBody").innerHTML = `<div class="tale">
     <div class="tale-k">${esc(e.kicker)}</div>
     <h2 class="tale-h">${esc(e.title)}</h2>
+    ${staleNote}
     <p class="tale-stand">${esc(e.standfirst)}</p>
     <div class="tale-facts">${road(h.code)}${road(a.code)}</div>
     ${e.prose.map(p => `<p class="tale-p">${esc(p)}</p>`).join("")}
@@ -6094,11 +6107,16 @@ function openTale(num) {
 function openStarTale(name, code) {
   const s = (S.tales?.stars || []).find(x => x.name === name && x.code === code); if (!s) return;
   const ph = bestPhoto(s.name, s.code);
+  // if the team has played again since this edition was written, say so - the profile is a dated portrait, not live copy
+  const upd = S.tales?.updated ? new Date(S.tales.updated) : null;
+  const movedOn = upd && S.matches.some(m => isFeedFinal(m) && new Date(m.utc) > upd && (slotInfo(m, "home").code === code || slotInfo(m, "away").code === code));
+  const asOf = movedOn ? `<div class="tale-note">Written ${fmt(S.tales.updated, { day: "numeric", month: "long" })} — ${T_NAME(code)} have played since.</div>` : "";
   $("#taleTitle").textContent = "The name";
   $("#taleBody").innerHTML = `<div class="tale tale-star">
     ${ph ? `<span class="tale-star-ph"><img src="${ph}" alt="${esc(s.display)}"></span>` : ""}
     <h2 class="tale-h">${esc(s.display)}</h2>
     <div class="tale-k"><span class="fl">${flag(s.code)}</span> ${T_NAME(s.code)} · ${esc(s.tag)}</div>
+    ${asOf}
     <p class="tale-line">${esc(s.line)}</p>
     <p class="tale-p">${esc(s.why)}</p>
     <div class="obit-actions"><button class="btn ghost" data-player="${esc(s.name)}|${s.code}">Full player page</button></div>
