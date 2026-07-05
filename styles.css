@@ -2629,3 +2629,42 @@ svg.ls-conn{position:absolute;inset:0;width:100%;height:100%;pointer-events:none
 .obit-run .rchip{font-family:var(--mono);font-size:var(--fs-11);font-weight:600;padding:4px 8px;border-radius:6px}
 .obit-cup{font-family:var(--mono);font-size:var(--fs-11);color:var(--ink-soft);margin-top:10px}
 .obit-actions{margin-top:16px}
+/* ---- The Field: editorial modules (the eight + the names) ---- */
+.fld-mod{margin-top:26px}
+.fld-mod-cap{font-family:var(--mono);font-size:var(--fs-10);letter-spacing:.16em;text-transform:uppercase;color:#7C877F;margin:0 2px 4px}
+.fld-mod-sub{font-family:var(--mono);font-size:var(--fs-11);color:#5D6862;margin:0 2px 12px}
+.fld-talelist{display:grid;grid-template-columns:1fr;gap:8px}
+@media(min-width:720px){.fld-talelist{grid-template-columns:1fr 1fr}}
+.fld-tale{display:flex;flex-direction:column;gap:4px;width:100%;text-align:left;background:#101915;border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:13px 14px;cursor:pointer;transition:border-color .2s,transform .2s}
+.fld-tale:hover{border-color:rgba(232,185,49,.4);transform:translateY(-1px)}
+.fld-tale-k{font-family:var(--mono);font-size:var(--fs-10);letter-spacing:.08em;text-transform:uppercase;color:#7C877F;display:flex;flex-wrap:wrap;gap:6px;align-items:baseline}
+.fld-tale-res{font-style:normal;color:var(--gold);text-transform:none;letter-spacing:0}
+.fld-tale b{font-family:var(--disp);font-weight:800;font-stretch:114%;font-size:var(--fs-17);color:#E9EEEA;line-height:1.15}
+.fld-tale-s{font-size:var(--fs-12);color:#98A29C;line-height:1.45}
+.fld-namerow{display:flex;gap:10px;overflow-x:auto;padding:2px 2px 10px;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch}
+.fld-star{flex:0 0 148px;scroll-snap-align:start;display:flex;flex-direction:column;align-items:flex-start;gap:3px;text-align:left;background:#101915;border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:10px;cursor:pointer;transition:border-color .2s,transform .2s}
+.fld-star:hover{border-color:rgba(232,185,49,.4);transform:translateY(-1px)}
+.fld-star.is-out{opacity:.62}
+.fld-star-ph{width:128px;height:128px;border-radius:8px;overflow:hidden;background:#182019;display:grid;place-items:center;margin-bottom:5px}
+.fld-star-ph img{width:100%;height:100%;object-fit:cover;object-position:top}
+.fld-star-fl{font-size:34px}
+.fld-star b{font-size:var(--fs-13);font-weight:700;color:#E9EEEA;line-height:1.2}
+.fld-star small{font-size:var(--fs-10);color:#7C877F;display:flex;align-items:center;gap:4px}
+.fld-star i{font-style:normal;font-family:var(--mono);font-size:var(--fs-10);color:#C9B25E;margin-top:2px;line-height:1.35}
+/* ---- the tale sheet: an editorial single-pager (theme surface, not the dark stage) ---- */
+.tale{padding:2px 2px 6px}
+.tale-k{font-family:var(--mono);font-size:var(--fs-11);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.tale-h{font-family:var(--disp);font-weight:800;font-stretch:118%;font-size:clamp(24px,6vw,32px);line-height:1.08;color:var(--ink);margin:8px 0 8px}
+.tale-stand{font-size:var(--fs-15);line-height:1.5;color:var(--ink);font-weight:600;margin:0 0 14px}
+.tale-facts{display:flex;flex-direction:column;gap:8px;background:color-mix(in srgb,var(--line) 30%,transparent);border-radius:10px;padding:10px 12px;margin:0 0 16px}
+.tale-road{display:flex;flex-direction:column;gap:5px}
+.tale-road-t{font-size:var(--fs-12);font-weight:700;display:flex;align-items:center;gap:6px}
+.tale-road-r{display:flex;flex-wrap:wrap;gap:5px}
+.tale-road-r .rchip{font-family:var(--mono);font-size:var(--fs-10);font-weight:600;padding:3px 7px;border-radius:6px}
+.tale-p{font-size:var(--fs-14);line-height:1.65;color:var(--ink);margin:0 0 13px}
+.tale-threads{border-left:2px solid var(--gold);padding:2px 0 2px 12px;margin:4px 0 14px;display:flex;flex-direction:column;gap:8px}
+.tale-thread{font-size:var(--fs-12);line-height:1.5;color:var(--ink-soft)}
+.tale-meaning{font-family:var(--disp);font-weight:600;font-size:var(--fs-15);line-height:1.4;color:var(--ink);margin:0 0 6px}
+.tale-star-ph{display:block;width:132px;height:132px;border-radius:12px;overflow:hidden;margin:2px 0 10px;background:color-mix(in srgb,var(--line) 40%,transparent)}
+.tale-star-ph img{width:100%;height:100%;object-fit:cover;object-position:top}
+.tale-line{font-family:var(--mono);font-size:var(--fs-12);line-height:1.55;color:var(--ink-soft);background:color-mix(in srgb,var(--line) 30%,transparent);border-radius:8px;padding:9px 11px;margin:10px 0 12px}

@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "456";  // shown in footer; bump with the ?v= asset version
+const BUILD = "457";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -5944,6 +5944,8 @@ function fieldHTML(state) {
     <div class="fld-wall" id="fldWall">${wall}</div>
     <div class="fld-band" role="group" aria-label="The sixteen">${band}</div>
     <div class="fld-shelf"><div class="fld-shelf-cap">Departed</div>${shelf}</div>
+    ${fldTalesHTML()}
+    ${fldNamesHTML(state)}
     ${board}
   </div>`;
 }
@@ -5952,6 +5954,7 @@ function fieldHTML(state) {
 let _fldPrev = null, _fldTimer = 0, _fldObitAuto = false;
 function renderField() {
   const el = $("#view-field"); if (!el) return;
+  if (S.tales === undefined) { S.tales = null; loadTales().then(() => { if (S.view === "field") renderField(); }); }   // editorial content, once
   const state = fldState();
   const events = { goals: [], deaths: [] };
   const koNow = fldKo(FLD_ROUNDS[state.cur][0]);
@@ -6023,6 +6026,84 @@ function fldFlap(el, fin) {
     el.textContent = out;
     if (f > 13) { el.textContent = fin; clearInterval(iv); }
   }, 45);
+}
+// ---- The tales: committed editorial content (data/tales.json) - eight tie single-pagers + the star names.
+// Written and fact-checked against the site's own data per round; prose is content, numbers on the page render live. ----
+let _talesReq = null;
+function loadTales() {
+  if (_talesReq) return _talesReq;
+  _talesReq = fetch("data/tales.json?t=" + Date.now(), { cache: "no-store" })
+    .then(r => r.ok ? r.json() : null)
+    .then(j => { S.tales = j && j.ties ? j : { ties: {}, stars: [] }; return S.tales; })
+    .catch(() => (S.tales = { ties: {}, stars: [] }));
+  return _talesReq;
+}
+// the eight - editorial cards, R16 bracket order; a played tie carries its result chip (live data, not the prose)
+function fldTalesHTML() {
+  const t = S.tales; if (!t || !Object.keys(t.ties || {}).length) return "";
+  const rows = fldKo("r16").map(m => {
+    const e = t.ties[m.num]; if (!e) return "";
+    const done = isFeedFinal(m), r = res(m);
+    const chip = done ? `<i class="fld-tale-res">${T_NAME(r.ht)} ${r.h}–${r.a} ${T_NAME(r.at)}${r.hp != null ? " · pens" : ""}</i>` : "";
+    return `<button class="fld-tale" type="button" data-tale="${m.num}">
+      <span class="fld-tale-k">${esc(e.kicker)}${chip}</span>
+      <b>${esc(e.title)}</b>
+      <span class="fld-tale-s">${esc(e.standfirst)}</span></button>`;
+  }).join("");
+  if (!rows) return "";
+  return `<div class="fld-mod"><div class="fld-mod-cap">The eight · tie by tie</div><div class="fld-mod-sub">A page on each - what the matchup means, where it comes from, how both sides got here.</div><div class="fld-talelist">${rows}</div></div>`;
+}
+const T_NAME = c => esc(S.teams[c]?.name || c);
+// the names - the tournament's people, picked on more than numbers; departed players stay (their story holds)
+function fldNamesHTML(state) {
+  const t = S.tales; if (!t || !(t.stars || []).length) return "";
+  const cards = t.stars.map(s => {
+    const ph = bestPhoto(s.name, s.code);
+    const out = state.dead[s.code] || !state.the16.includes(s.code);   // team no longer in the field
+    return `<button class="fld-star${out ? " is-out" : ""}" type="button" data-tale-star="${esc(s.name)}|${s.code}">
+      <span class="fld-star-ph">${ph ? `<img src="${ph}" alt="" loading="lazy">` : `<span class="fld-star-fl">${flag(s.code)}</span>`}</span>
+      <b>${esc(s.display)}</b>
+      <small><span class="fl">${flag(s.code)}</span> ${T_NAME(s.code)}${out ? " · out" : ""}</small>
+      <i>${esc(s.tag)}</i></button>`;
+  }).join("");
+  return `<div class="fld-mod"><div class="fld-mod-cap">The names</div><div class="fld-mod-sub">Chosen on more than numbers - the tournaments inside the tournament.</div><div class="fld-namerow">${cards}</div></div>`;
+}
+// a tie's single page: the essay (committed prose) + facts rendered live (H2H, both roads)
+function openTale(num) {
+  const e = S.tales?.ties?.[num]; if (!e) return;
+  const m = S.matches.find(x => x.num === +num); if (!m) return;
+  const h = slotInfo(m, "home"), a = slotInfo(m, "away");
+  const road = c => c ? `<div class="tale-road"><span class="tale-road-t"><span class="fl">${flag(c)}</span> ${T_NAME(c)}</span><span class="tale-road-r">${teamRun(c).map(x => `<span class="rchip rchip-${x.wdl}" title="v ${esc(cname(x.opp))}">${x.wdl} ${x.gf}–${x.ga}${x.pens ? "ᵖ" : ""} ${tri(x.opp)}</span>`).join("")}</span></div>` : "";
+  const done = isFeedFinal(m);
+  if (_wcH2H == null) loadWcH2H().then(() => { const d = $("#taleDialog"); if (d?.open && d.dataset.taleOpen === String(num)) openTale(num); });
+  $("#taleTitle").textContent = "The tie";
+  $("#taleBody").innerHTML = `<div class="tale">
+    <div class="tale-k">${esc(e.kicker)}</div>
+    <h2 class="tale-h">${esc(e.title)}</h2>
+    <p class="tale-stand">${esc(e.standfirst)}</p>
+    <div class="tale-facts">${road(h.code)}${road(a.code)}</div>
+    ${e.prose.map(p => `<p class="tale-p">${esc(p)}</p>`).join("")}
+    ${(e.threads || []).length ? `<div class="tale-threads">${e.threads.map(x => `<div class="tale-thread">${esc(x)}</div>`).join("")}</div>` : ""}
+    <p class="tale-meaning">${esc(e.meaning)}</p>
+    ${(h.code && a.code && _wcH2H != null) ? wcH2HBlock(h.code, a.code, done) : ""}
+    <div class="obit-actions"><button class="btn ghost" data-mid="${m.id}">Open the match</button></div>
+  </div>`;
+  const d = $("#taleDialog"); d.dataset.taleOpen = String(num); showSheet(d);   // taleOpen (not data-tale) so the open-handler never matches the dialog itself
+}
+// a star's page: the profile + the honest line; through to the full player sheet
+function openStarTale(name, code) {
+  const s = (S.tales?.stars || []).find(x => x.name === name && x.code === code); if (!s) return;
+  const ph = bestPhoto(s.name, s.code);
+  $("#taleTitle").textContent = "The name";
+  $("#taleBody").innerHTML = `<div class="tale tale-star">
+    ${ph ? `<span class="tale-star-ph"><img src="${ph}" alt="${esc(s.display)}"></span>` : ""}
+    <h2 class="tale-h">${esc(s.display)}</h2>
+    <div class="tale-k"><span class="fl">${flag(s.code)}</span> ${T_NAME(s.code)} · ${esc(s.tag)}</div>
+    <p class="tale-line">${esc(s.line)}</p>
+    <p class="tale-p">${esc(s.why)}</p>
+    <div class="obit-actions"><button class="btn ghost" data-player="${esc(s.name)}|${s.code}">Full player page</button></div>
+  </div>`;
+  const d = $("#taleDialog"); d.dataset.taleOpen = "star"; showSheet(d);
 }
 // ---- Last words: a departed team's page - the whole run as settled results, then the way it ended ----
 function openObit(code) {
@@ -6969,6 +7050,10 @@ async function boot() {
     if (cmt) { e.stopPropagation(); $("#teamSheet").close(); openTeamCompareSearch(cmt.dataset.compareTeam); return; }
     const ob = e.target.closest("[data-obit]");   // The Field: a departed team's Last-words page
     if (ob) { e.stopPropagation(); openObit(ob.dataset.obit); return; }
+    const tl = e.target.closest("[data-tale]");   // The Field: a tie's editorial single-pager
+    if (tl && tl.dataset.tale) { e.stopPropagation(); openTale(tl.dataset.tale); return; }
+    const ts = e.target.closest("[data-tale-star]");   // The Field: a star profile
+    if (ts) { e.stopPropagation(); const [nm, cd] = ts.dataset.taleStar.split("|"); openStarTale(nm, cd); return; }
     const sq = e.target.closest("[data-squad]");
     if (sq && sq.dataset.squad) { openTeam(sq.dataset.squad); return; }
     const sl = e.target.closest("[data-statlist]");   // Overview tile → penalties / own-goals details list
