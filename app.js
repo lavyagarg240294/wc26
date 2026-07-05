@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "458";  // shown in footer; bump with the ?v= asset version
+const BUILD = "459";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -3484,7 +3484,6 @@ function liveBracketHTML(withFoot = true) {
   }).join("");
   const foot = withFoot ? `<div class="r32board-foot"><span>Tap a tie for the match. The bracket fills in as the knockouts are played.</span>
       <div class="r32board-acts">
-        <button class="r32board-share" data-r32share aria-label="Share the knockout bracket">${ICO.camera} Share</button>
         <button class="r32board-cta" data-sim-edit>Make your own picks ${ICO.tap}</button>
       </div></div>` : "";
   return `<div class="livebr"><div class="eyebrow">Knockout bracket · as it stands ${infoBtn("Filled from the live results as the knockouts are played - winners advance, the team that loses is greyed out. Tap a tie to open the match. A slot shows its seed (e.g. 1E, or Best third) until the team is decided.", "How the live bracket fills in")}</div>${cols}${foot}</div>`;
@@ -3513,7 +3512,6 @@ function r32BracketHTML() {
     <div class="r32br-grid">${col(left, "l", 1)}${spine}${col(right, "r", 3)}</div>
     <div class="r32board-foot"><span>${_r32Mode === "projected" ? "Filled from the live standings - tap a tie for names, venue &amp; past meetings." : "Only mathematically-locked teams shown - the rest stay as seed slots."}</span>
       <div class="r32board-acts">
-        <button class="r32board-share" data-r32share aria-label="Share this Round of 32">${ICO.camera} Share</button>
         <button class="r32board-cta" data-sim-edit>Make your own picks ${ICO.tap}</button>
       </div></div>
   </section>`;
@@ -3702,7 +3700,21 @@ function r32SurprisesHTML() {
     ${block("Came up short", rows.filter(r => r.delta < 0))}
   </div>`;
 }
-let _brFocus = "r32";   // which round the landscape bracket highlights (the round switcher); persists across re-renders
+const _BR_RDS = ["r32", "r16", "qf", "sf", "final"];
+// the round the bracket highlights by DEFAULT: the one the tournament is now building toward. While a round is being
+// played its successor leads (the ties assembling into it); before a round starts, that round itself. So mid-Round-of-16
+// the Quarter-finals are selected. Group stage → still R32. Once the user taps a round, their pick sticks (_brFocus set).
+function bracketFocusDefault() {
+  for (let i = 0; i < _BR_RDS.length; i++) {
+    const ms = S.matches.filter(m => m.stage === _BR_RDS[i]);
+    if (ms.length && ms.every(m => isFeedFinal(m))) continue;              // this round is fully decided - look further on
+    const started = ms.some(m => isFeedFinal(m));                          // the first not-complete round
+    return started && i < _BR_RDS.length - 1 ? _BR_RDS[i + 1] : _BR_RDS[i]; // underway → the round it feeds; else itself
+  }
+  return "final";                                                          // every round complete
+}
+let _brFocus = null;   // null = follow the tournament (bracketFocusDefault); a round string = the user's manual pick
+const brFocus = () => _brFocus || bracketFocusDefault();
 // the converging "landscape" knockout bracket: both halves of the draw funnelling to a central final, the Round of 32
 // on the outer edges. A round switcher highlights a round + the ties feeding it; winners advance as matches are played.
 // Reuses slotInfo (real teams/winners), simHalf (L/R of the draw) and the fixture feed-graph. layoutLandscape() draws
@@ -3737,10 +3749,10 @@ function landscapeBracketHTML(opts = {}) {
     if (rd === "final") inner += `<div class="ls-cup" aria-hidden="true">${ICO.trophy}</div>` + (thirdM ? `<div class="ls-tie ls-third" data-mid="${thirdM.id}" role="button" tabindex="0" aria-label="Third-place play-off"><span class="ls-thlbl">3rd place</span></div>` : "");
     return `<div class="ls-col" data-round="${rd}">${inner}</div>`;
   }).join("");
-  const seg = `<div class="ls-seg" role="tablist" aria-label="Trace a round">${[["r32", "R32"], ["r16", "R16"], ["qf", "QF"], ["sf", "SF"], ["final", "Final"]].map(([v, l]) => `<button class="ls-seg-b${v === _brFocus ? " on" : ""}" data-br-round="${v}" role="tab" aria-selected="${v === _brFocus}">${l}</button>`).join("")}</div>`;
+  const bf = brFocus();
+  const seg = `<div class="ls-seg" role="tablist" aria-label="Trace a round">${[["r32", "R32"], ["r16", "R16"], ["qf", "QF"], ["sf", "SF"], ["final", "Final"]].map(([v, l]) => `<button class="ls-seg-b${v === bf ? " on" : ""}" data-br-round="${v}" role="tab" aria-selected="${v === bf}">${l}</button>`).join("")}</div>`;
   const foot = withFoot ? `<div class="r32board-foot"><span>Tap a round to trace how it forms; tap a tie for the match. Winners advance as the knockouts are played.</span>
       <div class="r32board-acts">
-        <button class="r32board-share" data-r32share aria-label="Share the knockout bracket">${ICO.camera} Share</button>
         <button class="r32board-cta" data-sim-edit>Make your own picks ${ICO.tap}</button>
       </div></div>` : "";
   return `<div class="lsbr"><div class="eyebrow">Knockout bracket · as it stands ${infoBtn("The full draw - both halves funnelling to the final, the Round of 32 on the outer edges. Tap a round (R32 … Final) to highlight that round and the ties that feed it. Winners advance as matches are played; an undecided slot waits as a dot until its feeders are settled. Tap any tie to open the match.", "How the bracket works")}</div>${seg}<div class="ls-board">${colsHTML}</div>${foot}</div>`;
@@ -3750,7 +3762,7 @@ function layoutLandscape(scope) {
   (scope || document).querySelectorAll(".lsbr").forEach(lsbr => {
     const board = lsbr.querySelector(".ls-board"); if (!board) return;
     const b = board.getBoundingClientRect(); if (!b.width) return;     // hidden tab → skip (don't wipe the lines with 0-size measurements)
-    const RDS = ["r32", "r16", "qf", "sf", "final"], fi = RDS.indexOf(_brFocus);
+    const bf = brFocus(), RDS = ["r32", "r16", "qf", "sf", "final"], fi = RDS.indexOf(bf);
     board.querySelectorAll(".ls-col").forEach(col => {
       const ri = RDS.indexOf(col.dataset.round);
       col.classList.toggle("foc", ri === fi); col.classList.toggle("fed", ri === fi - 1); col.classList.toggle("dim", ri > fi);
@@ -3774,7 +3786,7 @@ function layoutLandscape(scope) {
         const el = F => { const lft = F.cx < C.cx, fe = lft ? F.r : F.l, ce = lft ? C.l : C.r, mx = (fe + ce) / 2; return `M${fe} ${F.cy} H${mx} V${C.cy} H${ce} `; };
         d = el(X) + el(Y);
       }
-      if (m.stage === _brFocus) on += d; else off += d;
+      if (m.stage === bf) on += d; else off += d;
     });
     svg.innerHTML = (off ? `<path d="${off}" class="ls-cl ls-cl-off"/>` : "") + (on ? `<path d="${on}" class="ls-cl ls-cl-on"/>` : "");
   });
@@ -7084,8 +7096,6 @@ async function boot() {
     if (hl) { openMatch(hl.dataset.heroLive); return; }
     const rm = e.target.closest("[data-r32mode]");   // bracket Projected/Confirmed toggle
     if (rm) { _r32Mode = rm.dataset.r32mode; RENDER[S.view](); return; }
-    const rsh = e.target.closest("[data-r32share]");   // share the Round-of-32 board as a card (in whichever mode is on)
-    if (rsh) { shareR32Image(_r32Mode); return; }
     const pjt = e.target.closest("[data-projtie]");   // a bracket tie → the projected-tie sheet (names, venue, odds, head-to-head)
     if (pjt) { openProjTie(pjt.dataset.projtie); return; }
     const sti = e.target.closest("[data-sim-info]");   // the "i" on a bracket tie → your-matchup sheet (favourite, win prob, H2H, pick)
