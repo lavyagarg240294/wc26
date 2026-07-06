@@ -1,0 +1,39 @@
+name: Update shot map
+
+# Every finished match's shot coordinates, baked into data/shots.json by scripts/fetch-shots.mjs (from FIFA's public
+# v3 match timelines - the same source the client uses per-match). Shots are FINAL once a match ends, so this only ever
+# adds newly-finished games; the tournament-wide shot map in Stats reads the baked JSON instead of the browser hitting
+# FIFA ~100 times. Post-match data, so an infrequent cron is plenty (GitHub throttles scheduled runs anyway).
+on:
+  schedule:
+    - cron: "41 */3 * * *"     # every ~3h
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: shots
+  cancel-in-progress: true
+
+jobs:
+  shots:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "20" }
+      - name: Fetch shot coordinates, commit if changed
+        run: |
+          git config user.name "wc26-bot"
+          git config user.email "actions@users.noreply.github.com"
+          node scripts/fetch-shots.mjs || echo "shots fetch error — skipping this run"
+          git add data/shots.json 2>/dev/null
+          if ! git diff --cached --quiet 2>/dev/null; then
+            git commit -m "shots: $(date -u +'%Y-%m-%d %H:%M UTC')"
+            git push 2>/dev/null \
+              || { git fetch origin main && git rebase -X theirs origin/main 2>/dev/null && git push 2>/dev/null; } \
+              || { git rebase --abort 2>/dev/null; git reset --hard origin/main; echo "push deferred — resynced, will retry next run"; }
+          else
+            echo "no shot changes"
+          fi

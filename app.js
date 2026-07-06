@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "463";  // shown in footer; bump with the ?v= asset version
+const BUILD = "464";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -5081,7 +5081,9 @@ function tournamentStats() {
   const xgF = {}, golX = {}, xgN = {};   // xG "created" + goals scored IN the same xG-covered matches (so the comparison is fair) + per-team count
   const TSTAT_KEYS = ["sh", "pass", "passT", "cross", "lball", "tkl", "intc", "clr", "blk", "sv", "off", "fls"];   // richer ESPN team stats → leaderboards + style
   let goals = 0, totYellow = 0, totRed = 0, totPen = 0, totOg = 0, totSot = 0;
-  const penList = [], ogList = [], headerList = [];   // penalties scored + own goals + header goals (clickable Overview tiles)
+  const penList = [], ogList = [], headerList = [], subGoalList = [];   // penalties scored + own goals + header goals + goals by a substitute (clickable Overview tiles)
+  const goalHist = new Array(19).fill(0), goalHalves = { h1: 0, h2: 0, et: 0 };   // when goals land: 18 five-minute bins (1-90) + a final "90+/ET" bin; and the half split
+  const goalBin = t => { const raw = String(t), plus = raw.includes("+"), base = Math.floor(evMin(t)); if (base > 90 || (plus && base >= 90)) return 18; if (plus && base <= 45) return 8; return Math.max(0, Math.min(17, Math.floor((base - 1) / 5))); };
   const firstGoal = { w: 0, d: 0, l: 0 };   // "does scoring first matter?" - outcome for the team that scored first
   const rec = {};   // each record resolves to an ARRAY of all holders tied at the top value (joint records) - see topTies, post-loop
   const recC = { bigWin: [], hiScore: [], fastG: [], lateG: [], hiDraw: [], topMatch: [], mostCards: [], mostTackles: [], mostPasses: [], mostSot: [], bestDef: [] };
@@ -5117,12 +5119,18 @@ function tournamentStats() {
     if (total > 0) recC.hiScore.push({ mid: m.id, num: m.num, total, hc, ac, h: r.h, a: r.a });
     const matchGoals = {};
     let mYellow = 0, mRed = 0;
+    // who came on as a sub this match, per side (resolved name → the minute they entered) - so a goal by that player later counts as a "sub goal"
+    const subOn = { h: {}, a: {} };
+    for (const e of (r.ev || [])) if (e.k === "S" && e.on && (e.tm === "h" || e.tm === "a")) { const cc = e.tm === "h" ? hc : ac; const nm = (resolvePlayer(e.on, cc)?.name || e.on); subOn[e.tm][nm] = evMin(e.t); }
     for (const e of (r.ev || [])) {
       const tc = e.tm === "h" ? hc : ac;
+      if (["G", "P", "OG"].includes(e.k) && /\d/.test(String(e.t))) { goalHist[goalBin(e.t)]++; const gb = Math.floor(evMin(e.t)); if (gb > 90) goalHalves.et++; else if (gb <= 45) goalHalves.h1++; else goalHalves.h2++; }   // timed only - shootout kicks (blank minute) aren't goals
       if (e.k === "P") totPen++; else if (e.k === "OG") totOg++;   // penalties converted in play + own goals (tournament totals)
       if ((e.k === "G" || e.k === "P") && e.p) {
         // resolve to the full squad name using the API jersey (e.n) when present, else "out" = an outfielder (never the same-surname keeper)
         const sc = resolvePlayer(e.p, tc, e.n, "out")?.name || e.p;
+        const on = subOn[e.tm]?.[sc];   // came on before scoring → a substitute's goal
+        if (on != null && on <= evMin(e.t)) subGoalList.push({ name: sc, code: tc, opp: tc === hc ? ac : hc, t: e.t, on, mid: m.id });
         add(scorers, sc + "\t" + tc); if (e.a) add(assists, (resolvePlayer(e.a, tc, e.an, "out")?.name || e.a) + "\t" + tc);   // own goals excluded from the Boot
         const mk = sc + "\t" + tc; matchGoals[mk] = (matchGoals[mk] || 0) + 1;
         const mn = evMin(e.t);   // fastest / latest goal of the tournament (by the player who scored it)
@@ -5251,8 +5259,8 @@ function tournamentStats() {
   const pmT = fn => Object.keys(statN).map(c => ({ code: c, v: fn(c) / statN[c] })).sort((a, b) => b.v - a.v);   // per-game over teams with team-stats
   const g = (k, c) => tstat[k]?.[c] || 0;
   const _out = {
-    pulse: { goals, matches: fts.length, perMatch: fts.length ? goals / fts.length : 0, yellows: totYellow, reds: totRed, pens: totPen, og: totOg, sot: totSot },
-    penGoals: penList, ownGoals: ogList, headerGoals: headerList, firstGoal,
+    pulse: { goals, matches: fts.length, perMatch: fts.length ? goals / fts.length : 0, yellows: totYellow, reds: totRed, pens: totPen, og: totOg, sot: totSot, subGoals: subGoalList.length },
+    penGoals: penList, ownGoals: ogList, headerGoals: headerList, subGoals: subGoalList, goalHist, goalHalves, firstGoal,
     records: rec,
     scorers: scorerList, assisters: assistList, booked: bookedList, suspended: suspendedList, atRisk: riskList,
     teamCards: cardList,
@@ -5461,8 +5469,8 @@ function recordsPanel(s) {
 // the Overview's "Penalties scored" / "Own goals" tiles open this: the actual list, each row tapping through to its match
 function openStatList(kind) {
   const s = tournamentStats();
-  const src = kind === "pens" ? s.penGoals : kind === "og" ? s.ownGoals : s.headerGoals;
-  const title = kind === "pens" ? "Penalties scored" : kind === "og" ? "Own goals" : "Header goals";
+  const src = kind === "pens" ? s.penGoals : kind === "og" ? s.ownGoals : kind === "subgoals" ? s.subGoals : s.headerGoals;
+  const title = kind === "pens" ? "Penalties scored" : kind === "og" ? "Own goals" : kind === "subgoals" ? "Goals by substitutes" : "Header goals";
   const mid = kind === "pens" ? "vs" : kind === "og" ? "· own goal for" : "vs";
   const list = src.slice().sort((a, b) => {
     const ma = S.matches.find(m => m.id === a.mid), mb = S.matches.find(m => m.id === b.mid);
@@ -5474,10 +5482,52 @@ function openStatList(kind) {
       <span class="sl-min">${esc(String(x.t).replace(/\s+/g, ""))}</span></div>`;
   $("#statListTitle").textContent = `${title} · ${list.length}`;
   $("#statListBody").innerHTML = list.length
-    ? `<div class="sl-list">${list.map(row).join("")}</div>${kind === "hdr" ? `<p class="sl-note">Header goals are classified by ESPN's match feed; FIFA's own feed doesn't record the body part.</p>` : ""}`
+    ? `<div class="sl-list">${list.map(row).join("")}</div>${kind === "hdr" ? `<p class="sl-note">Header goals are classified by ESPN's match feed; FIFA's own feed doesn't record the body part.</p>` : kind === "subgoals" ? `<p class="sl-note">Goals scored by a player who had already come on as a substitute in that match.</p>` : ""}`
     : `<div class="empty">None yet.</div>`;
   showSheet($("#statListDialog"));
 }
+// ---- Goals section: when goals land (timing) + where shots are taken (tournament shot map, from committed data/shots.json) ----
+let _shotsReq;
+function loadShots() {
+  if (_shotsReq) return _shotsReq;
+  _shotsReq = fetch("data/shots.json?t=" + Date.now(), { cache: "no-store" })
+    .then(r => r.ok ? r.json() : null).then(j => { S.shots = j && j.matches ? j : { matches: {} }; return S.shots; })
+    .catch(() => (S.shots = { matches: {} }));
+  return _shotsReq;
+}
+// when goals happen: one bar per five minutes across the 90, plus a final band for stoppage + extra time; half-time marked.
+function goalTimingHTML(s) {
+  const h = s.goalHist || [], max = Math.max(1, ...h), total = h.reduce((a, b) => a + b, 0);
+  if (!total) return "";
+  const under = i => i === 18 ? "90+" : (i % 3 === 2 ? String((i + 1) * 5) : "");   // 15 / 30 / 45 / 60 / 75 / 90 ticks
+  const peak = h.indexOf(max), peakLbl = peak === 18 ? "in stoppage time and extra time" : `between ${peak * 5 + 1} and ${peak * 5 + 5} minutes`;
+  const bars = h.map((c, i) => `<div class="gt-bar${i === 18 ? " gt-bar-x" : ""}" title="${c} goal${c === 1 ? "" : "s"} · ${i === 18 ? "90'+" : (i * 5 + 1) + "–" + (i * 5 + 5) + "'"}"><span class="gt-fill" style="height:${Math.round(c / max * 100)}%"></span><span class="gt-x">${under(i)}</span></div>`).join("");
+  const hg = s.goalHalves || { h1: 0, h2: 0, et: 0 };
+  return `<div class="eyebrow">When goals are scored ${infoBtn("Every goal placed by the minute it was scored, in five-minute bands across the 90, with a final band for stoppage time and extra time. First-half added time folds into the 41–45 band. A read on when goals have actually come, not a prediction.", "How this is counted")}</div>
+    <div class="gt-card"><div class="gt-chart" role="img" aria-label="Goals by five-minute band">${bars}<span class="gt-ht" style="left:${(9 / 19 * 100).toFixed(2)}%"></span></div>
+      <div class="gt-foot"><span><b>${total}</b> goals</span><span>Most fall ${peakLbl}</span><span>1st half <b>${hg.h1}</b> · 2nd <b>${hg.h2}</b>${hg.et ? ` · ET <b>${hg.et}</b>` : ""}</span></div></div>`;
+}
+// tournament shot map: every located shot from data/shots.json on one attacking-half pitch, goals as gold stars.
+function tournamentShotMap() {
+  if (S.shots === undefined) { loadShots().then(() => { if (S.view === "stats" && statsTab === "goals") renderStats(); }); return `<div class="empty">Loading shot locations…</div>`; }
+  const data = S.shots?.matches || {}, all = [];
+  for (const id in data) for (const sh of data[id].s) all.push(sh);   // [x, y, goal, side]
+  if (!all.length) return "";
+  const goalN = all.filter(sh => sh[2]).length, PW = 272, PH = 204, MX = 14, MY = 14, L = "rgba(255,255,255,.5)";
+  const sx = y => +(MX + y / 100 * PW).toFixed(1), sy = x => +(MY + (100 - x) / 50 * PH).toFixed(1);   // attacking half (x 50–100 → top)
+  const cx = sh => sx(100 - sh[1]);   // flip the width axis so left really is left (see mdShotMap)
+  const R = (x, y, w, ht, sw) => `<rect x="${x}" y="${y}" width="${w}" height="${ht}" fill="none" stroke="${L}" stroke-width="${sw || .8}"/>`;
+  const star = (X, Y, rr) => { let p = ""; for (let i = 0; i < 10; i++) { const a = Math.PI / 5 * i - Math.PI / 2, r = i % 2 ? rr * .45 : rr; p += (i ? "L" : "M") + (X + r * Math.cos(a)).toFixed(1) + " " + (Y + r * Math.sin(a)).toFixed(1) + " "; } return `<path d="${p}Z" fill="#E8B931" stroke="#fff" stroke-width=".9" stroke-linejoin="round"/>`; };
+  const pitch = `<rect x="${MX}" y="${MY}" width="${PW}" height="${PH}" fill="#245C3C" rx="4"/>` + R(MX, MY, PW, PH) +
+    R(sx(21), MY, sx(79) - sx(21), sy(83) - MY) + R(sx(37), MY, sx(63) - sx(37), sy(94) - MY) + R(sx(44), MY - 3, sx(56) - sx(44), 3, 1.4) +
+    `<path d="M ${sx(37)} ${sy(83)} A 32 32 0 0 0 ${sx(63)} ${sy(83)}" fill="none" stroke="${L}" stroke-width=".8"/>`;
+  const dots = all.filter(sh => !sh[2]).map(sh => `<circle cx="${cx(sh)}" cy="${sy(sh[0])}" r="1.6" fill="rgba(95,176,255,.5)"/>`).join("");
+  const stars = all.filter(sh => sh[2]).map(sh => star(cx(sh), sy(sh[0]), 3.3)).join("");
+  return `<div class="eyebrow" style="margin-top:22px">Where shots are taken ${infoBtn("Every located shot from every finished match, placed where it was struck (FIFA match timelines), all attacking one goal. Gold stars are goals. A shot the feed logs without a location isn't plotted.", "How the shot map works")}</div>
+    <div class="sm-wrap"><svg viewBox="0 0 300 ${MY + PH + 8}" class="sm-svg" role="img" aria-label="Tournament shot map, ${all.length} shots">${pitch}${dots}${stars}</svg></div>
+    <div class="gt-foot"><span><b>${all.length}</b> shots</span><span><b>${goalN}</b> goals</span><span><b>${(100 * goalN / all.length).toFixed(1)}%</b> found the net</span></div>`;
+}
+function goalsSectionHTML(s) { return goalTimingHTML(s) + tournamentShotMap(); }
 function renderStats() {
   const el = $("#view-stats"), s = tournamentStats();
   if (!s.pulse.matches) { paint(el, `<div class="rk-pre">Tournament stats (scorers, records, team form) fill in as matches kick off. Until then, here's the field by world ranking.</div>${fifaRankingPanel()}`); return; }
@@ -5604,7 +5654,7 @@ function renderStats() {
     ["overview", "Overview", `<div class="eyebrow">Tournament so far</div><div class="stat-tiles">
       ${tile("Matches", s.pulse.matches)}${tile("Goals", s.pulse.goals)}
       ${tile("Goals / match", s.pulse.perMatch.toFixed(2))}
-      ${tile("Shots on target", s.pulse.sot)}${tileList("Penalties scored", s.pulse.pens, "pens")}${tileList("Own goals", s.pulse.og, "og")}${tileList("Header goals", s.headerGoals.length, "hdr")}
+      ${tile("Shots on target", s.pulse.sot)}${tileList("Goals by subs", s.pulse.subGoals, "subgoals")}${tileList("Penalties scored", s.pulse.pens, "pens")}${tileList("Own goals", s.pulse.og, "og")}${tileList("Header goals", s.headerGoals.length, "hdr")}
       <div class="stat-tile"><span class="stat-val card-val"><span class="cv cv-y">${s.pulse.yellows}</span><span class="cv cv-r">${s.pulse.reds}</span></span><span class="stat-lbl">Cards</span></div>
     </div>
       ${(() => { const fg = s.firstGoal, tot = fg.w + fg.d + fg.l; if (!tot) return "";
@@ -5614,6 +5664,7 @@ function renderStats() {
       ${bootTop3.length ? `<div class="eyebrow">${ICO.ball} Golden Boot</div><div class="lead-card lead-scorers">${ranked(bootTop3, scorerRow, p => p.goals)}</div>` : ""}
       <div class="eyebrow">Records so far</div>${recordsHtml}
       ${confHtml}`],
+    ["goals", "Goals", statsTab === "goals" ? goalsSectionHTML(s) : ""],   // lazy: the timing chart + the 2000-shot map build only when this tab is shown
     ["players", "Players", `
       ${s.scorers.length ? `<div class="eyebrow">${ICO.ball} Golden Boot</div><div class="lead-card lead-scorers">${ranked(bootScorers, scorerRow, p => p.goals)}</div>` : ""}
       ${s.keepers.length ? `<div class="eyebrow">${ICO.glove} Goalkeepers · clean sheets</div><div class="lead-card lead-scorers">${ranked(s.keepers.slice(0, 8), keeperRow, p => p.cs)}</div>` : ""}
