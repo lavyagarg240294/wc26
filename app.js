@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "459";  // shown in footer; bump with the ?v= asset version
+const BUILD = "460";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -6442,6 +6442,7 @@ function setDark(on) {
   const st = $("#themeState"); if (st) st.textContent = on ? "On" : "Off";
   $("#themeToggle")?.setAttribute("aria-pressed", String(on));
   const dc = $("#darkChip"); if (dc) { dc.setAttribute("aria-pressed", String(on)); dc.classList.toggle("is-on", on); }
+  FlowBg.setTheme(on);   // recolour the ambient background base + blend for the new theme
   applyTheme();   // recompute the team accent for the new field (the dark/light-readable --acc-text variant)
 }
 // a short synthesized stadium air-horn (no audio file needed); opt-in, fires on goals
@@ -6916,6 +6917,70 @@ async function hardRefresh() {
   location.reload();
 }
 
+/* ---------------- ambient background: prominent aurora mesh + drifting motes (Settings › Animated background) ----------------
+   Two layered full-viewport canvases inside #bg. #bgAur: an opaque aurora - big, slow colour fields on a palette that
+   continuously drifts across five harmonised moods (emerald → floodlight → golden hour → dusk → deep sea), so the colour
+   never settles. #bgFx: transparent motes (soft glowing dust) drifting along a slow, non-repeating flow field with the
+   odd wandering vortex; it blends over the aurora (screen on dark, multiply on light). Off (or prefers-reduced-motion)
+   falls back to the static CSS blobs; parked while the tab is hidden. Aurora renders at half resolution (it's all soft
+   gradients - invisible) to keep the fill cheap on big screens. */
+const BG_RICH = () => localStorage.getItem("wc26.bg") !== "off";   // default on
+const FlowBg = (() => {
+  const PALS = [
+    ["#0BA360", "#2FE08A", "#14B8A6", "#E8B931", "#DBEAD9"],   // emerald
+    ["#2C6E8F", "#57C7E6", "#8FE3D6", "#F0D68A", "#DCEAF0"],   // floodlight
+    ["#3B7A4E", "#E8B931", "#F0995B", "#F2C879", "#F3E6CE"],   // golden hour
+    ["#3A5A9E", "#7C6BD6", "#C36FB0", "#E8B931", "#DDE0F0"],   // dusk
+    ["#0E5A52", "#22D6B0", "#2D9CDB", "#BFE38A", "#D8EEE2"],   // deep sea
+  ].map(p => p.map(h => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]));
+  const BL = [[.18, .14, 0], [.83, .12, 2], [.5, .44, 3], [.14, .62, 1], [.88, .58, 4]];   // aurora blob anchors + palette slot
+  let A, B, ax, bx, W = 0, H = 0, DPR = 1, raf = 0, running = false, dark = false, t = 0, pf = 0, mot = [], vort = [], vtimer = 0;
+  const rgba = (c, a) => `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${a})`;
+  const pal = s => { const i = Math.floor(pf) % 5, j = (i + 1) % 5, f = pf - Math.floor(pf), a = PALS[i][s], b = PALS[j][s]; return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f]; };
+  const base = () => dark ? [[14, 24, 34], [11, 21, 18]] : [[250, 251, 249], [236, 244, 238]];
+  const mk = () => ({ x: Math.random() * W, y: Math.random() * H, slot: (Math.random() * 5) | 0, sz: .6 + Math.random() * 1.7, sp: .35 + Math.random() * .8, rot: Math.random() * 7, life: Math.random() * 280, max: 200 + Math.random() * 260 });
+  function ready() { if (A) return true; A = document.getElementById("bgAur"); B = document.getElementById("bgFx"); if (!A || !B) return false; ax = A.getContext("2d"); bx = B.getContext("2d"); return true; }
+  function fit(c, x, sc) { c.width = Math.max(1, Math.round(W * sc)); c.height = Math.max(1, Math.round(H * sc)); x.setTransform(sc, 0, 0, sc, 0, 0); }
+  function size() { DPR = Math.min(devicePixelRatio || 1, 1.5); W = innerWidth || document.documentElement.clientWidth || 0; H = innerHeight || document.documentElement.clientHeight || 0; if (!W || !H) return false; fit(A, ax, 0.5); fit(B, bx, DPR); seed(); return true; }
+  function seed() { mot = []; const n = Math.min(95, Math.round(W * H / 13000)); for (let i = 0; i < n; i++) mot.push(mk()); bx.clearRect(0, 0, W, H); }
+  function field(x, y) {
+    let a = Math.PI * (Math.sin(x * 0.0018 + t * 0.00027) + Math.cos(y * 0.0023 - t * 0.00021) + Math.sin((x + y) * 0.0013 + t * 0.00015));
+    let vx = Math.cos(a), vy = Math.sin(a);
+    for (const v of vort) { const dx = x - v.x, dy = y - v.y, d = Math.hypot(dx, dy) + 1, fl = (v._s || 0) * Math.exp(-(d * d) / (v.rad * v.rad)); vx += (-dy / d) * v.spin * fl; vy += (dx / d) * v.spin * fl; }
+    return Math.atan2(vy, vx);
+  }
+  function aurora() {
+    const bs = base(), g = ax.createLinearGradient(0, 0, 0, H); g.addColorStop(0, rgba(bs[0], 1)); g.addColorStop(1, rgba(bs[1], 1)); ax.fillStyle = g; ax.fillRect(0, 0, W, H);
+    ax.globalCompositeOperation = dark ? "lighter" : "multiply";
+    for (let i = 0; i < BL.length; i++) { const b = BL[i], cx = (b[0] + 0.1 * Math.sin(t * 0.00017 + i * 1.7)) * W, cy = (b[1] + 0.09 * Math.cos(t * 0.00014 + i * 2.1)) * H, r = Math.max(W, H) * (0.5 + 0.12 * Math.sin(t * 0.0002 + i)), c = pal(b[2]), rg = ax.createRadialGradient(cx, cy, 0, cx, cy, r); rg.addColorStop(0, rgba(c, dark ? 0.15 : 0.13)); rg.addColorStop(1, rgba(c, 0)); ax.fillStyle = rg; ax.fillRect(0, 0, W, H); }
+    ax.globalCompositeOperation = "source-over";
+  }
+  function motes() {
+    bx.globalCompositeOperation = "destination-out"; bx.fillStyle = "rgba(0,0,0,0.05)"; bx.fillRect(0, 0, W, H); bx.globalCompositeOperation = "source-over";
+    for (const p of mot) {
+      const a = field(p.x, p.y); p.x += Math.cos(a) * p.sp * .8; p.y += Math.sin(a) * p.sp * .8; p.life++;
+      if (p.life > p.max || p.x < -16 || p.x > W + 16 || p.y < -16 || p.y > H + 16) { Object.assign(p, mk()); continue; }
+      const env = Math.sin(Math.min(1, p.life / p.max) * Math.PI), pulse = .6 + .4 * Math.sin(t * 0.003 + p.rot), r = 2 + p.sz * 3.2, c = pal(p.slot);
+      const rg = bx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r); rg.addColorStop(0, rgba(c, (dark ? 0.34 : 0.3) * env * pulse)); rg.addColorStop(1, rgba(c, 0)); bx.fillStyle = rg; bx.beginPath(); bx.arc(p.x, p.y, r, 0, 7); bx.fill();
+    }
+  }
+  function frame() {
+    if (!running) return; t += 16.7; pf = (pf + 0.00068) % 5;
+    if (--vtimer <= 0) { vtimer = 380 + Math.random() * 520; if (vort.length < 3) vort.push({ x: Math.random() * W, y: Math.random() * H, str: .7 + Math.random(), rad: Math.min(W, H) * (.2 + Math.random() * .2), spin: Math.random() < .5 ? 1 : -1, age: 0, life: 560 + Math.random() * 520 }); }
+    for (let i = vort.length - 1; i >= 0; i--) { const v = vort[i]; v.age++; v._s = v.str * Math.sin(Math.min(1, v.age / v.life) * Math.PI); if (v.age >= v.life) vort.splice(i, 1); }
+    aurora(); motes(); raf = requestAnimationFrame(frame);
+  }
+  // start regardless of tab visibility - requestAnimationFrame is throttled to nothing while the tab is hidden anyway
+  // (so no CPU cost backgrounded), and resumes on return. If the viewport isn't measurable yet (0-size at boot), retry.
+  function start() { if (running || !ready()) return; dark = document.documentElement.dataset.theme === "dark"; B.style.mixBlendMode = dark ? "screen" : "multiply"; if (!size()) { setTimeout(start, 250); return; } running = true; raf = requestAnimationFrame(frame); }
+  function stop() { running = false; cancelAnimationFrame(raf); }
+  function kick() { if (running) { cancelAnimationFrame(raf); raf = requestAnimationFrame(frame); } }   // re-arm the loop when a hidden tab returns
+  function sync() { const on = BG_RICH() && !matchMedia("(prefers-reduced-motion: reduce)").matches; document.body.classList.toggle("bg-rich", on); on ? start() : stop(); }
+  function setTheme(d) { dark = d; if (B) B.style.mixBlendMode = d ? "screen" : "multiply"; }
+  let _rt; addEventListener("resize", () => { if (!running) return; clearTimeout(_rt); _rt = setTimeout(size, 200); });
+  return { sync, start, stop, kick, setTheme };
+})();
+
 /* ---------------- boot ---------------- */
 async function boot() {
   if ("scrollRestoration" in history) history.scrollRestoration = "manual"; // always open at the top
@@ -6990,6 +7055,9 @@ async function boot() {
     localStorage.setItem("wc26.notify", "on"); notifyUI();
     try { new Notification("World Cup 26", { body: "Match alerts on: goals & kickoffs for your team.", icon: "assets/icon-192.png", tag: "wc26" }); } catch { /* */ }
   };
+  const bgUI = () => { const on = BG_RICH(); $("#bgState").textContent = on ? "On" : "Off"; $("#bgToggle").setAttribute("aria-pressed", String(on)); };
+  bgUI(); FlowBg.sync();   // start the ambient background (respects the setting + reduced-motion)
+  $("#bgToggle").onclick = () => { const on = !BG_RICH(); localStorage.setItem("wc26.bg", on ? "on" : "off"); bgUI(); FlowBg.sync(); flashToast(on ? "Animated background on" : "Animated background off"); };
   const liteUI = () => { const on = LITE(); $("#liteState").textContent = on ? "On" : "Off"; $("#liteToggle").setAttribute("aria-pressed", String(on)); };
   liteUI();
   $("#liteToggle").onclick = async () => {
@@ -7163,6 +7231,7 @@ async function boot() {
   // pull the latest immediately instead of waiting for the next poll. Throttled so quick tab-flicks don't spam.
   document.addEventListener("visibilitychange", () => {
     document.body.classList.toggle("bg-paused", document.hidden);   // park the ambient blobs (animation + GPU promotion) while backgrounded
+    if (!document.hidden) FlowBg.kick();   // re-arm the rich canvas loop when the tab returns
     if (!document.hidden && Date.now() - (S.lastChecked || 0) > 8000) refreshResults();
   });
   addEventListener("online", () => refreshResults());                // reconnected → pull immediately and clear the offline label
