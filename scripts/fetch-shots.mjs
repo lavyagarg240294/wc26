@@ -33,22 +33,25 @@ for (const x of rows) {
   const r = results[m.id];
   const finished = r && (r.st === "FT" || r.st === "AWD") && r.h != null;   // only settled matches (shots are final)
   if (!finished) continue;
-  const homeId = x.Home?.IdTeam, awayId = x.Away?.IdTeam;
-  const hc = toOur[x.Home?.IdCountry] || (r.ht) || (m.home?.team), ac = toOur[x.Away?.IdCountry] || (r.at) || (m.away?.team);
+  const homeId = x.Home?.IdTeam;
+  const hc = toOur[x.Home?.IdCountry] || r.ht, ac = toOur[x.Away?.IdCountry] || r.at;   // FIFA's home/away codes
+  const myH = m.home?.team || r.ht, myA = m.away?.team || r.at;                          // OUR home/away (the client's convention)
   const tl = await GET(`https://api.fifa.com/api/v3/timelines/${COMP}/${SEASON}/${x.IdStage}/${x.IdMatch}?language=en`);
   await sleep(250);
   const evs = tl?.Event || tl?.Events || []; if (!evs.length) continue;
+  const descName = e => { const d = (e.EventDescription?.[0]?.Description) || ""; const i = d.indexOf(" ("); return (i > 0 ? d.slice(0, i) : d).trim(); };
   const seen = new Map(), shots = [];
   for (const e of evs) {
     if (e.PositionX == null || ![12, 0, 41].includes(e.Type)) continue;
     let px = +e.PositionX, py = +e.PositionY; if (px < 50) { px = 100 - px; py = 100 - py; }   // rotate so all attack the top goal
     const goal = e.Type === 0 || e.Type === 41;
-    const side = e.IdTeam === homeId ? 0 : e.IdTeam === awayId ? 1 : 0;
+    const shooter = e.IdTeam === homeId ? hc : ac;
+    const side = shooter && shooter === myA ? 1 : 0;   // 0 = our home, 1 = our away (handles FIFA's home/away being flipped from ours)
     const key = `${e.MatchMinute}|${e.IdPlayer}`;
-    const s = [Math.round(px), Math.round(py), goal ? 1 : 0, side];
+    const s = [Math.round(px), Math.round(py), goal ? 1 : 0, side, e.MatchMinute || "", descName(e)];   // [x, y, goal, side, minute, player]
     if (seen.has(key)) { if (goal) seen.get(key)[2] = 1; } else { seen.set(key, s); shots.push(s); }   // merge the goal+attempt logged at one spot
   }
-  if (shots.length) { out[m.id] = { h: hc, a: ac, st: m.stage, s: shots }; shotTotal += shots.length; }
+  if (shots.length) { out[m.id] = { h: myH, a: myA, st: m.stage, s: shots }; shotTotal += shots.length; }
   done++;
   process.stderr.write(`\r${done} matches · ${shotTotal} shots`);
 }

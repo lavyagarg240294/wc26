@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "464";  // shown in footer; bump with the ?v= asset version
+const BUILD = "465";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1759,8 +1759,15 @@ function mdFeederPath(m) {
 }
 // shot map from FIFA's own timeline coordinates - both teams normalised to attack the top goal. Live matches carry
 // r.shots from the poll overlay; finished matches lazy-load once (loadMatchShots). ★ goal · ● on target · ○ off.
+// committed shots for a FINISHED match (data/shots.json, [x,y,goal,side,minute,player]) → the per-match shot-map shape,
+// so a settled game draws its map instantly from the baked file instead of a live FIFA fetch. Live games still fetch.
+function committedShots(m) {
+  if (!isFinalSt(status(m))) return null;
+  const cs = S.shots?.matches?.[m.id]?.s; if (!cs) return null;
+  return cs.map(a => ({ x: a[0], y: a[1], g: a[2], tm: a[3] === 0 ? "h" : "a", min: a[4], p: a[5] }));
+}
 function mdShotMap(m) {
-  const r = res(m), shots = (r && r.shots) || S.fifaShots?.[m.id];
+  const r = res(m), shots = (r && r.shots) || committedShots(m) || S.fifaShots?.[m.id];
   if (!shots || !shots.length) return "";
   const h = slotInfo(m, "home"), a = slotInfo(m, "away"), HC = "#5FB0FF", AC = "#FFC24B", L = "rgba(255,255,255,.5)";
   const PW = 272, PH = 204, MX = 14, MY = 14;
@@ -1857,7 +1864,8 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
   // wrong "never met"). Reuses wcH2HBlock from the bracket-tie sheets.
   const bothKnown = !!h.code && !!a.code;
   if (bothKnown && _wcH2H == null) loadWcH2H().then(() => { const md = $("#matchDialog"); if (md?.open && md.dataset.openMid === id) openMatch(id, true); });
-  if (!(r?.shots?.length) && S.fifaShots?.[id] === undefined && S.fifaMatchIds?.[id]) loadMatchShots(m).then(() => { const md = $("#matchDialog"); if (md?.open && md.dataset.openMid === id) openMatch(id, true); });   // lazy shot map for a finished match
+  if (!(r?.shots?.length) && !committedShots(m) && S.fifaShots?.[id] === undefined && S.fifaMatchIds?.[id]) loadMatchShots(m).then(() => { const md = $("#matchDialog"); if (md?.open && md.dataset.openMid === id) openMatch(id, true); });   // lazy shot map for a live/uncommitted match (finished games draw instantly from data/shots.json)
+  if (S.shots === undefined) loadShots().then(() => { const md = $("#matchDialog"); if (md?.open && md.dataset.openMid === id && committedShots(m)) openMatch(id, true); });   // first modal → pull the committed shots so this + later maps are instant
   const h2hPair = (bothKnown && _wcH2H) ? _wcH2H[[h.code, a.code].sort().join("|")] : null;
   const pH2H = (bothKnown && _wcH2H != null && ((h2hPair && h2hPair.length) || m.stage !== "group")) ? wcH2HBlock(h.code, a.code, isFinalSt(status(m))) : "";
   const pFeeder = (!bothKnown && m.stage !== "group") ? mdFeederPath(m) : "";   // undecided KO tie: show the feeder ties so the modal isn't a sparse placeholder
@@ -5507,25 +5515,38 @@ function goalTimingHTML(s) {
     <div class="gt-card"><div class="gt-chart" role="img" aria-label="Goals by five-minute band">${bars}<span class="gt-ht" style="left:${(9 / 19 * 100).toFixed(2)}%"></span></div>
       <div class="gt-foot"><span><b>${total}</b> goals</span><span>Most fall ${peakLbl}</span><span>1st half <b>${hg.h1}</b> · 2nd <b>${hg.h2}</b>${hg.et ? ` · ET <b>${hg.et}</b>` : ""}</span></div></div>`;
 }
-// tournament shot map: every located shot from data/shots.json on one attacking-half pitch, goals as gold stars.
+// tournament shot map: every located shot from data/shots.json on one attacking-half pitch, goals as gold stars,
+// filterable by round and by team (each shot = [x, y, goal, side, minute, player]; the shooting team is side → match h/a).
+const ROUND_LBL = { group: "Group", r32: "R32", r16: "R16", qf: "QF", sf: "SF", third: "3rd place", final: "Final" };
+const ROUND_ORDER = ["group", "r32", "r16", "qf", "sf", "third", "final"];
+let _shotFilt = { round: "all", team: "all" };
 function tournamentShotMap() {
   if (S.shots === undefined) { loadShots().then(() => { if (S.view === "stats" && statsTab === "goals") renderStats(); }); return `<div class="empty">Loading shot locations…</div>`; }
-  const data = S.shots?.matches || {}, all = [];
-  for (const id in data) for (const sh of data[id].s) all.push(sh);   // [x, y, goal, side]
-  if (!all.length) return "";
-  const goalN = all.filter(sh => sh[2]).length, PW = 272, PH = 204, MX = 14, MY = 14, L = "rgba(255,255,255,.5)";
+  const data = S.shots?.matches || {}, pool = [], rounds = new Set(), teamSet = new Set();
+  for (const id in data) { const M = data[id]; rounds.add(M.st); for (const sh of M.s) { const code = sh[3] === 0 ? M.h : M.a; teamSet.add(code); pool.push({ sh, st: M.st, code }); } }
+  if (!pool.length) return "";
+  if (_shotFilt.team !== "all" && !teamSet.has(_shotFilt.team)) _shotFilt.team = "all";   // a team can drop out of the data between renders
+  const fr = _shotFilt.round, ft = _shotFilt.team;
+  const shots = pool.filter(p => (fr === "all" || p.st === fr) && (ft === "all" || p.code === ft));
+  const goalN = shots.filter(p => p.sh[2]).length, PW = 272, PH = 204, MX = 14, MY = 14, L = "rgba(255,255,255,.5)";
   const sx = y => +(MX + y / 100 * PW).toFixed(1), sy = x => +(MY + (100 - x) / 50 * PH).toFixed(1);   // attacking half (x 50–100 → top)
-  const cx = sh => sx(100 - sh[1]);   // flip the width axis so left really is left (see mdShotMap)
+  const cx = p => sx(100 - p.sh[1]);   // flip the width axis so left really is left (see mdShotMap)
   const R = (x, y, w, ht, sw) => `<rect x="${x}" y="${y}" width="${w}" height="${ht}" fill="none" stroke="${L}" stroke-width="${sw || .8}"/>`;
   const star = (X, Y, rr) => { let p = ""; for (let i = 0; i < 10; i++) { const a = Math.PI / 5 * i - Math.PI / 2, r = i % 2 ? rr * .45 : rr; p += (i ? "L" : "M") + (X + r * Math.cos(a)).toFixed(1) + " " + (Y + r * Math.sin(a)).toFixed(1) + " "; } return `<path d="${p}Z" fill="#E8B931" stroke="#fff" stroke-width=".9" stroke-linejoin="round"/>`; };
   const pitch = `<rect x="${MX}" y="${MY}" width="${PW}" height="${PH}" fill="#245C3C" rx="4"/>` + R(MX, MY, PW, PH) +
     R(sx(21), MY, sx(79) - sx(21), sy(83) - MY) + R(sx(37), MY, sx(63) - sx(37), sy(94) - MY) + R(sx(44), MY - 3, sx(56) - sx(44), 3, 1.4) +
     `<path d="M ${sx(37)} ${sy(83)} A 32 32 0 0 0 ${sx(63)} ${sy(83)}" fill="none" stroke="${L}" stroke-width=".8"/>`;
-  const dots = all.filter(sh => !sh[2]).map(sh => `<circle cx="${cx(sh)}" cy="${sy(sh[0])}" r="1.6" fill="rgba(95,176,255,.5)"/>`).join("");
-  const stars = all.filter(sh => sh[2]).map(sh => star(cx(sh), sy(sh[0]), 3.3)).join("");
-  return `<div class="eyebrow" style="margin-top:22px">Where shots are taken ${infoBtn("Every located shot from every finished match, placed where it was struck (FIFA match timelines), all attacking one goal. Gold stars are goals. A shot the feed logs without a location isn't plotted.", "How the shot map works")}</div>
-    <div class="sm-wrap"><svg viewBox="0 0 300 ${MY + PH + 8}" class="sm-svg" role="img" aria-label="Tournament shot map, ${all.length} shots">${pitch}${dots}${stars}</svg></div>
-    <div class="gt-foot"><span><b>${all.length}</b> shots</span><span><b>${goalN}</b> goals</span><span><b>${(100 * goalN / all.length).toFixed(1)}%</b> found the net</span></div>`;
+  const dots = shots.filter(p => !p.sh[2]).map(p => `<circle cx="${cx(p)}" cy="${sy(p.sh[0])}" r="1.7" fill="rgba(95,176,255,.55)"/>`).join("");
+  const stars = shots.filter(p => p.sh[2]).map(p => star(cx(p), sy(p.sh[0]), 3.4)).join("");
+  const roundPills = [["all", "All rounds"], ...ROUND_ORDER.filter(st => rounds.has(st)).map(st => [st, ROUND_LBL[st] || st])].map(([v, l]) => `<button class="sf-pill${fr === v ? " on" : ""}" type="button" data-shotround="${v}">${esc(l)}</button>`).join("");
+  const teamRail = `<button class="sf-team sf-team-all${ft === "all" ? " on" : ""}" type="button" data-shotteam="all">All</button>` +
+    [...teamSet].filter(Boolean).sort((a, b) => cname(a).localeCompare(cname(b))).map(c => `<button class="sf-team${ft === c ? " on" : ""}" type="button" data-shotteam="${c}" aria-label="${esc(cname(c))}" title="${esc(cname(c))}"><span class="fl">${flag(c)}</span></button>`).join("");
+  const scope = [ft !== "all" ? esc(cname(ft)) : "", fr !== "all" ? (ROUND_LBL[fr] || fr) : ""].filter(Boolean).join(" · ");
+  return `<div class="eyebrow" style="margin-top:22px">Where shots are taken ${infoBtn("Every located shot from every finished match, placed where it was struck (FIFA match timelines), all attacking one goal. Gold stars are goals. Filter by round or team. A shot the feed logs without a location isn't plotted.", "How the shot map works")}</div>
+    <div class="sf-pills">${roundPills}</div>
+    <div class="sf-rail">${teamRail}</div>
+    <div class="sm-wrap"><svg viewBox="0 0 300 ${MY + PH + 8}" class="sm-svg" role="img" aria-label="Shot map, ${shots.length} shots">${pitch}${dots}${stars}</svg></div>
+    <div class="gt-foot"><span><b>${shots.length}</b> shots${scope ? ` · ${scope}` : ""}</span><span><b>${goalN}</b> goals</span><span><b>${shots.length ? (100 * goalN / shots.length).toFixed(1) : "0"}%</b> found the net</span></div>`;
 }
 function goalsSectionHTML(s) { return goalTimingHTML(s) + tournamentShotMap(); }
 function renderStats() {
@@ -7292,6 +7313,10 @@ async function boot() {
     if (sq && sq.dataset.squad) { openTeam(sq.dataset.squad); return; }
     const sl = e.target.closest("[data-statlist]");   // Overview tile → penalties / own-goals details list
     if (sl) { e.stopPropagation(); openStatList(sl.dataset.statlist); return; }
+    const sfr = e.target.closest("[data-shotround]");   // Stats › Goals: shot-map round filter
+    if (sfr) { e.stopPropagation(); _shotFilt.round = sfr.dataset.shotround; renderStats(); return; }
+    const sft = e.target.closest("[data-shotteam]");   // …and team filter
+    if (sft) { e.stopPropagation(); _shotFilt.team = sft.dataset.shotteam; renderStats(); return; }
     const ab = e.target.closest("[data-about]");   // "how the format works" → tournament info sheet
     if (ab) { showSheet($("#aboutDialog")); return; }
     const w22 = e.target.closest("[data-wc22]");   // "Qatar 2022 · full results" → last-World-Cup reference
@@ -7340,6 +7365,7 @@ async function boot() {
   loadBuzz();   // fan reactions + headlines (data/buzz.json); refreshed on the poll below
   loadWC2022();   // last World Cup (static) - for the team "Since 2022" view
   loadEfi();    // FIFA EFI deep-analysis (data/efi.json), post-match
+  loadShots();   // committed shot coordinates (data/shots.json) - the Stats shot map + instant per-match maps
   addEventListener("hashchange", () => { const v = HASH_VIEW[location.hash.slice(1)]; if (v && v !== S.view) nav(v); });  // a shared #tab link opened in-session / back-forward
   const bl = $("#bootLoading"); if (bl) { bl.classList.add("gone"); setTimeout(() => bl.remove(), 320); }   // first view rendered → reveal
   // a shared match link (?match=<id>, e.g. from a share-card stub) opens that match
