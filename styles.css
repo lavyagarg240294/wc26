@@ -1654,6 +1654,22 @@ svg.ls-conn{position:absolute;inset:0;width:100%;height:100%;pointer-events:none
 .pp-name{display:inline-flex;align-items:center;gap:3px;max-width:100%;font-size:var(--fs-8);font-weight:700;letter-spacing:.01em;color:#fff;background:rgba(8,12,20,.78);padding:1.5px 6px;border-radius:99px;box-shadow:0 1px 3px rgba(0,0,0,.4)}
 .pp-nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pp-no{flex:0 0 auto;font-family:var(--mono);font-weight:800;font-size:var(--fs-7);color:var(--pno,rgba(255,255,255,.7));paint-order:stroke;-webkit-text-stroke:1.4px rgba(255,255,255,.5)}   /* jersey number tinted the team's kit colour; a light outline lifts a dark tint off the dark pill, so you can tell the sides apart at a glance */
+/* XI pitch view toggle (Home · Both · Away) + the two-team overlay discs */
+.xi-seg{display:flex;gap:3px;background:var(--paper);border:1px solid var(--line);border-radius:99px;padding:3px;max-width:330px;margin:0 auto 8px}
+.xi-seg-b{flex:1;border:none;background:transparent;border-radius:99px;padding:5px 6px;font-family:var(--disp);font-weight:700;font-stretch:110%;font-size:var(--fs-11);letter-spacing:.03em;color:var(--ink-soft);cursor:pointer;transition:background .15s,color .15s}
+.xi-seg-b.on{background:var(--ink);color:var(--card)}
+.ppd{position:absolute;cursor:pointer}
+.ppd-disc{position:absolute;left:0;top:0;transform:translate(-50%,-50%);width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-weight:700;font-size:var(--fs-10);box-shadow:0 2px 4px rgba(0,0,0,.45);transition:transform .12s}
+.ppd-h .ppd-disc{background:var(--pc);color:var(--pt);border:1.5px solid rgba(255,255,255,.8)}
+.ppd-a .ppd-disc{background:rgba(8,12,20,.6);color:#fff;border:2px solid var(--pc)}
+.ppd-nm{position:absolute;left:0;top:15px;transform:translateX(-50%);max-width:64px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:var(--fs-8);font-weight:700;color:#fff;background:rgba(8,12,20,.82);padding:1px 5px;border-radius:99px;box-shadow:0 1px 2px rgba(0,0,0,.45)}
+.ppd-a .ppd-nm{top:auto;bottom:15px}
+.ppd:hover,.ppd:focus-visible{z-index:180 !important;outline:none}
+.ppd:hover .ppd-disc{transform:translate(-50%,-50%) scale(1.14)}
+.xi-legend{display:flex;justify-content:center;gap:18px;margin:9px 2px 0;font-size:var(--fs-11);color:var(--ink-soft)}
+.xi-lg{display:inline-flex;align-items:center;gap:6px}
+.xi-sw-solid{width:12px;height:12px;border-radius:50%;border:1.5px solid rgba(255,255,255,.55)}
+.xi-sw-ring{width:12px;height:12px;border-radius:50%;background:rgba(8,12,20,.4);border:2px solid #333;box-sizing:border-box}
 .pitch-coaches{display:flex;justify-content:space-between;gap:10px;margin:9px 2px 0;font-size:var(--fs-11);color:var(--ink-soft);font-style:italic}
 .pitch-coaches span:last-child{text-align:right}
 /* lightweight toast (shared-prediction copy, etc.) */

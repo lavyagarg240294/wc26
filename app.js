@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "461";  // shown in footer; bump with the ?v= asset version
+const BUILD = "462";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -922,13 +922,15 @@ const lastName = n => {
   if (t.length > 1 && /^[A-Za-zÀ-ÿ]\.$/.test(last)) return t[0];
   return last || String(n || "");
 };
-function pitchSide(side, s, home) {
+function pitchSide(side, s, home, full) {
   const fr = formationRows(side); if (!fr) return null;
   const c1 = (s.code && S.teams[s.code]?.c1) || "#1f2937", c2 = (s.code && S.teams[s.code]?.c2) || "#ffffff";
   const pno = readableAccentDark(c1, c2);   // the team's kit colour, lightened only if needed to read on the dark name pill - so the jersey number is colour-coded by side
   const nb = fr.bands.length;
   const dot = (p, x, depth, slot) => {                                  // depth 0 = own goal, 1 = halfway; slot = the % of pitch width this player owns horizontally
-    const top = home ? 96 - depth * 44 : 4 + depth * 44;               // home bottom half, away top half
+    // full = this side owns the WHOLE pitch (single-team view): GK by its own goal → forwards in the far third. Otherwise
+    // the classic two-halves layout (home bottom, away top) used when both teams share the pitch.
+    const top = full ? (home ? 92 - depth * 80 : 8 + depth * 80) : (home ? 96 - depth * 44 : 4 + depth * 44);
     const left = home ? x : 100 - x;
     const photo = bestPhoto(p[1], s.code, p[0]);   // p[0] = jersey number → exact match
     const num = p[0] ?? "";
@@ -951,18 +953,61 @@ function pitchSide(side, s, home) {
   });
   return html;
 }
-function xiPanel(xi, h, a) {
-  const ph = pitchSide(xi.h, h, true), pa = pitchSide(xi.a, a, false);
-  if (ph && pa) {
+// ---- two-team overlay: both XIs on ONE full pitch, so you can read the match-ups (their forward on your centre-back).
+// Home attacks up, away down; each is a kit-colour disc (solid = home, ring = away) with an always-on name. ----
+function pitchMarks(side, s, home) {
+  const fr = formationRows(side); if (!fr) return null;
+  const out = [], nb = fr.bands.length, D0 = 0.27, D1 = 0.9;
+  const add = (p, x, depth) => out.push({ x: home ? x : 100 - x, y: home ? 92 - depth * 80 : 8 + depth * 80, num: p[0] ?? "", name: p[1] || "", code: s.code, home });
+  add(fr.gk, 50, 0.06);
+  fr.bands.forEach((band, bi) => { const depth = nb === 1 ? 0.5 : D0 + (bi / (nb - 1)) * (D1 - D0); band.forEach((p, pi) => add(p, (pi + 1) / (band.length + 1) * 100, depth)); });
+  return out;
+}
+// force-based declutter: any two markers closer than `min` push apart, a few dozen passes, clamped to the pitch. Run in
+// the pitch's true aspect (100 wide × 162 tall) so a nudge is the same felt distance horizontally and vertically. Keeps
+// each side's shape while pulling opposing players who stand on each other just far enough apart to both read.
+function separateMarks(marks, min) {
+  const AR = 1.62, P = marks.map(m => ({ m, x: m.x, y: m.y * AR }));
+  for (let it = 0; it < 70; it++) {
+    for (let i = 0; i < P.length; i++) for (let j = i + 1; j < P.length; j++) {
+      const a = P[i], b = P[j]; let dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 0.01;
+      if (d < min) { const f = (min - d) / 2 / d; dx *= f; dy *= f; a.x -= dx; a.y -= dy; b.x += dx; b.y += dy; }
+    }
+    for (const q of P) { q.x = Math.max(5, Math.min(95, q.x)); q.y = Math.max(7, Math.min(155, q.y)); }
+  }
+  P.forEach(q => { q.m.x = q.x; q.m.y = q.y / AR; });
+}
+function pitchOverlay(xiH, sH, xiA, sA) {
+  const mh = pitchMarks(xiH, sH, true), ma = pitchMarks(xiA, sA, false);
+  if (!mh || !ma) return "";
+  const all = [...mh, ...ma]; separateMarks(all, 11);
+  return all.map(m => {
+    const c1 = (m.code && S.teams[m.code]?.c1) || "#334155", dt = relLum(c1) > .5 ? "#14181C" : "#ffffff";
+    return `<div class="ppd${m.home ? " ppd-h" : " ppd-a"}" data-player="${esc(m.name)}|${m.code}" role="button" tabindex="0" aria-label="${esc(m.name)}" style="left:${m.x.toFixed(1)}%;top:${m.y.toFixed(1)}%;z-index:${Math.round(200 - m.y)};--pc:${c1};--pt:${dt}"><span class="ppd-disc">${m.num}</span><span class="ppd-nm">${esc(lastName(m.name))}</span></div>`;
+  }).join("");
+}
+const PITCH_SVG = `<svg class="pitch-lines" viewBox="0 0 100 150" preserveAspectRatio="none" aria-hidden="true"><rect x="1" y="1" width="98" height="148"/><line x1="1" y1="75" x2="99" y2="75"/><circle cx="50" cy="75" r="11"/><circle class="pf" cx="50" cy="75" r="0.9"/><rect x="28" y="1" width="44" height="22"/><rect x="40" y="1" width="20" height="8"/><rect x="28" y="127" width="44" height="22"/><rect x="40" y="141" width="20" height="8"/></svg>`;
+let _xiView = "both";   // pitch line-ups: home | both (overlay) | away
+function xiPanel(xi, h, a, mid) {
+  if (formationRows(xi.h) && formationRows(xi.a)) {
     const tag = (s, side) => `<span class="pitch-team"><span class="fl">${s.code ? flag(s.code) : ""}</span>${esc(s.name)}${side.f ? ` <b>${esc(side.f)}</b>` : ""}</span>`;
-    return `<div class="pitch-head">${tag(h, xi.h)}${tag(a, xi.a)}</div>
-      <div class="pitch"><svg class="pitch-lines" viewBox="0 0 100 150" preserveAspectRatio="none" aria-hidden="true">
-        <rect x="1" y="1" width="98" height="148"/><line x1="1" y1="75" x2="99" y2="75"/>
-        <circle cx="50" cy="75" r="11"/><circle class="pf" cx="50" cy="75" r="0.9"/>
-        <rect x="28" y="1" width="44" height="22"/><rect x="40" y="1" width="20" height="8"/>
-        <rect x="28" y="127" width="44" height="22"/><rect x="40" y="141" width="20" height="8"/>
-      </svg>${ph}${pa}</div>
-      ${(xi.h.coach || xi.a.coach) ? `<div class="pitch-coaches"><span>${xi.h.coach ? "Coach · " + esc(xi.h.coach) : ""}</span><span>${xi.a.coach ? "Coach · " + esc(xi.a.coach) : ""}</span></div>` : ""}`;
+    const seg = `<div class="xi-seg" role="tablist" aria-label="Show line-ups">
+      <button type="button" class="xi-seg-b${_xiView === "home" ? " on" : ""}" data-xiview="home" role="tab" aria-selected="${_xiView === "home"}">${esc(tri(h.code) || "Home")}</button>
+      <button type="button" class="xi-seg-b${_xiView === "both" ? " on" : ""}" data-xiview="both" role="tab" aria-selected="${_xiView === "both"}">Both</button>
+      <button type="button" class="xi-seg-b${_xiView === "away" ? " on" : ""}" data-xiview="away" role="tab" aria-selected="${_xiView === "away"}">${esc(tri(a.code) || "Away")}</button>
+    </div>`;
+    const body = _xiView === "home" ? pitchSide(xi.h, h, true, true)
+      : _xiView === "away" ? pitchSide(xi.a, a, false, true)
+      : pitchOverlay(xi.h, h, xi.a, a);
+    const hc = S.teams[h.code]?.c1 || "#334155", ac = S.teams[a.code]?.c1 || "#334155";
+    const legend = _xiView === "both" ? `<div class="xi-legend"><span class="xi-lg"><i class="xi-sw-solid" style="background:${hc}"></i>${esc(cname(h.code) || h.name)}</span><span class="xi-lg"><i class="xi-sw-ring" style="border-color:${ac}"></i>${esc(cname(a.code) || a.name)}</span></div>` : "";
+    return `<div class="xi-wrap" data-mid="${esc(mid || "")}">
+      <div class="pitch-head">${tag(h, xi.h)}${tag(a, xi.a)}</div>
+      ${seg}
+      <div class="pitch${_xiView === "both" ? " pitch-both" : ""}">${PITCH_SVG}${body}</div>
+      ${legend}
+      ${(xi.h.coach || xi.a.coach) ? `<div class="pitch-coaches"><span>${xi.h.coach ? "Coach · " + esc(xi.h.coach) : ""}</span><span>${xi.a.coach ? "Coach · " + esc(xi.a.coach) : ""}</span></div>` : ""}
+    </div>`;
   }
   const col = (side, s) => `<div class="xi-col">
     <div class="xi-head"><span>${s.code ? flag(s.code) : ""} ${esc(s.name)}</span>${side.f ? `<b>${esc(side.f)}</b>` : ""}</div>
@@ -1769,8 +1814,8 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
   const _wp = winProb(m, true);
   const pWinProb = _wp ? winProbBlock(m, true) + (live ? "" : liveWhyChips(_wp) + medianScoreLine(_wp)) : "";
   const pReport = mdReport(m), pStakes = stakesBlock(m), pCompare = matchCompare(m), pStars = liveStars(m), pControl = matchControlBar(m), pShotMap = mdShotMap(m);
-  const pXiInline = r?.xi ? `<div class="eyebrow">${liveNow ? "Line-ups" : "Starting XI"}</div>${xiPanel(r.xi, h, a)}` : "";
-  const pXiFold = r?.xi ? `<details class="md-fold"><summary><span>Starting XI</span><small>${esc([r.xi.h?.f, r.xi.a?.f].filter(Boolean).join(" v ")) || "line-ups & formations"}</small></summary><div class="md-fold-body">${xiPanel(r.xi, h, a)}</div></details>` : "";
+  const pXiInline = r?.xi ? `<div class="eyebrow">${liveNow ? "Line-ups" : "Starting XI"}</div>${xiPanel(r.xi, h, a, m.id)}` : "";
+  const pXiFold = r?.xi ? `<details class="md-fold"><summary><span>Starting XI</span><small>${esc([r.xi.h?.f, r.xi.a?.f].filter(Boolean).join(" v ")) || "line-ups & formations"}</small></summary><div class="md-fold-body">${xiPanel(r.xi, h, a, m.id)}</div></details>` : "";
   // "how they compare" rides along as a collapsed fold for live/finished games (it leads expanded in the upcoming branch)
   const pCompareFold = (live || hasResult) && pCompare ? `<details class="md-fold"><summary><span>How they compare</span><small>rankings &amp; tournament form</small></summary><div class="md-fold-body">${pCompare}</div></details>` : "";
   // past World Cup meetings - shown when there's a story to tell: the two have met at a WC before (any match), or it's
@@ -7152,6 +7197,8 @@ async function boot() {
     if (tl && tl.dataset.tale) { e.stopPropagation(); openTale(tl.dataset.tale); return; }
     const ts = e.target.closest("[data-tale-star]");   // The Field: a star profile
     if (ts) { e.stopPropagation(); const [nm, cd] = ts.dataset.taleStar.split("|"); openStarTale(nm, cd); return; }
+    const xv = e.target.closest("[data-xiview]");   // pitch line-up view: home | both (overlay) | away - swap in place, no modal re-render
+    if (xv) { e.stopPropagation(); const nv = xv.dataset.xiview; if (nv !== _xiView) { _xiView = nv; const wrap = xv.closest(".xi-wrap"), m = wrap && S.matches.find(x => x.id === wrap.dataset.mid), rr = m && res(m); if (wrap && rr?.xi) { const tmp = document.createElement("div"); tmp.innerHTML = xiPanel(rr.xi, slotInfo(m, "home"), slotInfo(m, "away"), m.id); wrap.replaceWith(tmp.firstElementChild); } } return; }
     const sq = e.target.closest("[data-squad]");
     if (sq && sq.dataset.squad) { openTeam(sq.dataset.squad); return; }
     const sl = e.target.closest("[data-statlist]");   // Overview tile → penalties / own-goals details list
