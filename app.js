@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "466";  // shown in footer; bump with the ?v= asset version
+const BUILD = "467";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -5519,6 +5519,15 @@ function goalTimingHTML(s) {
 // filterable by round and by team (each shot = [x, y, goal, side, minute, player]; the shooting team is side → match h/a).
 const ROUND_LBL = { group: "Group", r32: "R32", r16: "R16", qf: "QF", sf: "SF", third: "3rd place", final: "Final" };
 const ROUND_ORDER = ["group", "r32", "r16", "qf", "sf", "third", "final"];
+// how far each team has advanced = deepest stage they appear in (slotInfo resolves real feed/scheduled teams, TBD slots
+// return no code). Used to order the shot-map team rail: furthest-advanced first (QF, then R16, then R32, then group).
+const STAGE_DEPTH = { group: 0, r32: 1, r16: 2, qf: 3, sf: 4, third: 4, final: 5 };
+function teamReach() {
+  const reach = {};
+  for (const m of S.matches) { const d = STAGE_DEPTH[m.stage]; if (d == null) continue;
+    for (const side of ["home", "away"]) { const c = slotInfo(m, side).code; if (c && (reach[c] == null || d > reach[c])) reach[c] = d; } }
+  return reach;
+}
 let _shotFilt = { round: "all", team: "all" };
 function tournamentShotMap() {
   if (S.shots === undefined) { loadShots().then(() => { if (S.view === "stats" && statsTab === "goals") renderStats(); }); return `<div class="empty">Loading shot locations…</div>`; }
@@ -5539,8 +5548,9 @@ function tournamentShotMap() {
   const dots = shots.filter(p => !p.sh[2]).map(p => `<circle cx="${cx(p)}" cy="${sy(p.sh[0])}" r="1.7" fill="rgba(95,176,255,.55)"/>`).join("");
   const stars = shots.filter(p => p.sh[2]).map(p => star(cx(p), sy(p.sh[0]), 3.4)).join("");
   const roundPills = [["all", "All rounds"], ...ROUND_ORDER.filter(st => rounds.has(st)).map(st => [st, ROUND_LBL[st] || st])].map(([v, l]) => `<button class="sf-pill${fr === v ? " on" : ""}" type="button" data-shotround="${v}">${esc(l)}</button>`).join("");
+  const reach = teamReach();   // order the rail by how far each team advanced: QF first, then R16, R32, group; alpha within a tier
   const teamRail = `<button class="sf-team sf-team-all${ft === "all" ? " on" : ""}" type="button" data-shotteam="all">All</button>` +
-    [...teamSet].filter(Boolean).sort((a, b) => cname(a).localeCompare(cname(b))).map(c => `<button class="sf-team${ft === c ? " on" : ""}" type="button" data-shotteam="${c}" aria-label="${esc(cname(c))}" title="${esc(cname(c))}"><span class="fl">${flag(c)}</span></button>`).join("");
+    [...teamSet].filter(Boolean).sort((a, b) => (reach[b] ?? -1) - (reach[a] ?? -1) || cname(a).localeCompare(cname(b))).map(c => `<button class="sf-team${ft === c ? " on" : ""}" type="button" data-shotteam="${c}" aria-label="${esc(cname(c))}" title="${esc(cname(c))}"><span class="fl">${flag(c)}</span></button>`).join("");
   const scope = [ft !== "all" ? esc(cname(ft)) : "", fr !== "all" ? (ROUND_LBL[fr] || fr) : ""].filter(Boolean).join(" · ");
   return `<div class="eyebrow" style="margin-top:22px">Where shots are taken ${infoBtn("Every located shot from every finished match, placed where it was struck (FIFA match timelines), all attacking one goal. Gold stars are goals. Filter by round or team. A shot the feed logs without a location isn't plotted.", "How the shot map works")}</div>
     <div class="sf-pills">${roundPills}</div>
