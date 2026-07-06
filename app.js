@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "460";  // shown in footer; bump with the ?v= asset version
+const BUILD = "461";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -6924,7 +6924,7 @@ async function hardRefresh() {
    odd wandering vortex; it blends over the aurora (screen on dark, multiply on light). Off (or prefers-reduced-motion)
    falls back to the static CSS blobs; parked while the tab is hidden. Aurora renders at half resolution (it's all soft
    gradients - invisible) to keep the fill cheap on big screens. */
-const BG_RICH = () => localStorage.getItem("wc26.bg") !== "off";   // default on
+const BG_RICH = () => localStorage.getItem("wc26.bg") === "on";   // default off - opt in via Settings › Animated background
 const FlowBg = (() => {
   const PALS = [
     ["#0BA360", "#2FE08A", "#14B8A6", "#E8B931", "#DBEAD9"],   // emerald
