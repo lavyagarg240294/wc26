@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "465";  // shown in footer; bump with the ?v= asset version
+const BUILD = "466";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -5548,7 +5548,38 @@ function tournamentShotMap() {
     <div class="sm-wrap"><svg viewBox="0 0 300 ${MY + PH + 8}" class="sm-svg" role="img" aria-label="Shot map, ${shots.length} shots">${pitch}${dots}${stars}</svg></div>
     <div class="gt-foot"><span><b>${shots.length}</b> shots${scope ? ` · ${scope}` : ""}</span><span><b>${goalN}</b> goals</span><span><b>${shots.length ? (100 * goalN / shots.length).toFixed(1) : "0"}%</b> found the net</span></div>`;
 }
-function goalsSectionHTML(s) { return goalTimingHTML(s) + tournamentShotMap(); }
+// Goal placement: where each goal crossed the line, from FIFA's GoalGatePosition (gx across the goal ~30-70, gy height ~2-48).
+// Horizontal is logged for almost every goal; ~1 in 10 carry a 2.1 "height not recorded" sentinel we don't plot vertically.
+// Shares the round/team filter with the shot map above. Frame drawn to scale as a reference; dots are the recorded crossing points.
+function goalNetMap() {
+  if (S.shots === undefined) return "";
+  const data = S.shots?.matches || {}, goals = [];
+  for (const id in data) { const M = data[id]; for (const sh of M.s) { if (!sh[2] || sh[6] == null) continue; goals.push({ gx: sh[6], gy: sh[7], code: sh[3] === 0 ? M.h : M.a, st: M.st, min: sh[4], p: sh[5] }); } }
+  if (!goals.length) return "";
+  const fr = _shotFilt.round, ft = _shotFilt.team;
+  const sel = goals.filter(g => (fr === "all" || g.st === fr) && (ft === "all" || g.code === ft));
+  if (!sel.length) return "";
+  const SENT = gy => gy != null && Math.abs(gy - 2.1) < 0.06;   // FIFA's exact-2.10 = height not recorded
+  const placed = sel.filter(g => g.gy != null && !SENT(g.gy)), noHt = sel.length - placed.length;
+  const GX0 = 30, GX1 = 70, GY0 = 2, GY1 = 48;   // goal-frame coord bounds: posts, then ground->crossbar
+  const PADX = 42, GTOP = 24, GW = 216, GH = 72, GBOT = GTOP + GH, H = GBOT + 16;   // 3:1 goal
+  const fx = gx => +(PADX + (Math.min(GX1, Math.max(GX0, gx)) - GX0) / (GX1 - GX0) * GW).toFixed(1);
+  const fy = gy => +(GBOT - (Math.min(GY1, Math.max(GY0, gy)) - GY0) / (GY1 - GY0) * GH).toFixed(1);
+  let mesh = "";
+  for (let i = 1; i < 12; i++) { const x = (PADX + i / 12 * GW).toFixed(1); mesh += `<line x1="${x}" y1="${GTOP}" x2="${x}" y2="${GBOT}" stroke="rgba(255,255,255,.07)" stroke-width=".6"/>`; }
+  for (let i = 1; i < 5; i++) { const y = (GTOP + i / 5 * GH).toFixed(1); mesh += `<line x1="${PADX}" y1="${y}" x2="${PADX + GW}" y2="${y}" stroke="rgba(255,255,255,.07)" stroke-width=".6"/>`; }
+  const post = (x1, y1, x2, y2) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#f2f4f3" stroke-width="3" stroke-linecap="round"/>`;
+  const frame = `<rect x="${PADX - 4}" y="${GTOP - 4}" width="${GW + 8}" height="${GH + 4}" fill="#131d18" rx="3"/>` + mesh +
+    post(PADX, GTOP, PADX + GW, GTOP) + post(PADX, GTOP, PADX, GBOT) + post(PADX + GW, GTOP, PADX + GW, GBOT) +
+    `<line x1="${PADX - 10}" y1="${GBOT}" x2="${PADX + GW + 10}" y2="${GBOT}" stroke="rgba(255,255,255,.5)" stroke-width="1.4"/>`;
+  const dots = placed.map(g => `<circle cx="${fx(g.gx)}" cy="${fy(g.gy)}" r="2.5" fill="rgba(232,185,49,.5)" stroke="rgba(232,185,49,.85)" stroke-width=".5"><title>${esc(g.p)} · ${esc(String(g.min))} · ${esc(cname(g.code))}</title></circle>`).join("");
+  const lowPct = placed.length ? Math.round(100 * placed.filter(g => g.gy < GY0 + (GY1 - GY0) / 3).length / placed.length) : 0;
+  const scope = [ft !== "all" ? esc(cname(ft)) : "", fr !== "all" ? (ROUND_LBL[fr] || fr) : ""].filter(Boolean).join(" · ");
+  return `<div class="eyebrow" style="margin-top:22px">Where goals cross the line ${infoBtn("Where each goal passed the goal line, from FIFA's recorded crossing point — one axis across the goal, one for height. Horizontal is logged for almost every goal; about one in ten carry no height reading and aren't plotted (counted separately below). The frame is drawn to scale as a reference; each dot is the recorded crossing point, not a claim of exact centimetres. Penalty-shootout kicks are excluded.", "How goal placement is read")}</div>
+    <div class="sm-wrap"><svg viewBox="0 0 300 ${H}" class="sm-svg net-svg" role="img" aria-label="Goal placement, ${placed.length} goals">${frame}${dots}</svg></div>
+    <div class="gt-foot"><span><b>${placed.length}</b> goals placed${scope ? ` · ${scope}` : ""}</span><span><b>${lowPct}%</b> cross in the lower third</span>${noHt ? `<span>height not recorded for <b>${noHt}</b></span>` : ""}</div>`;
+}
+function goalsSectionHTML(s) { return goalTimingHTML(s) + tournamentShotMap() + goalNetMap(); }
 function renderStats() {
   const el = $("#view-stats"), s = tournamentStats();
   if (!s.pulse.matches) { paint(el, `<div class="rk-pre">Tournament stats (scorers, records, team form) fill in as matches kick off. Until then, here's the field by world ranking.</div>${fifaRankingPanel()}`); return; }
