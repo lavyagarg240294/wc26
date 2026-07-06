@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "462";  // shown in footer; bump with the ?v= asset version
+const BUILD = "463";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -940,7 +940,7 @@ function pitchSide(side, s, home, full) {
     // z-index rises toward the top of the pitch so a player's name label always sits ABOVE the face of the row below
     // it (the labels overhang into the next row in tight formations) - never hidden behind a photo. `slot` bounds the
     // name width to this player's share of the row, so a packed five-at-the-back line never overlaps its neighbours.
-    return `<div class="pp pp-clk${photo ? "" : " pp-nf"}" data-player="${esc(p[1])}|${s.code}" role="button" tabindex="0" style="left:${left}%;top:${top}%;width:${slot.toFixed(1)}%;z-index:${Math.round(100 - top)};--pc:${c1};--pt:${c2};--pno:${pno}">${face}<span class="pp-name">${num !== "" ? `<b class="pp-no">${num}</b>` : ""}<span class="pp-nm">${esc(lastName(p[1]))}</span></span></div>`;
+    return `<div class="pp pp-clk${photo ? "" : " pp-nf"}${p[3] != null ? " pp-sub" : ""}" data-player="${esc(p[1])}|${s.code}" role="button" tabindex="0" style="left:${left}%;top:${top}%;width:${slot.toFixed(1)}%;z-index:${Math.round(100 - top)};--pc:${c1};--pt:${c2};--pno:${pno}">${face}${p[3] != null ? `<i class="pp-subdot" title="On${p[3] ? " " + Math.floor(p[3]) + "'" : ""}"></i>` : ""}<span class="pp-name">${num !== "" ? `<b class="pp-no">${num}</b>` : ""}<span class="pp-nm">${esc(lastName(p[1]))}</span></span></div>`;
   };
   let html = dot(fr.gk, 50, 0.06, 40);                                 // GK just off the goal line; alone in its row, so a generous label slot
   // spread the outfield bands EVENLY from clear-of-the-GK (D0) to short-of-halfway (D1). The old (bi+1)/(nb+0.5)
@@ -953,12 +953,30 @@ function pitchSide(side, s, home, full) {
   });
   return html;
 }
+// the XI at a moment: start from the announced line-up and apply substitutions in order - up to `upTo` minutes for a
+// live match (so it tracks the game in real time), or all of them once it's finished. Players are matched by jersey
+// number (robust to name casing), and the substitute inherits the slot so the shape holds. p[3] carries the on-minute.
+function applyLineup(side, tm, code, r, upTo) {
+  const xi = side.xi.map(p => p.slice());
+  const norm = s => _deburr(s || "").replace(/[^a-z]/g, "");
+  for (const e of (r.ev || [])) {
+    if (e.k !== "S" || e.tm !== tm || !e.on || !e.off) continue;
+    const mn = _tlMin(e.t);
+    if (upTo != null && mn > upTo) continue;               // hasn't happened yet (live)
+    const offP = resolvePlayer(e.off, code), onP = resolvePlayer(e.on, code);
+    let idx = offP ? xi.findIndex(p => p[0] === offP.n) : -1;
+    if (idx < 0) idx = xi.findIndex(p => norm(p[1]) === norm(e.off));   // fall back to a name match
+    if (idx < 0) continue;
+    xi[idx] = [onP?.n ?? "", e.on, xi[idx][2], mn];         // keep the slot's role/position; stash the on-minute
+  }
+  return { f: side.f, coach: side.coach, xi };
+}
 // ---- two-team overlay: both XIs on ONE full pitch, so you can read the match-ups (their forward on your centre-back).
 // Home attacks up, away down; each is a kit-colour disc (solid = home, ring = away) with an always-on name. ----
 function pitchMarks(side, s, home) {
   const fr = formationRows(side); if (!fr) return null;
   const out = [], nb = fr.bands.length, D0 = 0.27, D1 = 0.9;
-  const add = (p, x, depth) => out.push({ x: home ? x : 100 - x, y: home ? 92 - depth * 80 : 8 + depth * 80, num: p[0] ?? "", name: p[1] || "", code: s.code, home });
+  const add = (p, x, depth) => out.push({ x: home ? x : 100 - x, y: home ? 92 - depth * 80 : 8 + depth * 80, num: p[0] ?? "", name: p[1] || "", code: s.code, home, sub: p[3] != null, subMin: p[3] });
   add(fr.gk, 50, 0.06);
   fr.bands.forEach((band, bi) => { const depth = nb === 1 ? 0.5 : D0 + (bi / (nb - 1)) * (D1 - D0); band.forEach((p, pi) => add(p, (pi + 1) / (band.length + 1) * 100, depth)); });
   return out;
@@ -968,10 +986,13 @@ function pitchMarks(side, s, home) {
 // each side's shape while pulling opposing players who stand on each other just far enough apart to both read.
 function separateMarks(marks, min) {
   const AR = 1.62, P = marks.map(m => ({ m, x: m.x, y: m.y * AR }));
-  for (let it = 0; it < 70; it++) {
+  for (let it = 0; it < 80; it++) {
     for (let i = 0; i < P.length; i++) for (let j = i + 1; j < P.length; j++) {
       const a = P[i], b = P[j]; let dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 0.01;
       if (d < min) { const f = (min - d) / 2 / d; dx *= f; dy *= f; a.x -= dx; a.y -= dy; b.x += dx; b.y += dy; }
+      // both names sit BELOW their disc, so two markers in nearly the same column need extra vertical room or the
+      // upper one's name lands on the lower disc. Enforce a taller minimum gap when they're roughly stacked.
+      else if (Math.abs(b.x - a.x) < 8) { const gy = b.y - a.y, ag = Math.abs(gy) || 0.01; if (ag < 19) { const p = (19 - ag) / 2 * (gy < 0 ? -1 : 1); a.y -= p; b.y += p; } }
     }
     for (const q of P) { q.x = Math.max(5, Math.min(95, q.x)); q.y = Math.max(7, Math.min(155, q.y)); }
   }
@@ -980,30 +1001,42 @@ function separateMarks(marks, min) {
 function pitchOverlay(xiH, sH, xiA, sA) {
   const mh = pitchMarks(xiH, sH, true), ma = pitchMarks(xiA, sA, false);
   if (!mh || !ma) return "";
-  const all = [...mh, ...ma]; separateMarks(all, 11);
+  const all = [...mh, ...ma]; separateMarks(all, 13.5);
   return all.map(m => {
     const c1 = (m.code && S.teams[m.code]?.c1) || "#334155", dt = relLum(c1) > .5 ? "#14181C" : "#ffffff";
-    return `<div class="ppd${m.home ? " ppd-h" : " ppd-a"}" data-player="${esc(m.name)}|${m.code}" role="button" tabindex="0" aria-label="${esc(m.name)}" style="left:${m.x.toFixed(1)}%;top:${m.y.toFixed(1)}%;z-index:${Math.round(200 - m.y)};--pc:${c1};--pt:${dt}"><span class="ppd-disc">${m.num}</span><span class="ppd-nm">${esc(lastName(m.name))}</span></div>`;
+    return `<div class="ppd${m.home ? " ppd-h" : " ppd-a"}${m.sub ? " ppd-sub" : ""}" data-player="${esc(m.name)}|${m.code}" role="button" tabindex="0" aria-label="${esc(m.name)}${m.sub ? `, on ${m.subMin ? Math.floor(m.subMin) + "'" : "as sub"}` : ""}" style="left:${m.x.toFixed(1)}%;top:${m.y.toFixed(1)}%;z-index:${Math.round(200 - m.y)};--pc:${c1};--pt:${dt}"><span class="ppd-disc">${m.num}${m.sub ? `<i class="ppd-subdot" title="On${m.subMin ? " " + Math.floor(m.subMin) + "'" : ""}"></i>` : ""}</span><span class="ppd-nm">${esc(lastName(m.name))}</span></div>`;
   }).join("");
 }
 const PITCH_SVG = `<svg class="pitch-lines" viewBox="0 0 100 150" preserveAspectRatio="none" aria-hidden="true"><rect x="1" y="1" width="98" height="148"/><line x1="1" y1="75" x2="99" y2="75"/><circle cx="50" cy="75" r="11"/><circle class="pf" cx="50" cy="75" r="0.9"/><rect x="28" y="1" width="44" height="22"/><rect x="40" y="1" width="20" height="8"/><rect x="28" y="127" width="44" height="22"/><rect x="40" y="141" width="20" height="8"/></svg>`;
-let _xiView = "both";   // pitch line-ups: home | both (overlay) | away
-function xiPanel(xi, h, a, mid) {
+let _xiView = "both";     // pitch line-ups: home | both (overlay) | away
+let _xiLineup = "start";  // starting XI vs the players on the pitch now (subs applied)
+function xiPanel(m, h, a) {
+  const r = res(m), xi = r?.xi; if (!xi) return "";
   if (formationRows(xi.h) && formationRows(xi.a)) {
+    const st = status(m), done = isFinalSt(st), live = st === ST.LIVE || st === ST.HT;
+    const hasSubs = (r.ev || []).some(e => e.k === "S" && (e.tm === "h" || e.tm === "a") && e.on && e.off);
+    const upTo = done ? 999 : Math.max(0, st === ST.HT ? 45 : (r.min != null ? _tlMin(r.min) : 0));   // apply subs up to the current minute (all, when finished)
+    const now = _xiLineup === "now" && hasSubs;
+    const xh = now ? applyLineup(xi.h, "h", h.code, r, upTo) : xi.h;
+    const xa = now ? applyLineup(xi.a, "a", a.code, r, upTo) : xi.a;
     const tag = (s, side) => `<span class="pitch-team"><span class="fl">${s.code ? flag(s.code) : ""}</span>${esc(s.name)}${side.f ? ` <b>${esc(side.f)}</b>` : ""}</span>`;
-    const seg = `<div class="xi-seg" role="tablist" aria-label="Show line-ups">
+    const lineSeg = hasSubs ? `<div class="xi-seg xi-seg-line" role="tablist" aria-label="Line-up snapshot">
+      <button type="button" class="xi-seg-b${!now ? " on" : ""}" data-xiline="start" role="tab" aria-selected="${!now}">Starting XI</button>
+      <button type="button" class="xi-seg-b${now ? " on" : ""}" data-xiline="now" role="tab" aria-selected="${now}">${live ? "On the pitch now" : "Playing XI"}</button>
+    </div>` : "";
+    const seg = `<div class="xi-seg" role="tablist" aria-label="Which team">
       <button type="button" class="xi-seg-b${_xiView === "home" ? " on" : ""}" data-xiview="home" role="tab" aria-selected="${_xiView === "home"}">${esc(tri(h.code) || "Home")}</button>
       <button type="button" class="xi-seg-b${_xiView === "both" ? " on" : ""}" data-xiview="both" role="tab" aria-selected="${_xiView === "both"}">Both</button>
       <button type="button" class="xi-seg-b${_xiView === "away" ? " on" : ""}" data-xiview="away" role="tab" aria-selected="${_xiView === "away"}">${esc(tri(a.code) || "Away")}</button>
     </div>`;
-    const body = _xiView === "home" ? pitchSide(xi.h, h, true, true)
-      : _xiView === "away" ? pitchSide(xi.a, a, false, true)
-      : pitchOverlay(xi.h, h, xi.a, a);
+    const body = _xiView === "home" ? pitchSide(xh, h, true, true)
+      : _xiView === "away" ? pitchSide(xa, a, false, true)
+      : pitchOverlay(xh, h, xa, a);
     const hc = S.teams[h.code]?.c1 || "#334155", ac = S.teams[a.code]?.c1 || "#334155";
-    const legend = _xiView === "both" ? `<div class="xi-legend"><span class="xi-lg"><i class="xi-sw-solid" style="background:${hc}"></i>${esc(cname(h.code) || h.name)}</span><span class="xi-lg"><i class="xi-sw-ring" style="border-color:${ac}"></i>${esc(cname(a.code) || a.name)}</span></div>` : "";
-    return `<div class="xi-wrap" data-mid="${esc(mid || "")}">
+    const legend = _xiView === "both" ? `<div class="xi-legend"><span class="xi-lg"><i class="xi-sw-solid" style="background:${hc}"></i>${esc(cname(h.code) || h.name)}</span><span class="xi-lg"><i class="xi-sw-ring" style="border-color:${ac}"></i>${esc(cname(a.code) || a.name)}</span>${now ? `<span class="xi-lg"><i class="xi-sw-sub"></i>came on</span>` : ""}</div>` : "";
+    return `<div class="xi-wrap" data-mid="${esc(m.id)}">
       <div class="pitch-head">${tag(h, xi.h)}${tag(a, xi.a)}</div>
-      ${seg}
+      ${lineSeg}${seg}
       <div class="pitch${_xiView === "both" ? " pitch-both" : ""}">${PITCH_SVG}${body}</div>
       ${legend}
       ${(xi.h.coach || xi.a.coach) ? `<div class="pitch-coaches"><span>${xi.h.coach ? "Coach · " + esc(xi.h.coach) : ""}</span><span>${xi.a.coach ? "Coach · " + esc(xi.a.coach) : ""}</span></div>` : ""}
@@ -1814,8 +1847,8 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
   const _wp = winProb(m, true);
   const pWinProb = _wp ? winProbBlock(m, true) + (live ? "" : liveWhyChips(_wp) + medianScoreLine(_wp)) : "";
   const pReport = mdReport(m), pStakes = stakesBlock(m), pCompare = matchCompare(m), pStars = liveStars(m), pControl = matchControlBar(m), pShotMap = mdShotMap(m);
-  const pXiInline = r?.xi ? `<div class="eyebrow">${liveNow ? "Line-ups" : "Starting XI"}</div>${xiPanel(r.xi, h, a, m.id)}` : "";
-  const pXiFold = r?.xi ? `<details class="md-fold"><summary><span>Starting XI</span><small>${esc([r.xi.h?.f, r.xi.a?.f].filter(Boolean).join(" v ")) || "line-ups & formations"}</small></summary><div class="md-fold-body">${xiPanel(r.xi, h, a, m.id)}</div></details>` : "";
+  const pXiInline = r?.xi ? `<div class="eyebrow">${liveNow ? "Line-ups" : "Starting XI"}</div>${xiPanel(m, h, a)}` : "";
+  const pXiFold = r?.xi ? `<details class="md-fold"><summary><span>${liveNow ? "Line-ups" : "Starting XI"}</span><small>${esc([r.xi.h?.f, r.xi.a?.f].filter(Boolean).join(" v ")) || "line-ups & formations"}</small></summary><div class="md-fold-body">${xiPanel(m, h, a)}</div></details>` : "";
   // "how they compare" rides along as a collapsed fold for live/finished games (it leads expanded in the upcoming branch)
   const pCompareFold = (live || hasResult) && pCompare ? `<details class="md-fold"><summary><span>How they compare</span><small>rankings &amp; tournament form</small></summary><div class="md-fold-body">${pCompare}</div></details>` : "";
   // past World Cup meetings - shown when there's a story to tell: the two have met at a WC before (any match), or it's
@@ -7197,8 +7230,13 @@ async function boot() {
     if (tl && tl.dataset.tale) { e.stopPropagation(); openTale(tl.dataset.tale); return; }
     const ts = e.target.closest("[data-tale-star]");   // The Field: a star profile
     if (ts) { e.stopPropagation(); const [nm, cd] = ts.dataset.taleStar.split("|"); openStarTale(nm, cd); return; }
-    const xv = e.target.closest("[data-xiview]");   // pitch line-up view: home | both (overlay) | away - swap in place, no modal re-render
-    if (xv) { e.stopPropagation(); const nv = xv.dataset.xiview; if (nv !== _xiView) { _xiView = nv; const wrap = xv.closest(".xi-wrap"), m = wrap && S.matches.find(x => x.id === wrap.dataset.mid), rr = m && res(m); if (wrap && rr?.xi) { const tmp = document.createElement("div"); tmp.innerHTML = xiPanel(rr.xi, slotInfo(m, "home"), slotInfo(m, "away"), m.id); wrap.replaceWith(tmp.firstElementChild); } } return; }
+    const xseg = e.target.closest("[data-xiview],[data-xiline]");   // pitch toggles (team view / starting vs playing XI) - swap in place, no modal re-render
+    if (xseg) { e.stopPropagation();
+      if (xseg.dataset.xiview) { if (xseg.dataset.xiview === _xiView) return; _xiView = xseg.dataset.xiview; }
+      else { if (xseg.dataset.xiline === _xiLineup) return; _xiLineup = xseg.dataset.xiline; }
+      const wrap = xseg.closest(".xi-wrap"), m = wrap && S.matches.find(x => x.id === wrap.dataset.mid);
+      if (wrap && m && res(m)?.xi) { const tmp = document.createElement("div"); tmp.innerHTML = xiPanel(m, slotInfo(m, "home"), slotInfo(m, "away")); if (tmp.firstElementChild) wrap.replaceWith(tmp.firstElementChild); }
+      return; }
     const sq = e.target.closest("[data-squad]");
     if (sq && sq.dataset.squad) { openTeam(sq.dataset.squad); return; }
     const sl = e.target.closest("[data-statlist]");   // Overview tile → penalties / own-goals details list
