@@ -30,7 +30,7 @@ def deb(s):
 ALIAS = {"korea republic": "KR", "south korea": "KR", "ir iran": "IR", "iran": "IR", "usa": "US",
          "united states": "US", "england": "GB-ENG", "scotland": "GB-SCT", "turkiye": "TR", "türkiye": "TR",
          "czechia": "CZ", "cote d'ivoire": "CI", "ivory coast": "CI", "cabo verde": "CV", "cape verde": "CV",
-         "bosnia and herzegovina": "BA", "curacao": "CW", "dr congo": "CD"}
+         "bosnia and herzegovina": "BA", "curacao": "CW", "dr congo": "CD", "congo dr": "CD"}
 NAME2CODE = {deb(t["name"]): c for c, t in teams.items()}
 NAME2CODE.update(ALIAS)
 def code_of(name):

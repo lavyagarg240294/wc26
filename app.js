@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "471";  // shown in footer; bump with the ?v= asset version
+const BUILD = "472";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -5135,8 +5135,8 @@ function tournamentStats() {
     for (const e of (r.ev || [])) {
       const tc = e.tm === "h" ? hc : ac;
       if (["G", "P", "OG"].includes(e.k) && /\d/.test(String(e.t))) { goalHist[goalBin(e.t)]++; const gb = Math.floor(evMin(e.t)); if (gb > 90) goalHalves.et++; else if (gb <= 45) goalHalves.h1++; else goalHalves.h2++; }   // timed only - shootout kicks (blank minute) aren't goals
-      if (e.k === "P") totPen++; else if (e.k === "OG") totOg++;   // penalties converted in play + own goals (tournament totals)
-      if ((e.k === "G" || e.k === "P") && e.p) {
+      if (e.k === "P" && /\d/.test(String(e.t))) totPen++; else if (e.k === "OG") totOg++;   // penalties converted IN PLAY (shootout kicks have a blank minute) + own goals
+      if ((e.k === "G" || e.k === "P") && e.p && /\d/.test(String(e.t))) {   // timed only — a shootout kick is never a goal for the Boot, sub-goals or penalty records
         // resolve to the full squad name using the API jersey (e.n) when present, else "out" = an outfielder (never the same-surname keeper)
         const sc = resolvePlayer(e.p, tc, e.n, "out")?.name || e.p;
         const on = subOn[e.tm]?.[sc];   // came on before scoring → a substitute's goal
@@ -5149,8 +5149,8 @@ function tournamentStats() {
       }
       // an own goal counts FOR e.tm (the beneficiary); the player who put it in belongs to the OTHER side
       if (e.k === "OG" && e.p) { const oc = e.tm === "h" ? ac : hc; ogList.push({ name: resolvePlayer(e.p, oc, e.n, "out")?.name || e.p, code: oc, opp: e.tm === "h" ? hc : ac, t: e.t, mid: m.id }); }
-      if (e.k === "Y") { add(yel, tc); totYellow++; mYellow++; if (e.p) { const pk = (resolvePlayer(e.p, tc, e.n)?.name || e.p) + "\t" + tc; add(pyel, pk); (cardLog[pk] ||= []).push({ ko: m.utc, k: "Y", st: m.stage }); } }
-      else if (e.k === "R") { add(red, tc); totRed++; mRed++; if (e.p) { const pk = (resolvePlayer(e.p, tc, e.n)?.name || e.p) + "\t" + tc; add(pred, pk); (cardLog[pk] ||= []).push({ ko: m.utc, k: "R", st: m.stage }); } }
+      if (e.k === "Y") { add(yel, tc); totYellow++; mYellow++; if (e.p && !e.sf) { const pk = (resolvePlayer(e.p, tc, e.n)?.name || e.p) + "\t" + tc; add(pyel, pk); (cardLog[pk] ||= []).push({ ko: m.utc, k: "Y", st: m.stage }); } }   // team totals count staff cards; player boards + suspension logic never attribute a coach's card (e.sf) to a player
+      else if (e.k === "R") { add(red, tc); totRed++; mRed++; if (e.p && !e.sf) { const pk = (resolvePlayer(e.p, tc, e.n)?.name || e.p) + "\t" + tc; add(pred, pk); (cardLog[pk] ||= []).push({ ko: m.utc, k: "R", st: m.stage }); } }
     }
     // "does scoring first matter?" - the earliest goal's side, then did they win/draw/lose the match (a pens-decided
     // knockout counts as a draw here, since it was level after 90'/ET). Own goal counts for its beneficiary side (its tm).
@@ -5630,11 +5630,11 @@ function renderStats() {
     <span class="susp-tag is-ban">${p.reason === "red" ? "Sent off" : "Two yellows"}</span></div>`; };
   const suspHtml = s.suspended.length
     ? `<div class="lead-card"><h4>Suspension watch <small>banned from their next match</small></h4>${s.suspended.map(suspRow).join("")}</div>` : "";
-  const teamLead = (title, rows, fmt) => rows.length ? `<div class="lead-card"><h4>${title}</h4>${ranked(rows.slice(0, 5), (x, rank) => `<div class="lead-row" data-squad="${x.code}" role="button" tabindex="0">
+  const teamLead = (title, rows, fmt) => rows.length ? `<div class="lead-card"><h4>${title}</h4>${ranked(rows.filter((x, i) => i < 5 || x.v === rows[4]?.v), (x, rank) => `<div class="lead-row" data-squad="${x.code}" role="button" tabindex="0">
     <span class="lead-rank">${rank}</span><span class="fl">${flag(x.code)}</span><span class="lead-name">${tname(x.code)}</span>
-    <span class="lead-v">${fmt(x)}</span></div>`, fmt)}</div>` : "";
+    <span class="lead-v">${fmt(x)}</span></div>`, x => x.v)}</div>` : "";   // keep every team level with the 5th (never split a tie); rank off the RAW value, not the formatted string
   const perGame = x => `${x.v.toFixed(1)}<small>/ match</small>`;
-  const cardLead = s.teamCards.length ? `<div class="lead-card"><h4>Team cards <small>yellow &amp; red cards</small></h4>${ranked(s.teamCards.slice(0, 5), (x, rank) => `<div class="lead-row" data-squad="${x.code}" role="button" tabindex="0">
+  const cardLead = s.teamCards.length ? `<div class="lead-card"><h4>Team cards <small>yellow &amp; red cards</small></h4>${ranked(s.teamCards.filter((x, i) => i < 5 || x.v === s.teamCards[4]?.v), (x, rank) => `<div class="lead-row" data-squad="${x.code}" role="button" tabindex="0">
     <span class="lead-rank">${rank}</span><span class="fl">${flag(x.code)}</span><span class="lead-name">${tname(x.code)}</span>
     <span class="lead-v card-tally"><span class="ct ct-y" title="${x.y} yellow">${x.y}</span><span class="ct ct-r" title="${x.r} red">${x.r}</span></span></div>`, x => x.v)}</div>` : "";
 
@@ -5732,7 +5732,7 @@ function renderStats() {
     ["goals", "Goals", statsTab === "goals" ? goalsSectionHTML(s) : ""],   // lazy: the timing chart + the 2000-shot map build only when this tab is shown
     ["players", "Players", `
       ${s.scorers.length ? `<div class="eyebrow">${ICO.ball} Golden Boot</div><div class="lead-card lead-scorers">${ranked(bootScorers, scorerRow, p => p.goals)}</div>` : ""}
-      ${s.keepers.length ? `<div class="eyebrow">${ICO.glove} Goalkeepers · clean sheets</div><div class="lead-card lead-scorers">${ranked(s.keepers.slice(0, 8), keeperRow, p => p.cs)}</div>` : ""}
+      ${s.keepers.length ? `<div class="eyebrow">${ICO.glove} Goalkeepers · clean sheets</div><div class="lead-card lead-scorers">${ranked(s.keepers.filter((p, i) => i < 8 || p.cs === s.keepers[7]?.cs), keeperRow, p => p.cs)}</div>` : ""}
       ${playerDisc}
       ${!s.scorers.length ? `<div class="empty">No goals yet. The Golden Boot race starts with the first goal.</div>` : ""}`],
     ["teams", "Teams", `<div class="eyebrow">Team leaderboards</div><div class="lead-grid">

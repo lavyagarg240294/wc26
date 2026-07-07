@@ -50,6 +50,7 @@ for (const x of rows) {
   const seen = new Map(), shots = [];
   for (const e of evs) {
     if (e.PositionX == null || ![12, 0, 41].includes(e.Type)) continue;
+    if (!/\d/.test(String(e.MatchMinute || ""))) continue;   // penalty-SHOOTOUT kicks carry a blank minute — not open-play shots; keep them out of the map and the "% found the net"
     let px = +e.PositionX, py = +e.PositionY; if (px < 50) { px = 100 - px; py = 100 - py; }   // rotate so all attack the top goal
     const goal = e.Type === 0 || e.Type === 41;
     // where the ball crossed the goal (goal-frame coords, NOT pitch coords, so no rotation): gx across the goal ~30-70, gy height ~2-48.
