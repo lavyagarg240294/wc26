@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "472";  // shown in footer; bump with the ?v= asset version
+const BUILD = "473";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -5303,6 +5303,7 @@ function tournamentStats() {
   return (_tsCache = _out, _tsSig = sig, _out);
 }
 let statsTab = "overview";   // active Stats sub-section (persists across re-renders)
+let _statScope = "all";   // Players/Teams leaderboard scope: every team, or only the deepest-surviving set (quarter-finalists, then semi-finalists…)
 let _statsHTML = "";        // last rendered Stats markup - re-rendered only when it actually changes (see renderStats)
 // team-comparison table state (Stats › Compare) - persists across re-renders
 const _cmp = { lens: "overview", mode: "total", filter: "all", conf: "", sort: null, dir: "desc" };
@@ -5596,6 +5597,15 @@ function goalsSectionHTML(s) { return goalTimingHTML(s) + tournamentShotMap() + 
 function renderStats() {
   const el = $("#view-stats"), s = tournamentStats();
   if (!s.pulse.matches) { paint(el, `<div class="rk-pre">Tournament stats (scorers, records, team form) fill in as matches kick off. Until then, here's the field by world ranking.</div>${fifaRankingPanel()}`); return; }
+  // Players/Teams scope: "all" or just the deepest surviving set — reach>=deepest = the teams still standing in the latest round
+  // reached (the quarter-finalists now, the semi-finalists once those are set). Only offered from the quarter-finals on.
+  const _reach = teamReach(), _deepest = Math.max(0, ...Object.values(_reach));
+  const SCOPE_LBL = { 3: "Quarter-finalists", 4: "Semi-finalists", 5: "Finalists" };
+  const survivors = new Set(Object.entries(_reach).filter(([, d]) => d >= _deepest).map(([c]) => c));
+  const scopeOn = _deepest >= 3 && survivors.size >= 2;
+  if (!scopeOn) _statScope = "all";
+  const scoped = arr => _statScope === "qf" ? (arr || []).filter(x => survivors.has(x.code)) : (arr || []);
+  const scopePills = scopeOn ? `<div class="sf-pills stat-scope">${[["all", "All teams"], ["qf", SCOPE_LBL[_deepest] || "Still in"]].map(([v, l]) => `<button class="sf-pill${_statScope === v ? " on" : ""}" type="button" data-statscope="${v}">${esc(l)}</button>`).join("")}</div>` : "";
   const tile = (label, val) => `<div class="stat-tile"><span class="stat-val">${val}</span><span class="stat-lbl">${label}</span></div>`;
   // a tappable tile that opens a details list (penalties / own goals); falls back to a plain tile when the count is 0
   const tileList = (label, val, kind) => val > 0
@@ -5612,7 +5622,7 @@ function renderStats() {
   const keeperRow = (p, rank) => playerRow(p, rank, `${p.cs}<small>clean sheet${p.cs !== 1 ? "s" : ""}</small>`);
   // Golden Boot: show the leaders but never cut a tie - everyone level with the 12th-placed scorer stays in, else we'd
   // show some players on N goals and silently drop others on the same N (e.g. Kane), which reads as an error.
-  const bootScorers = s.scorers.filter(p => p.goals >= (s.scorers[11]?.goals ?? 0));
+  const scScorers = scoped(s.scorers), bootScorers = scScorers.filter(p => p.goals >= (scScorers[11]?.goals ?? 0));
   // Overview mini-board: top three scorers, but never split a tie at the cut - if several players are level with the
   // 3rd-placed scorer, show them all (else we'd list some on N goals and silently hide a co-leader on the same N).
   const bootTop3 = s.scorers.filter(p => p.goals >= (s.scorers[2]?.goals ?? 0));
@@ -5628,13 +5638,15 @@ function renderStats() {
     ${ph ? `<span class="lead-face" style="background-image:url('${ph}')"></span>` : `<span class="fl">${flag(p.code)}</span>`}
     <span class="lead-name">${esc(pName(p.name, p.code))}<small>${flag(p.code)} misses ${who}${when ? ` · ${when}` : ""}</small></span>
     <span class="susp-tag is-ban">${p.reason === "red" ? "Sent off" : "Two yellows"}</span></div>`; };
-  const suspHtml = s.suspended.length
-    ? `<div class="lead-card"><h4>Suspension watch <small>banned from their next match</small></h4>${s.suspended.map(suspRow).join("")}</div>` : "";
+  const suspList = scoped(s.suspended);
+  const suspHtml = suspList.length
+    ? `<div class="lead-card"><h4>Suspension watch <small>banned from their next match</small></h4>${suspList.map(suspRow).join("")}</div>` : "";
   const teamLead = (title, rows, fmt) => rows.length ? `<div class="lead-card"><h4>${title}</h4>${ranked(rows.filter((x, i) => i < 5 || x.v === rows[4]?.v), (x, rank) => `<div class="lead-row" data-squad="${x.code}" role="button" tabindex="0">
     <span class="lead-rank">${rank}</span><span class="fl">${flag(x.code)}</span><span class="lead-name">${tname(x.code)}</span>
     <span class="lead-v">${fmt(x)}</span></div>`, x => x.v)}</div>` : "";   // keep every team level with the 5th (never split a tie); rank off the RAW value, not the formatted string
   const perGame = x => `${x.v.toFixed(1)}<small>/ match</small>`;
-  const cardLead = s.teamCards.length ? `<div class="lead-card"><h4>Team cards <small>yellow &amp; red cards</small></h4>${ranked(s.teamCards.filter((x, i) => i < 5 || x.v === s.teamCards[4]?.v), (x, rank) => `<div class="lead-row" data-squad="${x.code}" role="button" tabindex="0">
+  const teamCardsV = scoped(s.teamCards);
+  const cardLead = teamCardsV.length ? `<div class="lead-card"><h4>Team cards <small>yellow &amp; red cards</small></h4>${ranked(teamCardsV.filter((x, i) => i < 5 || x.v === teamCardsV[4]?.v), (x, rank) => `<div class="lead-row" data-squad="${x.code}" role="button" tabindex="0">
     <span class="lead-rank">${rank}</span><span class="fl">${flag(x.code)}</span><span class="lead-name">${tname(x.code)}</span>
     <span class="lead-v card-tally"><span class="ct ct-y" title="${x.y} yellow">${x.y}</span><span class="ct ct-r" title="${x.r} red">${x.r}</span></span></div>`, x => x.v)}</div>` : "";
 
@@ -5710,8 +5722,9 @@ function renderStats() {
   // "Goals vs expected": official xG (chances created) against the goals actually scored, over the same matches.
   const xgInfo = infoBtn("Expected goals (xG) scores the QUALITY of the chances a team created - the goals an average side would score from them. This compares that to the goals they actually got, across the matches FIFA has published xG for. The figure shown is the gap as a PERCENTAGE of their xG (+20% = scored a fifth more than their chances were worth), so sides that have played a different number of matches stay comparable; the raw goals−xG gap sits alongside it. Above the line = clinical finishing, or some luck; below = leaving goals out there. A read on finishing, not a verdict.", "Goals vs expected (xG)");
   const finishRow = x => { const over = x.delta >= 0; return `<div class="lead-row" data-squad="${x.code}" role="button" tabindex="0"><span class="fl">${flag(x.code)}</span><span class="lead-name">${tname(x.code)}<small>${x.goals} ${x.goals === 1 ? "goal" : "goals"} from ${x.xg.toFixed(1)} xG · ${over ? "+" : "−"}${Math.abs(x.delta).toFixed(1)}</small></span><span class="xg-delta ${over ? "over" : "under"}">${over ? "+" : "−"}${Math.round(Math.abs(x.pct))}%</span></div>`; };
-  const finishHtml = s.finishing?.length ? (() => {   // the story is the extremes - the most clinical + the most wasteful; the near-xG middle is folded into a count
-    const f = s.finishing, big = f.length > 13, top = big ? f.slice(0, 7) : f, bot = big ? f.slice(-4) : [];
+  const finishV = scoped(s.finishing);
+  const finishHtml = finishV.length ? (() => {   // the story is the extremes - the most clinical + the most wasteful; the near-xG middle is folded into a count
+    const f = finishV, big = f.length > 13, top = big ? f.slice(0, 7) : f, bot = big ? f.slice(-4) : [];
     const gap = big ? `<div class="xg-gap">${f.length - 11} more within range of their xG</div>` : "";
     return `<div class="eyebrow">Goals vs expected ${xgInfo}<span class="wp-est">FIFA xG · post-match</span></div><div class="lead-card xg-card">${top.map(finishRow).join("")}${gap}${bot.map(finishRow).join("")}</div>`;
   })() : "";
@@ -5730,22 +5743,22 @@ function renderStats() {
       <div class="eyebrow">Records so far</div>${recordsHtml}
       ${confHtml}`],
     ["goals", "Goals", statsTab === "goals" ? goalsSectionHTML(s) : ""],   // lazy: the timing chart + the 2000-shot map build only when this tab is shown
-    ["players", "Players", `
-      ${s.scorers.length ? `<div class="eyebrow">${ICO.ball} Golden Boot</div><div class="lead-card lead-scorers">${ranked(bootScorers, scorerRow, p => p.goals)}</div>` : ""}
-      ${s.keepers.length ? `<div class="eyebrow">${ICO.glove} Goalkeepers · clean sheets</div><div class="lead-card lead-scorers">${ranked(s.keepers.filter((p, i) => i < 8 || p.cs === s.keepers[7]?.cs), keeperRow, p => p.cs)}</div>` : ""}
+    ["players", "Players", `${scopePills}
+      ${(() => { const kp = scoped(s.keepers); return `${scScorers.length ? `<div class="eyebrow">${ICO.ball} Golden Boot</div><div class="lead-card lead-scorers">${ranked(bootScorers, scorerRow, p => p.goals)}</div>` : ""}
+      ${kp.length ? `<div class="eyebrow">${ICO.glove} Goalkeepers · clean sheets</div><div class="lead-card lead-scorers">${ranked(kp.filter((p, i) => i < 8 || p.cs === kp[7]?.cs), keeperRow, p => p.cs)}</div>` : ""}
       ${playerDisc}
-      ${!s.scorers.length ? `<div class="empty">No goals yet. The Golden Boot race starts with the first goal.</div>` : ""}`],
-    ["teams", "Teams", `<div class="eyebrow">Team leaderboards</div><div class="lead-grid">
-      ${teamLead("Possession", s.possession, x => x.v.toFixed(1) + "%")}
-      ${teamLead("Pass accuracy", s.teamPassAcc, x => x.v.toFixed(0) + "%")}
-      ${teamLead("Saves", s.teamSaves, perGame)}
-      ${teamLead("Defensive actions", s.teamDef, perGame)}
-      ${teamLead("Shots on target", s.teamSot, perGame)}
-      ${teamLead("Crosses", s.teamCrosses, perGame)}
+      ${!scScorers.length ? `<div class="empty">${_statScope === "qf" ? "None of the surviving teams' players have scored yet." : "No goals yet. The Golden Boot race starts with the first goal."}</div>` : ""}`; })()}`],
+    ["teams", "Teams", `${scopePills}<div class="eyebrow">Team leaderboards</div><div class="lead-grid">
+      ${teamLead("Possession", scoped(s.possession), x => x.v.toFixed(1) + "%")}
+      ${teamLead("Pass accuracy", scoped(s.teamPassAcc), x => x.v.toFixed(0) + "%")}
+      ${teamLead("Saves", scoped(s.teamSaves), perGame)}
+      ${teamLead("Defensive actions", scoped(s.teamDef), perGame)}
+      ${teamLead("Shots on target", scoped(s.teamSot), perGame)}
+      ${teamLead("Crosses", scoped(s.teamCrosses), perGame)}
     </div>${finishHtml}${teamDisc}`],
     ["compare", "Compare", statsTab === "compare" ? teamCompareHTML() : ""],   // lazy: aggregate + sort only when this tab is shown (never on a background poll)
-    ["records", "All-time", recordsPanel(s)],
     ["rankings", "Ranking", statsTab === "rankings" ? fifaRankingPanel() : ""],   // lazy: the 211-row panel is built only when its tab is shown (or on first click, below)
+    ["records", "All-time", recordsPanel(s)],   // static historical reference sits last, next to Ranking — the "wider world / history" tier after the live-tournament tabs
   ];
   if (!sections.some(([k]) => k === statsTab)) statsTab = "overview";
   const out = `<div class="substat-nav" role="tablist" aria-label="Statistics sections">${sections.map(([k, label]) => `<button class="substat ${k === statsTab ? "is-on" : ""}" id="substab-${k}" role="tab" aria-selected="${k === statsTab}" aria-controls="substat-${k}" data-stat="${k}">${label}</button>`).join("")}</div>`
@@ -6392,9 +6405,9 @@ async function obitShareCard(code) {
 /* ---------------- navigation ---------------- */
 const RENDER = { matches: renderMatches, field: renderField, teams: renderTeams, players: renderPlayers, groups: renderGroups, stats: renderStats, sim: renderSim, pulse: renderPulse };
 // shareable per-tab URL hash (Matches is the default → no hash; Predict's internal view name is "sim")
-const VIEW_HASH = { field: "field", teams: "teams", players: "players", groups: "tables", sim: "predict", stats: "stats", pulse: "pulse" };
+const VIEW_HASH = { field: "field", teams: "teams", players: "players", groups: "bracket", sim: "predict", stats: "stats", pulse: "pulse" };   // #bracket matches the tab's label (the old #tables link still resolves via HASH_VIEW)
 // "live" survives only as a redirect: Live folded into the match modal (build 329), but old #live links still land on Matches
-const HASH_VIEW = { live: "matches", matches: "matches", field: "field", teams: "teams", players: "players", tables: "groups", groups: "groups", predict: "sim", stats: "stats", pulse: "pulse" };
+const HASH_VIEW = { live: "matches", matches: "matches", field: "field", teams: "teams", players: "players", bracket: "groups", tables: "groups", groups: "groups", predict: "sim", stats: "stats", pulse: "pulse" };
 function nav(v) {
   if (typeof closeInfoPop === "function") closeInfoPop();   // an open explainer is anchored to the old view
   S.view = v;
@@ -7359,6 +7372,8 @@ async function boot() {
     if (sfr) { e.stopPropagation(); _shotFilt.round = sfr.dataset.shotround; renderStats(); return; }
     const sft = e.target.closest("[data-shotteam]");   // …and team filter
     if (sft) { e.stopPropagation(); _shotFilt.team = sft.dataset.shotteam; renderStats(); return; }
+    const ssc = e.target.closest("[data-statscope]");   // Stats › Players/Teams: all-teams vs surviving-teams scope
+    if (ssc) { e.stopPropagation(); _statScope = ssc.dataset.statscope; renderStats(); return; }
     const ab = e.target.closest("[data-about]");   // "how the format works" → tournament info sheet
     if (ab) { showSheet($("#aboutDialog")); return; }
     const w22 = e.target.closest("[data-wc22]");   // "Qatar 2022 · full results" → last-World-Cup reference
