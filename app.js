@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "467";  // shown in footer; bump with the ?v= asset version
+const BUILD = "468";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -7108,27 +7108,27 @@ async function hardRefresh() {
   location.reload();
 }
 
-/* ---------------- ambient background: prominent aurora mesh + drifting motes (Settings › Animated background) ----------------
-   Two layered full-viewport canvases inside #bg. #bgAur: an opaque aurora - big, slow colour fields on a palette that
-   continuously drifts across five harmonised moods (emerald → floodlight → golden hour → dusk → deep sea), so the colour
-   never settles. #bgFx: transparent motes (soft glowing dust) drifting along a slow, non-repeating flow field with the
-   odd wandering vortex; it blends over the aurora (screen on dark, multiply on light). Off (or prefers-reduced-motion)
-   falls back to the static CSS blobs; parked while the tab is hidden. Aurora renders at half resolution (it's all soft
-   gradients - invisible) to keep the fill cheap on big screens. */
+/* ---------------- ambient background: black + gold — gold light-fields + drifting embers (Settings › Animated background) ----------------
+   Two layered full-viewport canvases inside #bg on a near-black base. #bgAur: opaque black ground with big, slow GOLD
+   light-fields (amber → gold → bronze → bright → ember), added over the black so they read as light, never settling.
+   #bgFx: transparent gold embers/dust drifting along a slow, non-repeating flow field with the odd wandering vortex;
+   always screen-blended (additive glow) since the base is black in both themes. Off (or prefers-reduced-motion) falls
+   back to the static CSS blobs; parked while the tab is hidden. Aurora renders at half resolution (all soft gradients —
+   invisible) to keep the fill cheap on big screens. */
 const BG_RICH = () => localStorage.getItem("wc26.bg") === "on";   // default off - opt in via Settings › Animated background
 const FlowBg = (() => {
-  const PALS = [
-    ["#0BA360", "#2FE08A", "#14B8A6", "#E8B931", "#DBEAD9"],   // emerald
-    ["#2C6E8F", "#57C7E6", "#8FE3D6", "#F0D68A", "#DCEAF0"],   // floodlight
-    ["#3B7A4E", "#E8B931", "#F0995B", "#F2C879", "#F3E6CE"],   // golden hour
-    ["#3A5A9E", "#7C6BD6", "#C36FB0", "#E8B931", "#DDE0F0"],   // dusk
-    ["#0E5A52", "#22D6B0", "#2D9CDB", "#BFE38A", "#D8EEE2"],   // deep sea
+  const PALS = [   // black + gold: five warm gold temperatures [deep amber, gold, bright gold, champagne, pale highlight]
+    ["#6E4512", "#B47A20", "#E0A828", "#EDCE82", "#F4E6C6"],   // amber
+    ["#7E521A", "#C68A24", "#ECB733", "#F1DA96", "#F9EFD6"],   // gold
+    ["#5C3A0F", "#A56E1A", "#D6A02E", "#E8CC84", "#F2E3C2"],   // bronze
+    ["#8A5C1E", "#D69C2C", "#F2C63E", "#F6E2A8", "#FCF4DC"],   // bright
+    ["#6A400E", "#B06E18", "#E09A2A", "#EBC97E", "#F0E0BE"],   // ember
   ].map(p => p.map(h => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]));
   const BL = [[.18, .14, 0], [.83, .12, 2], [.5, .44, 3], [.14, .62, 1], [.88, .58, 4]];   // aurora blob anchors + palette slot
   let A, B, ax, bx, W = 0, H = 0, DPR = 1, raf = 0, running = false, dark = false, t = 0, pf = 0, mot = [], vort = [], vtimer = 0;
   const rgba = (c, a) => `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${a})`;
   const pal = s => { const i = Math.floor(pf) % 5, j = (i + 1) % 5, f = pf - Math.floor(pf), a = PALS[i][s], b = PALS[j][s]; return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f]; };
-  const base = () => dark ? [[14, 24, 34], [11, 21, 18]] : [[250, 251, 249], [236, 244, 238]];
+  const base = () => [[13, 11, 8], [4, 4, 3]];   // near-black, faintly warm — same in both themes so gold always reads as light
   const mk = () => ({ x: Math.random() * W, y: Math.random() * H, slot: (Math.random() * 5) | 0, sz: .6 + Math.random() * 1.7, sp: .35 + Math.random() * .8, rot: Math.random() * 7, life: Math.random() * 280, max: 200 + Math.random() * 260 });
   function ready() { if (A) return true; A = document.getElementById("bgAur"); B = document.getElementById("bgFx"); if (!A || !B) return false; ax = A.getContext("2d"); bx = B.getContext("2d"); return true; }
   function fit(c, x, sc) { c.width = Math.max(1, Math.round(W * sc)); c.height = Math.max(1, Math.round(H * sc)); x.setTransform(sc, 0, 0, sc, 0, 0); }
@@ -7142,8 +7142,8 @@ const FlowBg = (() => {
   }
   function aurora() {
     const bs = base(), g = ax.createLinearGradient(0, 0, 0, H); g.addColorStop(0, rgba(bs[0], 1)); g.addColorStop(1, rgba(bs[1], 1)); ax.fillStyle = g; ax.fillRect(0, 0, W, H);
-    ax.globalCompositeOperation = dark ? "lighter" : "multiply";
-    for (let i = 0; i < BL.length; i++) { const b = BL[i], cx = (b[0] + 0.1 * Math.sin(t * 0.00017 + i * 1.7)) * W, cy = (b[1] + 0.09 * Math.cos(t * 0.00014 + i * 2.1)) * H, r = Math.max(W, H) * (0.5 + 0.12 * Math.sin(t * 0.0002 + i)), c = pal(b[2]), rg = ax.createRadialGradient(cx, cy, 0, cx, cy, r); rg.addColorStop(0, rgba(c, dark ? 0.15 : 0.13)); rg.addColorStop(1, rgba(c, 0)); ax.fillStyle = rg; ax.fillRect(0, 0, W, H); }
+    ax.globalCompositeOperation = "lighter";   // gold light added over the black base
+    for (let i = 0; i < BL.length; i++) { const b = BL[i], cx = (b[0] + 0.1 * Math.sin(t * 0.00017 + i * 1.7)) * W, cy = (b[1] + 0.09 * Math.cos(t * 0.00014 + i * 2.1)) * H, r = Math.max(W, H) * (0.5 + 0.12 * Math.sin(t * 0.0002 + i)), c = pal(b[2]), rg = ax.createRadialGradient(cx, cy, 0, cx, cy, r); rg.addColorStop(0, rgba(c, 0.14)); rg.addColorStop(0.55, rgba(c, 0.05)); rg.addColorStop(1, rgba(c, 0)); ax.fillStyle = rg; ax.fillRect(0, 0, W, H); }
     ax.globalCompositeOperation = "source-over";
   }
   function motes() {
@@ -7151,8 +7151,8 @@ const FlowBg = (() => {
     for (const p of mot) {
       const a = field(p.x, p.y); p.x += Math.cos(a) * p.sp * .8; p.y += Math.sin(a) * p.sp * .8; p.life++;
       if (p.life > p.max || p.x < -16 || p.x > W + 16 || p.y < -16 || p.y > H + 16) { Object.assign(p, mk()); continue; }
-      const env = Math.sin(Math.min(1, p.life / p.max) * Math.PI), pulse = .6 + .4 * Math.sin(t * 0.003 + p.rot), r = 2 + p.sz * 3.2, c = pal(p.slot);
-      const rg = bx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r); rg.addColorStop(0, rgba(c, (dark ? 0.34 : 0.3) * env * pulse)); rg.addColorStop(1, rgba(c, 0)); bx.fillStyle = rg; bx.beginPath(); bx.arc(p.x, p.y, r, 0, 7); bx.fill();
+      const env = Math.sin(Math.min(1, p.life / p.max) * Math.PI), pulse = .55 + .45 * Math.sin(t * 0.003 + p.rot), r = 2 + p.sz * 3.2, c = pal(p.slot), al = 0.42 * env * pulse;
+      const rg = bx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r); rg.addColorStop(0, rgba(c, al)); rg.addColorStop(0.35, rgba(c, al * 0.5)); rg.addColorStop(1, rgba(c, 0)); bx.fillStyle = rg; bx.beginPath(); bx.arc(p.x, p.y, r, 0, 7); bx.fill();
     }
   }
   function frame() {
@@ -7163,11 +7163,11 @@ const FlowBg = (() => {
   }
   // start regardless of tab visibility - requestAnimationFrame is throttled to nothing while the tab is hidden anyway
   // (so no CPU cost backgrounded), and resumes on return. If the viewport isn't measurable yet (0-size at boot), retry.
-  function start() { if (running || !ready()) return; dark = document.documentElement.dataset.theme === "dark"; B.style.mixBlendMode = dark ? "screen" : "multiply"; if (!size()) { setTimeout(start, 250); return; } running = true; raf = requestAnimationFrame(frame); }
+  function start() { if (running || !ready()) return; dark = document.documentElement.dataset.theme === "dark"; B.style.mixBlendMode = "screen"; if (!size()) { setTimeout(start, 250); return; } running = true; raf = requestAnimationFrame(frame); }
   function stop() { running = false; cancelAnimationFrame(raf); }
   function kick() { if (running) { cancelAnimationFrame(raf); raf = requestAnimationFrame(frame); } }   // re-arm the loop when a hidden tab returns
   function sync() { const on = BG_RICH() && !matchMedia("(prefers-reduced-motion: reduce)").matches; document.body.classList.toggle("bg-rich", on); on ? start() : stop(); }
-  function setTheme(d) { dark = d; if (B) B.style.mixBlendMode = d ? "screen" : "multiply"; }
+  function setTheme(d) { dark = d; if (B) B.style.mixBlendMode = "screen"; }   // black base in both themes → always additive
   let _rt; addEventListener("resize", () => { if (!running) return; clearTimeout(_rt); _rt = setTimeout(size, 200); });
   return { sync, start, stop, kick, setTheme };
 })();
