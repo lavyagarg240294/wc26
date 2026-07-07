@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "469";  // shown in footer; bump with the ?v= asset version
+const BUILD = "470";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -7108,15 +7108,14 @@ async function hardRefresh() {
   location.reload();
 }
 
-/* ---------------- ambient background: black + gold glitter — suspended gold flecks in dark gel (Settings › Animated background) ----------------
-   The look of gold leaf suspended in a dark, gold-infused gel. Two layered full-viewport canvases inside #bg, black base
-   in BOTH themes (the glitter only reads against black). #bgAur = the "gel": near-black ground + a couple of very faint,
-   slow gold glows (light diffusing through the liquid) + a vignette so the edges fall off. #bgFx = the glitter: many
-   small gold specks drifting very slowly along a gentle flow with a soft vertical bob, each a crisp warm core + tiny
-   halo, twinkling with a sharp on/off sparkle; the odd larger "flake" throws a faint glint cross. Always screen-blended
-   (additive) since the base is black. Light theme gets the same black animation, tuned a touch brighter with a deeper
-   vignette so it reads as a deliberate dark stage behind the light UI. Off / reduced-motion → static CSS blobs; parked
-   while the tab is hidden; the gel renders at half resolution (all soft gradients) to keep the fill cheap. */
+/* ---------------- ambient background: suspended gold glitter (Settings › Animated background) ----------------
+   Gold leaf suspended in a gold-infused medium. Two layered full-viewport canvases inside #bg. #bgAur = the ground:
+   dark near-black gel in dark theme (with a vignette), warm paper in light theme; both carry a couple of very faint,
+   slow gold glows. #bgFx = the glitter: many small gold specks drifting very slowly along a gentle flow with a soft
+   vertical bob, each a core + tiny halo, twinkling with a sharp on/off sparkle; the odd larger "flake" throws a faint
+   glint cross. DARK theme lays the glitter down additively (screen) as light on black, with warm-white cores; LIGHT
+   theme keeps the page light — gold specks laid on white paper (normal blend) with rich-gold cores, no black. Off /
+   reduced-motion → static CSS blobs; parked while the tab is hidden; the gel renders at half resolution to stay cheap. */
 const BG_RICH = () => localStorage.getItem("wc26.bg") === "on";   // default off - opt in via Settings › Animated background
 const FlowBg = (() => {
   const PALS = [   // black + gold: five warm gold temperatures [deep amber, gold, bright gold, champagne, pale highlight]
@@ -7129,7 +7128,7 @@ const FlowBg = (() => {
   let A, B, ax, bx, W = 0, H = 0, DPR = 1, raf = 0, running = false, dark = false, t = 0, pf = 0, glt = [];
   const rgba = (c, a) => `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${a})`;
   const pal = s => { const i = Math.floor(pf) % 5, j = (i + 1) % 5, f = pf - Math.floor(pf), a = PALS[i][s], b = PALS[j][s]; return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f]; };
-  const base = () => [[12, 10, 7], [3, 3, 2]];   // near-black gel, faintly warm — same in both themes so gold reads as light
+  const base = () => dark ? [[12, 10, 7], [3, 3, 2]] : [[250, 249, 245], [243, 241, 234]];   // dark: near-black gel · light: warm paper
   // one suspended gold fleck: mostly tiny, a few larger "flakes"; drifts very slowly (as if in gel), bobs, and twinkles sharply
   const mk = () => ({ x: Math.random() * W, y: Math.random() * H, slot: (Math.random() * 5) | 0, sz: .3 + Math.random() * Math.random() * 2.1, sp: .05 + Math.random() * .2, bob: Math.random() * 7, twf: .0018 + Math.random() * .005, twp: Math.random() * 7, flake: Math.random() < .13 });
   function ready() { if (A) return true; A = document.getElementById("bgAur"); B = document.getElementById("bgFx"); if (!A || !B) return false; ax = A.getContext("2d"); bx = B.getContext("2d"); return true; }
@@ -7137,25 +7136,24 @@ const FlowBg = (() => {
   function size() { DPR = Math.min(devicePixelRatio || 1, 1.5); W = innerWidth || document.documentElement.clientWidth || 0; H = innerHeight || document.documentElement.clientHeight || 0; if (!W || !H) return false; fit(A, ax, 0.5); fit(B, bx, DPR); seed(); return true; }
   function seed() { glt = []; const n = Math.min(150, Math.round(W * H / 9000)); for (let i = 0; i < n; i++) glt.push(mk()); bx.clearRect(0, 0, W, H); }
   function field(x, y) { return Math.PI * (Math.sin(x * 0.0016 + t * 0.00016) + Math.cos(y * 0.0021 - t * 0.00013) + Math.sin((x + y) * 0.0012 + t * 0.00009)); }
-  // the gel: black ground + a couple of very faint slow gold glows (light through the liquid) + a vignette so edges fall off
+  // the ground: dark near-black gel OR (light theme) warm paper, + a couple of very faint slow gold glows; dark theme also gets a vignette
   function gel() {
     const bs = base(), g = ax.createLinearGradient(0, 0, 0, H); g.addColorStop(0, rgba(bs[0], 1)); g.addColorStop(1, rgba(bs[1], 1)); ax.fillStyle = g; ax.fillRect(0, 0, W, H);
-    ax.globalCompositeOperation = "lighter";
+    ax.globalCompositeOperation = dark ? "lighter" : "multiply";   // light: gold multiplied onto white = faint warm patches
     const gl = [[.30, .26, 1], [.74, .78, 3]];
     for (let i = 0; i < gl.length; i++) { const b = gl[i], cx = (b[0] + .05 * Math.sin(t * .00011 + i * 2)) * W, cy = (b[1] + .05 * Math.cos(t * .00009 + i * 3)) * H, r = Math.max(W, H) * .6, c = pal(b[2]), rg = ax.createRadialGradient(cx, cy, 0, cx, cy, r); rg.addColorStop(0, rgba(c, dark ? .05 : .06)); rg.addColorStop(1, rgba(c, 0)); ax.fillStyle = rg; ax.fillRect(0, 0, W, H); }
     ax.globalCompositeOperation = "source-over";
-    const vg = ax.createRadialGradient(W / 2, H * .46, Math.min(W, H) * .28, W / 2, H / 2, Math.max(W, H) * .72); vg.addColorStop(0, "rgba(0,0,0,0)"); vg.addColorStop(1, dark ? "rgba(0,0,0,.5)" : "rgba(0,0,0,.66)"); ax.fillStyle = vg; ax.fillRect(0, 0, W, H);
+    if (dark) { const vg = ax.createRadialGradient(W / 2, H * .46, Math.min(W, H) * .28, W / 2, H / 2, Math.max(W, H) * .72); vg.addColorStop(0, "rgba(0,0,0,0)"); vg.addColorStop(1, "rgba(0,0,0,.5)"); ax.fillStyle = vg; ax.fillRect(0, 0, W, H); }
   }
-  // the glitter: suspended gold specks — crisp warm core + tiny halo, sharp twinkle; the odd flake throws a faint glint cross
+  // the glitter: suspended gold specks — halo + core, sharp twinkle. Dark: added as light (screen). Light: gold laid on white (normal), rich-gold cores.
   function glitter() {
-    bx.clearRect(0, 0, W, H); bx.globalCompositeOperation = "lighter";
-    const boost = dark ? 1 : 1.12;
+    bx.clearRect(0, 0, W, H); bx.globalCompositeOperation = dark ? "lighter" : "source-over";
     for (const p of glt) {
       const a = field(p.x, p.y); p.x += Math.cos(a) * p.sp; p.y += Math.sin(a) * p.sp + Math.sin(t * .0009 + p.bob) * .09;
       if (p.x < -8) p.x = W + 8; else if (p.x > W + 8) p.x = -8; if (p.y < -8) p.y = H + 8; else if (p.y > H + 8) p.y = -8;
-      const tw = Math.pow(.5 + .5 * Math.sin(t * p.twf + p.twp), 3), bright = (.15 + .85 * tw) * boost, c = pal(p.slot), r = (p.flake ? 1.7 : .7) + p.sz, al = (p.flake ? .5 : .7) * bright;
+      const tw = Math.pow(.5 + .5 * Math.sin(t * p.twf + p.twp), 3), bright = dark ? (.15 + .85 * tw) : (.34 + .66 * tw), c = pal(p.slot), r = (p.flake ? 1.7 : .7) + p.sz, al = (p.flake ? .5 : .72) * bright;
       const rg = bx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r * 2.4); rg.addColorStop(0, rgba(c, al)); rg.addColorStop(.4, rgba(c, al * .35)); rg.addColorStop(1, rgba(c, 0)); bx.fillStyle = rg; bx.beginPath(); bx.arc(p.x, p.y, r * 2.4, 0, 7); bx.fill();
-      bx.fillStyle = rgba([255, 245, 218], Math.min(1, al * .95)); bx.beginPath(); bx.arc(p.x, p.y, Math.max(.4, r * .5), 0, 7); bx.fill();
+      bx.fillStyle = dark ? rgba([255, 245, 218], Math.min(1, al * .95)) : rgba(pal(0), Math.min(1, al * 1.05)); bx.beginPath(); bx.arc(p.x, p.y, Math.max(.4, r * .5), 0, 7); bx.fill();
       if (p.flake && tw > .8) { const gg = r * 4.6; bx.strokeStyle = rgba(c, al * .45); bx.lineWidth = .7; bx.beginPath(); bx.moveTo(p.x - gg, p.y); bx.lineTo(p.x + gg, p.y); bx.moveTo(p.x, p.y - gg); bx.lineTo(p.x, p.y + gg); bx.stroke(); }
     }
     bx.globalCompositeOperation = "source-over";
@@ -7163,11 +7161,11 @@ const FlowBg = (() => {
   function frame() { if (!running) return; t += 16.7; pf = (pf + 0.00055) % 5; gel(); glitter(); raf = requestAnimationFrame(frame); }
   // start regardless of tab visibility - requestAnimationFrame is throttled to nothing while the tab is hidden anyway
   // (so no CPU cost backgrounded), and resumes on return. If the viewport isn't measurable yet (0-size at boot), retry.
-  function start() { if (running || !ready()) return; dark = document.documentElement.dataset.theme === "dark"; B.style.mixBlendMode = "screen"; if (!size()) { setTimeout(start, 250); return; } running = true; raf = requestAnimationFrame(frame); }
+  function start() { if (running || !ready()) return; dark = document.documentElement.dataset.theme === "dark"; B.style.mixBlendMode = dark ? "screen" : "normal"; if (!size()) { setTimeout(start, 250); return; } running = true; raf = requestAnimationFrame(frame); }
   function stop() { running = false; cancelAnimationFrame(raf); }
   function kick() { if (running) { cancelAnimationFrame(raf); raf = requestAnimationFrame(frame); } }   // re-arm the loop when a hidden tab returns
   function sync() { const on = BG_RICH() && !matchMedia("(prefers-reduced-motion: reduce)").matches; document.body.classList.toggle("bg-rich", on); on ? start() : stop(); }
-  function setTheme(d) { dark = d; if (B) B.style.mixBlendMode = "screen"; }   // black base in both themes → always additive
+  function setTheme(d) { dark = d; if (B) B.style.mixBlendMode = d ? "screen" : "normal"; }   // dark: additive on black · light: gold on paper
   let _rt; addEventListener("resize", () => { if (!running) return; clearTimeout(_rt); _rt = setTimeout(size, 200); });
   return { sync, start, stop, kick, setTheme };
 })();
