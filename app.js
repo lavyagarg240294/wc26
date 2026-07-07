@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "473";  // shown in footer; bump with the ?v= asset version
+const BUILD = "474";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -2899,6 +2899,41 @@ function squadVitals(code) {
   }
   return { n: sq.players.length, age: aN ? aS / aN : null, height: hN ? hS / hN : null, weight: wN ? wS / wN : null, wN };
 }
+// World Cup penalty-shootout record: the committed historical list (1982-2022) + this tournament's shootouts, merged live.
+let _shootoutsReq;
+function loadShootouts() {
+  if (_shootoutsReq) return _shootoutsReq;
+  _shootoutsReq = fetch("data/wc-shootouts.json?v=" + BUILD).then(r => r.ok ? r.json() : null)
+    .then(j => { S.wcShootouts = j || { shootouts: [] }; const sh = $("#teamSheet"); if (sh?.open && sh.dataset.code) openTeam(sh.dataset.code); return S.wcShootouts; })
+    .catch(() => (S.wcShootouts = { shootouts: [] }));
+  return _shootoutsReq;
+}
+function teamShootoutRecord(code) {
+  const list = [];
+  for (const s of (S.wcShootouts?.shootouts || [])) {   // history (West Germany's count as Germany's)
+    const side = s.a.code === code ? s.a : s.b.code === code ? s.b : null; if (!side) continue;
+    const opp = side === s.a ? s.b : s.a, won = s.winCode === code;
+    list.push({ year: s.year, round: s.round, opp: opp.name, oppCode: opp.code, res: won ? "W" : "L", score: s.score, as: (code === "DE" && s.year < 1991) ? "West Germany" : null });
+  }
+  for (const m of S.matches) {   // this tournament, from live results (shootouts only occur in knockouts, which carry ht/at)
+    const r = res(m); if (!r || r.hp == null || r.ap == null || (r.ht !== code && r.at !== code)) continue;
+    const isH = r.ht === code, opp = isH ? r.at : r.ht, mine = isH ? r.hp : r.ap, theirs = isH ? r.ap : r.hp;
+    list.push({ year: 2026, round: ROUND_LBL[m.stage] || m.stage, opp: cname(opp), oppCode: opp, res: mine > theirs ? "W" : "L", score: `${Math.max(mine, theirs)}-${Math.min(mine, theirs)}`, cur: true });
+  }
+  list.sort((a, b) => a.year - b.year || (a.cur ? 1 : 0));
+  const won = list.filter(x => x.res === "W").length;
+  return { played: list.length, won, lost: list.length - won, list };
+}
+function shootoutSection(code) {
+  if (S.wcShootouts === undefined) { loadShootouts(); return ""; }   // fills in once the committed list lands
+  const t = S.teams[code], r = teamShootoutRecord(code);
+  const info = infoBtn("Every penalty shoot-out this nation has faced at a World Cup finals, from 1982 (when shoot-outs were introduced to decide knockout ties) to now, including this tournament. West Germany's shoot-outs count as Germany's. A read on how a side has fared when a knockout tie goes all the way — not a prediction.", "World Cup shootout record");
+  if (!r.played) return `<div class="eyebrow">World Cup shootouts ${info}</div><div class="empty">${esc(t.name)} have never faced a penalty shoot-out at a World Cup.</div>`;
+  const SO_RD = { "Round of 16": "R16", "Quarter-final": "QF", "Semi-final": "SF", "Third place": "3rd", "3rd place": "3rd" };
+  const rows = r.list.map(x => `<div class="so-row${x.cur ? " so-cur" : ""}"><span class="so-yr">${x.year}</span><span class="so-rd">${esc(SO_RD[x.round] || x.round)}${x.as ? ` · as ${esc(x.as)}` : ""}</span><span class="so-opp">v ${x.oppCode ? `<span class="fl">${flag(x.oppCode)}</span> ` : ""}${esc(x.opp)}</span><span class="so-res so-${x.res.toLowerCase()}">${x.res === "W" ? "won" : "lost"} ${esc(x.score)}</span></div>`).join("");
+  return `<div class="eyebrow">World Cup shootouts ${info}</div>
+    <div class="so-card"><div class="so-head"><b class="so-tally so-tally-${r.won > r.lost ? "good" : r.won < r.lost ? "poor" : "even"}">${r.won}–${r.lost}</b><small>won–lost across ${r.played} World Cup shoot-out${r.played > 1 ? "s" : ""}</small></div>${rows}</div>`;
+}
 function openTeam(code) {
   const t = S.teams[code]; if (!t) return;
   const all = S.matches.filter(m => matchHasTeam(m, code)).sort((a, b) => a.utc.localeCompare(b.utc));
@@ -2915,6 +2950,7 @@ function openTeam(code) {
     ${teamOverview(code)}
     ${countryMiniMap(code)}
     ${wcHistory(code)}
+    ${shootoutSection(code)}
     ${since2022Section(code)}
     ${styleSection(code)}
     ${tmsHtml}
@@ -7423,6 +7459,7 @@ async function boot() {
   loadWC2022();   // last World Cup (static) - for the team "Since 2022" view
   loadEfi();    // FIFA EFI deep-analysis (data/efi.json), post-match
   loadShots();   // committed shot coordinates (data/shots.json) - the Stats shot map + instant per-match maps
+  loadShootouts();   // World Cup penalty-shootout history (data/wc-shootouts.json) - the team-sheet shootout record
   addEventListener("hashchange", () => { const v = HASH_VIEW[location.hash.slice(1)]; if (v && v !== S.view) nav(v); });  // a shared #tab link opened in-session / back-forward
   const bl = $("#bootLoading"); if (bl) { bl.classList.add("gone"); setTimeout(() => bl.remove(), 320); }   // first view rendered → reveal
   // a shared match link (?match=<id>, e.g. from a share-card stub) opens that match
