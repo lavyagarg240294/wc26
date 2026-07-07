@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "468";  // shown in footer; bump with the ?v= asset version
+const BUILD = "469";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -7108,13 +7108,15 @@ async function hardRefresh() {
   location.reload();
 }
 
-/* ---------------- ambient background: black + gold — gold light-fields + drifting embers (Settings › Animated background) ----------------
-   Two layered full-viewport canvases inside #bg on a near-black base. #bgAur: opaque black ground with big, slow GOLD
-   light-fields (amber → gold → bronze → bright → ember), added over the black so they read as light, never settling.
-   #bgFx: transparent gold embers/dust drifting along a slow, non-repeating flow field with the odd wandering vortex;
-   always screen-blended (additive glow) since the base is black in both themes. Off (or prefers-reduced-motion) falls
-   back to the static CSS blobs; parked while the tab is hidden. Aurora renders at half resolution (all soft gradients —
-   invisible) to keep the fill cheap on big screens. */
+/* ---------------- ambient background: black + gold glitter — suspended gold flecks in dark gel (Settings › Animated background) ----------------
+   The look of gold leaf suspended in a dark, gold-infused gel. Two layered full-viewport canvases inside #bg, black base
+   in BOTH themes (the glitter only reads against black). #bgAur = the "gel": near-black ground + a couple of very faint,
+   slow gold glows (light diffusing through the liquid) + a vignette so the edges fall off. #bgFx = the glitter: many
+   small gold specks drifting very slowly along a gentle flow with a soft vertical bob, each a crisp warm core + tiny
+   halo, twinkling with a sharp on/off sparkle; the odd larger "flake" throws a faint glint cross. Always screen-blended
+   (additive) since the base is black. Light theme gets the same black animation, tuned a touch brighter with a deeper
+   vignette so it reads as a deliberate dark stage behind the light UI. Off / reduced-motion → static CSS blobs; parked
+   while the tab is hidden; the gel renders at half resolution (all soft gradients) to keep the fill cheap. */
 const BG_RICH = () => localStorage.getItem("wc26.bg") === "on";   // default off - opt in via Settings › Animated background
 const FlowBg = (() => {
   const PALS = [   // black + gold: five warm gold temperatures [deep amber, gold, bright gold, champagne, pale highlight]
@@ -7124,43 +7126,41 @@ const FlowBg = (() => {
     ["#8A5C1E", "#D69C2C", "#F2C63E", "#F6E2A8", "#FCF4DC"],   // bright
     ["#6A400E", "#B06E18", "#E09A2A", "#EBC97E", "#F0E0BE"],   // ember
   ].map(p => p.map(h => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]));
-  const BL = [[.18, .14, 0], [.83, .12, 2], [.5, .44, 3], [.14, .62, 1], [.88, .58, 4]];   // aurora blob anchors + palette slot
-  let A, B, ax, bx, W = 0, H = 0, DPR = 1, raf = 0, running = false, dark = false, t = 0, pf = 0, mot = [], vort = [], vtimer = 0;
+  let A, B, ax, bx, W = 0, H = 0, DPR = 1, raf = 0, running = false, dark = false, t = 0, pf = 0, glt = [];
   const rgba = (c, a) => `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${a})`;
   const pal = s => { const i = Math.floor(pf) % 5, j = (i + 1) % 5, f = pf - Math.floor(pf), a = PALS[i][s], b = PALS[j][s]; return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f]; };
-  const base = () => [[13, 11, 8], [4, 4, 3]];   // near-black, faintly warm — same in both themes so gold always reads as light
-  const mk = () => ({ x: Math.random() * W, y: Math.random() * H, slot: (Math.random() * 5) | 0, sz: .6 + Math.random() * 1.7, sp: .35 + Math.random() * .8, rot: Math.random() * 7, life: Math.random() * 280, max: 200 + Math.random() * 260 });
+  const base = () => [[12, 10, 7], [3, 3, 2]];   // near-black gel, faintly warm — same in both themes so gold reads as light
+  // one suspended gold fleck: mostly tiny, a few larger "flakes"; drifts very slowly (as if in gel), bobs, and twinkles sharply
+  const mk = () => ({ x: Math.random() * W, y: Math.random() * H, slot: (Math.random() * 5) | 0, sz: .3 + Math.random() * Math.random() * 2.1, sp: .05 + Math.random() * .2, bob: Math.random() * 7, twf: .0018 + Math.random() * .005, twp: Math.random() * 7, flake: Math.random() < .13 });
   function ready() { if (A) return true; A = document.getElementById("bgAur"); B = document.getElementById("bgFx"); if (!A || !B) return false; ax = A.getContext("2d"); bx = B.getContext("2d"); return true; }
   function fit(c, x, sc) { c.width = Math.max(1, Math.round(W * sc)); c.height = Math.max(1, Math.round(H * sc)); x.setTransform(sc, 0, 0, sc, 0, 0); }
   function size() { DPR = Math.min(devicePixelRatio || 1, 1.5); W = innerWidth || document.documentElement.clientWidth || 0; H = innerHeight || document.documentElement.clientHeight || 0; if (!W || !H) return false; fit(A, ax, 0.5); fit(B, bx, DPR); seed(); return true; }
-  function seed() { mot = []; const n = Math.min(95, Math.round(W * H / 13000)); for (let i = 0; i < n; i++) mot.push(mk()); bx.clearRect(0, 0, W, H); }
-  function field(x, y) {
-    let a = Math.PI * (Math.sin(x * 0.0018 + t * 0.00027) + Math.cos(y * 0.0023 - t * 0.00021) + Math.sin((x + y) * 0.0013 + t * 0.00015));
-    let vx = Math.cos(a), vy = Math.sin(a);
-    for (const v of vort) { const dx = x - v.x, dy = y - v.y, d = Math.hypot(dx, dy) + 1, fl = (v._s || 0) * Math.exp(-(d * d) / (v.rad * v.rad)); vx += (-dy / d) * v.spin * fl; vy += (dx / d) * v.spin * fl; }
-    return Math.atan2(vy, vx);
-  }
-  function aurora() {
+  function seed() { glt = []; const n = Math.min(150, Math.round(W * H / 9000)); for (let i = 0; i < n; i++) glt.push(mk()); bx.clearRect(0, 0, W, H); }
+  function field(x, y) { return Math.PI * (Math.sin(x * 0.0016 + t * 0.00016) + Math.cos(y * 0.0021 - t * 0.00013) + Math.sin((x + y) * 0.0012 + t * 0.00009)); }
+  // the gel: black ground + a couple of very faint slow gold glows (light through the liquid) + a vignette so edges fall off
+  function gel() {
     const bs = base(), g = ax.createLinearGradient(0, 0, 0, H); g.addColorStop(0, rgba(bs[0], 1)); g.addColorStop(1, rgba(bs[1], 1)); ax.fillStyle = g; ax.fillRect(0, 0, W, H);
-    ax.globalCompositeOperation = "lighter";   // gold light added over the black base
-    for (let i = 0; i < BL.length; i++) { const b = BL[i], cx = (b[0] + 0.1 * Math.sin(t * 0.00017 + i * 1.7)) * W, cy = (b[1] + 0.09 * Math.cos(t * 0.00014 + i * 2.1)) * H, r = Math.max(W, H) * (0.5 + 0.12 * Math.sin(t * 0.0002 + i)), c = pal(b[2]), rg = ax.createRadialGradient(cx, cy, 0, cx, cy, r); rg.addColorStop(0, rgba(c, 0.14)); rg.addColorStop(0.55, rgba(c, 0.05)); rg.addColorStop(1, rgba(c, 0)); ax.fillStyle = rg; ax.fillRect(0, 0, W, H); }
+    ax.globalCompositeOperation = "lighter";
+    const gl = [[.30, .26, 1], [.74, .78, 3]];
+    for (let i = 0; i < gl.length; i++) { const b = gl[i], cx = (b[0] + .05 * Math.sin(t * .00011 + i * 2)) * W, cy = (b[1] + .05 * Math.cos(t * .00009 + i * 3)) * H, r = Math.max(W, H) * .6, c = pal(b[2]), rg = ax.createRadialGradient(cx, cy, 0, cx, cy, r); rg.addColorStop(0, rgba(c, dark ? .05 : .06)); rg.addColorStop(1, rgba(c, 0)); ax.fillStyle = rg; ax.fillRect(0, 0, W, H); }
     ax.globalCompositeOperation = "source-over";
+    const vg = ax.createRadialGradient(W / 2, H * .46, Math.min(W, H) * .28, W / 2, H / 2, Math.max(W, H) * .72); vg.addColorStop(0, "rgba(0,0,0,0)"); vg.addColorStop(1, dark ? "rgba(0,0,0,.5)" : "rgba(0,0,0,.66)"); ax.fillStyle = vg; ax.fillRect(0, 0, W, H);
   }
-  function motes() {
-    bx.globalCompositeOperation = "destination-out"; bx.fillStyle = "rgba(0,0,0,0.05)"; bx.fillRect(0, 0, W, H); bx.globalCompositeOperation = "source-over";
-    for (const p of mot) {
-      const a = field(p.x, p.y); p.x += Math.cos(a) * p.sp * .8; p.y += Math.sin(a) * p.sp * .8; p.life++;
-      if (p.life > p.max || p.x < -16 || p.x > W + 16 || p.y < -16 || p.y > H + 16) { Object.assign(p, mk()); continue; }
-      const env = Math.sin(Math.min(1, p.life / p.max) * Math.PI), pulse = .55 + .45 * Math.sin(t * 0.003 + p.rot), r = 2 + p.sz * 3.2, c = pal(p.slot), al = 0.42 * env * pulse;
-      const rg = bx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r); rg.addColorStop(0, rgba(c, al)); rg.addColorStop(0.35, rgba(c, al * 0.5)); rg.addColorStop(1, rgba(c, 0)); bx.fillStyle = rg; bx.beginPath(); bx.arc(p.x, p.y, r, 0, 7); bx.fill();
+  // the glitter: suspended gold specks — crisp warm core + tiny halo, sharp twinkle; the odd flake throws a faint glint cross
+  function glitter() {
+    bx.clearRect(0, 0, W, H); bx.globalCompositeOperation = "lighter";
+    const boost = dark ? 1 : 1.12;
+    for (const p of glt) {
+      const a = field(p.x, p.y); p.x += Math.cos(a) * p.sp; p.y += Math.sin(a) * p.sp + Math.sin(t * .0009 + p.bob) * .09;
+      if (p.x < -8) p.x = W + 8; else if (p.x > W + 8) p.x = -8; if (p.y < -8) p.y = H + 8; else if (p.y > H + 8) p.y = -8;
+      const tw = Math.pow(.5 + .5 * Math.sin(t * p.twf + p.twp), 3), bright = (.15 + .85 * tw) * boost, c = pal(p.slot), r = (p.flake ? 1.7 : .7) + p.sz, al = (p.flake ? .5 : .7) * bright;
+      const rg = bx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r * 2.4); rg.addColorStop(0, rgba(c, al)); rg.addColorStop(.4, rgba(c, al * .35)); rg.addColorStop(1, rgba(c, 0)); bx.fillStyle = rg; bx.beginPath(); bx.arc(p.x, p.y, r * 2.4, 0, 7); bx.fill();
+      bx.fillStyle = rgba([255, 245, 218], Math.min(1, al * .95)); bx.beginPath(); bx.arc(p.x, p.y, Math.max(.4, r * .5), 0, 7); bx.fill();
+      if (p.flake && tw > .8) { const gg = r * 4.6; bx.strokeStyle = rgba(c, al * .45); bx.lineWidth = .7; bx.beginPath(); bx.moveTo(p.x - gg, p.y); bx.lineTo(p.x + gg, p.y); bx.moveTo(p.x, p.y - gg); bx.lineTo(p.x, p.y + gg); bx.stroke(); }
     }
+    bx.globalCompositeOperation = "source-over";
   }
-  function frame() {
-    if (!running) return; t += 16.7; pf = (pf + 0.00068) % 5;
-    if (--vtimer <= 0) { vtimer = 380 + Math.random() * 520; if (vort.length < 3) vort.push({ x: Math.random() * W, y: Math.random() * H, str: .7 + Math.random(), rad: Math.min(W, H) * (.2 + Math.random() * .2), spin: Math.random() < .5 ? 1 : -1, age: 0, life: 560 + Math.random() * 520 }); }
-    for (let i = vort.length - 1; i >= 0; i--) { const v = vort[i]; v.age++; v._s = v.str * Math.sin(Math.min(1, v.age / v.life) * Math.PI); if (v.age >= v.life) vort.splice(i, 1); }
-    aurora(); motes(); raf = requestAnimationFrame(frame);
-  }
+  function frame() { if (!running) return; t += 16.7; pf = (pf + 0.00055) % 5; gel(); glitter(); raf = requestAnimationFrame(frame); }
   // start regardless of tab visibility - requestAnimationFrame is throttled to nothing while the tab is hidden anyway
   // (so no CPU cost backgrounded), and resumes on return. If the viewport isn't measurable yet (0-size at boot), retry.
   function start() { if (running || !ready()) return; dark = document.documentElement.dataset.theme === "dark"; B.style.mixBlendMode = "screen"; if (!size()) { setTimeout(start, 250); return; } running = true; raf = requestAnimationFrame(frame); }
