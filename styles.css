@@ -1666,9 +1666,10 @@ svg.ls-conn{position:absolute;inset:0;width:100%;height:100%;pointer-events:none
 .ppd:hover,.ppd:focus-visible{z-index:180 !important;outline:none}
 .ppd:hover .ppd-disc{transform:translate(-50%,-50%) scale(1.14)}
 .ppd-subdot{position:absolute;top:-1px;right:-1px;width:8px;height:8px;border-radius:50%;background:#22c55e;border:1.5px solid #0b2016;box-sizing:border-box}
-/* "came on" badge — sits on the face's top-right corner. The face is 30px centred in the 66px .pp column, so its right
-   edge is ~18px from the container edge; right:13px puts the 10px dot's centre on that corner (was right:6px = off to the side). */
-.pp-subdot{position:absolute;top:-2px;right:13px;width:10px;height:10px;border-radius:50%;background:#22c55e;border:1.5px solid rgba(255,255,255,.85);box-sizing:border-box;z-index:2}
+/* "came on" badge on the face's top-right corner. The .pp marker's width is an inline slot% (much wider than the 30px
+   face), so anchoring the dot to the container's right edge left it ~48px off to the side. Anchor to the face CENTRE
+   instead: 50% is the centred face's centre, +11px puts the dot just inside the 30px face's right edge, on the head. */
+.pp-subdot{position:absolute;top:-2px;left:calc(50% + 11px);transform:translateX(-50%);width:10px;height:10px;border-radius:50%;background:#22c55e;border:1.5px solid rgba(255,255,255,.85);box-sizing:border-box;z-index:2}
 .xi-legend{display:flex;flex-wrap:wrap;justify-content:center;gap:8px 16px;margin:9px 2px 0;font-size:var(--fs-11);color:var(--ink-soft)}
 .xi-lg{display:inline-flex;align-items:center;gap:6px}
 .xi-sw-solid{width:12px;height:12px;border-radius:50%;border:1.5px solid rgba(255,255,255,.55)}
@@ -2540,6 +2541,8 @@ svg.ls-conn{position:absolute;inset:0;width:100%;height:100%;pointer-events:none
 /* shot-map filters: round pills + a scrollable team flag rail */
 .sf-pills{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin:2px 0 8px}
 .sf-pills.stat-scope{justify-content:flex-start;margin:0 0 14px}   /* Players/Teams scope toggle: all teams vs the surviving set */
+.sf-pills.sf-scorers{justify-content:flex-start}   /* a team's scorers, left-aligned after the "Scorer" label */
+.sf-lbl{align-self:center;font-size:var(--fs-11);font-weight:600;color:var(--ink-soft);margin-right:2px}
 /* team sheet: World Cup penalty-shootout record */
 .so-card{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--card);margin-bottom:4px}
 .so-head{display:flex;align-items:baseline;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line);background:color-mix(in srgb,var(--acc1) 5%,transparent);flex-wrap:wrap}

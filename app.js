@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "477";  // shown in footer; bump with the ?v= asset version
+const BUILD = "478";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -5554,15 +5554,18 @@ function teamReach() {
     for (const side of ["home", "away"]) { const c = slotInfo(m, side).code; if (c && (reach[c] == null || d > reach[c])) reach[c] = d; } }
   return reach;
 }
-let _shotFilt = { round: "all", team: "all" };
+let _shotFilt = { round: "all", team: "all", side: "by", player: "all" };
 function tournamentShotMap() {
   if (S.shots === undefined) { loadShots().then(() => { if (S.view === "stats" && statsTab === "goals") renderStats(); }); return `<div class="empty">Loading shot locations…</div>`; }
   const data = S.shots?.matches || {}, pool = [], rounds = new Set(), teamSet = new Set();
-  for (const id in data) { const M = data[id]; rounds.add(M.st); for (const sh of M.s) { const code = sh[3] === 0 ? M.h : M.a; teamSet.add(code); pool.push({ sh, st: M.st, code }); } }
+  for (const id in data) { const M = data[id]; rounds.add(M.st); for (const sh of M.s) { const code = sh[3] === 0 ? M.h : M.a, opp = sh[3] === 0 ? M.a : M.h; teamSet.add(code); teamSet.add(opp); pool.push({ sh, st: M.st, code, opp }); } }
   if (!pool.length) return "";
-  if (_shotFilt.team !== "all" && !teamSet.has(_shotFilt.team)) _shotFilt.team = "all";   // a team can drop out of the data between renders
-  const fr = _shotFilt.round, ft = _shotFilt.team;
-  const shots = pool.filter(p => (fr === "all" || p.st === fr) && (ft === "all" || p.code === ft));
+  if (_shotFilt.team !== "all" && !teamSet.has(_shotFilt.team)) { _shotFilt.team = "all"; _shotFilt.player = "all"; }   // a team can drop out of the data between renders
+  if (_shotFilt.team === "all") { _shotFilt.side = "by"; _shotFilt.player = "all"; }   // by/against + the scorer filter only mean something once a team is picked
+  if (_shotFilt.side === "against") _shotFilt.player = "all";                          // the scorer filter is for a team's OWN shots
+  const fr = _shotFilt.round, ft = _shotFilt.team, sd = _shotFilt.side, pl = _shotFilt.player;
+  const teamOK = p => ft === "all" || (sd === "by" ? p.code === ft : p.opp === ft);   // "by" = shots this team took · "against" = shots it faced (opponent shooting)
+  const shots = pool.filter(p => (fr === "all" || p.st === fr) && teamOK(p) && (pl === "all" || p.sh[5] === pl));
   const goalN = shots.filter(p => p.sh[2]).length, PW = 272, PH = 204, MX = 14, MY = 14, L = "rgba(255,255,255,.5)";
   const sx = y => +(MX + y / 100 * PW).toFixed(1), sy = x => +(MY + (100 - x) / 50 * PH).toFixed(1);   // attacking half (x 50–100 → top)
   const cx = p => sx(100 - p.sh[1]);   // flip the width axis so left really is left (see mdShotMap)
@@ -5581,12 +5584,23 @@ function tournamentShotMap() {
   const reach = teamReach();   // order the rail by how far each team advanced: QF first, then R16, R32, group; alpha within a tier
   const teamRail = `<button class="sf-team sf-team-all${ft === "all" ? " on" : ""}" type="button" data-shotteam="all">All</button>` +
     [...teamSet].filter(Boolean).sort((a, b) => (reach[b] ?? -1) - (reach[a] ?? -1) || cname(a).localeCompare(cname(b))).map(c => `<button class="sf-team${ft === c ? " on" : ""}" type="button" data-shotteam="${c}" aria-label="${esc(cname(c))}" title="${esc(cname(c))}"><span class="fl">${flag(c)}</span></button>`).join("");
-  const scope = [ft !== "all" ? esc(cname(ft)) : "", fr !== "all" ? (ROUND_LBL[fr] || fr) : ""].filter(Boolean).join(" · ");
-  return `<div class="eyebrow" style="margin-top:22px">Where shots are taken ${infoBtn("Every located shot from every finished match, placed where it was struck (FIFA match timelines), all attacking one goal. Gold stars are goals. Filter by round or team. A shot the feed logs without a location isn't plotted.", "How the shot map works")}</div>
+  // once a team is picked: a by/against toggle (shots it took vs shots it faced), and — for "by" — its scorers as chips
+  const sideToggle = ft !== "all" ? `<div class="sf-pills sf-side"><button class="sf-pill${sd === "by" ? " on" : ""}" type="button" data-shotside="by">Shots by ${esc(cname(ft))}</button><button class="sf-pill${sd === "against" ? " on" : ""}" type="button" data-shotside="against">Shots ${esc(cname(ft))} faced</button></div>` : "";
+  let scorerChips = "";
+  if (ft !== "all" && sd === "by") {
+    const names = [...new Set(pool.filter(p => p.sh[2] && p.code === ft && (fr === "all" || p.st === fr)).map(p => p.sh[5]).filter(Boolean))].sort((a, b) => (lastName(a) || a).localeCompare(lastName(b) || b));
+    if (names.length) scorerChips = `<div class="sf-pills sf-scorers"><span class="sf-lbl">Scorer</span><button class="sf-pill${pl === "all" ? " on" : ""}" type="button" data-shotplayer="all">All</button>${names.map(n => `<button class="sf-pill${pl === n ? " on" : ""}" type="button" data-shotplayer="${esc(n)}">${esc(lastName(n) || n)}</button>`).join("")}</div>`;
+  }
+  const who = ft !== "all" ? (sd === "against" ? esc(cname(ft)) + " faced" : esc(cname(ft)) + (pl !== "all" ? " · " + esc(lastName(pl) || pl) : "")) : "";
+  const scope = [who, fr !== "all" ? (ROUND_LBL[fr] || fr) : ""].filter(Boolean).join(" · ");
+  const goalWord = ft !== "all" && sd === "against" ? "conceded" : "goals";
+  return `<div class="eyebrow" style="margin-top:22px">Where shots are taken ${infoBtn("Every located shot from every finished match, placed where it was struck (FIFA match timelines), all attacking one goal. Gold stars are goals. Filter by round, by team (shots it took or shots it faced), and by scorer. A shot the feed logs without a location isn't plotted.", "How the shot map works")}</div>
     <div class="sf-pills">${roundPills}</div>
+    ${sideToggle}
     <div class="sf-rail">${teamRail}</div>
+    ${scorerChips}
     <div class="sm-wrap"><svg viewBox="0 0 300 ${MY + PH + 8}" class="sm-svg" role="img" aria-label="Shot map, ${shots.length} shots">${pitch}${dots}${stars}</svg></div>
-    <div class="gt-foot"><span><b>${shots.length}</b> shots${scope ? ` · ${scope}` : ""}</span><span><b>${goalN}</b> goals</span><span><b>${shots.length ? (100 * goalN / shots.length).toFixed(1) : "0"}%</b> found the net</span></div>`;
+    <div class="gt-foot"><span><b>${shots.length}</b> shots${scope ? ` · ${scope}` : ""}</span><span><b>${goalN}</b> ${goalWord}</span><span><b>${shots.length ? (100 * goalN / shots.length).toFixed(1) : "0"}%</b> found the net</span></div>`;
 }
 // Goal placement: where each goal crossed the line, from FIFA's GoalGatePosition (gx across the goal ~30-70, gy height ~2-48).
 // Horizontal is logged for almost every goal; ~1 in 10 carry a 2.1 "height not recorded" sentinel we don't plot vertically.
@@ -5594,10 +5608,10 @@ function tournamentShotMap() {
 function goalNetMap() {
   if (S.shots === undefined) return "";
   const data = S.shots?.matches || {}, goals = [];
-  for (const id in data) { const M = data[id]; for (const sh of M.s) { if (!sh[2] || sh[6] == null) continue; goals.push({ gx: sh[6], gy: sh[7], code: sh[3] === 0 ? M.h : M.a, st: M.st, min: sh[4], p: sh[5] }); } }
+  for (const id in data) { const M = data[id]; for (const sh of M.s) { if (!sh[2] || sh[6] == null) continue; goals.push({ gx: sh[6], gy: sh[7], code: sh[3] === 0 ? M.h : M.a, opp: sh[3] === 0 ? M.a : M.h, st: M.st, min: sh[4], p: sh[5] }); } }
   if (!goals.length) return "";
-  const fr = _shotFilt.round, ft = _shotFilt.team;
-  const sel = goals.filter(g => (fr === "all" || g.st === fr) && (ft === "all" || g.code === ft));
+  const fr = _shotFilt.round, ft = _shotFilt.team, sd = _shotFilt.side, pl = _shotFilt.player;   // shares the shot-map filter: by/against team + scorer
+  const sel = goals.filter(g => (fr === "all" || g.st === fr) && (ft === "all" || (sd === "by" ? g.code === ft : g.opp === ft)) && (pl === "all" || g.p === pl));
   if (!sel.length) return "";
   const SENT = gy => gy != null && Math.abs(gy - 2.1) < 0.06;   // FIFA's exact-2.10 = height not recorded
   const placed = sel.filter(g => g.gy != null && !SENT(g.gy)), noHt = sel.length - placed.length;
@@ -5614,7 +5628,8 @@ function goalNetMap() {
     `<line x1="${PADX - 10}" y1="${GBOT}" x2="${PADX + GW + 10}" y2="${GBOT}" stroke="rgba(255,255,255,.5)" stroke-width="1.4"/>`;
   const dots = placed.map(g => `<circle cx="${fx(g.gx)}" cy="${fy(g.gy)}" r="2.5" fill="rgba(232,185,49,.5)" stroke="rgba(232,185,49,.85)" stroke-width=".5"><title>${esc(g.p)} · ${esc(String(g.min))} · ${esc(cname(g.code))}</title></circle>`).join("");
   const lowPct = placed.length ? Math.round(100 * placed.filter(g => g.gy < GY0 + (GY1 - GY0) / 3).length / placed.length) : 0;
-  const scope = [ft !== "all" ? esc(cname(ft)) : "", fr !== "all" ? (ROUND_LBL[fr] || fr) : ""].filter(Boolean).join(" · ");
+  const who = ft !== "all" ? (sd === "against" ? esc(cname(ft)) + " conceded" : esc(cname(ft)) + (pl !== "all" ? " · " + esc(lastName(pl) || pl) : "")) : "";
+  const scope = [who, fr !== "all" ? (ROUND_LBL[fr] || fr) : ""].filter(Boolean).join(" · ");
   return `<div class="eyebrow" style="margin-top:22px">Where goals cross the line ${infoBtn("Where each goal passed the goal line, from FIFA's recorded crossing point — one axis across the goal, one for height. Horizontal is logged for almost every goal; about one in ten carry no height reading and aren't plotted (counted separately below). The frame is drawn to scale as a reference; each dot is the recorded crossing point, not a claim of exact centimetres. Penalty-shootout kicks are excluded.", "How goal placement is read")}</div>
     <div class="sm-wrap"><svg viewBox="0 0 300 ${H}" class="sm-svg net-svg" role="img" aria-label="Goal placement, ${placed.length} goals">${frame}${dots}</svg></div>
     <div class="gt-foot"><span><b>${placed.length}</b> goals placed${scope ? ` · ${scope}` : ""}</span><span><b>${lowPct}%</b> cross in the lower third</span>${noHt ? `<span>height not recorded for <b>${noHt}</b></span>` : ""}</div>`;
@@ -7400,8 +7415,12 @@ async function boot() {
     if (sl) { e.stopPropagation(); openStatList(sl.dataset.statlist); return; }
     const sfr = e.target.closest("[data-shotround]");   // Stats › Goals: shot-map round filter
     if (sfr) { e.stopPropagation(); _shotFilt.round = sfr.dataset.shotround; renderStats(); return; }
-    const sft = e.target.closest("[data-shotteam]");   // …and team filter
-    if (sft) { e.stopPropagation(); _shotFilt.team = sft.dataset.shotteam; renderStats(); return; }
+    const sft = e.target.closest("[data-shotteam]");   // …and team filter (picking a new team resets side + scorer)
+    if (sft) { e.stopPropagation(); _shotFilt.team = sft.dataset.shotteam; _shotFilt.side = "by"; _shotFilt.player = "all"; renderStats(); return; }
+    const ssd = e.target.closest("[data-shotside]");   // …shots BY the team vs shots it FACED (resets the scorer chip)
+    if (ssd) { e.stopPropagation(); _shotFilt.side = ssd.dataset.shotside; _shotFilt.player = "all"; renderStats(); return; }
+    const spl = e.target.closest("[data-shotplayer]");   // …and by scorer (that team's goal scorers)
+    if (spl) { e.stopPropagation(); _shotFilt.player = spl.dataset.shotplayer; renderStats(); return; }
     const ssc = e.target.closest("[data-statscope]");   // Stats › Players/Teams: all-teams vs surviving-teams scope
     if (ssc) { e.stopPropagation(); _statScope = ssc.dataset.statscope; renderStats(); return; }
     const ab = e.target.closest("[data-about]");   // "how the format works" → tournament info sheet
