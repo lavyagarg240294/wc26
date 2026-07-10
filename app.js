@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "474";  // shown in footer; bump with the ?v= asset version
+const BUILD = "475";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -6306,13 +6306,17 @@ function fldTalesHTML(state) {
       <b>${esc(e.title)}</b>
       <span class="fld-tale-s">${esc(e.standfirst)}</span></button>`;
   };
-  const curSt = FLD_ROUNDS[state.cur][0];
+  const stIdx = s => FLD_ROUNDS.findIndex(r => r[0] === s);
   const withEssay = ["r16", "qf", "sf", "final"].flatMap(fldKo).filter(m => t.ties[m.num]);
-  const curRows = withEssay.filter(m => m.stage === curSt).map(card).join("");
-  const oldRows = withEssay.filter(m => m.stage !== curSt).map(card).join("");
-  if (!curRows && !oldRows) return "";
+  // current round leads; a preview whose feeders are already resolved but whose round has not begun sits above
+  // as "taking shape"; settled earlier rounds fold away as the record. Round is feed-driven, so this stays honest.
+  const curRows = withEssay.filter(m => stIdx(m.stage) === state.cur).map(card).join("");
+  const nextRows = withEssay.filter(m => stIdx(m.stage) > state.cur).map(card).join("");
+  const oldRows = withEssay.filter(m => stIdx(m.stage) < state.cur).map(card).join("");
+  if (!curRows && !nextRows && !oldRows) return "";
   return `<div class="fld-mod"><div class="fld-mod-cap">The ties · ${esc(FLD_ROUNDS[state.cur][1])}</div><div class="fld-mod-sub">A page on each - what the matchup means, where it comes from, how both sides got here.</div>
     ${curRows ? `<div class="fld-talelist">${curRows}</div>` : ""}
+    ${nextRows ? `<details class="fld-oldties fld-nextties" open><summary>Next round · taking shape</summary><div class="fld-talelist">${nextRows}</div></details>` : ""}
     ${oldRows ? `<details class="fld-oldties"><summary>Earlier rounds · the record</summary><div class="fld-talelist">${oldRows}</div></details>` : ""}</div>`;
 }
 const T_NAME = c => esc(S.teams[c]?.name || c);
