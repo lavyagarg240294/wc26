@@ -5581,12 +5581,16 @@ function tournamentShotMap() {
   const sx = y => +(MX + y / 100 * PW).toFixed(1), sy = x => +(MY + (100 - x) / 50 * PH).toFixed(1);   // attacking half (x 50–100 → top)
   const cx = p => sx(100 - p.sh[1]);   // flip the width axis so left really is left (see mdShotMap)
   const R = (x, y, w, ht, sw) => `<rect x="${x}" y="${y}" width="${w}" height="${ht}" fill="none" stroke="${L}" stroke-width="${sw || .8}"/>`;
-  const star = (X, Y, rr) => { let p = ""; for (let i = 0; i < 10; i++) { const a = Math.PI / 5 * i - Math.PI / 2, r = i % 2 ? rr * .45 : rr; p += (i ? "L" : "M") + (X + r * Math.cos(a)).toFixed(1) + " " + (Y + r * Math.sin(a)).toFixed(1) + " "; } return `<path d="${p}Z" fill="#E8B931" stroke="#fff" stroke-width=".9" stroke-linejoin="round"/>`; };
+  const starD = (X, Y, rr) => { let p = ""; for (let i = 0; i < 10; i++) { const a = Math.PI / 5 * i - Math.PI / 2, r = i % 2 ? rr * .45 : rr; p += (i ? "L" : "M") + (X + r * Math.cos(a)).toFixed(1) + " " + (Y + r * Math.sin(a)).toFixed(1) + " "; } return p + "Z"; };
+  const circD = (x, y, r) => `M${(x - r).toFixed(1)} ${y}a${r} ${r} 0 1 0 ${2 * r} 0a${r} ${r} 0 1 0 ${-2 * r} 0`;   // one filled dot as path data
   const pitch = `<rect x="${MX}" y="${MY}" width="${PW}" height="${PH}" fill="#245C3C" rx="4"/>` + R(MX, MY, PW, PH) +
     R(sx(21), MY, sx(79) - sx(21), sy(83) - MY) + R(sx(37), MY, sx(63) - sx(37), sy(94) - MY) + R(sx(44), MY - 3, sx(56) - sx(44), 3, 1.4) +
     `<path d="M ${sx(37)} ${sy(83)} A 32 32 0 0 0 ${sx(63)} ${sy(83)}" fill="none" stroke="${L}" stroke-width=".8"/>`;
-  const dots = shots.filter(p => !p.sh[2]).map(p => `<circle cx="${cx(p)}" cy="${sy(p.sh[0])}" r="1.7" fill="rgba(95,176,255,.55)"/>`).join("");
-  const stars = shots.filter(p => p.sh[2]).map(p => star(cx(p), sy(p.sh[0]), 3.4)).join("");
+  // collapse every non-goal dot into ONE <path>, every goal-star into ONE <path> — ~2300 SVG nodes become 2, far cheaper to parse/lay-out/paint
+  const dotsD = shots.filter(p => !p.sh[2]).map(p => circD(cx(p), sy(p.sh[0]), 1.7)).join("");
+  const starsD = shots.filter(p => p.sh[2]).map(p => starD(cx(p), sy(p.sh[0]), 3.4)).join("");
+  const dots = dotsD ? `<path d="${dotsD}" fill="rgba(95,176,255,.55)"/>` : "";
+  const stars = starsD ? `<path d="${starsD}" fill="#E8B931" stroke="#fff" stroke-width=".9" stroke-linejoin="round"/>` : "";
   const roundPills = [["all", "All rounds"], ...ROUND_ORDER.filter(st => rounds.has(st)).map(st => [st, ROUND_LBL[st] || st])].map(([v, l]) => `<button class="sf-pill${fr === v ? " on" : ""}" type="button" data-shotround="${v}">${esc(l)}</button>`).join("");
   const reach = teamReach();   // order the rail by how far each team advanced: QF first, then R16, R32, group; alpha within a tier
   const teamRail = `<button class="sf-team sf-team-all${ft === "all" ? " on" : ""}" type="button" data-shotteam="all">All</button>` +
