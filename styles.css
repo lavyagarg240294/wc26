@@ -2532,7 +2532,7 @@ svg.ls-conn{position:absolute;inset:0;width:100%;height:100%;pointer-events:none
 .gt-fill{width:100%;max-width:15px;border-radius:3px 3px 0 0;background:linear-gradient(180deg,var(--acc1),color-mix(in srgb,var(--acc1) 60%,var(--acc2)));min-height:2px;transition:height .5s cubic-bezier(.2,.8,.2,1)}
 .gt-bar-x .gt-fill{background:linear-gradient(180deg,var(--gold),var(--gold-text))}
 .gt-bar:hover .gt-fill{filter:brightness(1.12)}
-.gt-x{position:absolute;bottom:0;left:50%;transform:translateX(-50%);font-family:var(--mono);font-size:var(--fs-9);color:var(--ink-soft);white-space:nowrap}
+.gt-x{position:absolute;bottom:-14px;left:50%;transform:translateX(-50%);font-family:var(--mono);font-size:var(--fs-9);color:var(--ink-soft);white-space:nowrap}   /* sit in the reserved row BELOW the bars, so labels read cleanly instead of over a fill */
 .gt-ht{position:absolute;top:0;bottom:16px;width:0;border-left:1.5px dashed color-mix(in srgb,var(--ink-soft) 55%,transparent)}
 .gt-ht::after{content:"HT";position:absolute;top:-2px;left:3px;font-family:var(--mono);font-size:var(--fs-9);color:var(--ink-soft)}
 .gt-ft::after{content:"FT"}   /* second divider marks the end of regulation; bars to its right are added time + extra time */

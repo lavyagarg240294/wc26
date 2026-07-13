@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "479";  // shown in footer; bump with the ?v= asset version
+const BUILD = "480";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -5112,10 +5112,17 @@ function tournamentStats() {
   const TSTAT_KEYS = ["sh", "pass", "passT", "cross", "lball", "tkl", "intc", "clr", "blk", "sv", "off", "fls"];   // richer ESPN team stats → leaderboards + style
   let goals = 0, totYellow = 0, totRed = 0, totPen = 0, totOg = 0, totSot = 0;
   const penList = [], ogList = [], headerList = [], subGoalList = [];   // penalties scored + own goals + header goals + goals by a substitute (clickable Overview tiles)
-  const goalHist = new Array(24).fill(0), goalHalves = { h1: 0, h2: 0, et: 0 };   // when goals land: 24 five-minute bins across 0–120 (regulation + added time + extra time); and the half split
+  const goalHist = new Array(28).fill(0), goalHalves = { h1: 0, h2: 0, et: 0 };   // when goals land: five-minute bands across 1–120 PLUS a dedicated stoppage bar after each period (45+, 90+, 105+, 120+); and the half split
   // bin a goal by its elapsed minute in uniform 5-min bands. First-half added time folds into 41–45 (so it can't leak into the
   // second half); everything after 90 (stoppage AND extra time) is spread by real elapsed minute — 90+3 → 91–95, 90+7 → 96–100.
-  const goalBin = t => { const raw = String(t), plus = raw.includes("+"), base = Math.floor(evMin(t)); if (plus && base <= 45) return 8; const m = plus ? base + Math.round((evMin(t) - base) * 100) : base; return Math.max(0, Math.min(23, Math.floor((m - 1) / 5))); };
+  const goalBin = t => {   // 28 bins; a "+" minute (45+2, 90+3, 105+1, 120+4) goes to its period's dedicated stoppage bar
+    const base = Math.floor(evMin(t)), plus = String(t).includes("+");
+    if (plus) return base <= 45 ? 9 : base <= 90 ? 19 : base <= 105 ? 23 : 27;   // 45+, 90+, 105+, 120+ stoppage bars
+    if (base <= 45) return Math.max(0, Math.floor((base - 1) / 5));               // 1–45  → bins 0–8
+    if (base <= 90) return 10 + Math.floor((base - 46) / 5);                      // 46–90 → bins 10–18
+    if (base <= 105) return 20 + Math.floor((base - 91) / 5);                     // 91–105 → bins 20–22
+    return Math.min(26, 24 + Math.floor((base - 106) / 5));                       // 106–120 → bins 24–26
+  };
   const firstGoal = { w: 0, d: 0, l: 0 };   // "does scoring first matter?" - outcome for the team that scored first
   const rec = {};   // each record resolves to an ARRAY of all holders tied at the top value (joint records) - see topTies, post-loop
   const recC = { bigWin: [], hiScore: [], fastG: [], lateG: [], hiDraw: [], topMatch: [], mostCards: [], mostTackles: [], mostPasses: [], mostSot: [], bestDef: [] };
@@ -5530,15 +5537,22 @@ function loadShots() {
 }
 // when goals happen: one bar per five minutes across the 90, plus a final band for stoppage + extra time; half-time marked.
 function goalTimingHTML(s) {
-  const h = s.goalHist || [], N = h.length || 24, max = Math.max(1, ...h), total = h.reduce((a, b) => a + b, 0);
+  const h = s.goalHist || [], max = Math.max(1, ...h), total = h.reduce((a, b) => a + b, 0);
   if (!total) return "";
-  const TICKS = { 2: "15", 5: "30", 8: "45", 11: "60", 14: "75", 17: "90", 20: "105", 23: "120" };   // 5-min bins → axis marks
-  const under = i => TICKS[i] || "";
-  const peak = h.indexOf(max), peakLbl = `between ${peak * 5 + 1} and ${peak * 5 + 5} minutes`;
-  const bars = h.map((c, i) => `<div class="gt-bar${i >= 18 ? " gt-bar-x" : ""}" title="${c} goal${c === 1 ? "" : "s"} · ${(i * 5 + 1) + "–" + (i * 5 + 5) + "'"}"><span class="gt-fill" style="height:${Math.round(c / max * 100)}%"></span><span class="gt-x">${under(i)}</span></div>`).join("");
+  // 28 bins: five-minute bands across 1–120, with a dedicated stoppage bar at the end of each period. [tooltip, axis label, isStoppage]
+  const BINS = [
+    ["1–5"], ["6–10"], ["11–15", "15"], ["16–20"], ["21–25"], ["26–30", "30"], ["31–35"], ["36–40"], ["41–45"], ["45+ stoppage", "45+", 1],
+    ["46–50"], ["51–55"], ["56–60", "60"], ["61–65"], ["66–70"], ["71–75", "75"], ["76–80"], ["81–85"], ["86–90"], ["90+ stoppage", "90+", 1],
+    ["91–95"], ["96–100"], ["101–105"], ["105+ stoppage", "105+", 1], ["106–110"], ["111–115"], ["116–120"], ["120+ stoppage", "120+", 1],
+  ];
+  const N = BINS.length, peak = h.indexOf(max), pk = BINS[peak] || ["", ""];
+  const peakLbl = pk[2] ? `in ${pk[1]} added time` : `between minutes ${pk[0] || "?"}`;
+  const bars = h.map((c, i) => { const b = BINS[i] || ["", ""], stop = b[2] === 1;
+    return `<div class="gt-bar${stop ? " gt-bar-x" : ""}" title="${c} goal${c === 1 ? "" : "s"} · ${b[0]}${stop ? "" : "'"}"><span class="gt-fill" style="height:${Math.round(c / max * 100)}%"></span><span class="gt-x">${b[1] || ""}</span></div>`; }).join("");
   const hg = s.goalHalves || { h1: 0, h2: 0, et: 0 };
-  return `<div class="eyebrow">When goals are scored ${infoBtn("Every goal placed by the minute it was scored, in five-minute bands from kick-off through to the end of extra time (120'). First-half added time folds into the 41–45 band; second-half added time and extra time are spread by their real elapsed minute (a 90+3 goal sits in 91–95). A read on when goals have actually come, not a prediction.", "How this is counted")}</div>
-    <div class="gt-card"><div class="gt-chart" role="img" aria-label="Goals by five-minute band">${bars}<span class="gt-ht" style="left:${(9 / N * 100).toFixed(2)}%"></span><span class="gt-ht gt-ft" style="left:${(18 / N * 100).toFixed(2)}%"></span></div>
+  const div = (i, cls) => `<span class="gt-ht${cls ? " " + cls : ""}" style="left:${(i / N * 100).toFixed(2)}%"></span>`;   // half-time (after 45+) and full-time (after 90+); the extra-time halves are bounded by the gold 105+/120+ bars
+  return `<div class="eyebrow">When goals are scored ${infoBtn("Every goal placed by the minute it was scored, in five-minute bands across the 90 and through extra time (120'), with a SEPARATE bar for each period's added (stoppage) time — 45+, 90+, 105+ and 120+ — rather than folding those into the regular bands. A read on when goals have actually come, not a prediction.", "How this is counted")}</div>
+    <div class="gt-card"><div class="gt-chart" role="img" aria-label="Goals by five-minute band">${bars}${div(10)}${div(20, "gt-ft")}</div>
       <div class="gt-foot"><span><b>${total}</b> goals</span><span>Most fall ${peakLbl}</span><span>1st half <b>${hg.h1}</b> · 2nd <b>${hg.h2}</b>${hg.et ? ` · ET <b>${hg.et}</b>` : ""}</span></div></div>`;
 }
 // tournament shot map: every located shot from data/shots.json on one attacking-half pitch, goals as gold stars,
