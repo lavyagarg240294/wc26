@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "478";  // shown in footer; bump with the ?v= asset version
+const BUILD = "479";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -5634,10 +5634,18 @@ function goalNetMap() {
     <div class="sm-wrap"><svg viewBox="0 0 300 ${H}" class="sm-svg net-svg" role="img" aria-label="Goal placement, ${placed.length} goals">${frame}${dots}</svg></div>
     <div class="gt-foot"><span><b>${placed.length}</b> goals placed${scope ? ` · ${scope}` : ""}</span><span><b>${lowPct}%</b> cross in the lower third</span>${noHt ? `<span>height not recorded for <b>${noHt}</b></span>` : ""}</div>`;
 }
-function goalsSectionHTML(s) { return goalTimingHTML(s) + tournamentShotMap() + goalNetMap(); }
+function goalsSectionHTML(s) {
+  // maps need data/shots.json; until it lands show the (instant) timing chart + a clear spinner, never a blank panel.
+  // renderStats() kicks off loadShots() on Stats open and re-renders here when it resolves.
+  if (S.shots === undefined) return goalTimingHTML(s) + `<div class="eyebrow" style="margin-top:22px">Where shots are taken</div><div class="gt-loading"><span class="boot-spin"></span><span>Loading the shot &amp; goal maps…</span></div>`;
+  return goalTimingHTML(s) + tournamentShotMap() + goalNetMap();
+}
 function renderStats() {
   const el = $("#view-stats"), s = tournamentStats();
   if (!s.pulse.matches) { paint(el, `<div class="rk-pre">Tournament stats (scorers, records, team form) fill in as matches kick off. Until then, here's the field by world ranking.</div>${fifaRankingPanel()}`); return; }
+  // Warm the Goals tab the moment Stats opens: start the shot-map fetch now (even on another sub-tab) so it's usually
+  // ready by the time Goals is clicked. If someone lands on Goals first, the section shows a loader and re-renders here.
+  if (S.shots === undefined) loadShots().then(() => { if (S.view === "stats" && statsTab === "goals") renderStats(); });
   // Players/Teams scope: "all" or just the deepest surviving set — reach>=deepest = the teams still standing in the latest round
   // reached (the quarter-finalists now, the semi-finalists once those are set). Only offered from the quarter-finals on.
   const _reach = teamReach(), _deepest = Math.max(0, ...Object.values(_reach));
