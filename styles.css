@@ -1612,6 +1612,8 @@ svg.ls-conn{position:absolute;inset:0;width:100%;height:100%;pointer-events:none
 .pl-wc .pw b{display:block;font-family:var(--disp);font-weight:900;font-stretch:106%;font-size:22px;color:var(--acc-text);line-height:1.05}
 .pl-wc .pw span{font-size:var(--fs-9);text-transform:uppercase;letter-spacing:.02em;color:var(--ink-soft);font-weight:600}
 .pw-cards{display:flex;gap:5px;justify-content:center;align-items:center;min-height:26px}
+.pl-wc-phys{grid-template-columns:repeat(3,1fr)}   /* the physical/shooting summary reads best 3-wide (longer labels: 'km · 7.7/match') */
+.pl-wc-phys .pw b{font-size:20px}
 .cc{display:inline-flex;align-items:center;justify-content:center;min-width:21px;height:25px;border-radius:5px;font-family:var(--mono);font-weight:700;font-size:var(--fs-14);padding:0 5px;line-height:1}
 .cc-y{background:var(--gold);color:#3a2c05}
 .cc-r{background:var(--live);color:#fff}

@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "482";  // shown in footer; bump with the ?v= asset version
+const BUILD = "483";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -2896,6 +2896,14 @@ function loadShootouts() {
     .catch(() => (S.wcShootouts = { shootouts: [] }));
   return _shootoutsReq;
 }
+let _pstatsReq;
+function loadPlayerStats() {   // per-player FIFA data-hub tournament summary (semi-finalists) for the player sheet
+  if (_pstatsReq) return _pstatsReq;
+  _pstatsReq = fetch("data/playerstats.json?v=" + BUILD).then(r => r.ok ? r.json() : null)
+    .then(j => { S.playerStats = j || { byTeam: {} }; const pd = $("#playerDialog"); if (pd?.open && pd.dataset.pl) { const [n, c] = pd.dataset.pl.split("|"); openPlayer(n, c); } return S.playerStats; })
+    .catch(() => (S.playerStats = { byTeam: {} }));
+  return _pstatsReq;
+}
 function teamShootoutRecord(code) {
   const list = [];
   for (const s of (S.wcShootouts?.shootouts || [])) {   // history (West Germany's count as Germany's)
@@ -3041,7 +3049,24 @@ function openPlayer(name, code) {
   }).join("")}</div>` : "";
   const box = matchPstat(name, r?.pstats);   // ESPN per-match box score for this player, if a match is open
   const boxHtml = box ? PL_BOX.filter(([k]) => box[k]).map(([k, label]) => `<span class="pl-stat"><b>${box[k]}</b>${label}</span>`).join("") : "";
+  // FIFA data-hub per-player tournament summary (distance/speed/shots/xG/passes), baked for the semi-finalists.
+  // Joined by shirt number within the team (exact), falling back to name. Loads lazily; re-renders this sheet on arrival.
+  if (S.playerStats === undefined) loadPlayerStats();
+  const ps = (S.playerStats?.byTeam?.[code] || []).find(p => (num != null && p.num === num) || sameName(p.name, name));
+  const pStatsHTML = ps && ps.m ? (() => {
+    const pct = ps.pass ? Math.round(ps.passC / ps.pass * 100) : null;
+    const tile = (v, l) => `<div class="pw"><b>${v}</b><span>${l}</span></div>`;
+    return `<div class="eyebrow">Match stats <span class="wp-est">FIFA physical · ${ps.m} match${ps.m !== 1 ? "es" : ""}</span></div><div class="pl-wc pl-wc-phys">
+      ${tile(ps.km.toFixed(1), `km${ps.m > 1 ? ` · ${(ps.km / ps.m).toFixed(1)}/match` : ""}`)}
+      ${tile(ps.spd.toFixed(1), "Top speed km/h")}
+      ${tile(ps.sprints, "Sprints")}
+      ${isGK ? "" : tile(ps.sh, `Shots${ps.sot ? ` · ${ps.sot} on target` : ""}`)}
+      ${isGK || !ps.xg ? "" : tile(ps.xg.toFixed(1), "Expected goals")}
+      ${tile(ps.passC, `Passes${pct != null ? ` · ${pct}%` : ""}`)}
+    </div>` ;
+  })() : "";
   $("#playerTitle").textContent = pName(name, code);   // real dialog name for screen readers (was a generic "Player")
+  $("#playerDialog").dataset.pl = name + "|" + code;   // so loadPlayerStats() can re-render this exact player when its data lands
   $("#playerBody").innerHTML = `
     <div class="pl">
       ${photo ? `<span class="pl-portrait pl-zoomable" style="background-image:url('${photo}')" data-zoom="${esc(photo)}" role="button" tabindex="0" aria-label="View full-size photo" title="Tap to enlarge"></span>` : `<span class="pl-portrait pl-flag">${code ? flag(code) : "·"}</span>`}
@@ -3073,6 +3098,7 @@ function openPlayer(name, code) {
       <div class="pw"><b>${wc.a}</b><span>Assist${wc.a !== 1 ? "s" : ""}</span></div>`}
       <div class="pw"><b class="pw-cards">${wc.y || wc.rc ? `${wc.y ? `<span class="cc cc-y">${wc.y}</span>` : ""}${wc.rc ? `<span class="cc cc-r">${wc.rc}</span>` : ""}` : "0"}</b><span>Cards</span></div>
     </div>` : ""}
+    ${pStatsHTML}
     ${logHtml}
     ${(boxHtml || acts) ? `<div class="eyebrow">In this match</div>${boxHtml ? `<div class="pl-box">${boxHtml}</div>` : ""}${acts ? `<div class="pl-acts">${acts}</div>` : ""}` : ""}
     <div class="pl-foot">
@@ -7524,6 +7550,7 @@ async function boot() {
   loadEfi();    // FIFA EFI deep-analysis (data/efi.json), post-match
   loadShots();   // committed shot coordinates (data/shots.json) - the Stats shot map + instant per-match maps
   loadShootouts();   // World Cup penalty-shootout history (data/wc-shootouts.json) - the team-sheet shootout record
+  loadPlayerStats();   // per-player tournament stat summary (data/playerstats.json, semi-finalists) - the player sheet
   addEventListener("hashchange", () => { const v = HASH_VIEW[location.hash.slice(1)]; if (v && v !== S.view) nav(v); });  // a shared #tab link opened in-session / back-forward
   const bl = $("#bootLoading"); if (bl) { bl.classList.add("gone"); setTimeout(() => bl.remove(), 320); }   // first view rendered → reveal
   // a shared match link (?match=<id>, e.g. from a share-card stub) opens that match
