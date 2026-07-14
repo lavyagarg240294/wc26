@@ -116,15 +116,21 @@ def enrich_minutes(fifa_num, d):
         for pl in ((team or {}).get("Players") or []):
             st = stats.get(str(pl.get("IdPlayer"))) or {}
             tp, td, shirt = st.get("TimePlayed"), st.get("TotalDistance"), pl.get("ShirtNumber")
+            spd, spr = st.get("TopSpeed"), st.get("Sprints")   # km/h, and count — per player, per match
             if not tp or not td or shirt is None:
                 continue                                  # unused sub (no time on pitch) or no tracking row
             r = rows.get(int(shirt))
             if r:
                 r["min"] = round(tp)
+                if spd:
+                    r["spd"] = round(spd, 1)
+                if spr is not None:
+                    r["spr"] = round(spr)
             else:
                 nm = ((pl.get("PlayerName") or [{}])[0].get("Description") or "").strip()
                 if nm:
-                    built.append({"n": int(shirt), "name": nm.title(), "km": round(td / 1000, 2), "min": round(tp)})
+                    built.append({"n": int(shirt), "name": nm.title(), "km": round(td / 1000, 2), "min": round(tp),
+                                  "spd": round(spd, 1) if spd else None, "spr": round(spr) if spr is not None else None})
         if built and not d["players"][side]:
             d["players"][side] = sorted(built, key=lambda x: -x["km"])
 

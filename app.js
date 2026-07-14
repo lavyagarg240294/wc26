@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "483";  // shown in footer; bump with the ?v= asset version
+const BUILD = "484";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1213,10 +1213,21 @@ function mdEfi(m, expand = false) {
       <span class="efi-pn">${esc(tlName(p.name, p.code))}</span>
       <span class="efi-pbar"><i style="width:${Math.max(5, Math.round(p.km / maxKm * 100))}%;background:${p.c}"></i></span>
       <span class="efi-pv">${p.km.toFixed(1)}</span></div>`).join("")}</div>` : "";
-  if (!sb.length && !dist) return "";
+  // top speed + sprints per player (FIFA physical data, when the report carries them): compact boards of the standouts.
+  // Live matches overlay these same fields onto e.players from fdh-api, so this renders for a running game too.
+  const physRow = (p, w, val) => `<div class="efi-prow efi-prow-clk" data-player="${esc(p.name)}|${p.code}" role="button" tabindex="0" title="View ${esc(pName(p.name, p.code))}">
+    <span class="efi-pn">${esc(tlName(p.name, p.code))}</span><span class="efi-pbar"><i style="width:${w}%;background:${p.c}"></i></span><span class="efi-pv">${val}</span></div>`;
+  const spdList = players.filter(p => p.spd).sort((x, y) => y.spd - x.spd).slice(0, 6);
+  const sprList = players.filter(p => p.spr != null).sort((x, y) => y.spr - x.spr).slice(0, 6);
+  const spdMin = spdList.length ? spdList[spdList.length - 1].spd : 0, spdMax = spdList[0]?.spd || 1, sprMax = sprList[0]?.spr || 1;
+  const spdBlock = spdList.length ? `<div class="efi-sub">Top speed <small>km/h · fastest ${spdList.length}</small></div>
+    <div class="efi-dist">${spdList.map(p => physRow(p, spdMax > spdMin ? Math.round((p.spd - spdMin) / (spdMax - spdMin) * 80 + 20) : 100, p.spd.toFixed(1))).join("")}</div>` : "";
+  const sprBlock = sprList.length ? `<div class="efi-sub">Sprints <small>most ${sprList.length}</small></div>
+    <div class="efi-dist">${sprList.map(p => physRow(p, Math.max(8, Math.round(p.spr / sprMax * 100)), p.spr)).join("")}</div>` : "";
+  if (!sb.length && !dist && !spdBlock) return "";
   const body = `${sb.length ? `<div class="md-stats">${sb.join("")}</div>` : ""}
       ${phaseBars ? `<div class="efi-sub">Phases of play <small>in possession</small></div><div class="md-stats">${phaseBars}</div>` : ""}
-      ${dist}
+      ${dist}${spdBlock}${sprBlock}
       <p class="efi-credit">Source: FIFA Enhanced Football Intelligence, published after the match.</p>`;
   const efiInfo = infoBtn("FIFA's official post-match data (Enhanced Football Intelligence). Line breaks = passes played beyond a line of opponents (breaking the press); ball progressions = actions that carry the ball meaningfully towards goal; defensive pressures = times a player closed down the ball-carrier; possession in-contest = the share of the ball while it was genuinely being contested; distance covered = total running per player.", "About FIFA's deep-analysis metrics");
   if (expand) return `<div class="eyebrow">Deep analysis ${efiInfo}</div>${body}`;
@@ -3059,7 +3070,7 @@ function openPlayer(name, code) {
     return `<div class="eyebrow">Match stats <span class="wp-est">FIFA physical · ${ps.m} match${ps.m !== 1 ? "es" : ""}</span></div><div class="pl-wc pl-wc-phys">
       ${tile(ps.km.toFixed(1), `km${ps.m > 1 ? ` · ${(ps.km / ps.m).toFixed(1)}/match` : ""}`)}
       ${tile(ps.spd.toFixed(1), "Top speed km/h")}
-      ${tile(ps.sprints, "Sprints")}
+      ${tile(ps.sprints, `Sprints${ps.m > 1 ? ` · ${(ps.sprints / ps.m).toFixed(1)}/match` : ""}`)}
       ${isGK ? "" : tile(ps.sh, `Shots${ps.sot ? ` · ${ps.sot} on target` : ""}`)}
       ${isGK || !ps.xg ? "" : tile(ps.xg.toFixed(1), "Expected goals")}
       ${tile(ps.passC, `Passes${pct != null ? ` · ${pct}%` : ""}`)}
@@ -5830,16 +5841,27 @@ function renderStats() {
   // Distance covered: FIFA's official post-match physical reports (efi.json players[].km), averaged per player across
   // the matches each has data for (min 2, so one long night doesn't top the board). Reports exist for the group stage
   // so far - knockout matches join as FIFA releases theirs; the board silently widens.
-  const distBoard = (() => {
+  // FIFA official post-match physical data (efi.json players[]) aggregated per player, over the matches each has data
+  // for: distance (total + per match), sprints (total + per match), and best top speed. Each board joins the scope toggle.
+  const physBoards = (() => {
     if (!S.efi) return "";
     const agg = {};
-    for (const e of Object.values(S.efi)) for (const side of ["home", "away"]) { const code = e[side]; for (const p of (e.players?.[side] || [])) { if (!p.km || !code) continue; const a = (agg[p.name + "\t" + code] ||= { name: p.name, code, km: 0, n: 0, min: 0, kmM: 0 }); a.km += p.km; a.n++; if (p.min) { a.min += p.min; a.kmM += p.km; } } }
-    const rows = scoped(Object.values(agg).filter(x => x.n >= 2).map(x => ({ ...x, avg: x.km / x.n }))).sort((a, b) => b.avg - a.avg || a.name.localeCompare(b.name));
-    if (!rows.length) return "";
-    const cut = rows.filter((x, i) => i < 8 || x.avg === rows[7]?.avg);   // never split a tie at the cut
-    const per90 = x => x.min >= 90 ? (x.kmM / x.min * 90).toFixed(1) : null;   // per 90 minutes ON THE PITCH (FIFA's TimePlayed, stoppage included), only over matches with minutes data
-    const distInfo = infoBtn("Kilometres covered per match, from FIFA's official post-match physical reports, averaged over the matches each player has data for (at least two, so a single long night doesn't top the board). Where FIFA also publishes minutes played, a per-90 rate is shown — kilometres per 90 minutes actually on the pitch, stoppage time included. Matches join the board as FIFA releases each report.", "Distance covered");
-    return `<div class="eyebrow">${ICO.bolt} Distance covered ${distInfo}<span class="wp-est">FIFA physical · post-match</span></div><div class="lead-card lead-scorers">${ranked(cut, (p, rank) => playerRow(p, rank, `${p.avg.toFixed(1)}<small>km / match · ${p.n} matches${per90(p) ? ` · ${per90(p)} / 90'` : ""}</small>`), x => x.avg)}</div>`;
+    for (const e of Object.values(S.efi)) for (const side of ["home", "away"]) { const code = e[side]; if (!code) continue;
+      for (const p of (e.players?.[side] || [])) { const a = (agg[p.name + "\t" + code] ||= { name: p.name, code, km: 0, n: 0, spr: 0, sprN: 0, spd: 0 });
+        if (p.km) { a.km += p.km; a.n++; } if (p.spr != null) { a.spr += p.spr; a.sprN++; } if (p.spd) a.spd = Math.max(a.spd, p.spd); } }
+    const all = Object.values(agg);
+    const board = (title, info, list, valOf, rowVal) => {
+      const sorted = scoped(list).sort((x, y) => valOf(y) - valOf(x) || x.name.localeCompare(y.name));
+      if (!sorted.length) return "";
+      const cut = sorted.filter((x, i) => i < 8 || valOf(x) === valOf(sorted[7]));   // never split a tie at the cut
+      return `<div class="eyebrow">${ICO.bolt} ${title} ${info}<span class="wp-est">FIFA physical · post-match</span></div><div class="lead-card lead-scorers">${ranked(cut, (p, rank) => playerRow(p, rank, rowVal(p)), valOf)}</div>`;
+    };
+    const dInfo = infoBtn("Total kilometres covered across the matches each player has FIFA physical data for, with the per-match average alongside. From FIFA's official post-match reports; players join the board as each report is released.", "Distance covered");
+    const sInfo = infoBtn("Total sprints (FIFA counts a sprint as a run in its top speed zone) across the matches each player has data for, with the per-match average. From FIFA's official post-match physical reports.", "Sprints");
+    const tInfo = infoBtn("The highest speed a player has reached in any single match, in km/h, from FIFA's official post-match physical reports.", "Top speed");
+    return board("Distance covered", dInfo, all.filter(x => x.n >= 2), x => x.km, p => `${p.km.toFixed(1)}<small>km total · ${(p.km / p.n).toFixed(1)} / match · ${p.n} matches</small>`)
+      + board("Sprints", sInfo, all.filter(x => x.sprN >= 2), x => x.spr, p => `${p.spr}<small>sprints · ${(p.spr / p.sprN).toFixed(1)} / match · ${p.sprN} matches</small>`)
+      + board("Top speed", tInfo, all.filter(x => x.spd > 0), x => x.spd, p => `${p.spd.toFixed(1)}<small>km/h · top speed</small>`);
   })();
   const sections = [
     ["overview", "Overview", `<div class="eyebrow">Tournament so far</div><div class="stat-tiles">
@@ -5859,7 +5881,7 @@ function renderStats() {
     ["players", "Players", `${scopePills}
       ${(() => { const kp = scoped(s.keepers); return `${scScorers.length ? `<div class="eyebrow">${ICO.ball} Golden Boot</div><div class="lead-card lead-scorers">${ranked(bootScorers, scorerRow, p => p.goals)}</div>` : ""}
       ${kp.length ? `<div class="eyebrow">${ICO.glove} Goalkeepers · clean sheets</div><div class="lead-card lead-scorers">${ranked(kp.filter((p, i) => i < 8 || p.cs === kp[7]?.cs), keeperRow, p => p.cs)}</div>` : ""}
-      ${distBoard}
+      ${physBoards}
       ${playerDisc}
       ${!scScorers.length ? `<div class="empty">${_statScope === "qf" ? "None of the surviving teams' players have scored yet." : "No goals yet. The Golden Boot race starts with the first goal."}</div>` : ""}`; })()}`],
     ["teams", "Teams", `${scopePills}<div class="eyebrow">Team leaderboards</div><div class="lead-grid">
