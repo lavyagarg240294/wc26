@@ -17,12 +17,17 @@ import re, json, sys, os, unicodedata, urllib.request, subprocess, warnings, log
 warnings.filterwarnings("ignore"); logging.getLogger("pdfminer").setLevel(logging.ERROR)
 import pdfplumber
 
-HUB = "https://www.fifatrainingcentre.com/en/fifa-world-cup-2026/match-report-hub.php"
+# FIFA splits the hub in two: the original page carries the 72 group-stage reports, and knockout reports live on a
+# SEPARATE sibling page (…-knockout-stage.php) — scrape both, or the knockouts silently never appear.
+HUBS = ["https://www.fifatrainingcentre.com/en/fifa-world-cup-2026/match-report-hub.php",
+        "https://www.fifatrainingcentre.com/en/fifa-world-cup-2026/match-report-hub-knockout-stage.php"]
 BASE = "https://www.fifatrainingcentre.com"
 UA = "Mozilla/5.0 (compatible; wc26-bot/1.0; +https://github.com/lavyagarg240294/wc26)"
 
 teams = json.load(open("data/teams.json"))
 fixtures = json.load(open("data/matches.json"))["matches"]
+results = json.load(open("data/results.json")).get("matches", {}) if os.path.exists("data/results.json") else {}
+by_id = {f["id"]: f for f in fixtures}
 
 def deb(s):
     return unicodedata.normalize("NFD", s or "").encode("ascii", "ignore").decode().lower().strip()
@@ -42,6 +47,11 @@ def match_num(hc, ac):
         h, a = (f.get("home") or {}).get("team"), (f.get("away") or {}).get("team")
         if {h, a} == {hc, ac} and h and a:
             return f["num"]
+    # knockout fixtures carry no fixed teams in matches.json - resolve the pair from played results instead.
+    # (Safe while no knockout repeats a group pairing; the group loop above wins if one ever did.)
+    for mid, r in results.items():
+        if {r.get("ht"), r.get("at")} == {hc, ac} and by_id.get(mid):
+            return by_id[mid]["num"]
     return None
 
 # decode the custom private-use digit font used on the physical/distance pages
@@ -51,16 +61,72 @@ def dec(s):
 def fetch(url):
     return urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": UA}), timeout=40).read()
 
-# scrape the hub for the per-match PDF links, keyed by the report's match number (M01..M104)
+# scrape both hub pages for the per-match PDF links, keyed by the report's match number (M01..M104)
 def hub_links():
-    html = fetch(HUB).decode("utf-8", "ignore")
     out = {}
-    for href in re.findall(r'href="([^"]*PMSR[^"]*\.pdf)"', html, re.I):
-        m = re.search(r'PMSR[ -]M0*(\d+)', href, re.I)
-        if m:
-            url = href if href.startswith("http") else BASE + href
-            out[int(m.group(1))] = url.replace(" ", "%20")
+    for hub in HUBS:
+        try:
+            html = fetch(hub).decode("utf-8", "ignore")
+        except Exception as e:
+            print(f"  hub unreachable ({hub.rsplit('/', 1)[-1]}): {e}")
+            continue
+        for href in re.findall(r'href="([^"]*PMSR[^"]*\.pdf)"', html, re.I):
+            m = re.search(r'PMSR[ -]M0*(\d+)', href, re.I)
+            if m:
+                url = href if href.startswith("http") else BASE + href
+                out[int(m.group(1))] = url.replace(" ", "%20")
     return out
+
+# --- FIFA data-hub enrichment: official per-player MINUTES (and a distance fallback) as plain JSON ---------------
+# The PMSR physical table has no minutes-played column, but FIFA's public data hub (fdh-api.fifa.com) does:
+# TimePlayed, in minutes INCLUDING stoppage, keyed by the calendar's Properties.IdIFES. Join to the PDF rows by
+# shirt number via the v3 live lineup (IdPlayer -> ShirtNumber). If a side's PDF distance page failed the sum
+# check (rows dropped), rebuild that side entirely from fdh TotalDistance instead - same tracking data, no font.
+CAL = "https://api.fifa.com/api/v3/calendar/matches?idCompetition=17&idSeason=285023&language=en&count=104"
+def _json(url):
+    return json.loads(fetch(url).decode("utf-8", "ignore"))
+try:
+    _cal = {int(x["MatchNumber"]): x for x in _json(CAL).get("Results", []) if x.get("MatchNumber") and x.get("IdStage")}
+except Exception as e:
+    print(f"  calendar unreachable (minutes enrichment off): {e}")
+    _cal = {}
+
+def enrich_minutes(fifa_num, d):
+    c = _cal.get(fifa_num)
+    ifes = (c or {}).get("Properties", {}).get("IdIFES")
+    if not ifes:
+        return
+    live = _json(f"https://api.fifa.com/api/v3/live/football/17/285023/{c['IdStage']}/{c['IdMatch']}?language=en")
+    fdh = _json(f"https://fdh-api.fifa.com/v1/stats/match/{ifes}/players.json")
+    stats = {pid: {t[0]: t[1] for t in v if isinstance(t, list) and len(t) >= 2} for pid, v in fdh.items()}
+    # GUARD: the PDF page->side assignment matches page sums against team totals, and when the totals are near-equal
+    # (e.g. 108.6 v 108.3 km) it can SWAP the sides - which would also hang the wrong team's minutes on every shirt
+    # number below. The live lineup knows each side's real names: score the overlap, swap the rows if they're crossed.
+    def _names(team):
+        return {deb(((p.get("PlayerName") or [{}])[0].get("Description") or "")) for p in ((team or {}).get("Players") or [])}
+    def _hits(rows, names):
+        return sum(1 for r in rows if any(len(t) >= 3 and any(t in n for n in names) for t in deb(r["name"]).split()))
+    hn, an = _names(live.get("HomeTeam")), _names(live.get("AwayTeam"))
+    ph, pa = d["players"]["home"], d["players"]["away"]
+    if ph and pa and (_hits(ph, an) + _hits(pa, hn)) > (_hits(ph, hn) + _hits(pa, an)):
+        d["players"]["home"], d["players"]["away"] = pa, ph
+    for side, team in (("home", live.get("HomeTeam")), ("away", live.get("AwayTeam"))):
+        rows = {p["n"]: p for p in d["players"][side]}
+        built = []
+        for pl in ((team or {}).get("Players") or []):
+            st = stats.get(str(pl.get("IdPlayer"))) or {}
+            tp, td, shirt = st.get("TimePlayed"), st.get("TotalDistance"), pl.get("ShirtNumber")
+            if not tp or not td or shirt is None:
+                continue                                  # unused sub (no time on pitch) or no tracking row
+            r = rows.get(int(shirt))
+            if r:
+                r["min"] = round(tp)
+            else:
+                nm = ((pl.get("PlayerName") or [{}])[0].get("Description") or "").strip()
+                if nm:
+                    built.append({"n": int(shirt), "name": nm.title(), "km": round(td / 1000, 2), "min": round(tp)})
+        if built and not d["players"][side]:
+            d["players"][side] = sorted(built, key=lambda x: -x["km"])
 
 def parse_pdf(path):
     pdf = pdfplumber.open(path)
@@ -134,7 +200,9 @@ def parse_pdf(path):
 def main():
     if "--file" in sys.argv:
         r = parse_pdf(sys.argv[sys.argv.index("--file") + 1])
-        print(json.dumps({"num": r[0], **r[1]} if r else None, indent=2, ensure_ascii=False)[:2400]); return
+        if r and "--fifanum" in sys.argv:                 # test the minutes enrichment too: --fifanum <FIFA match number>
+            enrich_minutes(int(sys.argv[sys.argv.index("--fifanum") + 1]), r[1])
+        print(json.dumps({"num": r[0], **r[1]} if r else None, indent=2, ensure_ascii=False)); return
     out = json.load(open("data/efi.json"))["matches"] if os.path.exists("data/efi.json") else {}
     links = hub_links()
     print(f"hub: {len(links)} report links")
@@ -143,8 +211,13 @@ def main():
             open("/tmp/_efi.pdf", "wb").write(fetch(url))
             r = parse_pdf("/tmp/_efi.pdf")
             if r and r[0]:
+                try:
+                    enrich_minutes(n, r[1])               # best-effort: km-only rows are still fine without minutes
+                except Exception as e:
+                    print(f"  M{n:03} minutes skipped: {e}")
                 out[str(r[0])] = r[1]
-                print(f"  M{n:03} -> match {r[0]}: {r[1]['homeName']} v {r[1]['awayName']} (xg={r[1]['xg']}, players={len(r[1]['players']['home'])+len(r[1]['players']['away'])})")
+                mins = sum(1 for s in ("home", "away") for p in r[1]["players"][s] if p.get("min"))
+                print(f"  M{n:03} -> match {r[0]}: {r[1]['homeName']} v {r[1]['awayName']} (xg={r[1]['xg']}, players={len(r[1]['players']['home'])+len(r[1]['players']['away'])}, mins={mins})")
         except Exception as e:
             print(f"  M{n:03} skipped: {e}")
     json.dump({"updated": None, "matches": out}, open("data/efi.json", "w"), ensure_ascii=False)

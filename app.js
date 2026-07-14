@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "480";  // shown in footer; bump with the ?v= asset version
+const BUILD = "481";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1183,7 +1183,9 @@ function mdEfi(m, expand = false) {
   // or two, and later still for knockouts. On a finished match with none yet, say so rather than omit it silently.
   // Guard on efi.json having loaded, so a failed fetch never falsely flags every match.
   if (!e) return (isFinalSt(status(m)) && S.efi && Object.keys(S.efi).length)
-    ? `<div class="eyebrow">Deep analysis</div><div class="empty">FIFA's official post-match analysis (expected goals, distance covered, phases of play) is published a while after each game - not out for this match yet.</div>` : "";
+    ? `<div class="eyebrow">Deep analysis</div><div class="empty">${m.stage !== "group"
+      ? "FIFA has released its post-match analysis (expected goals, distance covered, phases of play) only for group-stage matches so far. Knockout reports haven't been published yet - this fills in the moment they are."
+      : "FIFA's official post-match analysis (expected goals, distance covered, phases of play) is published a while after each game - not out for this match yet."}</div>` : "";
   const h = slotInfo(m, "home"), a = slotInfo(m, "away");
   const hc = (h.code && S.teams[h.code]?.c1) || "#0BA360", ac = (a.code && S.teams[a.code]?.c1) || "#5B6B7A";
   const sb = [];
@@ -5569,7 +5571,7 @@ function teamReach() {
   return reach;
 }
 let _shotFilt = { round: "all", team: "all", side: "by", player: "all" };
-function tournamentShotMap() {
+function tournamentShotMap(totalGoals) {
   if (S.shots === undefined) { loadShots().then(() => { if (S.view === "stats" && statsTab === "goals") renderStats(); }); return `<div class="empty">Loading shot locations…</div>`; }
   const data = S.shots?.matches || {}, pool = [], rounds = new Set(), teamSet = new Set();
   for (const id in data) { const M = data[id]; rounds.add(M.st); for (const sh of M.s) { const code = sh[3] === 0 ? M.h : M.a, opp = sh[3] === 0 ? M.a : M.h; teamSet.add(code); teamSet.add(opp); pool.push({ sh, st: M.st, code, opp }); } }
@@ -5602,8 +5604,10 @@ function tournamentShotMap() {
   const sideToggle = ft !== "all" ? `<div class="sf-pills sf-side"><button class="sf-pill${sd === "by" ? " on" : ""}" type="button" data-shotside="by">Shots by ${esc(cname(ft))}</button><button class="sf-pill${sd === "against" ? " on" : ""}" type="button" data-shotside="against">Shots ${esc(cname(ft))} faced</button></div>` : "";
   let scorerChips = "";
   if (ft !== "all" && sd === "by") {
-    const names = [...new Set(pool.filter(p => p.sh[2] && p.code === ft && (fr === "all" || p.st === fr)).map(p => p.sh[5]).filter(Boolean))].sort((a, b) => (lastName(a) || a).localeCompare(lastName(b) || b));
-    if (names.length) scorerChips = `<div class="sf-pills sf-scorers"><span class="sf-lbl">Scorer</span><button class="sf-pill${pl === "all" ? " on" : ""}" type="button" data-shotplayer="all">All</button>${names.map(n => `<button class="sf-pill${pl === n ? " on" : ""}" type="button" data-shotplayer="${esc(n)}">${esc(lastName(n) || n)}</button>`).join("")}</div>`;
+    const cnt = {};   // the team's scorers, most goals first (count shown on each chip); alpha only breaks ties
+    for (const p of pool) if (p.sh[2] && p.code === ft && (fr === "all" || p.st === fr) && p.sh[5]) cnt[p.sh[5]] = (cnt[p.sh[5]] || 0) + 1;
+    const names = Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a] || (lastName(a) || a).localeCompare(lastName(b) || b));
+    if (names.length) scorerChips = `<div class="sf-pills sf-scorers"><span class="sf-lbl">Scorer</span><button class="sf-pill${pl === "all" ? " on" : ""}" type="button" data-shotplayer="all">All</button>${names.map(n => `<button class="sf-pill${pl === n ? " on" : ""}" type="button" data-shotplayer="${esc(n)}">${esc(lastName(n) || n)} · ${cnt[n]}</button>`).join("")}</div>`;
   }
   const who = ft !== "all" ? (sd === "against" ? esc(cname(ft)) + " faced" : esc(cname(ft)) + (pl !== "all" ? " · " + esc(lastName(pl) || pl) : "")) : "";
   const scope = [who, fr !== "all" ? (ROUND_LBL[fr] || fr) : ""].filter(Boolean).join(" · ");
@@ -5614,7 +5618,7 @@ function tournamentShotMap() {
     <div class="sf-rail">${teamRail}</div>
     ${scorerChips}
     <div class="sm-wrap"><svg viewBox="0 0 300 ${MY + PH + 8}" class="sm-svg" role="img" aria-label="Shot map, ${shots.length} shots">${pitch}${dots}${stars}</svg></div>
-    <div class="gt-foot"><span><b>${shots.length}</b> shots${scope ? ` · ${scope}` : ""}</span><span><b>${goalN}</b> ${goalWord}</span><span><b>${shots.length ? (100 * goalN / shots.length).toFixed(1) : "0"}%</b> found the net</span></div>`;
+    <div class="gt-foot"><span><b>${goalN}</b>${ft === "all" && fr === "all" && totalGoals ? ` of <b>${totalGoals}</b>` : ""} ${goalWord}${scope ? ` · ${scope}` : ""}</span><span><b>${shots.length}</b> shots</span><span><b>${shots.length ? (100 * goalN / shots.length).toFixed(1) : "0"}%</b> of shots found the net</span></div>`;
 }
 // Goal placement: where each goal crossed the line, from FIFA's GoalGatePosition (gx across the goal ~30-70, gy height ~2-48).
 // Horizontal is logged for almost every goal; ~1 in 10 carry a 2.1 "height not recorded" sentinel we don't plot vertically.
@@ -5652,7 +5656,13 @@ function goalsSectionHTML(s) {
   // maps need data/shots.json; until it lands show the (instant) timing chart + a clear spinner, never a blank panel.
   // renderStats() kicks off loadShots() on Stats open and re-renders here when it resolves.
   if (S.shots === undefined) return goalTimingHTML(s) + `<div class="eyebrow" style="margin-top:22px">Where shots are taken</div><div class="gt-loading"><span class="boot-spin"></span><span>Loading the shot &amp; goal maps…</span></div>`;
-  return goalTimingHTML(s) + tournamentShotMap() + goalNetMap();
+  // the sections below each show a different goal count because FIFA doesn't record a location / crossing point for
+  // every goal - reconcile the three numbers once, up front, so the differences read as coverage, not as a bug
+  const total = s.pulse?.goals || 0;
+  let locG = 0, gateG = 0;
+  for (const id in (S.shots?.matches || {})) for (const sh of S.shots.matches[id].s) if (sh[2]) { locG++; if (sh[6] != null) gateG++; }
+  const cover = total && locG ? `<div class="gt-cover"><b>${total}</b> goals so far — a shot location is recorded for <b>${locG}</b> and a net crossing point for <b>${gateG}</b>; each map plots what's recorded.</div>` : "";
+  return goalTimingHTML(s) + cover + tournamentShotMap(total) + goalNetMap();
 }
 function renderStats() {
   const el = $("#view-stats"), s = tournamentStats();
@@ -5791,6 +5801,20 @@ function renderStats() {
     const gap = big ? `<div class="xg-gap">${f.length - 11} more within range of their xG</div>` : "";
     return `<div class="eyebrow">Goals vs expected ${xgInfo}<span class="wp-est">FIFA xG · post-match</span></div><div class="lead-card xg-card">${top.map(finishRow).join("")}${gap}${bot.map(finishRow).join("")}</div>`;
   })() : "";
+  // Distance covered: FIFA's official post-match physical reports (efi.json players[].km), averaged per player across
+  // the matches each has data for (min 2, so one long night doesn't top the board). Reports exist for the group stage
+  // so far - knockout matches join as FIFA releases theirs; the board silently widens.
+  const distBoard = (() => {
+    if (!S.efi) return "";
+    const agg = {};
+    for (const e of Object.values(S.efi)) for (const side of ["home", "away"]) { const code = e[side]; for (const p of (e.players?.[side] || [])) { if (!p.km || !code) continue; const a = (agg[p.name + "\t" + code] ||= { name: p.name, code, km: 0, n: 0, min: 0, kmM: 0 }); a.km += p.km; a.n++; if (p.min) { a.min += p.min; a.kmM += p.km; } } }
+    const rows = scoped(Object.values(agg).filter(x => x.n >= 2).map(x => ({ ...x, avg: x.km / x.n }))).sort((a, b) => b.avg - a.avg || a.name.localeCompare(b.name));
+    if (!rows.length) return "";
+    const cut = rows.filter((x, i) => i < 8 || x.avg === rows[7]?.avg);   // never split a tie at the cut
+    const per90 = x => x.min >= 90 ? (x.kmM / x.min * 90).toFixed(1) : null;   // per 90 minutes ON THE PITCH (FIFA's TimePlayed, stoppage included), only over matches with minutes data
+    const distInfo = infoBtn("Kilometres covered per match, from FIFA's official post-match physical reports, averaged over the matches each player has data for (at least two, so a single long night doesn't top the board). Where FIFA also publishes minutes played, a per-90 rate is shown — kilometres per 90 minutes actually on the pitch, stoppage time included. Matches join the board as FIFA releases each report.", "Distance covered");
+    return `<div class="eyebrow">${ICO.bolt} Distance covered ${distInfo}<span class="wp-est">FIFA physical · post-match</span></div><div class="lead-card lead-scorers">${ranked(cut, (p, rank) => playerRow(p, rank, `${p.avg.toFixed(1)}<small>km / match · ${p.n}${per90(p) ? ` · ${per90(p)} per 90'` : ""}</small>`), x => x.avg)}</div>`;
+  })();
   const sections = [
     ["overview", "Overview", `<div class="eyebrow">Tournament so far</div><div class="stat-tiles">
       ${tile("Matches", s.pulse.matches)}${tile("Goals", s.pulse.goals)}
@@ -5809,6 +5833,7 @@ function renderStats() {
     ["players", "Players", `${scopePills}
       ${(() => { const kp = scoped(s.keepers); return `${scScorers.length ? `<div class="eyebrow">${ICO.ball} Golden Boot</div><div class="lead-card lead-scorers">${ranked(bootScorers, scorerRow, p => p.goals)}</div>` : ""}
       ${kp.length ? `<div class="eyebrow">${ICO.glove} Goalkeepers · clean sheets</div><div class="lead-card lead-scorers">${ranked(kp.filter((p, i) => i < 8 || p.cs === kp[7]?.cs), keeperRow, p => p.cs)}</div>` : ""}
+      ${distBoard}
       ${playerDisc}
       ${!scScorers.length ? `<div class="empty">${_statScope === "qf" ? "None of the surviving teams' players have scored yet." : "No goals yet. The Golden Boot race starts with the first goal."}</div>` : ""}`; })()}`],
     ["teams", "Teams", `${scopePills}<div class="eyebrow">Team leaderboards</div><div class="lead-grid">
@@ -5837,6 +5862,10 @@ function renderStats() {
     const panel = $(`.substat-panel[data-panel="${k}"]`, el);
     if (k === "rankings" && panel && !panel.firstChild) { panel.innerHTML = fifaRankingPanel(); wireRankings(panel); }   // built lazily on first view → wire its pills + search now
     if (k === "compare" && panel && !panel.firstChild) { panel.innerHTML = teamCompareHTML(); wireCompareTable(el); }   // same: build the comparison table on first view
+    // goals is lazy too - without this, clicking it unhid a panel rendered EMPTY, and nothing appeared until the next
+    // poll re-render (seconds of blank). Build it now; if the shot data is still loading it paints the timing chart +
+    // a spinner and re-renders itself when the data lands. Also rebuild a stale loader once the data has arrived.
+    if (k === "goals" && panel && (!panel.firstChild || (S.shots !== undefined && $(".gt-loading", panel)))) panel.innerHTML = goalsSectionHTML(tournamentStats());
     $$(".substat-panel", el).forEach(p => p.hidden = p.dataset.panel !== k);
   });
   wireRankings(el);   // also wire it when Rankings is the active tab on (re-)render
