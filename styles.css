@@ -1614,6 +1614,7 @@ svg.ls-conn{position:absolute;inset:0;width:100%;height:100%;pointer-events:none
 .pw-cards{display:flex;gap:5px;justify-content:center;align-items:center;min-height:26px}
 .pl-wc-phys{grid-template-columns:repeat(3,1fr)}   /* the physical/shooting summary reads best 3-wide (longer labels: 'km · 7.7/match') */
 .pl-wc-phys .pw b{font-size:20px}
+.md-live-tag{color:#fff;background:#e5484d;padding:1px 6px;border-radius:5px;font-weight:800;letter-spacing:.05em;font-size:var(--fs-9);vertical-align:middle}   /* "LIVE" badge on the in-play physical section */
 .cc{display:inline-flex;align-items:center;justify-content:center;min-width:21px;height:25px;border-radius:5px;font-family:var(--mono);font-weight:700;font-size:var(--fs-14);padding:0 5px;line-height:1}
 .cc-y{background:var(--gold);color:#3a2c05}
 .cc-r{background:var(--live);color:#fff}

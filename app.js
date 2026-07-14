@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "484";  // shown in footer; bump with the ?v= asset version
+const BUILD = "485";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1177,6 +1177,32 @@ function matchControlBar(m) {
 }
 // "Deep analysis": FIFA Enhanced Football Intelligence (post-match) - official xG, line breaks, ball progressions,
 // pressures, phases of play, and the headline: per-player distance covered. Only shown when data/efi.json has it.
+// distance + top-speed + sprints per player, as compact bar boards. Shared by the post-match deep analysis (efi.json,
+// keyed by match num) and the live overlay (fdh-api, on r.phys). Each player: {n, name, km, spd?, spr?}.
+function efiPhysHTML(pHome, pAway, hc, ac, hCode, aCode, hName, aName) {
+  const homeKm = (pHome || []).filter(p => p.km), awayKm = (pAway || []).filter(p => p.km);
+  const players = [...homeKm.map(p => ({ ...p, c: hc, code: hCode })), ...awayKm.map(p => ({ ...p, c: ac, code: aCode }))].sort((x, y) => y.km - x.km);
+  if (!players.length) return "";
+  const maxKm = players[0].km || 12;
+  const distLabel = homeKm.length && awayKm.length ? "km" : homeKm.length ? `km · ${esc(hName)} only` : `km · ${esc(aName)} only`;
+  const row = (p, w, val) => `<div class="efi-prow efi-prow-clk" data-player="${esc(p.name)}|${p.code}" role="button" tabindex="0" title="View ${esc(pName(p.name, p.code))}"><span class="efi-pn">${esc(tlName(p.name, p.code))}</span><span class="efi-pbar"><i style="width:${w}%;background:${p.c}"></i></span><span class="efi-pv">${val}</span></div>`;
+  const dist = `<div class="efi-sub">Distance covered <small>${distLabel}</small></div><div class="efi-dist">${players.map(p => row(p, Math.max(5, Math.round(p.km / maxKm * 100)), p.km.toFixed(1))).join("")}</div>`;
+  const spdList = players.filter(p => p.spd).sort((x, y) => y.spd - x.spd).slice(0, 6);
+  const sprList = players.filter(p => p.spr != null).sort((x, y) => y.spr - x.spr).slice(0, 6);
+  const spdMin = spdList.length ? spdList[spdList.length - 1].spd : 0, spdMax = spdList[0]?.spd || 1, sprMax = sprList[0]?.spr || 1;
+  const spdBlock = spdList.length ? `<div class="efi-sub">Top speed <small>km/h · fastest ${spdList.length}</small></div><div class="efi-dist">${spdList.map(p => row(p, spdMax > spdMin ? Math.round((p.spd - spdMin) / (spdMax - spdMin) * 80 + 20) : 100, p.spd.toFixed(1))).join("")}</div>` : "";
+  const sprBlock = sprList.length ? `<div class="efi-sub">Sprints <small>most ${sprList.length}</small></div><div class="efi-dist">${sprList.map(p => row(p, Math.max(8, Math.round(p.spr / sprMax * 100)), p.spr)).join("")}</div>` : "";
+  return dist + spdBlock + sprBlock;
+}
+// live physical overlay for an in-play match: FIFA's data hub (fdh-api) updates distance/top speed/sprints DURING the
+// game (r.phys, populated by fetchFifaDetail). Same boards, a LIVE badge, and no "published after the match" credit.
+function mdLivePhys(m) {
+  const r = res(m); if (!r?.phys || ![ST.LIVE, ST.HT].includes(status(m))) return "";
+  const h = slotInfo(m, "home"), a = slotInfo(m, "away");
+  const hc = (h.code && S.teams[h.code]?.c1) || "#0BA360", ac = (a.code && S.teams[a.code]?.c1) || "#5B6B7A";
+  const html = efiPhysHTML(r.phys.home, r.phys.away, hc, ac, h.code, a.code, h.name, a.name);
+  return html ? `<div class="eyebrow">Physical <span class="wp-est md-live-tag">LIVE</span></div><div class="efi-live-phys">${html}<p class="efi-credit">FIFA tracking data, updating live.</p></div>` : "";
+}
 function mdEfi(m, expand = false) {
   const e = S.efi?.[m.num];
   // FIFA publishes its post-match deep analysis (official xG, distance, phases) per match on a delay - typically a day
@@ -1200,34 +1226,11 @@ function mdEfi(m, expand = false) {
   // all eight in-possession phases (each is the share of that team's build-up play, so they read as %)
   const phaseKeys = ["Build Up Unopposed", "Build Up Opposed", "Progression", "Final Third", "Long Ball", "Attacking Transition", "Counter Attack", "Set Piece"];
   const phaseBars = phaseKeys.filter(k => e.phasesIn?.[k]).map(k => statBar(e.phasesIn[k], k, "%")).join("");
-  const homeKm = (e.players?.home || []).filter(p => p.km);
-  const awayKm = (e.players?.away || []).filter(p => p.km);
-  const players = [...homeKm.map(p => ({ ...p, c: hc, code: h.code })), ...awayKm.map(p => ({ ...p, c: ac, code: a.code }))]
-    .sort((x, y) => y.km - x.km);
-  const maxKm = players[0]?.km || 12;
-  const distLabel = homeKm.length && awayKm.length ? "km"
-    : homeKm.length ? `km · ${esc(h.name)} only`
-    : awayKm.length ? `km · ${esc(a.name)} only` : null;   // both teams is self-evident from the rows - just the unit; a one-team note stays
-  const dist = players.length && distLabel ? `<div class="efi-sub">Distance covered <small>${distLabel}</small></div>
-    <div class="efi-dist">${players.map(p => `<div class="efi-prow efi-prow-clk" data-player="${esc(p.name)}|${p.code}" role="button" tabindex="0" title="View ${esc(pName(p.name, p.code))}">
-      <span class="efi-pn">${esc(tlName(p.name, p.code))}</span>
-      <span class="efi-pbar"><i style="width:${Math.max(5, Math.round(p.km / maxKm * 100))}%;background:${p.c}"></i></span>
-      <span class="efi-pv">${p.km.toFixed(1)}</span></div>`).join("")}</div>` : "";
-  // top speed + sprints per player (FIFA physical data, when the report carries them): compact boards of the standouts.
-  // Live matches overlay these same fields onto e.players from fdh-api, so this renders for a running game too.
-  const physRow = (p, w, val) => `<div class="efi-prow efi-prow-clk" data-player="${esc(p.name)}|${p.code}" role="button" tabindex="0" title="View ${esc(pName(p.name, p.code))}">
-    <span class="efi-pn">${esc(tlName(p.name, p.code))}</span><span class="efi-pbar"><i style="width:${w}%;background:${p.c}"></i></span><span class="efi-pv">${val}</span></div>`;
-  const spdList = players.filter(p => p.spd).sort((x, y) => y.spd - x.spd).slice(0, 6);
-  const sprList = players.filter(p => p.spr != null).sort((x, y) => y.spr - x.spr).slice(0, 6);
-  const spdMin = spdList.length ? spdList[spdList.length - 1].spd : 0, spdMax = spdList[0]?.spd || 1, sprMax = sprList[0]?.spr || 1;
-  const spdBlock = spdList.length ? `<div class="efi-sub">Top speed <small>km/h · fastest ${spdList.length}</small></div>
-    <div class="efi-dist">${spdList.map(p => physRow(p, spdMax > spdMin ? Math.round((p.spd - spdMin) / (spdMax - spdMin) * 80 + 20) : 100, p.spd.toFixed(1))).join("")}</div>` : "";
-  const sprBlock = sprList.length ? `<div class="efi-sub">Sprints <small>most ${sprList.length}</small></div>
-    <div class="efi-dist">${sprList.map(p => physRow(p, Math.max(8, Math.round(p.spr / sprMax * 100)), p.spr)).join("")}</div>` : "";
-  if (!sb.length && !dist && !spdBlock) return "";
+  const phys = efiPhysHTML(e.players?.home, e.players?.away, hc, ac, h.code, a.code, h.name, a.name);
+  if (!sb.length && !phys) return "";
   const body = `${sb.length ? `<div class="md-stats">${sb.join("")}</div>` : ""}
       ${phaseBars ? `<div class="efi-sub">Phases of play <small>in possession</small></div><div class="md-stats">${phaseBars}</div>` : ""}
-      ${dist}${spdBlock}${sprBlock}
+      ${phys}
       <p class="efi-credit">Source: FIFA Enhanced Football Intelligence, published after the match.</p>`;
   const efiInfo = infoBtn("FIFA's official post-match data (Enhanced Football Intelligence). Line breaks = passes played beyond a line of opponents (breaking the press); ball progressions = actions that carry the ball meaningfully towards goal; defensive pressures = times a player closed down the ball-carrier; possession in-contest = the share of the ball while it was genuinely being contested; distance covered = total running per player.", "About FIFA's deep-analysis metrics");
   if (expand) return `<div class="eyebrow">Deep analysis ${efiInfo}</div>${body}`;
@@ -1844,7 +1847,7 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
       <div class="md-goals-col">${(r.gh || []).map(g => `<div class="md-goal">${ICO.ball} ${esc(g)}</div>`).join("")}</div>
       <div class="md-goals-col away">${(r.ga || []).map(g => `<div class="md-goal">${esc(g)} ${ICO.ball}</div>`).join("")}</div>
     </div>` : "";
-  const pKeyStats = mdKeyStats(r, m), pStats = mdStats(r, hasResult), pEfi = mdEfi(m, hasResult);
+  const pKeyStats = mdKeyStats(r, m), pStats = mdStats(r, hasResult), pEfi = mdEfi(m, hasResult), pLivePhys = mdLivePhys(m);
   const pShootout = mdShootout(r, h, a);   // kick-by-kick shoot-out, when there was one (live as it unfolds, then settled)
   // win-prob: always the model's PRE-MATCH call. The in-play (live) estimate was dropped - it churned with every goal
   // and added little once the score itself tells the story; the stable pre-match read is clearer. Pre-match also
@@ -1880,7 +1883,7 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
     // live: who's-on-top control + the live feed lead, then numbers, stars; the (pre-match) win-prob sits as a quieter
     // reference lower down (it's no longer a live in-play estimate, so it shouldn't headline a live game). A live
     // shoot-out is THE action, so it leads.
-    ? [pShootout, pControl, pKeyStats, pShotMap, pStars, pTimeline, pStats, pWinProb, pXiInline, pEfi, pCompareFold, pStakes, pH2H]
+    ? [pShootout, pControl, pKeyStats, pShotMap, pStars, pTimeline, pStats, pLivePhys, pWinProb, pXiInline, pEfi, pCompareFold, pStakes, pH2H]
     : hasResult
     // finished: the report leads, then how it was settled (a shoot-out), key stats + control, stars, the full timeline & numbers, the model's call, the deep dive
     ? [pReport, pShootout, pKeyStats, pShotMap, pControl, pStars, pTimeline, pStats, pXiInline, pEfi, pWinProb, pCompareFold, pStakes, pH2H]
@@ -7075,8 +7078,8 @@ async function fetchFifaLive() {
     if (f.stage !== "group") { if (hc) e.ht = hc; if (ac) e.at = ac; }                     // resolve knockout teams as the feed fills them
     if (x.ResultType) e.rt = x.ResultType;
     map[f.id] = e;
-    if (x.IdStage && x.IdMatch) { matchIds[f.id] = { stage: x.IdStage, match: x.IdMatch, swap };   // every match's FIFA ids → lazy shot-map fetch on modal open (any state)
-      if (st === "LIVE") liveIds[f.id] = matchIds[f.id]; }   // in-play → phase 2 fetches its live object for events/line-ups/phase/shoot-out
+    if (x.IdStage && x.IdMatch) { matchIds[f.id] = { stage: x.IdStage, match: x.IdMatch, swap, ifes: x.Properties?.IdIFES };   // every match's FIFA ids (+ data-hub IdIFES) → lazy shot-map / live physical fetch on modal open
+      if (st === "LIVE") liveIds[f.id] = matchIds[f.id]; }   // in-play → phase 2 fetches its live object for events/line-ups/phase/shoot-out + physical
   }
   const sig = JSON.stringify(map);
   const changed = sig !== S._fifaSig;
@@ -7166,6 +7169,16 @@ async function fetchFifaDetail() {
         if (tld.lstats) d.lstats = t.swap ? _swapStats(tld.lstats) : tld.lstats;
         if (tld.pens?.length) d.pens = t.swap ? tld.pens.map(k => ({ ...k, tm: k.tm === "h" ? "a" : "h" })) : tld.pens;
       }
+      if (t.ifes) try {   // live physical (distance/top speed/sprints) from FIFA's data hub, joined to the lineup by shirt
+        const fdh = await (await fetch(`https://fdh-api.fifa.com/v1/stats/match/${t.ifes}/players.json`, { cache: "no-store", signal: AbortSignal.timeout(5000) })).json();
+        const phys = { home: [], away: [] };
+        for (const [key, team] of [["home", lv.HomeTeam], ["away", lv.AwayTeam]]) for (const p of (team?.Players || [])) {
+          const s = {}; for (const tr of (fdh[String(p.IdPlayer)] || [])) if (Array.isArray(tr) && tr.length >= 2) s[tr[0]] = tr[1];
+          const min = +s.TimePlayed, td = +s.TotalDistance; if (!min || !td || p.ShirtNumber == null) continue;
+          phys[key].push({ n: p.ShirtNumber, name: _flLoc(p.ShortName) || _flLoc(p.PlayerName), km: +(td / 1000).toFixed(2), min: Math.round(min), spd: s.TopSpeed ? +(+s.TopSpeed).toFixed(1) : null, spr: s.Sprints != null ? Math.round(+s.Sprints) : null });
+        }
+        if (phys.home.length || phys.away.length) d.phys = t.swap ? { home: phys.away, away: phys.home } : phys;
+      } catch { /* physical is best-effort - a miss just keeps the last */ }
       if (Object.keys(d).length) detail[id] = d;
     } catch { /* keep last for this match */ }
   }));
