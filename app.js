@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "481";  // shown in footer; bump with the ?v= asset version
+const BUILD = "482";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -5813,7 +5813,7 @@ function renderStats() {
     const cut = rows.filter((x, i) => i < 8 || x.avg === rows[7]?.avg);   // never split a tie at the cut
     const per90 = x => x.min >= 90 ? (x.kmM / x.min * 90).toFixed(1) : null;   // per 90 minutes ON THE PITCH (FIFA's TimePlayed, stoppage included), only over matches with minutes data
     const distInfo = infoBtn("Kilometres covered per match, from FIFA's official post-match physical reports, averaged over the matches each player has data for (at least two, so a single long night doesn't top the board). Where FIFA also publishes minutes played, a per-90 rate is shown — kilometres per 90 minutes actually on the pitch, stoppage time included. Matches join the board as FIFA releases each report.", "Distance covered");
-    return `<div class="eyebrow">${ICO.bolt} Distance covered ${distInfo}<span class="wp-est">FIFA physical · post-match</span></div><div class="lead-card lead-scorers">${ranked(cut, (p, rank) => playerRow(p, rank, `${p.avg.toFixed(1)}<small>km / match · ${p.n}${per90(p) ? ` · ${per90(p)} per 90'` : ""}</small>`), x => x.avg)}</div>`;
+    return `<div class="eyebrow">${ICO.bolt} Distance covered ${distInfo}<span class="wp-est">FIFA physical · post-match</span></div><div class="lead-card lead-scorers">${ranked(cut, (p, rank) => playerRow(p, rank, `${p.avg.toFixed(1)}<small>km / match · ${p.n} matches${per90(p) ? ` · ${per90(p)} / 90'` : ""}</small>`), x => x.avg)}</div>`;
   })();
   const sections = [
     ["overview", "Overview", `<div class="eyebrow">Tournament so far</div><div class="stat-tiles">
