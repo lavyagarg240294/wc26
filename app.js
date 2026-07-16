@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "486";  // shown in footer; bump with the ?v= asset version
+const BUILD = "487";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -2766,10 +2766,12 @@ function playerWC(name, code) {
     for (const e of (r.ev || [])) {
       if (e.tm !== side) continue;
       if (["G", "P"].includes(e.k) && e.p && sameName(e.p, name)) g++;
-      if (e.a && sameName(e.a, name)) a++;
       if (e.k === "Y" && e.p && sameName(e.p, name)) y++;
       if (e.k === "R" && e.p && sameName(e.p, name)) rc++;
     }
+    // assists: FIFA's feed tags a scorer's IdAssistPlayer on barely any goal (verified: ~2 of 300+ this tournament) -
+    // ESPN's per-player box score is the real source (goalAssists), present for most finished matches
+    const box = matchPstat(name, r.pstats); if (box?.a) a += box.a;
   }
   return { g, a, y, rc, apps, starts, cs, ga };
 }
@@ -2785,14 +2787,14 @@ function playerMatchLog(name, code) {
     const subOn = (r.ev || []).some(e => e.tm === side && e.k === "S" && e.on && sameName(e.on, name));
     if (!inXI && !subOn) continue;
     const gf = side === "h" ? r.h : r.a, ga = side === "h" ? r.a : r.h;
-    let g = 0, a = 0, yc = 0, rc = 0;
+    let g = 0, yc = 0, rc = 0;
     for (const e of (r.ev || [])) {
       if (e.tm !== side) continue;
       if (["G", "P"].includes(e.k) && e.p && sameName(e.p, name)) g++;
-      if (e.a && sameName(e.a, name)) a++;
       if (e.k === "Y" && e.p && sameName(e.p, name)) yc++;
       if (e.k === "R" && e.p && sameName(e.p, name)) rc++;
     }
+    const a = matchPstat(name, r.pstats)?.a || 0;   // ESPN box score - see playerWC's note on why not FIFA's e.a
     rows.push({ mid: m.id, utc: m.utc, opp: side === "h" ? slotInfo(m, "away").code : slotInfo(m, "home").code,
       wdl: gf > ga ? "W" : gf < ga ? "L" : "D", gf, ga, started: inXI, g, a, yc, rc });
   }
@@ -3109,7 +3111,7 @@ function openPlayer(name, code) {
         ? `<div class="pw"><b>${wc.cs}</b><span>Clean sheet${wc.cs !== 1 ? "s" : ""}</span></div>
       <div class="pw"><b>${wc.g}</b><span>Goal${wc.g !== 1 ? "s" : ""}</span></div>`
         : `<div class="pw"><b>${wc.g}</b><span>Goal${wc.g !== 1 ? "s" : ""}</span></div>
-      <div class="pw"><b>${wc.a}</b><span>Assist${wc.a !== 1 ? "s" : ""}</span></div>`}
+      <div class="pw" title="From ESPN's match box scores"><b>${wc.a}</b><span>Assist${wc.a !== 1 ? "s" : ""}</span></div>`}
       <div class="pw"><b class="pw-cards">${wc.y || wc.rc ? `${wc.y ? `<span class="cc cc-y">${wc.y}</span>` : ""}${wc.rc ? `<span class="cc cc-r">${wc.rc}</span>` : ""}` : "0"}</b><span>Cards</span></div>
     </div>` : ""}
     ${pStatsHTML}
@@ -5212,7 +5214,7 @@ function tournamentStats() {
         const sc = resolvePlayer(e.p, tc, e.n, "out")?.name || e.p;
         const on = subOn[e.tm]?.[sc];   // came on before scoring → a substitute's goal
         if (on != null && on <= evMin(e.t)) subGoalList.push({ name: sc, code: tc, opp: tc === hc ? ac : hc, t: e.t, on, mid: m.id });
-        add(scorers, sc + "\t" + tc); if (e.a) add(assists, (resolvePlayer(e.a, tc, e.an, "out")?.name || e.a) + "\t" + tc);   // own goals excluded from the Boot
+        add(scorers, sc + "\t" + tc);   // own goals excluded from the Boot; assists are tallied below from ESPN's box score (FIFA's own feed barely ever tags IdAssistPlayer)
         const mk = sc + "\t" + tc; matchGoals[mk] = (matchGoals[mk] || 0) + 1;
         const mn = evMin(e.t);   // fastest / latest goal of the tournament (by the player who scored it)
         if (mn >= 1) { const gR = { name: sc, code: tc, t: e.t, mn, mid: m.id }; recC.fastG.push(gR); recC.lateG.push(gR); }
@@ -5222,6 +5224,12 @@ function tournamentStats() {
       if (e.k === "OG" && e.p) { const oc = e.tm === "h" ? ac : hc; ogList.push({ name: resolvePlayer(e.p, oc, e.n, "out")?.name || e.p, code: oc, opp: e.tm === "h" ? hc : ac, t: e.t, mid: m.id }); }
       if (e.k === "Y") { add(yel, tc); totYellow++; mYellow++; if (e.p && !e.sf) { const pk = (resolvePlayer(e.p, tc, e.n)?.name || e.p) + "\t" + tc; add(pyel, pk); (cardLog[pk] ||= []).push({ ko: m.utc, k: "Y", st: m.stage }); } }   // team totals count staff cards; player boards + suspension logic never attribute a coach's card (e.sf) to a player
       else if (e.k === "R") { add(red, tc); totRed++; mRed++; if (e.p && !e.sf) { const pk = (resolvePlayer(e.p, tc, e.n)?.name || e.p) + "\t" + tc; add(pred, pk); (cardLog[pk] ||= []).push({ ko: m.utc, k: "R", st: m.stage }); } }
+    }
+    // assists: ESPN's per-player box score (goalAssists), not FIFA's - join each credited name to whichever side's squad it resolves against
+    for (const [nm, st] of Object.entries(r.pstats || {})) {
+      if (!st.a) continue;
+      const hp = resolvePlayer(nm, hc), side = hp ? hc : resolvePlayer(nm, ac) ? ac : null; if (!side) continue;
+      add(assists, (hp || resolvePlayer(nm, ac)).name + "\t" + side, st.a);
     }
     // "does scoring first matter?" - the earliest goal's side, then did they win/draw/lose the match (a pens-decided
     // knockout counts as a draw here, since it was level after 90'/ET). Own goal counts for its beneficiary side (its tm).
@@ -5278,8 +5286,9 @@ function tournamentStats() {
   rec.mostPasses = topTies(recC.mostPasses, x => x.v);
   rec.mostSot = topTies(recC.mostSot, x => x.v);
   rec.bestDef = topTies(recC.bestDef, x => x.v);
-  // LIVE matches: fold goals + assists into the Boot and the all-time career records in real time - a goal counts the
+  // LIVE matches: fold goals into the Boot and the all-time career records in real time - a goal counts the
   // moment it's given, even mid-match. (The match-level records above stay FT-only; they need a finished result.)
+  // Assists aren't folded in live - they're sourced from ESPN's box score, which only lands after full time.
   for (const m of S.matches) {
     if (![ST.LIVE, ST.HT].includes(status(m))) continue;
     const r = res(m); if (!r || r.h == null) continue;
@@ -5288,7 +5297,6 @@ function tournamentStats() {
       if (!((e.k === "G" || e.k === "P") && e.p)) continue;
       const tc = e.tm === "h" ? hc : ac;
       add(scorers, (resolvePlayer(e.p, tc, e.n, "out")?.name || e.p) + "\t" + tc);
-      if (e.a) add(assists, (resolvePlayer(e.a, tc, e.an, "out")?.name || e.a) + "\t" + tc);
     }
   }
   const split = k => { const i = k.indexOf("\t"); return [k.slice(0, i), k.slice(i + 1)]; };
