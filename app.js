@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "487";  // shown in footer; bump with the ?v= asset version
+const BUILD = "488";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -1815,7 +1815,7 @@ function openMatch(id, reuse) {   // reuse: re-render the body in place (a live 
   const statusTag = st === ST.LIVE ? `<span class="md-tag live">● ${liveLabel(m, r) || "Live"}</span>`
     : st === ST.HT ? `<span class="md-tag live">Half-time</span>`
     : unconf ? `<span class="md-tag abn">Awaiting confirmation</span>`
-    : st === ST.FT ? `<span class="md-tag ft">Full time${r?.rt === 2 ? " · a.e.t." : r?.rt === 3 ? " · pens" : ""}</span>`
+    : st === ST.FT ? `<span class="md-tag ft">Full time${r?.rt === 2 ? " · pens" : r?.rt === 3 ? " · a.e.t." : ""}</span>`
     : isAbnormal(st) ? `<span class="md-tag abn md-tag-${st.toLowerCase()}">${stMeta(st).lbl}</span>`
     : `<span class="md-tag soon">Upcoming</span>`;   // time/date live in the meta row below - no need to repeat it
   const side = (s, key) => `<div class="md-team ${s.code === S.fav ? "is-fav" : ""}${s.code ? " md-team-clk" : ""}"${s.code ? ` data-squad="${s.code}" role="button" tabindex="0" aria-label="Open ${esc(s.name)} details"` : ""}>

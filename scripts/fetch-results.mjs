@@ -291,7 +291,8 @@ async function fromFifa(prev, needsPhotos) {
       if (x.Home?.IdCountry && toOur[x.Home.IdCountry]) entry.ht = toOur[x.Home.IdCountry];
       if (x.Away?.IdCountry && toOur[x.Away.IdCountry]) entry.at = toOur[x.Away.IdCountry];
     }
-    if (x.ResultType) entry.rt = x.ResultType;      // 1 normal time · 2 after extra time · 3 after penalties — how a finished match was decided
+    if (x.ResultType) entry.rt = x.ResultType;      // 1 normal time · 2 after penalties · 3 after extra time — how a finished match was decided
+                                                     // (empirically verified against hp/ap + score parity across all 8 rt=2/3 matches this tournament - NOT FIFA's documented order)
 
     const prevE = prev[f.id];
     const inPlay = st === "LIVE" || st === "HT";
