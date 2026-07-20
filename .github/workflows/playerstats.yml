@@ -4,9 +4,7 @@ name: Update player stats
 # into data/playerstats.json by scripts/fetch-playerstats.mjs from FIFA's public data hub (fdh-api.fifa.com). Post-match
 # data, so an infrequent cron is plenty; new matches (the semis, then the final) join automatically as FIFA publishes them.
 on:
-  schedule:
-    - cron: "47 */3 * * *"     # every ~3h, offset from the other feeds
-  workflow_dispatch:
+  workflow_dispatch:        # tournament over (final: 2026-07-19) - schedules retired, manual re-run still available
 
 permissions:
   contents: write

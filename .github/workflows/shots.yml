@@ -5,9 +5,7 @@ name: Update shot map
 # adds newly-finished games; the tournament-wide shot map in Stats reads the baked JSON instead of the browser hitting
 # FIFA ~100 times. Post-match data, so an infrequent cron is plenty (GitHub throttles scheduled runs anyway).
 on:
-  schedule:
-    - cron: "41 */3 * * *"     # every ~3h
-  workflow_dispatch:
+  workflow_dispatch:        # tournament over (final: 2026-07-19) - schedules retired, manual re-run still available
 
 permissions:
   contents: write

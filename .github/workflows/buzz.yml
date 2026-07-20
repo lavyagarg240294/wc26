@@ -12,9 +12,7 @@ name: Update buzz
 #    BLUESKY_APP_PASSWORD (Settings → App Passwords, no approval). Skipped when unset.
 # With none of the secrets set, the tab still runs on Mastodon reactions + press headlines (RSS, reliable).
 on:
-  schedule:
-    - cron: "*/20 * * * *"
-  workflow_dispatch:
+  workflow_dispatch:        # tournament over (final: 2026-07-19) - schedules retired, manual re-run still available
 
 permissions:
   contents: write

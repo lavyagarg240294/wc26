@@ -5,9 +5,7 @@ name: Restart scores loop (safety net)
 # in its OWN concurrency group and only *dispatches* the loop when none is already running, so it can never
 # cancel a healthy loop (the bug we had when the restarter shared "Update scores"'s cancel-in-progress group).
 on:
-  schedule:
-    - cron: "*/15 * * * *"     # GitHub throttles this heavily to ~hourly — fine, it's only a backstop
-  workflow_dispatch:
+  workflow_dispatch:        # tournament over (final: 2026-07-19) - schedules retired, manual re-run still available
 
 permissions:
   actions: write               # to dispatch results.yml

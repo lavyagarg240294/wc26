@@ -5,9 +5,7 @@ name: Update EFI
 # public Match Report Hub PDFs into data/efi.json by scripts/fetch-efi.py. This is POST-MATCH data, so an
 # infrequent cron is plenty (GitHub throttles scheduled runs anyway). The browser only reads the baked JSON.
 on:
-  schedule:
-    - cron: "23 */2 * * *"     # every ~2h
-  workflow_dispatch:
+  workflow_dispatch:        # tournament over (final: 2026-07-19) - schedules retired, manual re-run still available
 
 permissions:
   contents: write

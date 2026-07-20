@@ -4,9 +4,7 @@ name: Health check
 # Runs ~twice an hour (GitHub may delay scheduled runs), and on demand. On failure it opens/updates a single
 # GitHub issue (labelled `health`) so you get a notification; on recovery it comments + closes it.
 on:
-  schedule:
-    - cron: "17,47 * * * *"
-  workflow_dispatch:
+  workflow_dispatch:        # tournament over (final: 2026-07-19) - schedules retired, manual re-run still available
 
 permissions:
   contents: read
