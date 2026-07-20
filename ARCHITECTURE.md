@@ -4,7 +4,9 @@ A technical overview of how this site is built. For setup/deploy, see [`README.m
 
 ## What it is
 
-A static, **no-build** fan site for the FIFA World Cup 2026 (June 11 – July 19): all 104 matches in the visitor's timezone, a favourite team that re-themes the whole UI, live group tables, a full predictor with an interactive knockout bracket (tap winners to crown a champion), squads and lineups. Hosted free on GitHub Pages. **Live scores/timeline/line-ups are read directly from FIFA's public feed by the browser** (real-time); everything slower is baked into JSON by GitHub Actions, which also serves as the fallback. FIFA's feed is keyless and the keyed sources stay in the Actions, so **no keys are ever exposed client-side** (see [Live data: two paths](#live-data-two-paths-real-time--fallback)).
+A static, **no-build** fan site for the FIFA World Cup 2026 (June 11 – July 19): all 104 matches in the visitor's timezone, a favourite team that re-themes the whole UI, group tables, squads and lineups. Hosted free on GitHub Pages. During the tournament, **live scores/timeline/line-ups were read directly from FIFA's public feed by the browser** (real-time); everything slower was baked into JSON by GitHub Actions, which also served as the fallback (see [Live data: two paths](#live-data-two-paths-real-time--fallback)).
+
+> **Archive mode (since 2026-07-20).** The tournament is over (Spain 1–0 Argentina a.e.t.). A latched `tournamentOver()` flag in `app.js` — true once the final is feed-confirmed, persisted in `localStorage` — switches off the whole live layer: no FIFA polling, no ticker, no countdowns or kickoff alerts; the cron schedules on every baker workflow are retired (manual `workflow_dispatch` remains). The Matches hero is the champions card; **The Wrap** (on the old Field tab slot, `#wrap`) tells the tournament's story from the baked data, including a leave-prior replay scorecard of the site's own model (`scripts/make-backtest.mjs` → `data/backtest.json`). Predict is retired (nav hidden, deep links land on Matches); the Field and Predict code stay dormant in `app.js`. The two-path description below is kept as the historical design record.
 
 ## Live data: two paths (real-time + fallback)
 
@@ -30,7 +32,7 @@ These are deliberate, not accidental:
 
 ## File map
 
-- **`index.html`** - the shell: header (search · settings · team chips), tab nav (Matches / Bracket / Stats / Predict / Teams / Players / News), the ticker strip, all dialogs, the confetti canvas, and the jump-to-now button. Views are `#view-<name>` sections; `RENDER[name]` maps each to its renderer. Dialogs include the match popup (`openMatch` - a finished game shows a credited **Match report**, a live one shows a lazy-loaded **Live commentary** feed, never both), the rich **team sheet** (`openTeam`), the **player profile** (`openPlayer`), the favourite-team picker, the **About the tournament** / **About this project** sheets, and a once-only first-launch **welcome**.
+- **`index.html`** - the shell: header (search · settings · team chips), tab nav (Matches / Wrap / Bracket / Stats / Teams / Players / News - Predict retired, its panel dormant), the ticker strip (hidden in archive mode), all dialogs, the confetti canvas, and the jump-to-now button. Views are `#view-<name>` sections; `RENDER[name]` maps each to its renderer. Dialogs include the match popup (`openMatch` - a finished game shows a credited **Match report**, a live one shows a lazy-loaded **Live commentary** feed, never both), the rich **team sheet** (`openTeam`), the **player profile** (`openPlayer`), the favourite-team picker, the **About the tournament** / **About this project** sheets, and a once-only first-launch **welcome**.
 - **`styles.css`** - the "Floodlit, on paper" design system. All colours are CSS variables; team theming overrides `--acc1` / `--acc2`.
 - **`app.js`** - everything else: state, timezone handling, results resolution, standings math, the predictor engine (third-place allocator + bracket resolution), per-view renderers, pickers, and data loading/polling. One vanilla IIFE, sectioned with comment banners.
 
@@ -46,6 +48,7 @@ These are deliberate, not accidental:
 | `reports.json` | credited match reports from ESPN's free `summary` feed, keyed by match number | scores Action |
 | `commentary/<num>.json` | heavy live play-by-play, one file per match so the client lazy-loads only what a popup opens | scores Action |
 | `squads.json` | 26-man squads (from official FIFA squad lists; caps/goals frozen at tournament start) | static + optional refresh |
+| `backtest.json` | the model scorecard: a **leave-prior replay** of the production `winProb` over all 104 matches (each prediction computed blind from strictly-earlier results only) - per-match rows, group/KO aggregates, KO advance calls + misses, calibration bins. Rendered by The Wrap | `make-backtest.mjs`, one-shot post-final |
 
 The empty-state files (`results`/`reports`) are seeded `{"matches":{}}` so the site works before the first Action run. The client always reads one merged object per match via `res()` — committed slim + committed detail + the FIFA-direct real-time overlay (see [Live data: two paths](#live-data-two-paths-real-time--fallback)).
 
@@ -61,6 +64,8 @@ The empty-state files (`results`/`reports`) are seeded `{"matches":{}}` so the s
 `sw.js` is **network-first**: HTML / `app.js` / `styles.css` / `*.json` always come from the network when online (so a visitor is never trapped on a stale build; an in-app nudge prompts a reload on a new version), with the cache as an offline fallback. Flags, icons and fonts are cache-first. `site.webmanifest` + the generated icons make the site installable.
 
 ### GitHub Actions (`.github/workflows/`)
+
+> All cron schedules were retired on 2026-07-20 (tournament over); every workflow keeps `workflow_dispatch` for manual re-runs. The descriptions below record how they ran.
 
 - **`results.yml`** - a **self-relaunching polling loop** (not a plain cron, which GitHub throttles to ~hourly - too slow for live). One run polls every ~25s near kickoffs / 30 min in quiet hours for ~5h, commits any changed data, dispatches `pages.yml` (a `GITHUB_TOKEN` push doesn't auto-trigger a workflow, so it triggers the deploy explicitly), then re-dispatches itself, until the tournament ends. Since the browser now reads live scores from FIFA directly, this loop's freshness is **non-critical** for the live score — it feeds enrichment + the fallback + the durable record.
 - **`pages.yml`** - the **Pages deploy** (source = *GitHub Actions*, not "deploy from a branch"). Uses `concurrency: {group: pages, cancel-in-progress: false}` so deploys **queue** instead of cancelling — the built-in branch-deploy flow cancels an in-progress build on every commit, so the frequent scores commits starved it and the site froze for hours. This queues the latest instead.
