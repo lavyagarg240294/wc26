@@ -2752,3 +2752,38 @@ svg.ls-conn{position:absolute;inset:0;width:100%;height:100%;pointer-events:none
 .fld-oldties summary::before{content:"▸ ";color:var(--gold)}
 .fld-oldties[open] summary::before{content:"▾ "}
 .fld-oldties .fld-talelist{margin-top:8px}
+
+/* ================= THE WRAP - the tournament, told after the fact (replaces the Field in archive mode) ================= */
+.wrap-page{display:flex;flex-direction:column;gap:6px}
+.wrap-page .eyebrow{margin-top:26px}
+.wrap-page .eyebrow:first-child{margin-top:0}
+.wr-lede{font-size:var(--fs-14);color:var(--ink);line-height:1.55;margin:0 2px 12px;max-width:640px}
+.wr-road{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:4px 6px}
+.wr-mrow .rchip{flex:0 0 auto;min-width:64px;text-align:center}
+.wr-sub{font-weight:500;font-size:var(--fs-11);color:var(--ink-soft);white-space:normal;line-height:1.35}
+.wr-recaps{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
+.wr-recap{position:relative;overflow:hidden;background:linear-gradient(120deg,color-mix(in srgb,var(--kh) 14%,var(--card)),var(--card) 45%,color-mix(in srgb,var(--ka) 14%,var(--card)));border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:14px 16px;cursor:pointer}
+.wr-recap:hover{border-color:color-mix(in srgb,var(--acc1) 40%,var(--line))}
+.wr-recap-tag{font-family:var(--disp);font-weight:800;font-stretch:118%;font-size:var(--fs-11);letter-spacing:.14em;text-transform:uppercase;color:var(--gold-text);margin-bottom:8px}
+.wr-recap-line{font-size:var(--fs-15);font-weight:600;display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.wr-recap-line b{font-family:var(--mono);font-size:var(--fs-16)}
+.wr-recap-p{font-size:var(--fs-12);color:var(--ink-soft);line-height:1.5;margin:8px 0 0}
+.wr-stages{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:12px 14px;margin-bottom:8px}
+.wr-stage{display:flex;align-items:center;gap:10px;padding:5px 0}
+.wr-stage-l{flex:0 0 128px;font-size:var(--fs-12);font-weight:600;display:flex;flex-direction:column;line-height:1.3}
+.wr-stage-l small{font-weight:500;font-size:var(--fs-10);color:var(--ink-soft)}
+.wr-stage-bar{flex:1;height:9px;border-radius:5px;background:color-mix(in srgb,var(--line) 45%,transparent);overflow:hidden}
+.wr-stage-bar i{display:block;height:100%;border-radius:5px;background:linear-gradient(90deg,var(--acc1),color-mix(in srgb,var(--acc1) 60%,var(--gold)))}
+.wr-stage-v{font-family:var(--mono);font-size:var(--fs-12);font-variant-numeric:tabular-nums;flex:0 0 40px;text-align:right}
+.wr-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:8px 20px}
+.wr-h4{font-family:var(--disp);font-weight:800;font-stretch:118%;font-size:var(--fs-12);letter-spacing:.1em;text-transform:uppercase;margin:12px 2px 6px;display:flex;align-items:center;gap:6px}
+.wr-cal{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:4px 14px 12px;margin-top:10px}
+.wr-cal-row{display:flex;align-items:center;gap:10px;padding:4px 0}
+.wr-cal-l{flex:0 0 64px;font-family:var(--mono);font-size:var(--fs-11);font-variant-numeric:tabular-nums;display:flex;flex-direction:column;line-height:1.25}
+.wr-cal-l small{color:var(--ink-soft);font-size:var(--fs-9)}
+.wr-cal-bars{flex:1;display:flex;flex-direction:column;gap:2px}
+.wr-cal-bars i{display:block;height:5px;border-radius:3px}
+.wr-cal-p{background:color-mix(in srgb,var(--ink) 30%,transparent)}
+.wr-cal-r{background:var(--acc1)}
+.wr-cal-v{flex:0 0 auto;font-size:var(--fs-10);color:var(--ink-soft);font-variant-numeric:tabular-nums}
+.wr-foot{margin-top:26px;text-align:center}

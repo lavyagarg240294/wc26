@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "489";  // shown in footer; bump with the ?v= asset version
+const BUILD = "490";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -147,7 +147,7 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;",
 // instead of jumping straight to the cards' h4. Injected here (every render funnels through paint with its view el)
 // so it survives poll re-renders too. Keyed by section id; non-view paints (cards, popups) are untouched.
 // groups/sim set el.innerHTML directly (not via paint), so they prepend viewH2() themselves.
-const VIEW_H2 = { "view-matches": "Matches", "view-field": "The field", "view-teams": "Teams", "view-players": "Players", "view-groups": "Tables", "view-sim": "Predict", "view-stats": "Statistics", "view-pulse": "News" };
+const VIEW_H2 = { "view-matches": "Matches", "view-field": "The wrap", "view-teams": "Teams", "view-players": "Players", "view-groups": "Tables", "view-sim": "Predict", "view-stats": "Statistics", "view-pulse": "News" };
 const viewH2 = id => VIEW_H2[id] ? `<h2 class="vh">${VIEW_H2[id]}</h2>` : "";
 function paint(el, html) {
   if (!el) return;
@@ -6592,12 +6592,231 @@ async function obitShareCard(code) {
   }, "image/png");
 }
 
+/* ---------------- THE WRAP - the tournament, told after the fact ----------------
+   Replaces the Field tab in archive mode (the wall/ritual code above stays dormant, like Predict).
+   One scrolling story page, every figure computed from the baked data at render time - nothing
+   hand-typed that the data can recompute. Reuses the Stats vocabulary (tiles, lead cards,
+   the goal-timing histogram) so it reads as native. */
+let _btReq = null;
+function loadBacktest() {   // the model scorecard (data/backtest.json, baked by scripts/make-backtest.mjs)
+  if (_btReq) return _btReq;
+  _btReq = fetch("data/backtest.json?t=" + Date.now(), { cache: "no-store" })
+    .then(r => r.ok ? r.json() : null).then(j => { S.backtest = j || null; if (S.view === "field") renderWrap(); return j; })
+    .catch(() => (S.backtest = null));
+  return _btReq;
+}
+let _wrapCache = null;
+function wrapStats() {   // one pass over the finished tournament; static data → compute once
+  if (_wrapCache) return _wrapCache;
+  const fts = S.matches.filter(isFeedFinal);
+  if (fts.length < S.matches.length) return null;   // only meaningful once every match is in
+  const goalsOf = m => { const r = res(m); return r.h + r.a; };
+  const stage = [["group", "Group stage"], ["r32", "Round of 32"], ["r16", "Round of 16"], ["qf", "Quarter-finals"], ["sf", "Semi-finals"], ["third", "Bronze final"], ["final", "The final"]]
+    .map(([k, label]) => { const ms = fts.filter(m => m.stage === k); const g = ms.reduce((s, m) => s + goalsOf(m), 0); return { k, label, n: ms.length, g, pm: ms.length ? g / ms.length : 0 }; });
+  // walk every timeline once: comebacks, winning goals, stoppage goals, hat-tricks, subs, attendance
+  const comebacks = [], winners = [], hatTricks = [];
+  let stoppage = 0, subs = 0, att = 0, attN = 0, shootouts = 0;
+  for (const m of fts) {
+    const r = res(m), ev = r.ev || [];
+    subs += ev.filter(e => e.k === "S").length;
+    if (r.facts?.att) { att += r.facts.att; attN++; }
+    if (r.rt === 2) shootouts++;
+    const timed = ev.filter(e => ["G", "P", "OG"].includes(e.k) && /\d/.test(String(e.t)));
+    stoppage += timed.filter(e => String(e.t).startsWith("90'+")).length;
+    // hat-tricks: three timed G/P by one player in one match (own goals never count for the scorer)
+    const perScorer = {};
+    for (const e of timed) if (e.k !== "OG" && e.p) { const tc = e.tm === "h" ? slotInfo(m, "home").code : slotInfo(m, "away").code; (perScorer[e.p + "\t" + tc] ??= []).push(e.t); }
+    for (const [k, mins] of Object.entries(perScorer)) if (mins.length >= 3) { const i = k.indexOf("\t"); hatTricks.push({ name: k.slice(0, i), code: k.slice(i + 1), mid: m.id, mins }); }
+    // the winner's story: did they trail, and what was the winning goal?
+    const wHome = r.h !== r.a ? r.h > r.a : r.hp != null ? r.hp > r.ap : null;
+    if (wHome == null) continue;   // a drawn group game has neither
+    let h = 0, a = 0, deficit = 0;
+    for (const e of timed) { e.tm === "h" ? h++ : a++; deficit = Math.max(deficit, wHome ? a - h : h - a); }
+    if (deficit > 0) comebacks.push({ mid: m.id, code: slotInfo(m, wHome ? "home" : "away").code, opp: slotInfo(m, wHome ? "away" : "home").code, deficit, pens: r.rt === 2, res: `${r.h}–${r.a}` });
+    if (r.h !== r.a) {   // decisive goal: the winner's (loser's-total + 1)th, in order (a pens tie has no winning goal)
+      const wSide = wHome ? "h" : "a", lTot = wHome ? r.a : r.h;
+      const wGoals = timed.filter(e => e.tm === wSide);
+      const wg = wGoals[lTot];
+      if (wg) winners.push({ mid: m.id, name: wg.k === "OG" ? "" : wg.p, og: wg.k === "OG", t: wg.t, mn: evMin(wg.t), code: slotInfo(m, wHome ? "home" : "away").code, res: `${r.h}–${r.a}${r.rt === 3 ? " aet" : ""}` });
+    }
+  }
+  winners.sort((x, y) => y.mn - x.mn || String(y.t).localeCompare(String(x.t)));
+  comebacks.sort((x, y) => y.deficit - x.deficit);
+  // upsets: the worse-ranked side going through, by pre-tournament FIFA rank gap
+  const rank = {}; for (const t of (S.fifaRanking || [])) if (t.q) rank[t.q] = t.r;
+  const upsets = [];
+  for (const m of fts) {
+    const r = res(m), hc = slotInfo(m, "home").code, ac = slotInfo(m, "away").code;
+    if (!rank[hc] || !rank[ac]) continue;
+    const wHome = r.h !== r.a ? r.h > r.a : r.hp != null ? r.hp > r.ap : null;
+    if (wHome == null) continue;
+    const w = wHome ? hc : ac, l = wHome ? ac : hc, gap = rank[w] - rank[l];
+    if (gap > 0) upsets.push({ mid: m.id, w, l, gap, wr: rank[w], lr: rank[l], pens: r.rt === 2, res: `${r.h}–${r.a}` });
+  }
+  upsets.sort((x, y) => y.gap - x.gap);
+  // group winners vs seeding: which groups weren't won by their best-ranked team
+  const groupUpsets = [...new Set(S.matches.filter(m => m.group).map(m => m.group))].sort().map(g => {
+    const rows = standings(g); if (!rows.length) return null;
+    const win = rows[0].code, best = rows.slice().sort((x, y) => (rank[x.code] || 99) - (rank[y.code] || 99))[0].code;
+    return win !== best ? { g, win, best } : null;
+  }).filter(Boolean);
+  // the champion's road: run + per-match scorers + xG + the never-trailed check
+  const champ = (() => {
+    const fin = S.matches.find(m => m.stage === "final"); if (!fin || !isFeedFinal(fin)) return null;
+    const r = res(fin);
+    const code = (r.h !== r.a ? r.h > r.a : r.hp > r.ap) ? slotInfo(fin, "home").code : slotInfo(fin, "away").code;
+    let deficitEver = 0, conceded = 0, cs = 0;
+    const road = teamRun(code).map(({ m, opp, gf, ga, wdl, pens }) => {
+      const rr = res(m), side = slotInfo(m, "home").code === code ? "h" : "a";
+      conceded += ga; if (!ga) cs++;
+      let h = 0, a = 0;
+      for (const e of (rr.ev || []).filter(e => ["G", "P", "OG"].includes(e.k) && /\d/.test(String(e.t)))) {
+        e.tm === "h" ? h++ : a++; deficitEver = Math.max(deficitEver, side === "h" ? a - h : h - a);
+      }
+      const scorers = (rr.ev || []).filter(e => ["G", "P", "OG"].includes(e.k) && /\d/.test(String(e.t)) && e.tm === side)
+        .map(e => `${e.k === "OG" ? esc(pName(e.p, opp)) + " o.g." : esc(pName(e.p, code))} ${esc(e.t)}${e.k === "P" ? " pen" : ""}`).join(" · ");
+      const efi = S.efi?.[m.num], home = side === "h";
+      const xg = efi?.xg ? (home ? efi.xg : [efi.xg[1], efi.xg[0]]) : null;
+      return { m, opp, gf, ga, wdl, pens, scorers, xg, rt: rr.rt };
+    });
+    return { code, road, conceded, cs, everTrailed: deficitEver > 0 };
+  })();
+  return (_wrapCache = { stage, comebacks, winners, hatTricks, stoppage, subs, att, attN, shootouts, upsets, groupUpsets, champ });
+}
+function renderWrap() {
+  const el = $("#view-field");
+  const ts = tournamentStats(), ws = wrapStats();
+  if (!ws || !ws.champ) { paint(el, `<div class="empty">The wrap opens when the tournament is complete.</div>`); return; }
+  if (S.backtest === undefined) loadBacktest();
+  if (S.tales === undefined) loadTales();
+  const { champ } = ws, cn = S.teams[champ.code]?.name || champ.code;
+  const tile = (v, l) => `<div class="stat-tile"><span class="stat-val">${v}</span><span class="stat-lbl">${l}</span></div>`;
+  const cut = (list, n, val) => { if (list.length <= n) return list; const edge = val(list[n - 1]); return list.filter((x, i) => i < n || val(x) === edge); };   // never split a tie at the cut
+  const pRow = (p, rank, v, sub) => { const ph = atWidth(bestPhoto(p.name, p.code) || "", 128);
+    return `<div class="lead-row" data-player="${esc(p.name)}|${p.code}" role="button" tabindex="0">
+      <span class="lead-rank">${rank}</span><span class="lead-face"${ph ? ` style="background-image:url('${ph}')"` : ""}></span>
+      <span class="lead-name">${esc(pName(p.name, p.code))}<small><span class="fl">${flag(p.code)}</span> ${esc(cname(p.code))}</small></span>
+      <span class="lead-v">${v}${sub ? `<small>${sub}</small>` : ""}</span></div>`; };
+  const mrow = (mid, main, chip, sub) => `<div class="sl-row wr-mrow" data-mid="${mid}" role="button" tabindex="0"><span class="sl-main">${main}${sub ? `<small class="wr-sub">${sub}</small>` : ""}</span><span class="sl-min">${chip}</span></div>`;
+  // 1 · headline tiles
+  const attM = ws.att ? (ws.att / 1e6).toFixed(2) + "M" : null;
+  const head = `<div class="eyebrow">${ICO.trophy} The tournament</div><div class="stat-tiles">
+    ${tile(ts.pulse.goals, "Goals")}${tile((+ts.pulse.perMatch).toFixed(2), "Per match")}${tile(ws.comebacks.length, "Comeback wins")}
+    ${tile(ws.shootouts, "Shootouts")}${tile(ws.stoppage, "Goals in 90'+")}${tile(ts.pulse.og, "Own goals")}
+    ${tile(ws.subs.toLocaleString("en"), "Substitutions")}${attM ? tile(attM, `Attendance · ${ws.attN} matches`) : ""}
+  </div>`;
+  // 2 · champion's road
+  const road = `<div class="eyebrow">${TROPHY} ${esc(cn)}'s road</div>
+    <p class="wr-lede">${esc(cn)} won it ${champ.everTrailed ? `` : `without trailing for a single minute`} — ${champ.road.reduce((s, r) => s + r.gf, 0)} scored, ${champ.conceded} conceded, ${champ.cs} clean sheets in ${champ.road.length} matches.</p>
+    <div class="wr-road">${champ.road.map(r => `
+      <div class="sl-row wr-mrow" data-mid="${r.m.id}" role="button" tabindex="0">
+        <span class="rchip rchip-${r.wdl}">${r.wdl} ${r.gf}–${r.ga}${r.rt === 3 ? " aet" : r.pens ? " pens" : ""}</span>
+        <span class="sl-main"><span class="fl">${flag(r.opp)}</span> ${esc(cname(r.opp))}<small class="wr-sub">${r.scorers || "—"}</small></span>
+        ${r.xg ? `<span class="sl-min">xG ${r.xg[0].toFixed(1)}–${r.xg[1].toFixed(1)}</span>` : ""}
+      </div>`).join("")}</div>`;
+  // 3 · the final + the bronze
+  const fin = S.matches.find(m => m.stage === "final"), thr = S.matches.find(m => m.stage === "third");
+  const recap = (m, title, lines) => { const r = res(m), h = slotInfo(m, "home"), a = slotInfo(m, "away");
+    return `<div class="wr-recap" data-mid="${m.id}" role="button" tabindex="0" style="--kh:${washCol(h.code)};--ka:${washCol(a.code)}">
+      <div class="wr-recap-tag">${title}</div>
+      <div class="wr-recap-line"><span class="fl">${flag(h.code)}</span> ${esc(h.name)} <b>${r.h}–${r.a}${r.rt === 3 ? " aet" : ""}</b> ${esc(a.name)} <span class="fl">${flag(a.code)}</span></div>
+      ${lines.map(l => `<p class="wr-recap-p">${l}</p>`).join("")}</div>`; };
+  const finEfi = S.efi?.[104], thrEfi = S.efi?.[103];
+  const recaps = `<div class="eyebrow">${ICO.ball} The last two nights</div><div class="wr-recaps">
+    ${recap(fin, "The final", [
+      `Ferran Torres, 106th minute — the only goal, with Argentina down to ten from 90'+3'.`,
+      finEfi?.xg ? `The gulf: xG ${finEfi.xg[0].toFixed(2)}–${finEfi.xg[1].toFixed(2)}; Argentina finished without a shot on target.` : ""].filter(Boolean))}
+    ${recap(thr, "The bronze final", [
+      `England led 4–0 inside first-half stoppage; France pulled it back to 4–3 by the 66th; ten goals by the end — the tournament's highest-scoring match.`,
+      thrEfi?.xg ? `xG ${thrEfi.xg[0].toFixed(2)}–${thrEfi.xg[1].toFixed(2)} — as wild as it reads.` : ""].filter(Boolean))}
+  </div>`;
+  // 4 · goals & timing
+  const maxPm = 4;
+  const stages = `<div class="eyebrow">${ICO.clock} When and where the goals came</div>
+    <div class="wr-stages">${ws.stage.map(s => `
+      <div class="wr-stage"><span class="wr-stage-l">${s.label}<small>${s.n} match${s.n !== 1 ? "es" : ""} · ${s.g} goal${s.g !== 1 ? "s" : ""}</small></span>
+        <span class="wr-stage-bar"><i style="width:${Math.min(100, s.pm / maxPm * 100).toFixed(1)}%"></i></span>
+        <b class="wr-stage-v">${s.pm.toFixed(2)}</b></div>`).join("")}
+      <p class="sl-note">Goals per match by stage — extra-time goals included, shoot-out kicks never counted.</p>
+    </div>${goalTimingHTML(ts)}
+    ${(() => { const fg = ts.firstGoal, tot = fg.w + fg.d + fg.l || 1;
+      const row = (lbl, v, cls) => `<div class="fg-row"><span class="fg-lbl">${lbl}</span><span class="fg-track"><i class="${cls}" style="width:${Math.round(v / tot * 100)}%"></i></span><span class="fg-v"><b>${v}</b> · ${Math.round(v / tot * 100)}%</span></div>`;
+      return `<div class="fg-card">${row("Went on to win", fg.w, "fg-w")}${row("Drew", fg.d, "fg-d")}${row("Lost", fg.l, "fg-l")}<div class="fg-foot">the side that scored first, across ${tot} match${tot > 1 ? "es" : ""} with a goal - a pens-decided knockout counts as a draw</div></div>`; })()}`;
+  // 5 · the drama
+  const maxDef = ws.comebacks.length ? ws.comebacks[0].deficit : 0;
+  const drama = `<div class="eyebrow">${ICO.bolt} The drama</div>
+    <div class="wr-cols"><div>
+    <h4 class="wr-h4">Won from ${maxDef} down</h4>
+    ${ws.comebacks.filter(c => c.deficit === maxDef).map(c => mrow(c.mid, `<span class="fl">${flag(c.code)}</span> ${esc(cname(c.code))} over ${esc(cname(c.opp))}`, c.res + (c.pens ? " pens" : ""))).join("")}
+    <p class="sl-note">${ws.comebacks.length} wins from behind in all — ${(() => { const by = {}; for (const c of ws.comebacks) by[c.code] = (by[c.code] || 0) + 1; const mx = Math.max(...Object.values(by)); const who = Object.entries(by).filter(([, v]) => v === mx).map(([c]) => esc(cname(c))); const names = who.length > 1 ? who.slice(0, -1).join(", ") + " and " + who[who.length - 1] : who[0]; return `${names} led the habit with ${mx}${who.length > 1 ? " each" : ""}`; })()}.</p>
+    </div><div>
+    <h4 class="wr-h4">The latest winners</h4>
+    ${cut(ws.winners, 5, x => x.mn).map(w => mrow(w.mid, `${w.og ? "An own goal" : esc(pName(w.name, w.code))} <span class="fl">${flag(w.code)}</span>`, esc(w.t), w.res)).join("")}
+    </div></div>`;
+  // 6 · the upsets
+  const upsets = `<div class="eyebrow">${ICO.spark} The upsets</div>
+    ${cut(ws.upsets, 5, x => x.gap).map(u => mrow(u.mid, `<span class="fl">${flag(u.w)}</span> ${esc(cname(u.w))} <small class="wr-sub">ranked ${u.wr}, beat ${esc(cname(u.l))} (${u.lr})${u.pens ? " on penalties" : ""}</small>`, `+${u.gap}`)).join("")}
+    ${ws.groupUpsets.length ? `<p class="sl-note">${ws.groupUpsets.length === 1 ? "Only one group" : ws.groupUpsets.length + " groups"} finished with someone other than the best-ranked team on top — ${ws.groupUpsets.map(x => `${esc(cname(x.win))} over ${esc(cname(x.best))} in Group ${x.g}`).join("; ")}.</p>` : `<p class="sl-note">Every group was won by its best-ranked team.</p>`}`;
+  // 7 · honours
+  const boot = cut(ts.scorers, 5, x => x.goals);
+  const asts = cut(ts.assisters, 5, x => x.assists);
+  const pcov = S.matches.filter(m => res(m)?.pstats).length;
+  const keeps = cut(ts.keepers.slice(), 4, x => x.cs);
+  const phys = (() => {   // per-player physical totals from the efi per-match logs (all teams)
+    const agg = {};
+    for (const num in (S.efi || {})) { const e = S.efi[num]; if (!e?.players) continue;
+      for (const side of ["home", "away"]) { const tc = e[side]; for (const p of (e.players[side] || [])) {
+        const k = p.name + "\t" + tc, o = agg[k] ??= { name: p.name, code: tc, km: 0, spr: 0, spd: 0 };
+        if (p.km) o.km += p.km; if (p.spr) o.spr += p.spr; if (p.spd) o.spd = Math.max(o.spd, p.spd); } } }
+    const all = Object.values(agg);
+    const top = (val, fmt) => { const mx = Math.max(...all.map(val)); return all.filter(x => val(x) === mx).map(x => ({ ...x, v: fmt(val(x)) })); };
+    return { dist: top(x => x.km, v => v.toFixed(1) + " km"), spr: top(x => x.spr, v => v + " sprints"), spd: top(x => x.spd, v => v.toFixed(1) + " km/h") };
+  })();
+  const physRows = [["Most ground covered", phys.dist], ["Most sprints", phys.spr], ["Fastest", phys.spd]]
+    .map(([l, xs]) => xs.map(x => pRow(x, "", x.v, l)).join("")).join("");
+  const honours = `<div class="eyebrow">${ICO.net} The honours board</div><div class="lead-grid">
+    <div class="lead-card"><h4>Golden Boot</h4>${boot.map((p, i) => pRow(p, i + 1, p.goals, p.assists ? p.assists + " ast" : "")).join("")}</div>
+    <div class="lead-card"><h4>Assists <small>recorded in ${pcov} of 104</small></h4>${asts.map((p, i) => pRow(p, i + 1, p.assists)).join("")}</div>
+    <div class="lead-card"><h4>Clean sheets <small>keepers</small></h4>${keeps.map((p, i) => pRow(p, i + 1, p.cs, p.ga + " conceded")).join("")}</div>
+    <div class="lead-card"><h4>Physical</h4>${physRows}</div>
+    <div class="lead-card"><h4>Hat-tricks</h4>${ws.hatTricks.map(h => `<div class="sl-row wr-mrow" data-mid="${h.mid}" role="button" tabindex="0"><span class="sl-main">${esc(pName(h.name, h.code))} <span class="fl">${flag(h.code)}</span><small class="wr-sub">${h.mins.map(esc).join(" · ")}</small></span></div>`).join("")}</div>
+  </div>`;
+  // 8 · the model, scored (baked leave-prior replay - see scripts/make-backtest.mjs)
+  const b = S.backtest;
+  const model = b === undefined ? `<div class="eyebrow">${ICO.compare} The model, scored</div><div class="gt-loading">Loading…</div>`
+    : !b ? "" : (() => {
+      const fWp = b.rows.find(r => r.id === "m104"), s1 = b.rows.find(r => r.id === "m101"), s2 = b.rows.find(r => r.id === "m102");
+      const advPct = (r, side) => Math.round((side === "h" ? r.advP : 1 - r.advP) * 100);
+      return `<div class="eyebrow">${ICO.compare} The model, scored</div>
+      <div class="stat-tiles">
+        ${tile(b.all.acc + "%", "Outcomes called · 104")}${tile(b.all.brier, "Brier · 0.667 = random")}
+        ${tile(b.adv.correct + "/" + b.adv.n, "Knockout advance calls")}${tile(b.adv.brier, "Advance Brier · 0.25 = coin")}
+      </div>
+      <div class="wr-cols"><div>
+      <h4 class="wr-h4">Finals week, called blind</h4>
+      ${[[s1, "a", "Spain to advance"], [s2, "a", "Argentina to advance"], [fWp, "h", "Spain to win it"]].map(([r, side, label]) =>
+        r ? mrow(r.id, `${label} <small class="wr-sub">${esc(cname(r.hc))} v ${esc(cname(r.ac))} · finished ${esc(r.res)}</small>`, advPct(r, side) + "% ✓") : "").join("")}
+      <p class="sl-note">Its likeliest final scoreline was 1–1; 1–0 was next${b.finals?.m104?.top?.[1]?.s === "1-0" ? ` at ${Math.round(b.finals.m104.top[1].p * 100)}%` : ""} — the score it finished on.</p>
+      </div><div>
+      <h4 class="wr-h4">The five sides it called wrong</h4>
+      ${b.adv.misses.map(x => mrow(x.id, `${esc(cname(x.advP >= 0.5 ? x.hc : x.ac))} <small class="wr-sub">${Math.round(Math.max(x.advP, 1 - x.advP) * 100)}% to advance — ${esc(cname(x.advP >= 0.5 ? x.ac : x.hc))} went through</small>`, esc(x.res))).join("")}
+      <p class="sl-note">Three of the five were penalty shootouts — which the model deliberately treats as a coin flip.</p>
+      </div></div>
+      <div class="wr-cal"><h4 class="wr-h4">Calibration ${infoBtn("Every match-outcome probability the replayed model produced, grouped into bands: what it said vs how often that outcome actually happened. Close bars = honest probabilities.", "About calibration")}</h4>
+        ${b.bins.map(x => `<div class="wr-cal-row"><span class="wr-cal-l">${x.lo}–${x.lo + 10}%<small>n ${x.n}</small></span><span class="wr-cal-bars"><i class="wr-cal-p" style="width:${x.meanP}%"></i><i class="wr-cal-r" style="width:${x.real}%"></i></span><span class="wr-cal-v">said ${x.meanP}% · was ${x.real}%</span></div>`).join("")}
+      </div>
+      <p class="sl-note">${esc(b.note)}</p>`;
+    })();
+  paint(el, `<div class="wrap-page">${head}${road}${recaps}${stages}${drama}${upsets}${honours}${model}
+    <p class="sl-note wr-foot">Every figure above is computed from the match data baked into this site. FIFA match feed, ESPN box scores, FIFA tracking data.</p></div>`);
+}
+
 /* ---------------- navigation ---------------- */
-const RENDER = { matches: renderMatches, field: renderField, teams: renderTeams, players: renderPlayers, groups: renderGroups, stats: renderStats, sim: renderSim, pulse: renderPulse };
+const RENDER = { matches: renderMatches, field: renderWrap, teams: renderTeams, players: renderPlayers, groups: renderGroups, stats: renderStats, sim: renderSim, pulse: renderPulse };
 // shareable per-tab URL hash (Matches is the default → no hash; Predict's internal view name is "sim")
-const VIEW_HASH = { field: "field", teams: "teams", players: "players", groups: "bracket", sim: "predict", stats: "stats", pulse: "pulse" };   // #bracket matches the tab's label (the old #tables link still resolves via HASH_VIEW)
+const VIEW_HASH = { field: "wrap", teams: "teams", players: "players", groups: "bracket", sim: "predict", stats: "stats", pulse: "pulse" };   // #bracket / #wrap match the tab labels (old #tables / #field links still resolve via HASH_VIEW)
 // "live" survives only as a redirect: Live folded into the match modal (build 329), but old #live links still land on Matches
-const HASH_VIEW = { live: "matches", matches: "matches", field: "field", teams: "teams", players: "players", bracket: "groups", tables: "groups", groups: "groups", predict: "sim", stats: "stats", pulse: "pulse" };
+const HASH_VIEW = { live: "matches", matches: "matches", wrap: "field", field: "field", teams: "teams", players: "players", bracket: "groups", tables: "groups", groups: "groups", predict: "sim", stats: "stats", pulse: "pulse" };
 function nav(v) {
   if (typeof closeInfoPop === "function") closeInfoPop();   // an open explainer is anchored to the old view
   S.view = v;
