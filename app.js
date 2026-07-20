@@ -58,7 +58,7 @@ function toggleSave(id) {
 const AUTO_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 const tz = () => (S.tz === "auto" ? AUTO_TZ : S.tz);
 const GROUPS = "ABCDEFGHIJKL".split("");
-const BUILD = "488";  // shown in footer; bump with the ?v= asset version
+const BUILD = "489";  // shown in footer; bump with the ?v= asset version
 
 const ZONES = [
   ["auto", "Auto (device)"],
@@ -382,6 +382,14 @@ function status(m) {
 // fold in feed-final results - never a stale-live score the feed hasn't closed - so the table and the Q/out badges
 // never disagree. UI ("still live?", "upcoming vs past") keeps using status() so a stuck match still drops out of live.
 const isFeedFinal = m => { const r = res(m); return !!r && isFinalSt(r.st) && r.h != null; };   // FT or an awarded result, with a score
+// The tournament is over once the FINAL is feed-confirmed - the whole app settles into its static archive mode:
+// no FIFA polling, no ticker, no countdowns or kickoff alerts; the hero becomes the champions card. Latches true
+// (a finished tournament can't un-finish) and persists, so every visit after the first skips the live layer entirely.
+// Checks committed results directly as well as matchData, so it can latch during the boot load's own refresh.
+let _over = localStorage.getItem("wc26.over") === "1";
+const tournamentOver = () => _over ||
+  (S.matches.some(m => m.stage === "final" && (isFeedFinal(m) || (r => !!r && isFinalSt(r.st) && r.h != null)(S.results.matches?.[m.id])))
+    ? (localStorage.setItem("wc26.over", "1"), _over = true) : false);
 // status() coerced this to FT to drop it out of "live", but the feed never actually closed it (still raw LIVE/HT) - so
 // the scoreline is PROVISIONAL, not a confirmed final. It might be a suspended/abandoned game, or just a feed that lagged
 // at full-time. Shown as "result to be confirmed", never crowned a winner, and never counted (isFeedFinal stays false).
@@ -777,6 +785,7 @@ function checkKickoffAlert() {
 /* ---------------- ticker ---------------- */
 let _tickerSig = "";   // last-built marquee string; renderTicker early-returns when unchanged
 function renderTicker() {
+  if (tournamentOver()) { $("#ticker").hidden = true; return; }   // archive mode: the strip's job is done
   // Two practical days at once: the PREVIOUS day's final scores + the CURRENT day's matches (kickoff times →
   // live → finals as they play). At each ~10am boundary the window slides forward one day - today's finals become
   // the "previous", tomorrow's fixtures become the new "current". Always relevant: what just happened + what's next.
@@ -1916,8 +1925,34 @@ let cdTimer = null, prevCd = {};
 // add interaction cost for no benefit when there are only ever a handful. Each card carries its own "Live now"
 // label, so the stack needs no separate count header above it.
 function heroStack(liveMatches, nextM) {
-  if (!liveMatches.length) return nextM ? heroBlock(nextM, false) : "";
+  if (!liveMatches.length) return nextM ? heroBlock(nextM, false) : (tournamentOver() ? championsHero() : "");
   return `<div class="hero-stack">${liveMatches.map(m => heroBlock(m, true)).join("")}</div>`;
+}
+// After the final: the hero slot becomes the champions card - the finished final wearing both kit washes, the
+// winner named in the tag, its goals under the score, tappable through to the full match modal like any hero.
+function championsHero() {
+  const fm = S.matches.find(m => m.stage === "final");
+  if (!fm || !isFeedFinal(fm)) return "";
+  const r = res(fm), h = slotInfo(fm, "home"), a = slotInfo(fm, "away");
+  if (!h.code || !a.code || r.h == null) return "";
+  const w = (r.h !== r.a ? r.h > r.a : (r.hp || 0) > (r.ap || 0)) ? h : a;   // a level final is decided on penalties
+  const goals = (r.ev || []).filter(e => ["G", "P", "OG"].includes(e.k) && /\d/.test(String(e.t)))
+    .map(e => { const tc = (e.tm === "h") === (e.k !== "OG") ? h.code : a.code;   // an own goal's scorer is on the OTHER side
+      return `${esc(pName(e.p, tc))} ${esc(e.t || "")}${e.k === "P" ? " pen" : e.k === "OG" ? " o.g." : ""}`; }).join(" · ");
+  const chip = r.rt === 3 ? "a.e.t." : r.rt === 2 ? `${r.hp}–${r.ap} pens` : "";
+  return `<div class="hero hero-poster" style="--kh:${washCol(h.code)};--ka:${washCol(a.code)}" data-hero-live="${fm.id}" role="button" tabindex="0" aria-label="${esc(w.name)}, world champions - open the final">
+    <div class="hero-tag is-champ">${esc(w.name)} are world champions<span class="hero-actions"><span class="hero-go">The final ›</span></span></div>
+    <div class="hero-teams">
+      <div class="hero-side"><span class="hero-flag">${flag(h.code, true)}</span><span class="hero-name">${esc(h.name)}</span></div>
+      <div class="hero-mid"><span class="hero-score">${r.h}–${r.a}</span>${chip ? `<span class="hero-pens">${chip}</span>` : ""}</div>
+      <div class="hero-side"><span class="hero-flag">${flag(a.code, true)}</span><span class="hero-name">${esc(a.name)}</span></div>
+    </div>
+    ${goals ? `<div class="hero-meta"><span>${goals}</span></div>` : ""}
+    <div class="hero-meta">
+      <span>${esc(fm.stadium)}</span><span>${esc(fm.city)}</span>
+      <span>${fmt(fm.utc, { weekday: "short", day: "numeric", month: "short" })}</span>
+    </div>
+  </div>`;
 }
 // The single hero card, used on BOTH the Matches tab (tappable → opens the Live tab) and the Live tab
 // (onLive: same look, but you're already following so no "Follow" CTA / self-navigation). Renders live
@@ -2369,7 +2404,7 @@ function myTeamFixtures() {
   return `
     ${done.length ? `<div class="eyebrow">${esc(t.name)} · played</div>` + done.map((m, i) => matchCard(m, i)).join("") : ""}
     <div class="eyebrow">${esc(t.name)} · fixtures</div>
-    ${upcoming.length ? upcoming.map((m, i) => matchCard(m, i)).join("") : `<div class="empty">No scheduled matches. Check Predict for their knockout path.</div>`}
+    ${upcoming.length ? upcoming.map((m, i) => matchCard(m, i)).join("") : `<div class="empty">${tournamentOver() ? "Tournament complete." : "No scheduled matches. Check Predict for their knockout path."}</div>`}
     ${group ? `<div class="eyebrow">Group ${group}</div><div class="gwrap">${groupTable(group, 0)}</div>
       <div class="legend"><span class="l1"><i></i>Top 2 advance</span><span class="l3"><i></i>3rd: possible best-8 spot</span></div>` : ""}`;
 }
@@ -3636,7 +3671,7 @@ function liveBracketHTML(withFoot = true) {
   }).join("");
   const foot = withFoot ? `<div class="r32board-foot"><span>Tap a tie for the match. The bracket fills in as the knockouts are played.</span>
       <div class="r32board-acts">
-        <button class="r32board-cta" data-sim-edit>Make your own picks ${ICO.tap}</button>
+        ${tournamentOver() ? "" : `<button class="r32board-cta" data-sim-edit>Make your own picks ${ICO.tap}</button>`}
       </div></div>` : "";
   return `<div class="livebr"><div class="eyebrow">Knockout bracket · as it stands ${infoBtn("Filled from the live results as the knockouts are played - winners advance, the team that loses is greyed out. Tap a tie to open the match. A slot shows its seed (e.g. 1E, or Best third) until the team is decided.", "How the live bracket fills in")}</div>${cols}${foot}</div>`;
 }
@@ -3664,7 +3699,7 @@ function r32BracketHTML() {
     <div class="r32br-grid">${col(left, "l", 1)}${spine}${col(right, "r", 3)}</div>
     <div class="r32board-foot"><span>${_r32Mode === "projected" ? "Filled from the live standings - tap a tie for names, venue &amp; past meetings." : "Only mathematically-locked teams shown - the rest stay as seed slots."}</span>
       <div class="r32board-acts">
-        <button class="r32board-cta" data-sim-edit>Make your own picks ${ICO.tap}</button>
+        ${tournamentOver() ? "" : `<button class="r32board-cta" data-sim-edit>Make your own picks ${ICO.tap}</button>`}
       </div></div>
   </section>`;
 }
@@ -3707,7 +3742,7 @@ async function openProjTie(id) {
     <div class="pt-teams">${teamHdr(info.gh, info.sH)}<span class="pt-v">v</span>${teamHdr(info.ga, info.sA)}</div>
     ${meta}${odds}${h2h}
     <p class="pt-note">Projected from the live group standings - it'll shift as results come in.</p>
-    <button class="pl-compare" data-sim-edit>${ICO.tap} Build your own bracket</button>`;
+    ${tournamentOver() ? "" : `<button class="pl-compare" data-sim-edit>${ICO.tap} Build your own bracket</button>`}`;
   showSheet($("#projDialog"));
 }
 // the matchup-detail sheet for a tie in the user's own bracket: who's the favourite (model win probability), the two
@@ -3905,7 +3940,7 @@ function landscapeBracketHTML(opts = {}) {
   const seg = `<div class="ls-seg" role="tablist" aria-label="Trace a round">${[["r32", "R32"], ["r16", "R16"], ["qf", "QF"], ["sf", "SF"], ["final", "Final"]].map(([v, l]) => `<button class="ls-seg-b${v === bf ? " on" : ""}" data-br-round="${v}" role="tab" aria-selected="${v === bf}">${l}</button>`).join("")}</div>`;
   const foot = withFoot ? `<div class="r32board-foot"><span>Tap a round to trace how it forms; tap a tie for the match. Winners advance as the knockouts are played.</span>
       <div class="r32board-acts">
-        <button class="r32board-cta" data-sim-edit>Make your own picks ${ICO.tap}</button>
+        ${tournamentOver() ? "" : `<button class="r32board-cta" data-sim-edit>Make your own picks ${ICO.tap}</button>`}
       </div></div>` : "";
   return `<div class="lsbr"><div class="eyebrow">Knockout bracket · as it stands ${infoBtn("The full draw - both halves funnelling to the final, the Round of 32 on the outer edges. Tap a round (R32 … Final) to highlight that round and the ties that feed it. Winners advance as matches are played; an undecided slot waits as a dot until its feeders are settled. Tap any tie to open the match.", "How the bracket works")}</div>${seg}<div class="ls-board">${colsHTML}</div>${foot}</div>`;
 }
@@ -7011,6 +7046,7 @@ async function loadCommentary(num) {
 // (results.json's `updated`), so a quiet hour never reads as a stale/broken site.
 function setFreshness() {
   const el = $("#updatedLabel"); if (!el) return;
+  if (tournamentOver()) { el.textContent = "Tournament complete · all results final"; return; }
   if (!S.lastChecked) { el.textContent = S.results.updated ? "Up to date" : "Schedule loaded"; return; }
   const fmtT = ms => _dtf("en", { hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(ms));   // 24h, matching every kickoff time on screen
   if (S.offline) { el.textContent = `Offline · last update ${fmtT(S.lastChecked)}`; return; }   // say so, rather than show a frozen "just now"
@@ -7210,8 +7246,8 @@ async function loadMatchShots(m) {
   } catch { S.fifaShots[m.id] = []; }
 }
 async function refreshResults() {
-  const fifaChanged = await fetchFifaLive();           // real-time score/status overlay (best-effort; a failure just keeps the last)
-  const fifaDetailChanged = await fetchFifaDetail();   // real-time timeline/line-ups/phase/shoot-out for in-play matches
+  const fifaChanged = tournamentOver() ? false : await fetchFifaLive();           // real-time score/status overlay (best-effort; a failure just keeps the last)
+  const fifaDetailChanged = tournamentOver() ? false : await fetchFifaDetail();   // real-time timeline/line-ups/phase/shoot-out for in-play matches
   const fifaChangedAny = fifaChanged || fifaDetailChanged;
   const prevData = S.matchData || {};
   const paint = firstLoad => {
@@ -7577,24 +7613,23 @@ async function boot() {
   // a shared prediction link (#p=…) loads that bracket and opens the Predict tab
   let initView = "matches";
   if (location.hash.startsWith("#p=")) {
-    if (loadSharedSim(location.hash.slice(3))) { pruneSim(); saveSim(); initView = "sim"; S.simView = "edit"; setTimeout(() => flashToast("Loaded a shared prediction"), 400); }
-    history.replaceState(null, "", location.pathname + location.search);
+    history.replaceState(null, "", location.pathname + location.search);   // shared predictions retired with the tournament - land on Matches, keep the URL clean
   } else if (HASH_VIEW[location.hash.slice(1)]) {
-    initView = HASH_VIEW[location.hash.slice(1)];             // deep-link straight to a tab (#teams, #groups, #predict, #stats)
+    initView = HASH_VIEW[location.hash.slice(1)];             // deep-link straight to a tab (#teams, #groups, #stats)
   }
   setChromeVars();
   // Load live scores + detail BEFORE the first paint, so a refresh never flickers from a no-scores render to the
   // live one - the visitor always opens straight onto current data. Raced with a timeout so a slow/hung network
   // can't block the page; if the data is late it simply re-renders when it lands.
   await Promise.race([refreshResults(), new Promise(r => setTimeout(r, 3500))]);
-  nav(initView);
+  nav(initView === "sim" && tournamentOver() ? "matches" : initView);   // Predict is retired in archive mode - old #predict links land on Matches
   loadBuzz();   // fan reactions + headlines (data/buzz.json); refreshed on the poll below
   loadWC2022();   // last World Cup (static) - for the team "Since 2022" view
   loadEfi();    // FIFA EFI deep-analysis (data/efi.json), post-match
   loadShots();   // committed shot coordinates (data/shots.json) - the Stats shot map + instant per-match maps
   loadShootouts();   // World Cup penalty-shootout history (data/wc-shootouts.json) - the team-sheet shootout record
   loadPlayerStats();   // per-player tournament stat summary (data/playerstats.json, semi-finalists) - the player sheet
-  addEventListener("hashchange", () => { const v = HASH_VIEW[location.hash.slice(1)]; if (v && v !== S.view) nav(v); });  // a shared #tab link opened in-session / back-forward
+  addEventListener("hashchange", () => { let v = HASH_VIEW[location.hash.slice(1)]; if (v === "sim" && tournamentOver()) v = "matches"; if (v && v !== S.view) nav(v); });  // a shared #tab link opened in-session / back-forward
   const bl = $("#bootLoading"); if (bl) { bl.classList.add("gone"); setTimeout(() => bl.remove(), 320); }   // first view rendered → reveal
   // a shared match link (?match=<id>, e.g. from a share-card stub) opens that match
   const mq = new URLSearchParams(location.search).get("match");
@@ -7605,6 +7640,7 @@ async function boot() {
   // scores: poll adaptively - every 20s while anything is live (a goal / final whistle reaches the table + tables
   // fast), 30s otherwise. Self-scheduling (not setInterval) so a slow fetch never overlaps the next tick.
   (function schedulePoll() {
+    if (tournamentOver()) return;   // archive mode: the boot load was the only fetch needed - nothing can change
     // poll fast (20s) through the whole live AND confirmation window, not just while the feed says LIVE/HT: a match
     // we've coerced to "awaiting confirmation" (feed stalled at full-time), or one underway but not yet feed-final
     // (covers a knockout's extra time + penalties + the late FT flip), must keep pulling so the status/score never lags.
@@ -7616,19 +7652,21 @@ async function boot() {
     });
     setTimeout(() => refreshResults().finally(schedulePoll), hot ? 20000 : 30000);
   })();
-  setInterval(() => { refreshOpenCommentary(); loadBuzz(); }, 60 * 1000);   // commentary + buzz change slower - 60s is plenty
+  if (!tournamentOver()) setInterval(() => { refreshOpenCommentary(); loadBuzz(); }, 60 * 1000);   // commentary + buzz change slower - 60s is plenty
   // returning to a backgrounded tab is the classic "stale score" moment (the goal happened while you were away):
   // pull the latest immediately instead of waiting for the next poll. Throttled so quick tab-flicks don't spam.
   document.addEventListener("visibilitychange", () => {
     document.body.classList.toggle("bg-paused", document.hidden);   // park the ambient blobs (animation + GPU promotion) while backgrounded
     if (!document.hidden) FlowBg.kick();   // re-arm the rich canvas loop when the tab returns
-    if (!document.hidden && Date.now() - (S.lastChecked || 0) > 8000) refreshResults();
+    if (!document.hidden && !tournamentOver() && Date.now() - (S.lastChecked || 0) > 8000) refreshResults();
   });
-  addEventListener("online", () => refreshResults());                // reconnected → pull immediately and clear the offline label
+  addEventListener("online", () => { if (!tournamentOver()) refreshResults(); });   // reconnected → pull immediately and clear the offline label
   addEventListener("offline", () => { S.offline = true; setFreshness(); });
-  setInterval(loadEfi, 5 * 60 * 1000);   // EFI is post-match - refresh every 5 min is plenty
-  checkKickoffAlert();
-  setInterval(checkKickoffAlert, 60 * 1000); // fire a kickoff reminder for the favourite team (opt-in)
+  if (!tournamentOver()) {
+    setInterval(loadEfi, 5 * 60 * 1000);   // EFI is post-match - refresh every 5 min is plenty
+    checkKickoffAlert();
+    setInterval(checkKickoffAlert, 60 * 1000); // fire a kickoff reminder for the favourite team (opt-in)
+  }
   $("#updatePill").onclick = hardRefresh;
   setInterval(checkVersion, 120 * 1000);  // nudge open pages to refresh when a new build ships
   // offline support - network-first SW (registered after first render so it never blocks paint).
